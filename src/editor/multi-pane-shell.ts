@@ -695,6 +695,17 @@ class Slot {
     this.copresenceEl.className = 'pmd-pane-copresence';
     this.copresenceEl.hidden = true;
     footer.appendChild(this.copresenceEl);
+    const newBtn = document.createElement('button');
+    newBtn.type = 'button';
+    newBtn.className = 'pmd-pane-new';
+    newBtn.title = 'New blank doc into this slot';
+    newBtn.textContent = '+ New';
+    newBtn.addEventListener('mousedown', (e) => e.preventDefault());
+    newBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      void this.shell.newDocIntoSlot(this.id);
+    });
+    footer.appendChild(newBtn);
     const openBtn = document.createElement('button');
     openBtn.type = 'button';
     openBtn.className = 'pmd-pane-open';
@@ -2728,11 +2739,9 @@ class MultiPaneShell {
     return null;
   }
 
-  /** Create an empty doc; prompt for slot. Used by the ribbon's
-   *  "New doc" button. */
-  async createNewDoc(): Promise<void> {
-    const target = await this.promptForSlot('Untitled');
-    if (!target) return;
+  /** Create an empty doc directly in `target`, no picker — used by a
+   *  pane's own "+ New" button, which already names its slot. */
+  async newDocIntoSlot(target: SlotId): Promise<void> {
     const doc = makeBlankDoc();
     const slot = this.slots[target];
     const record = buildDocRecord('Untitled', doc, slot, {
@@ -2749,6 +2758,18 @@ class MultiPaneShell {
     const tr = record.view.state.tr.setSelection(Selection.atEnd(record.view.state.doc));
     record.view.dispatch(tr);
     if (!slot.paneEl.hidden) record.view.focus();
+  }
+
+  /** Create an empty doc in the first empty slot (falling back to the
+   *  focused slot, then slot1). Used by the home screen's "New" tile,
+   *  which shows only when the workspace is empty — there's no picker to
+   *  run since nothing is ambiguous. */
+  async newDocIntoFirstEmptySlot(): Promise<void> {
+    const target =
+      SLOT_IDS.find((id) => this.slots[id].stack.length === 0) ??
+      this.focusedSlot?.id ??
+      'slot1';
+    await this.newDocIntoSlot(target);
   }
 
   /** Create a fresh unsaved doc to hold a joining/resuming co-editing
@@ -2849,7 +2870,7 @@ class MultiPaneShell {
       TextSelection.create(record.view.state.doc, cursorPos),
     );
     record.view.dispatch(tr);
-    // Same visibility guard as createNewDoc: an expand-obscured pane
+    // Same visibility guard as newDocIntoSlot: an expand-obscured pane
     // never takes the keyboard.
     if (!slot.paneEl.hidden) record.view.focus();
     // Mark as the speech doc. The registry hook fires the
@@ -3345,7 +3366,7 @@ export function mountMultiPaneShell(): void {
   enableMultiDocMode({
     onFileOpen: (file) => shell!.onFileOpen(file),
     showInContext: (req) => shell!.showInContext(req),
-    onNewDoc: () => shell!.createNewDoc(),
+    onNewDocDefaultSlot: () => shell!.newDocIntoFirstEmptySlot(),
     toggleReadMode: () => shell!.toggleFocusedReadMode(),
     toggleAutosave: () => shell!.toggleFocusedAutosave(),
     zoomFocusedBy: (delta) => shell!.zoomFocusedBy(delta),
