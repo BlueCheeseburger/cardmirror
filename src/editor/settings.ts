@@ -425,9 +425,9 @@ export interface Settings {
   defaultSpeechDocFolder: string;
   /** Format that "New Speech Document" creates the doc in. `docx`
    *  is the Verbatim-compatible default. `cmir` is CardMirror's
-   *  native format — the only format that supports autosave (the
-   *  background save path skips .docx because `toDocx` is too
-   *  expensive to run on a debounce). */
+   *  native format. Both support autosave; `.docx` autosave pauses
+   *  while the doc holds a live view or linked copy (Word can't
+   *  represent those — see `runAutosaveAttempt` in editor/index.ts). */
   defaultSpeechDocFormat: 'cmir' | 'docx';
   /** Template for the filename of a doc created by "New Speech
    *  Document". Fields: `{speech}` is the name typed at the prompt,
@@ -1707,10 +1707,9 @@ const DEFAULTS: Settings = {
   voiceAutoSleepSeconds: 60,
   voiceDashStyle: 'em',
   voiceDictationModel: 'standard',
-  // Default OFF — autosave is meaningful only when the user has
-  // saved at least once (so we have a handle) AND the doc is in
-  // .cmir format. We let the user opt in via the ribbon toggle
-  // rather than silently saving in the background.
+  // Default OFF — autosave is meaningful only once the user has saved
+  // at least once (so we have a handle). We let the user opt in via
+  // the ribbon toggle rather than silently saving in the background.
   autosaveEnabled: false,
   readMode: false,
   hideEmphasisBordersInReadMode: false,
@@ -2279,7 +2278,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'defaultSpeechDocFormat',
     label: 'Default format for new speech documents',
     description:
-      'Docx is the Verbatim-compatible default — best when you\'re sharing speech docs with teammates who use Verbatim. Picking .cmir enables autosave on the new doc (autosave only fires for .cmir files; the Docx serializer is too expensive to run on a debounce).',
+      'Docx is the Verbatim-compatible default — best when you\'re sharing speech docs with teammates who use Verbatim. Both formats support autosave; a .docx doc pauses autosave while it holds a live view or linked copy (Word can\'t represent those).',
     kind: 'speechDocFormat',
     category: 'files',
     section: 'New documents',
@@ -2310,7 +2309,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'defaultSaveFormat',
     label: 'Default file format for new documents',
     description:
-      'Sets the format the Save-As dialog defaults to for a doc you haven\'t saved before. .docx is the default — Word- and Verbatim-compatible. Pick .cmir to make every new doc save in CardMirror\'s native format (lossless, and the only format that supports autosave). Doesn\'t affect existing files on disk — those always re-save in whatever format they were opened from.',
+      'Sets the format the Save-As dialog defaults to for a doc you haven\'t saved before. .docx is the default — Word- and Verbatim-compatible. Pick .cmir to make every new doc save in CardMirror\'s native format (lossless, and the only format that keeps live views/linked copies live — .docx flattens them, so its autosave pauses while any are present). Doesn\'t affect existing files on disk — those always re-save in whatever format they were opened from.',
     kind: 'saveFormat',
     category: 'files',
     section: 'New documents',

@@ -8098,11 +8098,17 @@ function flashSaveSuccess(): void {
 }
 
 // ─── Autosave + crash-recovery journal ────────────────────────────
-// Autosave: debounced ~5s after the last doc-changing edit. Only
-// fires for `.cmir` files with an existing on-disk handle and a host
-// that supports in-place saves. `.docx` is skipped because `toDocx`
-// is expensive enough that per-edit autosaves would visibly stutter
-// the editor on large debate files.
+// Autosave: debounced ~5s after the last doc-changing edit. Fires for
+// `.cmir` and `.docx` files with an existing on-disk handle and a host
+// that supports in-place saves. `.docx`'s zip step (`Docx.toBuffer`)
+// runs off the main thread (see its doc comment) so per-edit autosaves
+// no longer stutter typing on large debate files the way a synchronous
+// zip rebuild would have. `.docx` autosave additionally only fires when
+// the doc has zero live views / linked copies (`activeSaveDocLiveLinkCounts`)
+// — Word can't represent those, and autosave can't pop the interactive
+// "this will flatten them" confirmation the way manual Save does, so a
+// doc that still has any just skips that tick rather than ever silently
+// dropping content.
 //
 // Journaling: debounced ~3s after the last doc-changing edit.
 // Always fires (regardless of autosave) when the host supports it.
@@ -8233,11 +8239,19 @@ function captureActiveDocCleanToken(): () => boolean {
 async function runAutosaveAttempt(): Promise<void> {
   if (!settings.get('autosaveEnabled')) return;
   const file = activeFile();
-  // Autosave only saves `.cmir` files. The toDocx path is too
-  // expensive for background firing; users keep manual control
-  // over when docx files hit disk.
-  if (file.format !== 'cmir' || !file.handle) return;
+  if ((file.format !== 'cmir' && file.format !== 'docx') || !file.handle) return;
   if (!getHost().supportsInPlaceSave) return;
+  // `.docx` autosave only proceeds when it's provably lossless — a doc
+  // with live views / linked copies would otherwise flatten them on a
+  // timer, with no chance for the confirm dialog manual saves show.
+  // Skip this tick and try again on the next one; once the live content
+  // is gone (or the user saves manually), autosave picks back up on its
+  // own. `.cmir` never needs this check — it keeps live windows as live
+  // references.
+  if (file.format === 'docx') {
+    const { views, copies } = activeSaveDocLiveLinkCounts();
+    if (views + copies > 0) return;
+  }
   // A recovered draft may only be written by a MANUAL save until its first
   // one lands — the stale-overwrite confirmation lives on the manual path,
   // and an autosave here would silently do the exact overwrite it guards
@@ -8248,14 +8262,14 @@ async function runAutosaveAttempt(): Promise<void> {
     // in the saved bytes and must keep the doc dirty + journaled.
     const commitClean = captureActiveDocCleanToken();
     const bytes = await serializeForSave(
-      'cmir',
+      file.format,
       {
         includeComments: true,
         includeAnalytics: true,
         includeUndertags: true,
         readMode: false,
       },
-      // Preserve the doc's identity on autosave (a saved .cmir already
+      // Preserve the doc's identity on autosave (a saved file already
       // has one; without this the autosave write would strip it).
       activeSavedDocId(),
     );
@@ -8352,14 +8366,15 @@ function refreshAutosaveBtn(): void {
     autosaveBtn.dataset['autosaveEffective'] = 'false';
   } else {
     const file = activeFile();
-    const effective = file.format === 'cmir' && !!file.handle;
+    const effective = (file.format === 'cmir' || file.format === 'docx') && !!file.handle;
     autosaveBtn.dataset['autosaveEffective'] = effective ? 'true' : 'false';
-    if (effective) {
+    if (file.format === 'cmir' && effective) {
       label = 'Autosave is on — saves to .cmir every few seconds after edits';
-    } else if (file.format === 'docx') {
+    } else if (file.format === 'docx' && effective) {
       label =
-        'Autosave is on, but only fires for .cmir files (this doc is .docx). ' +
-        'Save As to .cmir to enable.';
+        'Autosave is on — saves to .docx every few seconds after edits. ' +
+        "Pauses automatically while the document has a live view or linked copy " +
+        "(Word can't hold those) until you save manually or they're gone.";
     } else {
       label = 'Autosave is on, but this doc has not been saved yet. Save once to enable.';
     }
