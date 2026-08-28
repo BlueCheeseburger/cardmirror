@@ -22,6 +22,7 @@ const DIST = path.resolve(process.cwd(), 'dist-lite');
 const ENDPOINTS = [
   'https://api.anthropic.com',
   'https://openrouter.ai',
+  'https://generativelanguage.googleapis.com',
   'https://scouting-assistant.up.railway.app',
   'https://debate-decoded.ghost.io',
   'https://static.cloudflareinsights.com',
@@ -30,6 +31,7 @@ const ENDPOINTS = [
 const MENTIONS = [
   'api.anthropic.com',
   'openrouter.ai',
+  'generativelanguage.googleapis.com',
   'scouting-assistant.up.railway.app',
   'debate-decoded.ghost.io',
 ];

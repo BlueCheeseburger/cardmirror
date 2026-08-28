@@ -4,3 +4,4 @@
  *  fails the request without contacting anything. */
 export const ANTHROPIC_MESSAGES_URL = '';
 export const OPENROUTER_CHAT_URL = '';
+export const GEMINI_GENERATE_URL = '';
