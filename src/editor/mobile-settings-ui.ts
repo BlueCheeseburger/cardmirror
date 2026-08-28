@@ -152,6 +152,12 @@ function buildEditor(meta: SettingMeta): HTMLElement {
       return buildNumberField(meta.key);
     case 'theme':
       return buildSegment(meta.key, ['light', 'dark', 'system']);
+    case 'docTheme':
+      return buildSegment(meta.key, ['light', 'dark', 'followApp'], {
+        light: 'Light',
+        dark: 'Dark',
+        followApp: 'Follow app',
+      });
     case 'reduceMotion':
       return buildSegment(meta.key, ['system', 'on', 'off']);
     case 'saveFormat':
