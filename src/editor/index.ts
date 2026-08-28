@@ -74,11 +74,8 @@ import {
   type ModeSwitchDoc,
 } from './mode-switch.js';
 import {
-  webCloseOtherWindowsForModeSwitch,
   isFileOpenInAnotherWindow,
   installWindowCoordination,
-  anOlderMultiPaneWindowExists,
-  closeSelfWithFallback,
 } from './window-coordination.js';
 import { resolveMobileLayout } from './mobile-layout.js';
 import { mobilePlugin, setMobileShellActive } from './mobile-plugin.js';
@@ -942,9 +939,15 @@ let multiDocOnFileOpen: ((opened: OpenedFile) => Promise<void> | void) | null = 
  *  flashcard's source into a slot of this window (rather than a separate
  *  window) and scrolls to the anchor. */
 let multiDocShowInContext: ((req: ShowInContextRequest) => Promise<void> | void) | null = null;
-/** When the multi-pane shell is active, this delegates the
- *  "New doc" ribbon button to the shell's slot-routing flow. */
-let multiDocOnNewDoc: (() => Promise<void> | void) | null = null;
+/** When the multi-pane shell is active, this delegates the home
+ *  screen's "New" tile to the shell — adds a blank doc to the first
+ *  empty slot of THIS workspace (the home screen only shows when the
+ *  workspace is empty, so there's no picker to run). The ribbon/keyboard
+ *  New command is different: it spawns a whole new three-pane window
+ *  (see `onNewDocClicked`), since clicking New while already working in
+ *  a workspace more plausibly means "give me a fresh one" than "add a
+ *  doc here". */
+let multiDocOnNewDocDefaultSlot: (() => Promise<void> | void) | null = null;
 /** When the multi-pane shell is active, this delegates the
  *  read-mode ribbon button to the shell's per-pane toggle. */
 let multiDocToggleReadMode: (() => void) | null = null;
@@ -1092,7 +1095,7 @@ let multiDocOnRecoveredDoc:
 export function enableMultiDocMode(opts: {
   onFileOpen: (opened: OpenedFile) => Promise<void> | void;
   showInContext?: (req: ShowInContextRequest) => Promise<void> | void;
-  onNewDoc?: () => Promise<void> | void;
+  onNewDocDefaultSlot?: () => Promise<void> | void;
   toggleReadMode?: () => void;
   toggleAutosave?: () => void;
   /** Zoom the focused pane's body by a percentage delta (per-pane zoom). */
@@ -1159,7 +1162,7 @@ export function enableMultiDocMode(opts: {
   multiDocActive = true;
   multiDocOnFileOpen = opts.onFileOpen;
   multiDocShowInContext = opts.showInContext ?? null;
-  multiDocOnNewDoc = opts.onNewDoc ?? null;
+  multiDocOnNewDocDefaultSlot = opts.onNewDocDefaultSlot ?? null;
   multiDocToggleReadMode = opts.toggleReadMode ?? null;
   multiDocToggleAutosave = opts.toggleAutosave ?? null;
   multiDocZoomBy = opts.zoomFocusedBy ?? null;
@@ -2189,17 +2192,30 @@ if (homeBtn) {
 /**
  * Handle the ribbon "New document" button.
  *
- *   - Multi-doc: route through the multi-pane shell's slot picker
- *     (the new doc is added to a stack alongside whatever else is
- *     open; no "current doc" to overwrite).
- *   - Single-doc: replacing the current view is destructive, so
- *     ask first. Three-button confirm: Save → run Save As, on
- *     success swap to a fresh doc; Don't save → swap immediately;
+ *   - Multi-doc: always spawns a new three-pane window (matching this
+ *     window's mode) — a new, independent workspace, not a doc added to
+ *     this one. To add a blank doc to a slot in THIS workspace, use a
+ *     pane's own "+ New" button.
+ *   - Single-doc + host that can spawn windows (Electron, installed PWA):
+ *     spawns a new single-doc window. The current window stays put.
+ *   - Single-doc, plain browser tab: replacing the current view is
+ *     destructive, so ask first. Three-button confirm: Save → run Save
+ *     As, on success swap to a fresh doc; Don't save → swap immediately;
  *     Cancel → bail. Esc / overlay click also cancel.
  */
 async function onNewDocClicked(): Promise<void> {
-  if (multiDocActive && multiDocOnNewDoc) {
-    void multiDocOnNewDoc();
+  const host = getHost();
+  // Multi-pane: New always spawns a new three-pane window rather than
+  // adding to this workspace — there's no in-place fallback (a tab can't
+  // "replace" a workspace), so this runs even where a single-doc window
+  // wouldn't spawn one (a plain, uninstalled browser tab).
+  if (multiDocActive) {
+    try {
+      await host.spawnWindow(null);
+    } catch (err) {
+      console.error('Spawn window failed:', err);
+      void alertDialog(`Failed to open new window: ${err instanceof Error ? err.message : err}`);
+    }
     return;
   }
   // Multi-window mode (single-doc + Electron): New always spawns a
@@ -2208,7 +2224,6 @@ async function onNewDocClicked(): Promise<void> {
   // New is an unambiguous request for a fresh doc to work in, not
   // a request to overwrite. No prompt: nothing in the current
   // window is at risk of being lost.
-  const host = getHost();
   if (host.canSpawnWindow) {
     try {
       await host.spawnWindow(null);
@@ -6617,7 +6632,7 @@ const homeCallbacks: HomeScreenCallbacks = {
   newDoc: () => {
     if (multiDocActive) {
       homeScreen.hide();
-      void multiDocOnNewDoc?.();
+      void multiDocOnNewDocDefaultSlot?.();
       return;
     }
     mountFreshBlankDoc();
@@ -8493,32 +8508,6 @@ function pushNativeMenuBindings(): void {
           }
       }
     });
-    // Mode-switch coordination: another window is about to reload
-    // into the new workspace mode and is asking us to journal our
-    // current doc and close. The journal write is best-effort; we
-    // close regardless so the originating window's
-    // `journalAndCloseOtherWindows` promise resolves promptly.
-    electronHost.onPleaseCloseForModeSwitch(() => {
-      void (async (): Promise<void> => {
-        try {
-          // Journals this window's open doc(s) — single doc or, in
-          // the rare multi-pane-with-extra-windows case, every pane —
-          // and reports the uid + dirty list to main so the surviving
-          // window can scope its post-reload reopen to exactly the
-          // switch's docs. Same co-editing contract as the toggling
-          // window: live sessions are flushed and their docs EXCLUDED
-          // from the report — they close and stay resumable from the
-          // Sessions list rather than reopening as static copies.
-          const docs = await journalForModeSwitchExcludingSessions();
-          if (docs.length > 0) {
-            await electronHost.reportModeSwitchJournaled(docs);
-          }
-        } catch (err) {
-          console.warn('Mode-switch journaling failed:', err);
-        }
-        await electronHost.closeSelf();
-      })();
-    });
     // User clicked the OS close button. If the doc is clean,
     // close immediately. If dirty, prompt for save / save-as /
     // cancel / discard.
@@ -8871,10 +8860,6 @@ if (BOOT_MOBILE_ENV.hostKind === 'browser') {
 }
 if (BOOT_MOBILE) setMobileShellActive(true);
 const BOOT_MULTI_DOC_WORKSPACE = !BOOT_MOBILE && settings.get('multiDocWorkspace');
-// Set when this window bounced itself as a redundant three-pane duplicate
-// (singleton enforcement). A bounced window that lingers (couldn't self-close)
-// must stop claiming to be a workspace, so it never blocks a future window.
-let redundantWindowBounced = false;
 // Multi-window mode shows the speech-stack ribbon cluster (mark-as-speech + the
 // two send buttons). On desktop that's single-doc + a host that can spawn
 // windows (Electron). On the web a single-doc tab can send to the speech doc in
@@ -8890,20 +8875,12 @@ if (
 // on Electron; safe to install in both single-doc and (will-be)
 // multi-pane paths since the resolver filters by uid.
 installIncomingSpeechSliceHandler();
-// Persistent web cross-window coordination: tracks live peer windows and answers
-// mode-switch please-close (journal our doc(s), report, self-close) + same-file
-// queries (is this file already open here?). No-op on Electron (coordinates
-// through main) and where BroadcastChannel is unavailable.
+// Persistent web cross-window coordination: tracks live peer windows and
+// answers same-file queries (is this file already open here?). No-op on
+// Electron (coordinates through main) and where BroadcastChannel is
+// unavailable.
 installWindowCoordination({
-  // Same helper as the Electron paths: co-edited docs are flushed + excluded
-  // (inert on web today — co-editing is desktop-only — but the contract holds
-  // if that ever changes).
-  journalOpenDocs: journalForModeSwitchExcludingSessions,
   getOpenHandles: getThisWindowOpenHandles,
-  // A page-load's mode is fixed (a toggle reloads), so the boot constant is the
-  // current three-pane state — for the singleton (one-three-pane-window) rule.
-  // A window that already bounced no longer counts as a live workspace.
-  isMultiPane: () => BOOT_MULTI_DOC_WORKSPACE && !redundantWindowBounced,
 });
 // Load the persistent, cross-window Quick Cards library + subscribe to
 // changes. Done at boot (not on first UI mount) so the add command and
@@ -9202,21 +9179,10 @@ if (getHost().kind === 'browser') {
 
 if (BOOT_MULTI_DOC_WORKSPACE) {
   void (async () => {
-    // Singleton: only one three-pane window. Run the check alongside the shell
-    // import; if an older three-pane window is already open, this is a
-    // browser-spawned duplicate (Cmd+N / app icon) — bounce it instead of
-    // opening a second workspace.
-    const [older, m] = await Promise.all([
-      anOlderMultiPaneWindowExists(),
-      import('./multi-pane-shell.js'),
-    ]);
-    if (older) {
-      redundantWindowBounced = true;
-      closeSelfWithFallback(
-        'You’re in three-pane mode — open new docs using in-app commands.',
-      );
-      return;
-    }
+    // Independent workspace: each three-pane window boots on its own —
+    // no singleton check. Several can coexist; "New" spawns another one
+    // of these rather than adding to an existing workspace.
+    const m = await import('./multi-pane-shell.js');
     m.mountMultiPaneShell();
     // The dropzone pill anchors to the leftmost VISIBLE pane body, but
     // panes boot `[hidden]` until a doc loads — so the anchor doesn't
@@ -9613,9 +9579,7 @@ async function handleModeSwitchInner(newValue: boolean): Promise<void> {
   const electron = !!getElectronHost();
   let message: string;
   if (newValue) {
-    message = electron
-      ? 'Any other open CardMirror windows will close, and every open document will reopen as a pane in this window.'
-      : 'Every open document will move into a pane in this window. Your other CardMirror windows will ask you to close them.';
+    message = 'Every open document in this window will move into a pane of your new three-pane workspace. Other open windows are unaffected.';
   } else {
     message = electron
       ? 'The editor will reload and your open documents will each reopen in their own window.'
@@ -9650,21 +9614,11 @@ async function handleModeSwitchInner(newValue: boolean): Promise<void> {
     return;
   }
   try {
-    // If we're on Electron and other windows are open, have each
-    // of them journal their current doc and close before we
-    // reload. The post-reload recovery picks up every journal and
-    // restores the docs in the new layout.
-    const electronHost = getElectronHost();
-    let remoteDocs: ModeSwitchDoc[] = [];
-    if (electronHost) {
-      await electronHost.journalAndCloseOtherWindows();
-    } else if (newValue) {
-      // Web → three-pane: ask the other windows to journal their doc(s) and
-      // close over a BroadcastChannel, and collect what each had open. Their
-      // journals land in the shared journal store; only the uid+dirty list
-      // travels here, folded into the marker so the survivor reopens them too.
-      remoteDocs = await webCloseOtherWindowsForModeSwitch();
-    } else if (multiDocActive && multiDocReduceToFocused) {
+    // Each window's mode switch is entirely local — no other window is
+    // journaled or closed. Entering three-pane just reloads THIS window
+    // into its own new workspace with its own doc(s); other windows (of
+    // either mode) are untouched and keep running independently.
+    if (!newValue && multiDocActive && multiDocReduceToFocused) {
       // Web → one-per-window: the browser can't reopen the other docs in their
       // own windows, so close them here (prompting to save unsaved ones) and
       // keep the focused doc, which the reload reopens in the single-doc window.
@@ -9688,19 +9642,17 @@ async function handleModeSwitchInner(newValue: boolean): Promise<void> {
     // it reopened editable (silently discarding edits made in the reload
     // gap) and only ever restored this window's sessions anyway.
     const reopenDocs = await journalForModeSwitchExcludingSessions();
-    // The marker carries exactly which journals belong to this
-    // switch (plus each doc's pre-switch dirty state) — this
-    // window's non-session docs AND any collected from the windows
-    // we just closed. The post-reload recovery reopens those and
-    // ONLY those — without the list it would sweep in every journal
-    // in the store, resurfacing stale entries from earlier sessions
-    // on every toggle.
+    // The marker carries exactly which journals belong to this switch (plus
+    // each doc's pre-switch dirty state) — this window's non-session docs.
+    // The post-reload recovery reopens those and ONLY those — without the
+    // list it would sweep in every journal in the store, resurfacing stale
+    // entries from earlier sessions on every toggle.
     sessionStorage.setItem(
       MODE_SWITCH_MARKER_KEY,
-      encodeModeSwitchMarker([...reopenDocs, ...remoteDocs]),
+      encodeModeSwitchMarker(reopenDocs),
     );
     console.log(
-      `[cardmirror] modeswitch: journaled ${reopenDocs.length} local + ${remoteDocs.length} remote doc(s), switching to ${newValue ? 'multi' : 'single'}-pane`,
+      `[cardmirror] modeswitch: journaled ${reopenDocs.length} doc(s), switching to ${newValue ? 'multi' : 'single'}-pane`,
     );
   } catch (err) {
     console.error('Mode-switch journaling failed:', err);
@@ -9719,9 +9671,7 @@ async function handleModeSwitchInner(newValue: boolean): Promise<void> {
  *  list), journal every open doc, then drop the co-edited docs' journals and
  *  exclude them from the returned reopen list — co-edited docs CLOSE across
  *  the switch rather than reopening as static copies beside their live
- *  session records. Shared by the toggling window (handleModeSwitch) and the
- *  windows it asks to close (the please-close handler), so both apply the
- *  same rule. No-op wrapper on web (no sessions there). */
+ *  session records. No-op wrapper on web (no sessions there). */
 async function journalForModeSwitchExcludingSessions(): Promise<ModeSwitchDoc[]> {
   let sessionUids = new Set<string>();
   try {
@@ -9817,20 +9767,11 @@ async function runStartupRecoveryInner(): Promise<void> {
   );
   if (markerDocs !== null) {
     sessionStorage.removeItem(MODE_SWITCH_MARKER_KEY);
-    // Docs that were open in the windows the switch closed reported
-    // their journals to main — sessionStorage is per-window, so
-    // their lists can only reach us through the main process.
-    let remoteDocs: ModeSwitchDoc[] = [];
-    try {
-      remoteDocs = (await getElectronHost()?.takeModeSwitchJournaledDocs()) ?? [];
-    } catch (err) {
-      console.warn('Failed to collect mode-switch doc reports:', err);
-    }
-    const dirtyByUid = modeSwitchDirtyMap([...markerDocs, ...remoteDocs]);
+    const dirtyByUid = modeSwitchDirtyMap(markerDocs);
     const matched = entries.filter((e) => dirtyByUid.has(e.uid));
     console.log(
       `[cardmirror] modeswitch: recovery — ${entries.length} journal(s) on disk, ` +
-        `${markerDocs.length} local + ${remoteDocs.length} remote in marker, ${matched.length} matched`,
+        `${markerDocs.length} in marker, ${matched.length} matched`,
     );
     await autoRecoverAll(matched, dirtyByUid);
     // Co-edited docs were NOT journaled into this switch (they close
