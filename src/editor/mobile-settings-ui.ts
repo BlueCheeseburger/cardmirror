@@ -157,9 +157,10 @@ function buildEditor(meta: SettingMeta): HTMLElement {
     case 'saveFormat':
       return buildSegment(meta.key, ['cmir', 'docx'], { cmir: '.cmir', docx: '.docx' });
     case 'aiProvider':
-      return buildSegment(meta.key, ['anthropic', 'openrouter'], {
+      return buildSegment(meta.key, ['anthropic', 'openrouter', 'gemini'], {
         anthropic: 'Anthropic',
         openrouter: 'OpenRouter',
+        gemini: 'Gemini',
       });
     case 'mobileLayout':
       return buildMobileLayoutSegment();

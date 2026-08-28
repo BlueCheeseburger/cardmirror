@@ -83,7 +83,7 @@ describe('CardMirror Lite', () => {
     await withLite(async () => {
       const s = await import('../../src/editor/settings.js');
       const hiddenKeys = s.SETTING_METADATA.filter((m) => s.hiddenInLite(m)).map((m) => m.key);
-      for (const k of ['aiFeaturesEnabled', 'anthropicApiKey', 'openrouterApiKey', 'clodEnabled', 'pairingEnabled', 'pluginsEnabled', 'voiceDictationModel']) {
+      for (const k of ['aiFeaturesEnabled', 'anthropicApiKey', 'openrouterApiKey', 'geminiApiKey', 'clodEnabled', 'pairingEnabled', 'pluginsEnabled', 'voiceDictationModel']) {
         expect(hiddenKeys).toContain(k);
       }
       expect(hiddenKeys).not.toContain('theme');
