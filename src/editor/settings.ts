@@ -862,10 +862,13 @@ export interface Settings {
   voiceDictationModel: 'standard' | 'large';
   /** Whether autosave is on. When true, doc-changing edits schedule
    *  a background write-back to the file's existing on-disk
-   *  location, debounced by ~5s of idle. Only fires for `.cmir`
-   *  documents (native format serialization is cheap); `.docx`
-   *  files are skipped because `toDocx` is expensive enough that
-   *  per-keystroke autosaves would visibly stutter the editor. */
+   *  location, debounced by ~5s of idle. Fires for both `.cmir` and
+   *  `.docx` documents — `.docx`'s zip step runs off the main thread
+   *  (see `Docx.toBuffer` in `src/ooxml/docx.ts`) so it no longer
+   *  stutters the editor, and it additionally only proceeds when the
+   *  doc has no live views/linked copies (see `runAutosaveAttempt` in
+   *  editor/index.ts), since Word can't represent those and autosave
+   *  can't pop the interactive confirmation a manual save would. */
   autosaveEnabled: boolean;
   /** Whether read mode is currently active (dims non-read-aloud content,
    *  blocks editing). Transient — per-window, never persisted (see

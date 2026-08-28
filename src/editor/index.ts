@@ -7479,10 +7479,15 @@ function activeSaveDocLiveLinkCounts(): { views: number; copies: number } {
 /** Warn before a `.docx` write that would flatten live views / linked copies.
  *  Word can't store live links, so saving to `.docx` drops them (the content
  *  stays, the link doesn't) — a silent, one-way loss if the doc is later
- *  reopened from that `.docx`. Every `.docx`-writing path asks: Save, Save As,
- *  and the close/quit prompts in both layouts all route through
- *  `runSaveFlow` / `runSaveAsFlow` (autosave never writes `.docx`).
- *  Returns true to proceed, false to cancel. `.cmir` saves never ask. */
+ *  reopened from that `.docx`. Every INTERACTIVE `.docx`-writing path asks:
+ *  Save, Save As, and the close/quit prompts in both layouts all route
+ *  through `runSaveFlow` / `runSaveAsFlow`. Autosave can't pop this dialog
+ *  on a timer, so it doesn't call this — it runs the same
+ *  `activeSaveDocLiveLinkCounts()` check itself and only proceeds when the
+ *  count is zero (provably nothing to warn about), skipping that tick
+ *  otherwise rather than ever flattening without consent. Returns true to
+ *  proceed, false to cancel. `.cmir` saves never ask (live windows stay
+ *  live in that format). */
 async function confirmDocxDropsLiveLinks(): Promise<boolean> {
   const { views, copies } = activeSaveDocLiveLinkCounts();
   const total = views + copies;
@@ -8355,7 +8360,11 @@ export function reportAutosaveSuccess(): void {
  *  the current setting and the active file's format. The button
  *  stays pressed regardless of whether autosave is actually firing
  *  (the user's preference is sovereign), but the tooltip clarifies
- *  when autosave is on but inert (docx file, brand-new doc, etc.). */
+ *  when autosave is on but inert (a brand-new, never-saved doc, or
+ *  a format autosave doesn't write to at all — currently just a doc
+ *  with no on-disk handle; a `.docx` with a live view/linked copy is
+ *  handled by `runAutosaveAttempt` skipping that tick silently, not
+ *  reflected here as a distinct "inert" state). */
 function refreshAutosaveBtn(): void {
   if (!autosaveBtn) return;
   const on = autosaveStateForActive();
