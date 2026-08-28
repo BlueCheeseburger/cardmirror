@@ -2860,9 +2860,9 @@ class MultiPaneShell {
       : makeBlankDoc();
     const slot = this.slots[target];
     // Format follows the user's `defaultSpeechDocFormat` setting —
-    // `.docx` (Verbatim parity) by default, `.cmir` for autosave-
-    // eligible speech docs. The user can still Save As to flip
-    // format later.
+    // `.docx` (Verbatim parity) by default, `.cmir` to keep any live
+    // views/linked copies live (both formats autosave). The user can
+    // still Save As to flip format later.
     const record = buildDocRecord(filename, doc, slot, {
       handle: null,
       format,

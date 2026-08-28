@@ -2,8 +2,9 @@
  * Version history — the renderer half of the "Keep version history"
  * setting.
  *
- * On every save trigger (manual and autosave), the serialized `.cmir`
- * bytes are offered to the main-process snapshot store
+ * On every save trigger (manual and autosave), the serialized bytes —
+ * `.cmir` or `.docx`, whichever format the doc is in — are offered to
+ * the main-process snapshot store
  * (apps/desktop/src/doc-history.ts) BEFORE the document's own disk
  * write is awaited — deliberately, so a save whose destination folder
  * is wedged (the field case: a cloud-sync placeholder hanging the

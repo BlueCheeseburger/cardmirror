@@ -4439,7 +4439,7 @@ function buildSpeechDocFormatEditor(): HTMLElement {
   wrap.className = 'pmd-multi-doc-layout-mode-editor';
   const options: { value: 'docx' | 'cmir'; label: string }[] = [
     { value: 'docx', label: '.docx — Verbatim-compatible (default)' },
-    { value: 'cmir', label: '.cmir — CardMirror native (enables autosave)' },
+    { value: 'cmir', label: '.cmir — CardMirror native, keeps live views/linked copies live' },
   ];
   const groupName = `pmd-speech-doc-format-${Math.random().toString(36).slice(2, 8)}`;
   for (const o of options) {
@@ -5575,7 +5575,7 @@ function buildSaveFormatEditor(): HTMLElement {
   wrap.className = 'pmd-multi-doc-layout-mode-editor';
   const options: { value: 'docx' | 'cmir'; label: string }[] = [
     { value: 'docx', label: '.docx — Word / Verbatim-compatible (default)' },
-    { value: 'cmir', label: '.cmir — CardMirror native (enables autosave)' },
+    { value: 'cmir', label: '.cmir — CardMirror native, keeps live views/linked copies live' },
   ];
   const groupName = `pmd-save-format-${Math.random().toString(36).slice(2, 8)}`;
   for (const o of options) {
