@@ -949,6 +949,20 @@ as you open more.
   the same way.
 - When you have more than one document in a slot, jump between them using
   the drop-down in the document's title bar or by using **Ctrl-Tab**.
+- Each slot's footer has its own **+ New** button (blank doc into that
+  slot) and **+ Open file** button, so you can build up a workspace slot
+  by slot.
+
+### Multiple workspaces
+
+Three-pane windows are independent — you can have several open at once,
+each with its own three slots. The ribbon/keyboard **New** command spawns
+another three-pane window rather than adding a document to the one you're
+in (use a slot's own **+ New** button, or the home screen's **New** tile
+on an empty workspace, to add a document to the *current* workspace
+instead). Opening a file from the OS ("Open with…", double-click) reuses
+your most recently focused three-pane window's slot picker rather than
+spawning a blank one.
 
 ### Per-document outlines
 

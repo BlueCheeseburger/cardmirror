@@ -290,17 +290,11 @@ interface ElectronAPI {
   /** Main forwards an OS-opened file (absolute path) to this window
    *  when it's an existing multi-pane workspace. Returns unsubscribe. */
   onExternalOpen(handler: (payload: { path: string }) => void): () => void;
-  journalAndCloseOtherWindows(): Promise<void>;
   closeSelf(): Promise<void>;
   /** Report that a close-request ended without closing (Cancel or a
    *  failed Save) so main can drop any pending quit intent. Optional
    *  so an older preload without the channel is tolerated. */
   cancelClose?(): Promise<void>;
-  /** Optional so an older preload tolerates the mode-switch
-   *  doc-list channel being absent. */
-  reportModeSwitchJournaled?(docs: Array<{ uid: string; dirty: boolean }>): Promise<void>;
-  takeModeSwitchJournaledDocs?(): Promise<Array<{ uid: string; dirty: boolean }>>;
-  onPleaseCloseForModeSwitch(handler: () => void): () => void;
   onCloseRequest(handler: () => void): () => void;
   docRegister(uid: string): Promise<void>;
   docUnregister(uid: string): Promise<void>;
@@ -966,16 +960,8 @@ export class ElectronHost implements Host {
     return typeof fn === 'function' ? fn(handler) : () => {};
   }
 
-  /** Mode-switch helper. Asks main to broadcast a please-close
-   *  message to every other window and resolve once they've all
-   *  closed. The originating renderer then journals its own doc
-   *  and reloads. */
-  async journalAndCloseOtherWindows(): Promise<void> {
-    await api().journalAndCloseOtherWindows();
-  }
-
-  /** Programmatic "close this window." Called by the please-close
-   *  handler after the renderer finishes journaling. */
+  /** Programmatic "close this window." Called after the renderer
+   *  finishes handling a close request (Save, Save As, or Discard). */
   async closeSelf(): Promise<void> {
     await api().closeSelf();
   }
@@ -984,25 +970,6 @@ export class ElectronHost implements Host {
    *  or a failed Save) so it can drop any pending quit intent. */
   async cancelClose(): Promise<void> {
     await api().cancelClose?.();
-  }
-
-  /** Mode-switch helper: report the docs this window journaled in
-   *  response to a please-close, so the surviving window can scope
-   *  its post-reload auto-recovery to exactly the switch's docs. */
-  async reportModeSwitchJournaled(docs: Array<{ uid: string; dirty: boolean }>): Promise<void> {
-    await api().reportModeSwitchJournaled?.(docs);
-  }
-
-  /** Mode-switch helper: fetch (and clear) the doc lists the closed
-   *  windows reported. Called once by the surviving window after
-   *  its reload. */
-  async takeModeSwitchJournaledDocs(): Promise<Array<{ uid: string; dirty: boolean }>> {
-    return (await api().takeModeSwitchJournaledDocs?.()) ?? [];
-  }
-
-  /** Subscribe to mode-switch please-close broadcasts. */
-  onPleaseCloseForModeSwitch(handler: () => void): () => void {
-    return api().onPleaseCloseForModeSwitch(handler);
   }
 
   /** Subscribe to user-initiated window close requests. Main fires

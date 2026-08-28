@@ -1943,67 +1943,6 @@ ipcMain.handle('host:is-first-window', async (event) => {
   return win.id === firstWindowId;
 });
 
-// ─── Mode-switch: journal-and-close other windows ─────────────────
-// When the user toggles `multiDocWorkspace` in window A, every
-// OTHER open window needs to journal its current doc and close
-// before A reloads — so the post-reload recovery flow can pick up
-// every doc and restore them in the new layout. Each renderer
-// listens for `'mode-switch:please-close'`; on receipt it journals
-// the current doc and calls `host:close-self`. We wait for the
-// `closed` event on each before resolving, with a generous timeout
-// fallback so a hung renderer doesn't strand the originating window.
-
-const MODE_SWITCH_CLOSE_TIMEOUT_MS = 10000;
-
-// True while a mode switch is closing the other windows. Backstop
-// against two concurrent rounds: if two windows each initiated, each
-// would treat the OTHER's surviving host as a window to close, so they
-// would close each other and leave nothing open. The renderer gates
-// the switch to the initiating window only (remote settings changes
-// don't trigger it); this guard catches anything that slips past.
-let modeSwitchInProgress = false;
-
-// Docs journaled by the windows that close for a mode switch. Each
-// closing renderer reports its {uid, dirty} list before close-self;
-// the surviving window collects (and clears) the accumulated set
-// after its reload so it can auto-reopen exactly the switch's docs
-// — sessionStorage can't carry the closed windows' lists across.
-let modeSwitchJournaledDocs: Array<{ uid: string; dirty: boolean }> = [];
-
-ipcMain.handle('host:journal-and-close-other-windows', async (event) => {
-  const sender = BrowserWindow.fromWebContents(event.sender);
-  if (modeSwitchInProgress) return;
-  modeSwitchInProgress = true;
-  // Fresh round — drop reports left over from an earlier switch
-  // whose surviving window never collected them.
-  modeSwitchJournaledDocs = [];
-  try {
-  const others = BrowserWindow.getAllWindows().filter(
-    (w) => w !== sender && !w.isDestroyed(),
-  );
-  await Promise.all(
-    others.map(
-      (w) =>
-        new Promise<void>((resolve) => {
-          const timer = setTimeout(() => {
-            // The renderer never closed itself in time: destroy()
-            // skips its journal, so its doc is lost on reopen.
-            if (!w.isDestroyed()) w.destroy();
-            resolve();
-          }, MODE_SWITCH_CLOSE_TIMEOUT_MS);
-          w.once('closed', () => {
-            clearTimeout(timer);
-            resolve();
-          });
-          w.webContents.send('mode-switch:please-close');
-        }),
-    ),
-  );
-  } finally {
-    modeSwitchInProgress = false;
-  }
-});
-
 ipcMain.handle('host:close-self', async (event) => {
   const sender = BrowserWindow.fromWebContents(event.sender);
   if (sender && !sender.isDestroyed()) {
@@ -2023,19 +1962,6 @@ ipcMain.handle('host:close-self', async (event) => {
 // alive in the dock.
 ipcMain.handle('host:close-cancelled', () => {
   quitInitiated = false;
-});
-
-ipcMain.handle(
-  'host:mode-switch-journaled',
-  (_event, docs: Array<{ uid: string; dirty: boolean }>) => {
-    if (Array.isArray(docs)) modeSwitchJournaledDocs.push(...docs);
-  },
-);
-
-ipcMain.handle('host:take-mode-switch-journaled', () => {
-  const docs = modeSwitchJournaledDocs;
-  modeSwitchJournaledDocs = [];
-  return docs;
 });
 
 // ─── Speech-doc registry ──────────────────────────────────────────

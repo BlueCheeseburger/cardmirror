@@ -9542,6 +9542,7 @@ body.pmd-recovery-active:not(.pmd-multi-doc) #app {
 .pmd-recovery-sidebar-done:hover,
 .pmd-pane-chip-stack:hover,
 .pmd-pane-open:hover,
+.pmd-pane-new:hover,
 .pmd-route-btn:hover {
   background: var(--pmd-c-hover);
 }
@@ -11563,7 +11564,8 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   text-overflow: ellipsis;
   color: var(--pmd-c-text-muted);
 }
-.pmd-pane-open {
+.pmd-pane-open,
+.pmd-pane-new {
   flex: 0 0 auto;
   background: transparent;
   border: 1px solid var(--pmd-c-border-soft);

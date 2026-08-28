@@ -428,14 +428,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  session. */
   isFirstWindow: () => ipcRenderer.invoke('host:is-first-window'),
 
-  /** Mode-switch helper: tell main to broadcast
-   *  `'mode-switch:please-close'` to every other open window and
-   *  resolve once they've all closed. */
-  journalAndCloseOtherWindows: () =>
-    ipcRenderer.invoke('host:journal-and-close-other-windows'),
-
-  /** Close this renderer's window programmatically. Called by the
-   *  please-close handler after journaling. */
+  /** Close this renderer's window programmatically. Called after the
+   *  user confirms a close (Save, Save As, or Discard). */
   closeSelf: () => ipcRenderer.invoke('host:close-self'),
 
   /** Tell main that a close-request was resolved WITHOUT closing
@@ -443,28 +437,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  intent so a subsequent ordinary window close doesn't quit the
    *  app on macOS. No-op close-wise; safe to call redundantly. */
   cancelClose: () => ipcRenderer.invoke('host:close-cancelled'),
-
-  /** Mode-switch helper: report the docs this window journaled in
-   *  response to a please-close. Main accumulates them so the
-   *  surviving window can scope its post-reload auto-recovery to
-   *  exactly the switch's docs (sessionStorage is per-window, so a
-   *  closing window's list can only travel through main). */
-  reportModeSwitchJournaled: (docs: Array<{ uid: string; dirty: boolean }>) =>
-    ipcRenderer.invoke('host:mode-switch-journaled', docs),
-
-  /** Fetch (and clear) the docs the closed windows reported for the
-   *  current mode switch. Called once by the surviving window after
-   *  its reload. */
-  takeModeSwitchJournaledDocs: () =>
-    ipcRenderer.invoke('host:take-mode-switch-journaled'),
-
-  /** Subscribe to mode-switch please-close broadcasts. Returns an
-   *  unsubscribe handle. */
-  onPleaseCloseForModeSwitch(handler: () => void): () => void {
-    const listener = (): void => handler();
-    ipcRenderer.on('mode-switch:please-close', listener);
-    return () => ipcRenderer.removeListener('mode-switch:please-close', listener);
-  },
 
   /** Subscribe to user-initiated close requests. Main intercepts
    *  the window's `close` event and sends this so the renderer
