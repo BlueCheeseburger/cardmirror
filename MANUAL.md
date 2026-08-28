@@ -1930,13 +1930,17 @@ and headings instead of importing flat text.
 ### Saving
 
 - **Save (Mod-S)** / **Save As… (Mod-Shift-S)**.
-- **Autosave** is a toggle in the ribbon that applies to `.cmir`
-  files. The button shows whether autosave is actually protecting the
-  current doc: a **solid filled** button means it's saving; a **hollow
-  button with a dashed outline** means it's on but not firing (the doc
-  is `.docx`, or hasn't been saved once yet); a **red button with a solid
-  outline** means the last autosave FAILED and your latest changes are not
-  on disk — hover over it for the reason. **(Desktop only.)**
+- **Autosave** is a toggle in the ribbon that applies to both `.cmir`
+  and `.docx` files. The button shows whether autosave is actually
+  protecting the current doc: a **solid filled** button means it's
+  saving; a **hollow button with a dashed outline** means it's on but
+  not firing (the doc hasn't been saved once yet, or — `.docx` only —
+  it currently holds a live view or linked copy, which Word can't
+  represent; autosave pauses rather than silently flattening them, and
+  picks back up once you save manually or they're gone); a **red
+  button with a solid outline** means the last autosave FAILED and your
+  latest changes are not on disk — hover over it for the reason.
+  **(Desktop only.)**
 - **If a file (or its folder) gets renamed, moved, or deleted** while the
   document is open (say, someone reorganizes a shared Dropbox), the next
   save can't find the old location. CardMirror will tell you what happened
@@ -2160,8 +2164,8 @@ file search scans.
   Speech Document saves by default. Empty leaves the doc unsaved until
   you Save.
 - **Default format for new speech documents** — `.docx`
-  (Verbatim-compatible) or `.cmir` (native, and the only format that
-  supports autosave).
+  (Verbatim-compatible) or `.cmir` (native). Both autosave; `.docx`
+  pauses autosave while it holds a live view or linked copy.
 - **Speech document filename** — the name New Speech Document gives a
   new file: literal text plus two fields. `{speech}` is the name you
   type at the prompt (1NC, 2AC, …); `{date:...}` writes the current

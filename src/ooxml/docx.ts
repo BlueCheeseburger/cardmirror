@@ -17,20 +17,27 @@
  * but don't generate from scratch.
  */
 
-import { unzipSync, zipSync } from 'fflate';
+import { unzipSync, zipSync, zip as zipWorker } from 'fflate';
 import { canonicalStylesXml } from './styles.js';
 import { XML_PROLOG, escText } from './xml.js';
 
 const utf8Decoder = new TextDecoder('utf-8');
 const utf8Encoder = new TextEncoder();
 
+// One failed worker spawn means they'll all fail (no Worker global / CSP
+// restriction) — remember and stop paying the attempt, same pattern as
+// `gzipWorkerBroken` in `src/native/codec.ts`.
+let zipWorkerBroken = false;
+
 /** Loaded docx — an in-memory zip we can read parts from and modify.
  *
  *  Backed by fflate (the same DEFLATE the `.cmir` codec uses) over a
  *  part-name → bytes Map. Insertion order is preserved through
  *  `toBuffer`, so a loaded file re-serializes with its original part
- *  order. Reads/writes are synchronous internally; the async method
- *  signatures are part of the public API. */
+ *  order. Part reads/writes (`writeText`, `readText`, etc.) are
+ *  synchronous internally; `toBuffer`'s DEFLATE genuinely runs off-thread
+ *  (see its own doc comment) — every method keeps an `async` signature
+ *  regardless, so callers don't need to know which is which. */
 export class Docx {
   private constructor(private parts: Map<string, Uint8Array>) {}
 
@@ -173,9 +180,31 @@ export class Docx {
     return m ? m[1]! : null;
   }
 
-  /** Serialize the zip to bytes. */
+  /** Serialize the zip to bytes. DEFLATE runs on fflate's internal worker
+   *  thread so the caller's thread stays free — this method's `async`
+   *  signature always covered this seam (see the class docblock); autosave's
+   *  debounced writes are the reason it matters now (the sync path stalls
+   *  typing on large docs, same problem `gzipAsync` solves for `.cmir`).
+   *  Falls back to the sync path where workers are unavailable (unit
+   *  tests, exotic CSP), one-way per process the same as `gzipAsync`. */
   async toBuffer(): Promise<Uint8Array> {
-    return zipSync(Object.fromEntries(this.parts), { level: 6 });
+    const entries = Object.fromEntries(this.parts);
+    if (zipWorkerBroken) return zipSync(entries, { level: 6 });
+    return new Promise((resolve) => {
+      try {
+        zipWorker(entries, { level: 6 }, (err, out) => {
+          if (err || !out) {
+            zipWorkerBroken = true;
+            resolve(zipSync(entries, { level: 6 }));
+          } else {
+            resolve(out);
+          }
+        });
+      } catch {
+        zipWorkerBroken = true;
+        resolve(zipSync(entries, { level: 6 }));
+      }
+    });
   }
 
   /** List all part paths in the zip. */

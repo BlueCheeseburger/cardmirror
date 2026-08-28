@@ -31,7 +31,9 @@ import { EditorView } from 'prosemirror-view';
 import { setViewDocPath } from './transclusion-doc-path.js';
 import { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
-import { fromDocxFull, parseNative, serializeNativeAsync, NATIVE_FILE_EXTENSION } from '../index.js';
+import { fromDocxFull, parseNative, serializeNativeAsync, toDocx, NATIVE_FILE_EXTENSION } from '../index.js';
+import { isSelfRef, flattenSelfRefs } from './self-transclusion.js';
+import { isTransclusionNode } from './transclusion.js';
 import { settings } from './settings.js';
 import { MARK_UNREAD_TOGGLE } from './mark-unread-plugin.js';
 import { NUMBERING_REFRESH, numberingDisplaySig } from './numbering-plugin.js';
@@ -239,17 +241,41 @@ async function clearJournalForRecord(record: DocRecord): Promise<void> {
  *  pauses editing. Matches the single-doc constant in editor/index.ts. */
 const AUTOSAVE_DELAY_MS = 5000;
 
+/** Live views + linked copies in `doc` — same check as the single-doc
+ *  `activeSaveDocLiveLinkCounts` in editor/index.ts, but against an
+ *  arbitrary record's own doc rather than the module-level focused view:
+ *  a background pane's autosave must gate on ITS content regardless of
+ *  which pane currently has focus. */
+function docLiveLinkCount(doc: PMNode): number {
+  let count = 0;
+  doc.descendants((node) => {
+    if (isSelfRef(node) || isTransclusionNode(node)) {
+      count++;
+      return false;
+    }
+    return true;
+  });
+  return count;
+}
+
 /** Per-DocRecord autosave attempt. Like the single-doc
  *  `runAutosaveAttempt`, but bound to `record` instead of the
  *  module-level focused view — so edits in pane A flush to A's
  *  file even when focus has since moved to B. Same gates: opt-in
- *  per-record, .cmir + saved-once only, supportsInPlaceSave host. */
+ *  per-record, .cmir/.docx + saved-once only, supportsInPlaceSave host.
+ *  `.docx` additionally only fires when this record's own doc has no
+ *  live views / linked copies — same rationale as the single-doc path
+ *  (autosave can't pop the interactive "this will flatten them" confirm
+ *  a manual save shows, so it skips rather than ever silently dropping
+ *  content). */
 async function runAutosaveForRecord(record: DocRecord): Promise<void> {
   if (!record.autosaveEnabled) return;
-  if (record.format !== 'cmir') return;
+  if (record.format !== 'cmir' && record.format !== 'docx') return;
   if (typeof record.handle !== 'string' || !record.handle) return;
   const host = getHost();
   if (!host.supportsInPlaceSave) return;
+  const state = record.view.state;
+  if (record.format === 'docx' && docLiveLinkCount(state.doc) > 0) return;
   // A recovered draft may only be written by a MANUAL save until its first
   // one lands — the stale-overwrite confirmation lives on the manual path,
   // and `buildDocRecord` re-arms autosave from the per-path preference, so
@@ -271,12 +297,18 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
         void clearJournalForRecord(record);
       },
     });
-    const state = record.view.state;
     const threads = Array.from(getCommentsState(state).threads.values());
-    const bytes = await serializeNativeAsync(state.doc, {
-      ...(threads.length ? { threads } : {}),
-      ...(record.docId ? { docId: record.docId } : {}),
-    });
+    const bytes =
+      record.format === 'docx'
+        ? await toDocx(flattenSelfRefs(state.doc, newHeadingId), {
+            ...(threads.length ? { threads } : {}),
+            ...(record.docId ? { docId: record.docId } : {}),
+            defaultFont: settings.get('bodyFont'),
+          })
+        : await serializeNativeAsync(state.doc, {
+            ...(threads.length ? { threads } : {}),
+            ...(record.docId ? { docId: record.docId } : {}),
+          });
     await host.saveExisting(record.handle, bytes);
     commitClean();
     reportAutosaveSuccess();
