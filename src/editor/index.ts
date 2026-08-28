@@ -1034,6 +1034,10 @@ let multiDocGetFocusedFile:
 let multiDocSetFocusedFile:
   | ((file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null }) => void)
   | null = null;
+/** Live view / linked-copy counts in the focused pane's doc. Backs the
+ *  autosave button's "paused" state in multi-pane mode, mirroring
+ *  `activeSaveDocLiveLinkCounts()`'s role in single-doc mode. */
+let multiDocGetFocusedLiveLinkCounts: (() => { views: number; copies: number }) | null = null;
 /** Set the focused DocRecord's Learn docId (minted/forked lazily). */
 let multiDocSetFocusedDocId: ((docId: string) => void) | null = null;
 /** Find the live view of any pane in this window (focused or not) whose
@@ -1115,6 +1119,9 @@ export function enableMultiDocMode(opts: {
     uid: string;
   } | null;
   setFocusedFile?: (file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null }) => void;
+  /** Live view / linked-copy counts in the focused pane's doc — see
+   *  `multiDocGetFocusedLiveLinkCounts`. */
+  getFocusedLiveLinkCounts?: () => { views: number; copies: number };
   setFocusedDocId?: (docId: string) => void;
   /** Live view of any pane holding `docId` (focused or background), or null. */
   findViewForDocId?: (docId: string) => EditorView | null;
@@ -1174,6 +1181,7 @@ export function enableMultiDocMode(opts: {
   multiDocSetFocusedFilename = opts.setFocusedFilename ?? null;
   multiDocGetFocusedFile = opts.getFocusedFile ?? null;
   multiDocSetFocusedFile = opts.setFocusedFile ?? null;
+  multiDocGetFocusedLiveLinkCounts = opts.getFocusedLiveLinkCounts ?? null;
   multiDocSetFocusedDocId = opts.setFocusedDocId ?? null;
   multiDocFindViewForDocId = opts.findViewForDocId ?? null;
   multiDocGetAllFilenames = opts.getAllFilenames ?? null;
@@ -7476,6 +7484,17 @@ function activeSaveDocLiveLinkCounts(): { views: number; copies: number } {
   return counts;
 }
 
+/** Live view / linked-copy counts for whichever doc autosave would gate
+ *  on right now — the focused multi-pane record, or (single-doc) the
+ *  same doc `activeSaveDocLiveLinkCounts()` reads. Used by the autosave
+ *  button to show a "paused" state distinct from "effective". */
+function activeLiveLinkCounts(): { views: number; copies: number } {
+  if (multiDocActive && multiDocGetFocusedLiveLinkCounts) {
+    return multiDocGetFocusedLiveLinkCounts();
+  }
+  return activeSaveDocLiveLinkCounts();
+}
+
 /** Warn before a `.docx` write that would flatten live views / linked copies.
  *  Word can't store live links, so saving to `.docx` drops them (the content
  *  stays, the link doesn't) — a silent, one-way loss if the doc is later
@@ -8255,7 +8274,13 @@ async function runAutosaveAttempt(): Promise<void> {
   // references.
   if (file.format === 'docx') {
     const { views, copies } = activeSaveDocLiveLinkCounts();
-    if (views + copies > 0) return;
+    if (views + copies > 0) {
+      // The button may still be showing "effective" from before these
+      // landed — refresh now so it flips to "paused" instead of staying
+      // stale until the next successful save.
+      refreshAutosaveBtn();
+      return;
+    }
   }
   // A recovered draft may only be written by a MANUAL save until its first
   // one lands — the stale-overwrite confirmation lives on the manual path,
@@ -8288,6 +8313,10 @@ async function runAutosaveAttempt(): Promise<void> {
     flashSaveSuccess();
     commitClean();
     reportAutosaveSuccess();
+    // reportAutosaveSuccess() only refreshes the button on a failure→success
+    // transition; a docx doc that was previously PAUSED (live links since
+    // removed) needs its own refresh so the button leaves the paused state.
+    if (file.format === 'docx') refreshAutosaveBtn();
   } catch (err) {
     reportAutosaveFailure(file.filename ?? 'Untitled', err, {
       promptConflict: () => void runSaveFlow(),
@@ -8359,13 +8388,16 @@ export function reportAutosaveSuccess(): void {
 /** Update the autosave button's pressed state + tooltip based on
  *  the current setting and the active file's format. The button
  *  stays pressed regardless of whether autosave is actually firing
- *  (the user's preference is sovereign), but the tooltip clarifies
- *  when autosave is on but inert (a brand-new, never-saved doc, or
- *  a format autosave doesn't write to at all — currently just a doc
- *  with no on-disk handle; a `.docx` with a live view/linked copy is
- *  handled by `runAutosaveAttempt` skipping that tick silently, not
- *  reflected here as a distinct "inert" state). */
-function refreshAutosaveBtn(): void {
+ *  (the user's preference is sovereign), but `data-autosave-effective`
+ *  and the tooltip both distinguish "on and effective" from "on but
+ *  currently inert" — a brand-new never-saved doc, OR a `.docx` with a
+ *  live view / linked copy present right now (Word can't hold those,
+ *  so `runAutosaveAttempt` / `runAutosaveForRecord` skip that tick —
+ *  this reports it as inert too, rather than falsely showing
+ *  "effective" while ticks are silently being skipped). The two inert
+ *  cases share the CSS state (both mean "not currently writing to
+ *  disk") but get distinct tooltip text so the reason is clear. */
+export function refreshAutosaveBtn(): void {
   if (!autosaveBtn) return;
   const on = autosaveStateForActive();
   autosaveBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -8375,15 +8407,26 @@ function refreshAutosaveBtn(): void {
     autosaveBtn.dataset['autosaveEffective'] = 'false';
   } else {
     const file = activeFile();
-    const effective = (file.format === 'cmir' || file.format === 'docx') && !!file.handle;
+    const liveLinks = file.format === 'docx' ? activeLiveLinkCounts() : { views: 0, copies: 0 };
+    const liveLinkTotal = liveLinks.views + liveLinks.copies;
+    const effective =
+      (file.format === 'cmir' && !!file.handle) ||
+      (file.format === 'docx' && !!file.handle && liveLinkTotal === 0);
     autosaveBtn.dataset['autosaveEffective'] = effective ? 'true' : 'false';
     if (file.format === 'cmir' && effective) {
       label = 'Autosave is on — saves to .cmir every few seconds after edits';
     } else if (file.format === 'docx' && effective) {
+      label = 'Autosave is on — saves to .docx every few seconds after edits.';
+    } else if (file.format === 'docx' && !!file.handle && liveLinkTotal > 0) {
+      const parts: string[] = [];
+      if (liveLinks.views > 0) parts.push(liveLinks.views === 1 ? 'a live view' : `${liveLinks.views} live views`);
+      if (liveLinks.copies > 0)
+        parts.push(liveLinks.copies === 1 ? 'a linked copy' : `${liveLinks.copies} linked copies`);
+      const what = parts.join(' and ');
+      const them = liveLinkTotal === 1 ? 'it' : 'them';
       label =
-        'Autosave is on — saves to .docx every few seconds after edits. ' +
-        "Pauses automatically while the document has a live view or linked copy " +
-        "(Word can't hold those) until you save manually or they're gone.";
+        `Autosave is paused — this document has ${what}, and Word (.docx) can't hold ${them}. ` +
+        `Save manually, or remove ${them}, to resume autosave.`;
     } else {
       label = 'Autosave is on, but this doc has not been saved yet. Save once to enable.';
     }
