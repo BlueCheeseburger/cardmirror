@@ -3434,28 +3434,28 @@ function applyDisplayTypography(t: DisplayTypography): void {
  *  attributes on the document root. Light is the absence of a
  *  `data-theme` attribute (CSS defaults handle it). Dark mode
  *  toggles every `--pmd-c-*` token via the
- *  `:root[data-theme="dark"]` rule in style.css. When the
- *  theme is dark but `themeAppliesToDocument` is false, the
- *  editor scope re-declares the relevant tokens back to light
- *  so the document keeps its paper-like surface. */
+ *  `:root[data-theme="dark"]` rule in style.css.
+ *
+ *  The document surface's own light/dark state (`docTheme`) is
+ *  resolved independently of the chrome: `'light'` and `'dark'` force
+ *  it regardless of chrome theme; `'followApp'` mirrors the chrome's
+ *  resolved value. Reflected as `data-theme-doc="dark"` (or absent)
+ *  on the root, independent of `data-theme` — so a light chrome can
+ *  carry a dark document and vice versa. CSS keys legibility overrides
+ *  (font-color luminance bands, etc.) off `data-theme-doc` alone. */
 function applyTheme(
   pref: 'light' | 'dark' | 'system',
-  appliesToDocument: boolean,
+  docPref: 'followApp' | 'light' | 'dark',
 ): void {
-  let effective: 'light' | 'dark';
-  if (pref === 'system') {
-    effective = window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
-  } else {
-    effective = pref;
-  }
+  const systemIsDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const effective: 'light' | 'dark' = pref === 'system' ? (systemIsDark ? 'dark' : 'light') : pref;
   if (effective === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
   } else {
     document.documentElement.removeAttribute('data-theme');
   }
-  if (effective === 'dark' && appliesToDocument) {
+  const docEffective: 'light' | 'dark' = docPref === 'followApp' ? effective : docPref;
+  if (docEffective === 'dark') {
     document.documentElement.setAttribute('data-theme-doc', 'dark');
   } else {
     document.documentElement.removeAttribute('data-theme-doc');
@@ -3466,8 +3466,11 @@ function applyTheme(
  *  mode tracks them live. Set up once at boot. */
 const systemDarkMedia = window.matchMedia('(prefers-color-scheme: dark)');
 systemDarkMedia.addEventListener('change', () => {
+  // Only 'system' chrome theme tracks OS changes; a doc theme of
+  // 'followApp' only moves when the chrome's effective value does, so
+  // it needs no separate condition here.
   if (settings.get('theme') === 'system') {
-    applyTheme('system', settings.get('themeAppliesToDocument'));
+    applyTheme(settings.get('theme'), settings.get('docTheme'));
   }
 });
 
@@ -3765,7 +3768,7 @@ function applyPillVisibility(): void {
 // Apply read-mode visual state and editing lockdown whenever the
 // setting changes (and once now to handle the persisted value).
 settings.subscribe((s) => {
-  applyTheme(s.theme, s.themeAppliesToDocument);
+  applyTheme(s.theme, s.docTheme);
   applyShowDocNameChip(s.showDocNameChip);
   applyIconSet(s.iconSet);
   applyReduceMotion(s.reduceMotion);
@@ -4022,7 +4025,7 @@ function initRibbonResizer(): void {
 }
 initRibbonResizer();
 
-applyTheme(settings.get('theme'), settings.get('themeAppliesToDocument'));
+applyTheme(settings.get('theme'), settings.get('docTheme'));
 applyShowDocNameChip(settings.get('showDocNameChip'));
 applyIconSet(settings.get('iconSet'));
 applyReduceMotion(settings.get('reduceMotion'));
