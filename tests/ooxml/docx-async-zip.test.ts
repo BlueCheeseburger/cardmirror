@@ -29,9 +29,10 @@ describe('Docx.toBuffer (async zip)', () => {
     b.writeText('word/document.xml', 'BBBB');
 
     // Fire both zips concurrently — regression guard for any accidental
-    // shared mutable state in the async path (module-level `zipWorkerBroken`
-    // is a one-way latch, not per-call state, so this specifically checks
-    // the actual zip contents don't leak between calls).
+    // shared mutable state in the async path (module-level
+    // `zipWorkerBrokenUntil` is a time-boxed broken-window timestamp, not
+    // per-call state, so this specifically checks the actual zip contents
+    // don't leak between calls).
     const [bytesA, bytesB] = await Promise.all([a.toBuffer(), b.toBuffer()]);
 
     const reloadedA = await Docx.load(bytesA);

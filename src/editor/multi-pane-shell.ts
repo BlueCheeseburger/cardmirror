@@ -114,6 +114,7 @@ import {
   runSaveAsFlow,
   reportAutosaveFailure,
   reportAutosaveSuccess,
+  refreshAutosaveBtn,
   refreshWindowTitle,
   commentsColumn,
   getCommentsColumnEl,
@@ -247,15 +248,27 @@ const AUTOSAVE_DELAY_MS = 5000;
  *  a background pane's autosave must gate on ITS content regardless of
  *  which pane currently has focus. */
 function docLiveLinkCount(doc: PMNode): number {
-  let count = 0;
+  const { views, copies } = docLiveLinkCounts(doc);
+  return views + copies;
+}
+
+/** Same traversal as `docLiveLinkCount`, split by kind — for callers (the
+ *  autosave button's "paused" tooltip) that need to phrase which kind(s)
+ *  are present rather than just gate on a nonzero total. */
+function docLiveLinkCounts(doc: PMNode): { views: number; copies: number } {
+  const counts = { views: 0, copies: 0 };
   doc.descendants((node) => {
-    if (isSelfRef(node) || isTransclusionNode(node)) {
-      count++;
+    if (isSelfRef(node)) {
+      counts.views++;
+      return false;
+    }
+    if (isTransclusionNode(node)) {
+      counts.copies++;
       return false;
     }
     return true;
   });
-  return count;
+  return counts;
 }
 
 /** Per-DocRecord autosave attempt. Like the single-doc
@@ -275,7 +288,16 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
   const host = getHost();
   if (!host.supportsInPlaceSave) return;
   const state = record.view.state;
-  if (record.format === 'docx' && docLiveLinkCount(state.doc) > 0) return;
+  // Only the FOCUSED pane's autosave state is reflected by the ribbon
+  // button — a background pane's cycle running here shouldn't repaint it.
+  const isFocusedRecord = shell?.getFocusedFile()?.uid === record.uid;
+  if (record.format === 'docx' && docLiveLinkCount(state.doc) > 0) {
+    // The button may still be showing "effective" from before these
+    // landed — refresh now so it flips to "paused" instead of staying
+    // stale until the next successful save.
+    if (isFocusedRecord) refreshAutosaveBtn();
+    return;
+  }
   // A recovered draft may only be written by a MANUAL save until its first
   // one lands — the stale-overwrite confirmation lives on the manual path,
   // and `buildDocRecord` re-arms autosave from the per-path preference, so
@@ -312,6 +334,10 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
     await host.saveExisting(record.handle, bytes);
     commitClean();
     reportAutosaveSuccess();
+    // reportAutosaveSuccess() only refreshes the button on a failure→success
+    // transition; a docx record that was previously PAUSED (live links since
+    // removed) needs its own refresh so the button leaves the paused state.
+    if (record.format === 'docx' && isFocusedRecord) refreshAutosaveBtn();
   } catch (err) {
     reportAutosaveFailure(record.filename, err);
   }
@@ -2236,6 +2262,15 @@ class MultiPaneShell {
     return { filename: rec.filename, handle: rec.handle, format: rec.format, docId: rec.docId, uid: rec.uid };
   }
 
+  /** Live view / linked-copy counts in the focused pane's doc — backs the
+   *  autosave button's "paused" tooltip in multi-pane mode. `{views: 0,
+   *  copies: 0}` when no pane is focused (nothing to pause). */
+  getFocusedLiveLinkCounts(): { views: number; copies: number } {
+    const rec = this.focusedSlot?.visible;
+    if (!rec) return { views: 0, copies: 0 };
+    return docLiveLinkCounts(rec.view.state.doc);
+  }
+
   /** Set the focused doc's Learn id (minted lazily on first save /
    *  flashcard, or forked on Save As). Lightweight on purpose — unlike
    *  `setFocusedFile` it touches none of the filename / handle / chip /
@@ -3393,6 +3428,7 @@ export function mountMultiPaneShell(): void {
     setFocusedFilename: (name) => shell!.setFocusedFilename(name),
     getFocusedFile: () => shell!.getFocusedFile(),
     setFocusedFile: (f) => shell!.setFocusedFile(f),
+    getFocusedLiveLinkCounts: () => shell!.getFocusedLiveLinkCounts(),
     setFocusedDocId: (id) => shell!.setFocusedDocId(id),
     findViewForDocId: (id) => shell!.findViewForDocId(id),
     getAllFilenames: () => shell!.getAllFilenames(),
