@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import {
   resolveAiModel,
   DEFAULT_MODEL,
+  DEFAULT_GEMINI_MODEL,
   activeApiKey,
   aiConfigured,
   callLlm,
@@ -73,11 +74,49 @@ describe('resolveAiModel (OpenRouter provider)', () => {
   });
 });
 
+describe('resolveAiModel (Gemini provider)', () => {
+  afterEach(() => {
+    settings.set('aiProvider', 'anthropic');
+    settings.set('geminiModel', '');
+  });
+
+  it('uses the Gemini default when no override is set', () => {
+    settings.set('aiProvider', 'gemini');
+    settings.set('geminiModel', '');
+    expect(resolveAiModel()).toBe(DEFAULT_GEMINI_MODEL);
+  });
+
+  it('uses a well-formed Gemini override verbatim', () => {
+    settings.set('aiProvider', 'gemini');
+    settings.set('geminiModel', 'gemini-2.5-pro');
+    expect(resolveAiModel()).toBe('gemini-2.5-pro');
+  });
+
+  it('reverts to the Gemini default on a malformed override', () => {
+    settings.set('aiProvider', 'gemini');
+    for (const bad of ['  ', 'x', 'has space']) {
+      settings.set('geminiModel', bad);
+      expect(resolveAiModel(), `bad="${bad}"`).toBe(DEFAULT_GEMINI_MODEL);
+    }
+  });
+
+  it('ignores aiModelOverride and openrouterModel when provider is gemini', () => {
+    settings.set('aiProvider', 'gemini');
+    settings.set('geminiModel', 'gemini-2.5-pro');
+    settings.set('aiModelOverride', 'claude-opus-4-8');
+    settings.set('openrouterModel', 'mistral/mistral-7b');
+    expect(resolveAiModel()).toBe('gemini-2.5-pro');
+    settings.set('aiModelOverride', '');
+    settings.set('openrouterModel', '');
+  });
+});
+
 describe('activeApiKey', () => {
   afterEach(() => {
     settings.set('aiProvider', 'anthropic');
     settings.set('anthropicApiKey', '');
     settings.set('openrouterApiKey', '');
+    settings.set('geminiApiKey', '');
   });
 
   it('returns the anthropicApiKey by default (when provider is anthropic)', () => {
@@ -118,6 +157,25 @@ describe('activeApiKey', () => {
     expect(activeApiKey()).toBe('sk-or-active');
   });
 
+  it('returns the geminiApiKey when provider is gemini', () => {
+    settings.set('aiProvider', 'gemini');
+    settings.set('geminiApiKey', 'AIza-test-key-789');
+    expect(activeApiKey()).toBe('AIza-test-key-789');
+  });
+
+  it('trims whitespace from gemini key', () => {
+    settings.set('aiProvider', 'gemini');
+    settings.set('geminiApiKey', '  AIza-test-key-789  ');
+    expect(activeApiKey()).toBe('AIza-test-key-789');
+  });
+
+  it('ignores the gemini key when provider is anthropic', () => {
+    settings.set('aiProvider', 'anthropic');
+    settings.set('anthropicApiKey', 'sk-ant-active');
+    settings.set('geminiApiKey', 'AIza-ignored');
+    expect(activeApiKey()).toBe('sk-ant-active');
+  });
+
   it('returns empty string when the active provider has no key', () => {
     settings.set('aiProvider', 'anthropic');
     settings.set('anthropicApiKey', '');
@@ -131,6 +189,7 @@ describe('aiConfigured', () => {
     settings.set('aiFeaturesEnabled', false);
     settings.set('anthropicApiKey', '');
     settings.set('openrouterApiKey', '');
+    settings.set('geminiApiKey', '');
   });
 
   it('returns false when aiFeaturesEnabled is false, even with a key', () => {
@@ -164,6 +223,20 @@ describe('aiConfigured', () => {
     settings.set('aiProvider', 'openrouter');
     settings.set('aiFeaturesEnabled', true);
     settings.set('openrouterApiKey', 'sk-or-test-key-456');
+    expect(aiConfigured()).toBe(true);
+  });
+
+  it('returns false when enabled but no gemini key is set', () => {
+    settings.set('aiProvider', 'gemini');
+    settings.set('aiFeaturesEnabled', true);
+    settings.set('geminiApiKey', '');
+    expect(aiConfigured()).toBe(false);
+  });
+
+  it('returns true when enabled and gemini key is set', () => {
+    settings.set('aiProvider', 'gemini');
+    settings.set('aiFeaturesEnabled', true);
+    settings.set('geminiApiKey', 'AIza-test-key-789');
     expect(aiConfigured()).toBe(true);
   });
 

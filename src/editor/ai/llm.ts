@@ -1,6 +1,7 @@
 /**
  * LLM client. Dispatches on the `aiProvider` setting between the
- * Anthropic Messages API and OpenRouter (OpenAI-chat-compatible).
+ * Anthropic Messages API, OpenRouter (OpenAI-chat-compatible), and
+ * Google's Gemini `generateContent` API.
  * Browser-direct calls — the user's API key lives in local settings
  * and is sent on every request from the client. Documented as a
  * security tradeoff in PROJECT.md; users opt in by enabling AI
@@ -20,7 +21,7 @@
  */
 
 import { settings } from '../settings.js';
-import { ANTHROPIC_MESSAGES_URL, OPENROUTER_CHAT_URL } from './llm-endpoints.js';
+import { ANTHROPIC_MESSAGES_URL, OPENROUTER_CHAT_URL, GEMINI_GENERATE_URL } from './llm-endpoints.js';
 import { showToast } from '../toast.js';
 import { postNotice } from '../status-notices.js';
 
@@ -88,6 +89,10 @@ export interface LlmReply {
  *  it usually needs no change. Users can also override per-install via
  *  the `aiModelOverride` setting (see `resolveAiModel`). */
 export const DEFAULT_MODEL = 'claude-sonnet-4-6';
+/** The single source of truth for which Gemini model the app talks to
+ *  when `aiProvider === 'gemini'`. Users can override per-install via
+ *  the `geminiModel` setting (see `resolveAiModel`). */
+export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 /** Floor for the user-configurable output budget. Reasoning models
  *  count hidden thinking tokens against `max_tokens`, so anything below
  *  this can leave no room for the actual reply (empty content, a
@@ -112,12 +117,19 @@ function isPlausibleModelId(s: string): boolean {
 }
 
 /** The model the app should use: for OpenRouter, the user's configured
- *  `openrouterModel` verbatim; for Anthropic, the `aiModelOverride` when
- *  it looks valid, otherwise `DEFAULT_MODEL`. Single resolver so every AI
- *  feature (cite, explain, translate, flashcards, image) stays in sync. */
+ *  `openrouterModel` verbatim; for Gemini, `geminiModel` when it looks
+ *  valid, otherwise `DEFAULT_GEMINI_MODEL`; for Anthropic, the
+ *  `aiModelOverride` when it looks valid, otherwise `DEFAULT_MODEL`.
+ *  Single resolver so every AI feature (cite, explain, translate,
+ *  flashcards, image) stays in sync. */
 export function resolveAiModel(): string {
-  if (settings.get('aiProvider') === 'openrouter') {
+  const provider = settings.get('aiProvider');
+  if (provider === 'openrouter') {
     return settings.get('openrouterModel').trim();
+  }
+  if (provider === 'gemini') {
+    const override = (settings.get('geminiModel') || '').trim();
+    return isPlausibleModelId(override) ? override : DEFAULT_GEMINI_MODEL;
   }
   const override = (settings.get('aiModelOverride') || '').trim();
   return isPlausibleModelId(override) ? override : DEFAULT_MODEL;
@@ -160,10 +172,13 @@ export function aiGateToast(): boolean {
  *  source so every AI feature reads the right key when the provider
  *  changes. */
 export function activeApiKey(): string {
+  const provider = settings.get('aiProvider');
   const key =
-    settings.get('aiProvider') === 'openrouter'
+    provider === 'openrouter'
       ? settings.get('openrouterApiKey')
-      : settings.get('anthropicApiKey');
+      : provider === 'gemini'
+        ? settings.get('geminiApiKey')
+        : settings.get('anthropicApiKey');
   return key.trim();
 }
 
@@ -628,11 +643,207 @@ async function callOpenRouter(req: LlmRequest): Promise<LlmReply> {
   }
 }
 
+type GeminiPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } };
+
+interface GeminiContent {
+  role: 'user' | 'model';
+  parts: GeminiPart[];
+}
+
+function toGeminiParts(content: string | LlmContentBlock[]): GeminiPart[] {
+  if (typeof content === 'string') return [{ text: content }];
+  return content.map((b): GeminiPart =>
+    b.type === 'text'
+      ? { text: b.text }
+      : { inlineData: { mimeType: b.source.media_type, data: b.source.data } },
+  );
+}
+
+/** Translate an Anthropic-shaped request's messages into Gemini's
+ *  `contents` array — Gemini names the assistant turn `'model'`, not
+ *  `'assistant'`. Exported for testing. */
+export function toGeminiContents(req: LlmRequest): GeminiContent[] {
+  return req.messages.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: toGeminiParts(m.content),
+  }));
+}
+
+/** Parse a Gemini `generateContent` response into `LlmReply`. Maps
+ *  `finishReason: 'MAX_TOKENS'` to `stopReason: 'max_tokens'` so callers'
+ *  truncation checks keep working. A prompt-level block
+ *  (`promptFeedback.blockReason`) or a safety/recitation finish reason
+ *  both surface as `'refusal'`-kind errors rather than an empty answer.
+ *  Exported for testing. */
+export function parseGeminiReply(json: unknown): LlmReply {
+  const blockReason = (json as { promptFeedback?: { blockReason?: string } })?.promptFeedback
+    ?.blockReason;
+  if (blockReason) {
+    throw new LlmError(
+      `Gemini declined this request (${blockReason}). These can misfire on sensitive ` +
+        'research topics — try rephrasing, or trimming the selection to just what the task needs.',
+      null,
+      'refusal',
+    );
+  }
+  const candidate = (
+    json as {
+      candidates?: Array<{
+        content?: { parts?: Array<{ text?: string }> };
+        finishReason?: string;
+      }>;
+    }
+  )?.candidates?.[0];
+  const finishReason = candidate?.finishReason;
+  if (finishReason === 'SAFETY' || finishReason === 'RECITATION' || finishReason === 'PROHIBITED_CONTENT') {
+    throw new LlmError(
+      'Gemini declined this request (safety filters). These can misfire on sensitive ' +
+        'research topics — try rephrasing, or trimming the selection to just what the task needs.',
+      null,
+      'refusal',
+    );
+  }
+  const text = (candidate?.content?.parts ?? []).map((p) => p.text ?? '').join('');
+  if (!text) {
+    if (finishReason === 'MAX_TOKENS') {
+      throw new LlmError(
+        'The model used its whole token budget on reasoning and returned no text. ' +
+          'Raise "Max output tokens" under Settings -> Comments & AI (reasoning ' +
+          'models need a higher value), or pick a different model.',
+        null,
+        'parse',
+      );
+    }
+    throw new LlmError('Gemini returned an empty response.', null, 'parse');
+  }
+  const stopReason = finishReason === 'MAX_TOKENS' ? 'max_tokens' : finishReason;
+  return { text, stopReason };
+}
+
+function throwGeminiHttpError(
+  status: number,
+  errStatus: string,
+  detail: string,
+  requestedModel: string,
+): never {
+  if (status === 400 && /api key/i.test(detail)) {
+    throw new LlmError(`Gemini rejected the request: invalid API key.`, status, 'auth');
+  }
+  const looksLikeModelError =
+    !SAMPLING_PARAM.test(detail) &&
+    (status === 404 ||
+      errStatus === 'NOT_FOUND' ||
+      (status >= 400 && status < 500 && /\bmodel\b/i.test(detail)));
+  if (looksLikeModelError) {
+    throw new LlmError(
+      `The AI model "${requestedModel}" was rejected by Gemini — it may not exist or may have ` +
+        `been retired. Set a valid model id under Settings → Comments & AI → Gemini model.`,
+      status,
+      'model',
+    );
+  }
+  if (status === 429 || errStatus === 'RESOURCE_EXHAUSTED') {
+    throw new LlmError(
+      'Gemini rate-limited this request — wait a moment and try again.',
+      status,
+      'rate-limit',
+    );
+  }
+  if (status === 401 || status === 403 || errStatus === 'PERMISSION_DENIED' || errStatus === 'UNAUTHENTICATED') {
+    throw new LlmError(
+      `Gemini rejected the request as not permitted for this API key${detail ? `: ${detail}` : ''}`,
+      status,
+      'auth',
+    );
+  }
+  if (status === 503 || errStatus === 'UNAVAILABLE') {
+    throw new LlmError(
+      'Gemini is temporarily unavailable — wait a moment and try again.',
+      status,
+      'server',
+    );
+  }
+  const kind: LlmError['kind'] = status === 429 ? 'rate-limit' : 'server';
+  throw new LlmError(`Gemini API returned ${status}${detail ? `: ${detail}` : ''}`, status, kind);
+}
+
+async function callGeminiApi(req: LlmRequest): Promise<LlmReply> {
+  const requestedModel = req.model ?? resolveAiModel();
+  let temperature = req.temperature;
+  let transientRetries = 1;
+  for (;;) {
+    const body: Record<string, unknown> = {
+      contents: toGeminiContents(req),
+      generationConfig: {
+        maxOutputTokens: req.maxTokens ?? defaultMaxTokens(),
+        ...(temperature != null ? { temperature } : {}),
+      },
+    };
+    if (req.system) body.systemInstruction = { parts: [{ text: req.system }] };
+
+    const res = await fetchWithTimeout(
+      `${GEMINI_GENERATE_URL}${encodeURIComponent(requestedModel)}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          // Header form (rather than the `?key=` query param) so the key
+          // never lands in request URLs — history, proxy logs, etc.
+          'x-goog-api-key': req.apiKey,
+        },
+        body: JSON.stringify(body),
+      },
+      'Gemini',
+    );
+
+    if (!res.ok) {
+      let detail = '';
+      let errStatus = '';
+      try {
+        const payload = (await res.json()) as { error?: { message?: string; status?: string } };
+        detail = payload?.error?.message ?? '';
+        errStatus = payload?.error?.status ?? '';
+      } catch {
+        // Body wasn't JSON. Fall back to status.
+      }
+      if (res.status === 400 && temperature != null && SAMPLING_PARAM.test(detail)) {
+        temperature = undefined;
+        continue;
+      }
+      const delay =
+        transientRetries > 0
+          ? transientRetryDelayMs(res.status, res.headers.get('retry-after'))
+          : null;
+      if (delay !== null) {
+        transientRetries--;
+        await llmSleep.wait(delay);
+        continue;
+      }
+      throwGeminiHttpError(res.status, errStatus, detail, requestedModel);
+    }
+
+    let json: unknown;
+    try {
+      json = await res.json();
+    } catch (e) {
+      throw new LlmError(
+        `Failed to parse Gemini response: ${e instanceof Error ? e.message : String(e)}`,
+        res.status,
+        'parse',
+      );
+    }
+    return parseGeminiReply(json);
+  }
+}
+
 export async function callLlm(req: LlmRequest): Promise<LlmReply> {
   if (!req.apiKey || !req.apiKey.trim()) {
     throw new LlmError('API key is not set - open Settings to add one.', null, 'no-key');
   }
-  return settings.get('aiProvider') === 'openrouter'
-    ? callOpenRouter(req)
-    : callAnthropicApi(req);
+  const provider = settings.get('aiProvider');
+  if (provider === 'openrouter') return callOpenRouter(req);
+  if (provider === 'gemini') return callGeminiApi(req);
+  return callAnthropicApi(req);
 }

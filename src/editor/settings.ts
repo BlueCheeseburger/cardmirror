@@ -71,6 +71,7 @@ const TRANSIENT_SETTING_KEYS = new Set<string>([
 const SECRET_SETTING_KEYS = new Set<string>([
   'anthropicApiKey',
   'openrouterApiKey',
+  'geminiApiKey',
   'googleTranslateApiKey',
   'myMemoryEmail',
 ]);
@@ -1331,14 +1332,23 @@ export interface Settings {
   /** Which inference provider the AI features talk to. `'anthropic'`
    *  uses the Anthropic Messages API + `anthropicApiKey`; `'openrouter'`
    *  uses OpenRouter (OpenAI-chat-compatible) + `openrouterApiKey` /
-   *  `openrouterModel`. */
-  aiProvider: 'anthropic' | 'openrouter';
+   *  `openrouterModel`; `'gemini'` uses Google's Generative Language API
+   *  + `geminiApiKey` / `geminiModel`. */
+  aiProvider: 'anthropic' | 'openrouter' | 'gemini';
   /** OpenRouter API key. Used only when `aiProvider === 'openrouter'`.
    *  Stored locally; sent only to openrouter.ai. */
   openrouterApiKey: string;
   /** OpenRouter model id (e.g. `anthropic/claude-sonnet-4.6`). Required
    *  when OpenRouter is selected; there is no built-in default. */
   openrouterModel: string;
+  /** Google Gemini API key. Used only when `aiProvider === 'gemini'`.
+   *  Stored locally; sent only to generativelanguage.googleapis.com. */
+  geminiApiKey: string;
+  /** Optional override for the Gemini model id used by every AI feature
+   *  when `aiProvider === 'gemini'` (e.g. `gemini-2.5-pro`). Empty (or
+   *  malformed) falls back to the app's built-in default, mirroring
+   *  `aiModelOverride` for Anthropic. */
+  geminiModel: string;
   /** Max output tokens for AI calls that don't set their own ceiling
    *  (cite, explain, flashcards, image alt text). Applies to both
    *  providers. Reasoning models count hidden thinking tokens against
@@ -1791,6 +1801,8 @@ const DEFAULTS: Settings = {
   aiProvider: 'anthropic',
   openrouterApiKey: '',
   openrouterModel: '',
+  geminiApiKey: '',
+  geminiModel: '',
   aiMaxTokens: 4096,
   aiFeaturesEnabled: false,
   clodEnabled: false,
@@ -3439,8 +3451,8 @@ export const SETTING_METADATA: SettingMeta[] = [
     label: 'AI provider',
     description:
       'Which inference service the AI features use. Anthropic talks to the ' +
-      'Anthropic API; OpenRouter talks to openrouter.ai (OpenAI-compatible). ' +
-      'Each provider has its own key below.',
+      'Anthropic API; OpenRouter talks to openrouter.ai (OpenAI-compatible); ' +
+      "Gemini talks to Google's Generative Language API. Each provider has its own key below.",
     kind: 'aiProvider',
     category: 'comments-ai',
     mobile: true,
@@ -3490,6 +3502,28 @@ export const SETTING_METADATA: SettingMeta[] = [
     mobile: true,
     dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'openrouter' }],
     aliases: ['openrouter model', 'model'],
+  },
+  {
+    key: 'geminiApiKey',
+    label: 'Gemini API key',
+    description: 'Used when AI features are enabled and the provider is Google Gemini.',
+    kind: 'password',
+    category: 'comments-ai',
+    mobile: true,
+    dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'gemini' }],
+  },
+  {
+    key: 'geminiModel',
+    label: 'Gemini model (advanced)',
+    description:
+      'Optional. The Gemini model id used by all AI features (e.g. gemini-2.5-pro). ' +
+      'Leave blank to use the version built into this release. A malformed entry is ' +
+      'ignored and the default is used.',
+    kind: 'text',
+    category: 'comments-ai',
+    mobile: true,
+    dependsOn: ['aiFeaturesEnabled', { key: 'aiProvider', equals: 'gemini' }],
+    aliases: ['gemini model', 'model override'],
   },
   {
     key: 'aiMaxTokens',
@@ -3775,7 +3809,7 @@ export function hiddenInLite(meta: SettingMeta): boolean {
   if (!isLiteBuild()) return false;
   if (meta.category === 'pairing' || meta.category === 'plugins') return true;
   const k = meta.key as string;
-  if (/^(ai|clod|anthropic|openrouter)/i.test(k)) return true;
+  if (/^(ai|clod|anthropic|openrouter|gemini)/i.test(k)) return true;
   return k === 'voiceDictationModel';
 }
 
@@ -4535,10 +4569,13 @@ function sanitize(s: Settings): Settings {
         ? s.anthropicApiKey
         : DEFAULTS.anthropicApiKey,
     aiModelOverride: typeof s.aiModelOverride === 'string' ? s.aiModelOverride.trim() : '',
-    aiProvider: s.aiProvider === 'openrouter' ? 'openrouter' : 'anthropic',
+    aiProvider:
+      s.aiProvider === 'openrouter' ? 'openrouter' : s.aiProvider === 'gemini' ? 'gemini' : 'anthropic',
     openrouterApiKey:
       typeof s.openrouterApiKey === 'string' ? s.openrouterApiKey : DEFAULTS.openrouterApiKey,
     openrouterModel: typeof s.openrouterModel === 'string' ? s.openrouterModel.trim() : '',
+    geminiApiKey: typeof s.geminiApiKey === 'string' ? s.geminiApiKey : DEFAULTS.geminiApiKey,
+    geminiModel: typeof s.geminiModel === 'string' ? s.geminiModel.trim() : '',
     aiMaxTokens:
       typeof s.aiMaxTokens === 'number' && Number.isFinite(s.aiMaxTokens)
         ? Math.max(1024, Math.round(s.aiMaxTokens))

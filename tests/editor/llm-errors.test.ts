@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   callLlm,
   parseOpenRouterReply,
+  parseGeminiReply,
   transientRetryDelayMs,
   llmSleep,
   LlmError,
@@ -57,6 +58,7 @@ afterEach(() => {
   vi.useRealTimers();
   settings.set('aiProvider', 'anthropic');
   settings.set('openrouterModel', '');
+  settings.set('geminiModel', '');
 });
 
 describe('transientRetryDelayMs (retry policy table)', () => {
@@ -344,5 +346,130 @@ describe('OpenRouter: failures embedded in an HTTP 200', () => {
     })();
     expect(err).toBeInstanceOf(LlmError);
     expect(err!.kind).toBe('refusal');
+  });
+});
+
+describe('Gemini: HTTP failures', () => {
+  beforeEach(() => {
+    settings.set('aiProvider', 'gemini');
+    settings.set('geminiModel', 'gemini-2.5-pro');
+  });
+
+  it('an invalid-API-key 400 maps to an auth-kind error', async () => {
+    fetchReturning(
+      jsonResponse(400, {
+        error: { code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT' },
+      }),
+    );
+    const err = await callLlm(REQ).catch((e: unknown) => e as LlmError);
+    expect((err as LlmError).kind).toBe('auth');
+    expect((err as LlmError).message).toMatch(/invalid API key/);
+  });
+
+  it('a retired/unknown model 404 gets the friendly model message', async () => {
+    fetchReturning(
+      jsonResponse(404, { error: { code: 404, message: 'model not found', status: 'NOT_FOUND' } }),
+    );
+    const err = await callLlm(REQ).catch((e: unknown) => e as LlmError);
+    expect((err as LlmError).kind).toBe('model');
+    expect((err as LlmError).message).toMatch(/rejected by Gemini/);
+  });
+
+  it('RESOURCE_EXHAUSTED maps to rate-limit without retrying past the cap', async () => {
+    const mock = fetchReturning(
+      jsonResponse(429, { error: { code: 429, message: 'quota exceeded', status: 'RESOURCE_EXHAUSTED' } }),
+      jsonResponse(429, { error: { code: 429, message: 'quota exceeded', status: 'RESOURCE_EXHAUSTED' } }),
+    );
+    const err = await callLlm(REQ).catch((e: unknown) => e as LlmError);
+    expect(mock).toHaveBeenCalledTimes(2);
+    expect((err as LlmError).kind).toBe('rate-limit');
+  });
+
+  it('recovers from a transient UNAVAILABLE (503)', async () => {
+    const mock = fetchReturning(
+      jsonResponse(503, { error: { code: 503, message: 'overloaded', status: 'UNAVAILABLE' } }),
+      jsonResponse(200, {
+        candidates: [{ content: { parts: [{ text: 'hello' }] }, finishReason: 'STOP' }],
+      }),
+    );
+    const reply = await callLlm(REQ);
+    expect(reply.text).toBe('hello');
+    expect(mock).toHaveBeenCalledTimes(2);
+  });
+
+  it('strips temperature and retries when the model rejects it', async () => {
+    const mock = fetchReturning(
+      jsonResponse(400, { error: { code: 400, message: 'temperature is not supported by this model' } }),
+      jsonResponse(200, {
+        candidates: [{ content: { parts: [{ text: 'hello' }] }, finishReason: 'STOP' }],
+      }),
+    );
+    const reply = await callLlm({ ...REQ, temperature: 0 });
+    expect(reply.text).toBe('hello');
+    expect(sentBody(mock, 0)).toHaveProperty('generationConfig');
+    expect((sentBody(mock, 0).generationConfig as Record<string, unknown>).temperature).toBe(0);
+    expect((sentBody(mock, 1).generationConfig as Record<string, unknown>).temperature).toBeUndefined();
+  });
+
+  it('sends the key via the x-goog-api-key header, not the URL', async () => {
+    const mock = fetchReturning(
+      jsonResponse(200, {
+        candidates: [{ content: { parts: [{ text: 'hello' }] }, finishReason: 'STOP' }],
+      }),
+    );
+    await callLlm(REQ);
+    const calls = mock.mock.calls as unknown as [string, RequestInit][];
+    const [url, init] = calls[0]!;
+    expect(url).not.toContain('key=');
+    expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe(REQ.apiKey);
+  });
+});
+
+describe('Gemini: failures embedded in an HTTP 200', () => {
+  it('a promptFeedback block reason surfaces as a refusal', () => {
+    const err = (() => {
+      try {
+        parseGeminiReply({ promptFeedback: { blockReason: 'SAFETY' } });
+        return null;
+      } catch (e) {
+        return e as LlmError;
+      }
+    })();
+    expect(err).toBeInstanceOf(LlmError);
+    expect(err!.kind).toBe('refusal');
+  });
+
+  it("finishReason 'SAFETY' is a refusal even with partial text", () => {
+    const err = (() => {
+      try {
+        parseGeminiReply({
+          candidates: [{ content: { parts: [{ text: 'partial' }] }, finishReason: 'SAFETY' }],
+        });
+        return null;
+      } catch (e) {
+        return e as LlmError;
+      }
+    })();
+    expect(err).toBeInstanceOf(LlmError);
+    expect(err!.kind).toBe('refusal');
+  });
+
+  it("finishReason 'MAX_TOKENS' with no text points at the token-budget setting", () => {
+    expect(() =>
+      parseGeminiReply({ candidates: [{ content: { parts: [] }, finishReason: 'MAX_TOKENS' }] }),
+    ).toThrow(/Max output tokens/);
+  });
+
+  it('maps MAX_TOKENS to stopReason max_tokens on a successful reply', () => {
+    const reply = parseGeminiReply({
+      candidates: [{ content: { parts: [{ text: 'cut off' }] }, finishReason: 'MAX_TOKENS' }],
+    });
+    expect(reply.stopReason).toBe('max_tokens');
+  });
+
+  it('a genuinely empty non-refusal response reads as a parse error', () => {
+    expect(() =>
+      parseGeminiReply({ candidates: [{ content: { parts: [] }, finishReason: 'STOP' }] }),
+    ).toThrow(LlmError);
   });
 });

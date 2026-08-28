@@ -5602,9 +5602,10 @@ function buildSaveFormatEditor(): HTMLElement {
 function buildAiProviderEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-multi-doc-layout-mode-editor';
-  const options: { value: 'anthropic' | 'openrouter'; label: string }[] = [
+  const options: { value: 'anthropic' | 'openrouter' | 'gemini'; label: string }[] = [
     { value: 'anthropic', label: 'Anthropic (api.anthropic.com)' },
     { value: 'openrouter', label: 'OpenRouter (openrouter.ai, OpenAI-compatible)' },
+    { value: 'gemini', label: 'Google Gemini (generativelanguage.googleapis.com)' },
   ];
   const groupName = `pmd-ai-provider-${Math.random().toString(36).slice(2, 8)}`;
   for (const o of options) {
