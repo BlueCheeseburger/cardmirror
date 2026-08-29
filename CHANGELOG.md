@@ -9,6 +9,23 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **Long-running collaboration sessions no longer lose sync when
+  their sign-in credential rotates.** A session held onto the
+  credential it started with; when that credential expired (they
+  refresh roughly every three days), syncing silently stopped and
+  nothing short of restarting the app — not even unlinking and
+  relinking your account — could revive it. Sessions now always
+  present the current credential, so background renewal (or a relink)
+  takes effect immediately.
+- **Saving can no longer hang forever preparing a .cmir file.** The
+  background thread that compresses .cmir saves could die silently in
+  a long-lived window, leaving the Save button stuck in its saving
+  state (and Save As never reaching the file picker) with no error.
+  Compression now falls back to the main thread within a few seconds
+  if the background thread stops responding, and the save-progress
+  warning now also covers the preparation step, so any slowdown there
+  shows a notice instead of silence.
+
 - **Nav-pane clicks no longer jump to the wrong heading in documents
   that picked up duplicate heading identities from a Word round
   trip.** Word add-ins and other editors can duplicate the invisible

@@ -60,7 +60,7 @@ import {
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { installExternalConsent } from './external-consent-ui.js';
 import { maybeSnapshotVersion } from './version-history.js';
-import { awaitWithSaveWatchdog } from './save-watchdog.js';
+import { awaitWithSaveWatchdog, warnIfSlow } from './save-watchdog.js';
 import { installExternalInsertHost } from './external-insert-host.js';
 import { installPluginRegistry } from './plugin-registry.js';
 import { createPluginApi } from './plugin-api.js';
@@ -7563,18 +7563,23 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     // Before serializing, same as runSaveFlowInner — mid-write edits
     // must keep the doc dirty. Only consumed on the full-save path.
     const commitClean = captureActiveDocCleanToken();
-    const bytes = await serializeForSave(
-      choice.format,
-      {
-        includeComments: choice.includeComments,
-        includeAnalytics: choice.includeAnalytics,
-        includeUndertags: choice.includeUndertags,
-        readMode: choice.readMode,
-        includeNotes: choice.includeNotes,
-        includeAiThreads: choice.includeAiThreads,
-        markedCardsOnly: choice.markedCardsOnly,
-      },
-      forkDocId,
+    // Same pre-write watchdog as the in-place save: a hung serialize
+    // here suppressed even the OS file picker (field case 2026-08-29).
+    const bytes = await warnIfSlow(
+      serializeForSave(
+        choice.format,
+        {
+          includeComments: choice.includeComments,
+          includeAnalytics: choice.includeAnalytics,
+          includeUndertags: choice.includeUndertags,
+          readMode: choice.readMode,
+          includeNotes: choice.includeNotes,
+          includeAiThreads: choice.includeAiThreads,
+          markedCardsOnly: choice.markedCardsOnly,
+        },
+        forkDocId,
+      ),
+      choice.filename,
     );
     const result = await getHost().saveAs(choice.filename, bytes, {
       filters: saveFiltersForFormat(choice.format),
@@ -7919,17 +7924,22 @@ async function runSaveFlowInner(): Promise<boolean> {
     // Capture the clean token BEFORE serializing: edits that land from
     // here on are not in the written bytes and must keep the doc dirty.
     const commitClean = captureActiveDocCleanToken();
-    const bytes = await serializeForSave(
-      file.format,
-      {
-        // Silent saves preserve everything by default — the
-        // user-facing toggles only fire from the Save-As dialog.
-        includeComments: true,
-        includeAnalytics: true,
-        includeUndertags: true,
-        readMode: false,
-      },
-      docId,
+    // warnIfSlow: a pre-write hang (serialize) is invisible to the
+    // write watchdog below — surface it instead of ambering silently.
+    const bytes = await warnIfSlow(
+      serializeForSave(
+        file.format,
+        {
+          // Silent saves preserve everything by default — the
+          // user-facing toggles only fire from the Save-As dialog.
+          includeComments: true,
+          includeAnalytics: true,
+          includeUndertags: true,
+          readMode: false,
+        },
+        docId,
+      ),
+      file.filename,
     );
     // Version-history snapshot BEFORE the disk write is awaited: a save
     // whose destination folder hangs (cloud-sync placeholder) still
