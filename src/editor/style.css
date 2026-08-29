@@ -777,8 +777,11 @@ button {
 
   /* ── Theme-invariant tokens ──
      These deliberately do NOT get dark-theme overrides:
-     - doc-paper: the document's paper when the theme is NOT applied
-       to the doc — must stay white in dark mode by design.
+     - doc-paper: the document's paper when `docTheme` is 'light' — must
+       stay white regardless of chrome theme, by design. Its `-dark`
+       counterpart (paired scroller paint for `docTheme: 'dark'` on a
+       light chrome) is the one case here that DOES need a genuine dark
+       variant, since it's the document surface itself, not chrome.
      - band-fg-*: text on the fixed OOXML highlight bands; the bands
        are document data at canonical hex, so their contrast text is
        a function of the band, not the app theme.
@@ -786,6 +789,7 @@ button {
        identically in both themes today; theme variants can be added
        in the dark block later without touching call sites. */
   --pmd-c-doc-paper: #fff;
+  --pmd-c-doc-paper-dark: #1a1a1a;      /* dark counterpart, for docTheme: 'dark' on a light chrome */
   --pmd-c-on-accent-hover: #000;       /* hover glyph on accent fills; invariant because the fills are */
   --pmd-c-band-fg-light: #000;         /* text on light OOXML bands */
   --pmd-c-band-fg-dark: #fff;          /* text on dark OOXML bands */
@@ -1125,12 +1129,12 @@ button {
   --pmd-c-cat-undertag-fg: #66d2b3;
 }
 
-/* "Dark chrome, light document" mode. When the theme is dark BUT
-   `themeAppliesToDocument` is off (the default), re-declare the
-   subset of tokens that surface inside the editor back to their
-   light-mode values. The chrome above stays dark; the editor
-   reads like paper. The few tokens here are the ones that
-   actually render inside `.ProseMirror` (or `#editor` /
+/* "Dark chrome, light document" mode. When the chrome theme is dark
+   BUT `docTheme` is `'light'` (the default), re-declare the subset of
+   tokens that surface inside the editor back to their light-mode
+   values. The chrome above stays dark; the editor reads like paper.
+   The few tokens here are the ones that actually render inside
+   `.ProseMirror` (or `#editor` /
    `.pmd-pane-editor`) — button / ribbon / status-bar tokens stay
    dark because those don't appear inside the document. */
 :root[data-theme="dark"]:not([data-theme-doc="dark"]) :is(#editor, .pmd-pane-editor) {
@@ -1212,6 +1216,61 @@ button {
 :root[data-theme="dark"]:not([data-theme-doc="dark"]) body:not(.pmd-multi-doc) #app,
 :root[data-theme="dark"]:not([data-theme-doc="dark"]) .pmd-pane-body {
   background: var(--pmd-c-doc-paper);
+}
+
+/* Mirror image: "light chrome, dark document" mode (`docTheme: 'dark'`
+   with a light/system-resolved-light chrome). Re-declares the same
+   token subset as the block above, to their DARK values this time, so
+   the document reads dark while the chrome stays light. Values here
+   are the dark-theme values from `:root[data-theme="dark"]` above,
+   just re-scoped to fire without that selector's chrome precondition. */
+:root:not([data-theme="dark"])[data-theme-doc="dark"] :is(#editor, .pmd-pane-editor) {
+  color: var(--pmd-c-text);
+  background: var(--pmd-c-bg);
+
+  --pmd-c-bg: #1a1a1a;
+  --pmd-c-bg-soft: #222;
+  --pmd-c-surface-soft: #1f1f1f;
+  --pmd-c-surface: #262626;
+  --pmd-c-surface-alt: #2f2f2f;
+  --pmd-c-text: #e6e6e6;
+  --pmd-c-text-strong: #fff;
+  --pmd-c-text-secondary: #b8b8b8;
+  --pmd-c-text-muted: #9a9a9a;
+  --pmd-c-text-faint: #7a7a7a;
+  --pmd-c-border: #4a4a4a;
+  --pmd-c-border-soft: #3a3a3a;
+  --pmd-c-divider: #303030;
+  --pmd-c-divider-faint: #292929;
+  --pmd-c-hover: #333;
+  --pmd-c-hover-strong: #404040;
+  --pmd-c-card-hover: #555;
+  --pmd-c-emphasis-box: #888;
+  --pmd-c-transclusion: #5ec4c4;
+  --pmd-c-transclusion-soft: #14383a;
+  --pmd-c-highlight-default: #5a5a00;
+  --pmd-c-image-placeholder-bg: #2a2a2a;
+  --pmd-c-image-placeholder-border: #555;
+  /* Same rationale as the light-doc block above: re-assert the user's
+     document colors (this time the dark-surface variant) inside the
+     editor scope, since the chrome above is light and would otherwise
+     leave the document on the light-chrome `--pmd-color-*` values. */
+  --pmd-color-analytic: var(--pmd-user-color-analytic, #8aa9d1);
+  --pmd-color-undertag: var(--pmd-user-color-undertag, #8fb377);
+  --pmd-c-table-border: #555;
+  --pmd-c-table-header-bg: #2a2a2a;
+  --pmd-c-table-resize-handle: #6b8fee;
+  --pmd-c-table-selected-cell: rgba(120, 140, 200, 0.35);
+  --pmd-c-link: #7AB0FF;
+}
+
+/* Companion rule: paint the scroller dark in light-chrome-dark-doc mode
+   (mirrors the light-paper companion rule above). `--pmd-c-doc-paper`
+   itself must stay white by design (see its definition), so this uses
+   a dedicated dark counterpart rather than repurposing it. */
+:root:not([data-theme="dark"])[data-theme-doc="dark"] body:not(.pmd-multi-doc) #app,
+:root:not([data-theme="dark"])[data-theme-doc="dark"] .pmd-pane-body {
+  background: var(--pmd-c-doc-paper-dark);
 }
 
 /* Scroll-padding on the root scroll container so the browser's
@@ -3898,16 +3957,17 @@ body.pmd-override-shading [data-shading] {
   color: var(--pmd-c-link) !important;
 }
 
-/* Visibility guarantee: in dark mode with "Apply theme to the
-   document area" enabled, any `font_color` mark whose color sits
-   in the "dark" luminance band (lum < 0.4 — see `colorBand()` in
-   `src/schema/marks.ts`) overrides to the themed text color so the
-   run is readable on the dark surface. Catches Word's hyperlink
-   blue, dark grays, and any user-picked color too dark to read on
-   `--pmd-c-bg`. `!important` beats the inline `color:` style the
-   mark emits. The narrower selector `.ProseMirror` keeps this from
-   leaking into chrome (settings dialogs, color pickers, etc.). */
-:root[data-theme="dark"][data-theme-doc="dark"] .ProseMirror [data-color-band="dark"] {
+/* Visibility guarantee: whenever the DOCUMENT surface is dark
+   (`data-theme-doc="dark"` — independent of the chrome theme), any
+   `font_color` mark whose color sits in the "dark" luminance band
+   (lum < 0.4 — see `colorBand()` in `src/schema/marks.ts`) overrides
+   to the themed text color so the run is readable on the dark
+   surface. Catches Word's hyperlink blue, dark grays, and any
+   user-picked color too dark to read on `--pmd-c-bg`. `!important`
+   beats the inline `color:` style the mark emits. The narrower
+   selector `.ProseMirror` keeps this from leaking into chrome
+   (settings dialogs, color pickers, etc.). */
+:root[data-theme-doc="dark"] .ProseMirror [data-color-band="dark"] {
   color: var(--pmd-c-text) !important;
 }
 
@@ -3918,9 +3978,9 @@ body.pmd-override-shading [data-shading] {
    sky-blue on a link, etc.). These rules carry an extra selector
    so they out-specify the dark-band rule above and win the
    cascade. */
-:root[data-theme="dark"][data-theme-doc="dark"] .ProseMirror .pmd-highlight [data-color-band="dark"],
-:root[data-theme="dark"][data-theme-doc="dark"] .ProseMirror [data-shading-band] [data-color-band="dark"],
-:root[data-theme="dark"][data-theme-doc="dark"] .ProseMirror a [data-color-band="dark"] {
+:root[data-theme-doc="dark"] .ProseMirror .pmd-highlight [data-color-band="dark"],
+:root[data-theme-doc="dark"] .ProseMirror [data-shading-band] [data-color-band="dark"],
+:root[data-theme-doc="dark"] .ProseMirror a [data-color-band="dark"] {
   color: inherit !important;
 }
 
@@ -3929,14 +3989,14 @@ body.pmd-override-shading [data-shading] {
    "unread after a marker" tint) so colorblind users can change it. Display-only
    — the stored mark stays FF0000, so export and marker detection are untouched.
    `!important` beats the inline `color:` the mark emits; the case-insensitive
-   value match catches lowercase `ff0000` from `.docx` imports. The dark-theme
-   rule out-specifies the dark-band readability override above, so the marker
-   keeps its color on the dark paper too (red is readable there) rather than
-   flattening to body-text color. */
+   value match catches lowercase `ff0000` from `.docx` imports. The dark-doc-
+   surface rule out-specifies the dark-band readability override above, so the
+   marker keeps its color on the dark paper too (red is readable there) rather
+   than flattening to body-text color. */
 .ProseMirror span[data-color="ff0000" i] {
   color: var(--pmd-color-reading-marker) !important;
 }
-:root[data-theme="dark"][data-theme-doc="dark"] .ProseMirror span[data-color="ff0000" i] {
+:root[data-theme-doc="dark"] .ProseMirror span[data-color="ff0000" i] {
   color: var(--pmd-color-reading-marker) !important;
 }
 
@@ -5314,8 +5374,9 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
    surface — the per-level greys and the analytic blue read as
    inconsistent dimmer entries against the dark chrome, and the
    empty-state message disappears entirely at faint-grey. The nav
-   pane is chrome (not gated by `themeAppliesToDocument`) so this
-   only watches `data-theme`. Covers both the single-doc nav panel
+   pane is chrome (not gated by `docTheme`, which governs only the
+   document surface) so this only watches `data-theme`. Covers both
+   the single-doc nav panel
    and the multi-pane nav rail. */
 :root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav),
 :root[data-theme="dark"] :is(.pmd-nav-panel, .pmd-multi-nav) .pmd-nav-empty,

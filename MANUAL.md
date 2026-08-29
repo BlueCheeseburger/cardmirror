@@ -2242,10 +2242,13 @@ How things look. None of these change the file — only your view (see
 
 **Theme & chrome**
 
-- **Theme** — light, dark, or follow the system.
-- **Apply theme to the document area** — off by default, so dark mode
-  darkens only the interface and the document stays paper-like; on darkens
-  the document too.
+- **Theme** — light, dark, or follow the system. Controls the chrome
+  (ribbon, nav, status bar).
+- **Document background** — the document area's own light/dark surface,
+  independent of the chrome theme above. **Light** (default): the
+  document stays paper-like even with a dark chrome. **Dark**: the
+  document is dark even with a light chrome. **Follow app theme**: the
+  document tracks whichever theme the chrome is currently showing.
 - **Icon style** — modern line icons (default) or classic glyphs;
   interface only.
 - **Show doc name in ribbon** — show the active filename as a pill in the

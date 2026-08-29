@@ -510,13 +510,21 @@ export interface Settings {
    *  root; CSS rules at `:root[data-theme="dark"]` (in style.css)
    *  swap the `--pmd-c-*` token values. */
   theme: 'light' | 'dark' | 'system';
-  /** Whether the active theme applies to the editor document
-   *  area too. Default OFF: the chrome (ribbon, nav, status bar)
-   *  follows the theme, but the document itself keeps a light /
-   *  paper-like surface — the configuration most people want
-   *  when running dark mode. Turn on to make the document area
-   *  follow the chrome theme as well. */
-  themeAppliesToDocument: boolean;
+  /** The document/editor surface's light-or-dark appearance, independent
+   *  of the chrome theme above. `'light'` (default) keeps the document
+   *  a paper-like light surface regardless of chrome — the configuration
+   *  most people want when running a dark chrome. `'dark'` forces a dark
+   *  document surface even with a light chrome. `'followApp'` makes the
+   *  document track whichever theme (light/dark/system-resolved) the
+   *  chrome is currently showing. Resolves to the `data-theme-doc`
+   *  attribute on the document root (`'dark'` or absent); CSS at
+   *  `style.css` re-scopes the editor's `--pmd-c-*` tokens accordingly,
+   *  and `font_color`/`shading` marks' pre-tagged luminance band
+   *  (`data-color-band`, computed once at render from the mark's own
+   *  color — see `colorBand()` in `src/schema/marks.ts`) drives legibility
+   *  overrides off this same attribute so they track the document's own
+   *  surface rather than the chrome's. */
+  docTheme: 'followApp' | 'light' | 'dark';
   /** Icon style for the app chrome (ribbon buttons, banners,
    *  dialog glyphs). `'modern'` (default) uses the Untitled UI
    *  line-icon set, painted in `currentColor` via CSS masks;
@@ -1633,7 +1641,7 @@ const DEFAULTS: Settings = {
   markedCardsDestination: 'sameFolder',
   markedCardsFolder: '',
   theme: 'system',
-  themeAppliesToDocument: false,
+  docTheme: 'light',
   iconSet: 'modern',
   showDocNameChip: false,
   showUndoRedoButtons: false,
@@ -2000,6 +2008,7 @@ export interface SettingMeta {
     | 'colorSlots'
     | 'colorOverrides'
     | 'theme'
+    | 'docTheme'
     | 'iconSet'
     | 'reduceMotion'
     | 'timerProfile'
@@ -2676,14 +2685,14 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['light mode', 'dark mode', 'toggle theme', 'system theme', 'color scheme'],
   },
   {
-    key: 'themeAppliesToDocument',
-    label: 'Apply theme to the document area',
+    key: 'docTheme',
+    label: 'Document background',
     description:
-      "Off by default: when the theme is dark (or system-resolved dark), only the chrome — ribbon, nav, status bar — goes dark. The document area stays light, so cards still read like paper. Turn on to make the document itself follow the theme.",
-    kind: 'toggle',
+      "The document area's own light/dark surface, independent of the chrome above. Light (default): the document stays paper-like even with a dark chrome. Dark: the document is dark even with a light chrome. Follow app theme: the document tracks whichever theme the chrome is currently showing.",
+    kind: 'docTheme',
     category: 'appearance',
     section: 'Theme & chrome',
-    aliases: ['dark document', 'dark paper', 'dark mode document'],
+    aliases: ['dark document', 'dark paper', 'dark mode document', 'document background', 'doc theme'],
   },
   {
     key: 'iconSet',
@@ -4207,7 +4216,27 @@ function sanitize(s: Settings): Settings {
       typeof s.markedCardsFolder === 'string' ? s.markedCardsFolder : '',
     theme:
       s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system',
-    themeAppliesToDocument: !!s.themeAppliesToDocument,
+    // Migration: pre-independent-doc-theme installs had a boolean
+    // (`themeAppliesToDocument`) — true followed the chrome theme, false
+    // (default) kept the document light. `docTheme` isn't in DEFAULTS'
+    // predecessor, so its presence in `s` alone can't distinguish "the
+    // user picked light" from "this key never existed" (the `{...DEFAULTS,
+    // ...parsed}` spread fills 'light' into both cases identically) —
+    // check the LEGACY key's presence instead: `themeAppliesToDocument` is
+    // no longer in DEFAULTS or ever written by a current build, so it's
+    // `undefined` here unless the raw input genuinely carried it (an old
+    // persisted blob, or an imported legacy backup), in which case it
+    // authoritatively wins over whatever `docTheme` defaulted to.
+    docTheme: (() => {
+      const legacyAppliesToDocument = (s as { themeAppliesToDocument?: unknown })
+        .themeAppliesToDocument;
+      if (legacyAppliesToDocument !== undefined) {
+        return legacyAppliesToDocument ? 'followApp' : 'light';
+      }
+      return s.docTheme === 'followApp' || s.docTheme === 'light' || s.docTheme === 'dark'
+        ? s.docTheme
+        : 'light';
+    })(),
     // Default-on (modern): only an explicit `'classic'` reverts to the
     // original emoji/text glyphs (survives upgrades from before this existed).
     iconSet: s.iconSet === 'classic' ? 'classic' : 'modern',

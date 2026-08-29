@@ -905,6 +905,10 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildThemeEditor());
       return row;
+    } else if (meta.kind === 'docTheme') {
+      row.appendChild(text);
+      row.appendChild(buildDocThemeEditor());
+      return row;
     } else if (meta.kind === 'iconSet') {
       row.appendChild(text);
       row.appendChild(buildIconSetEditor());
@@ -4728,6 +4732,38 @@ function buildThemeEditor(): HTMLElement {
   refresh();
   const unsub = settings.subscribe(refresh);
   registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
+/** Document-background selector — follow app / light / dark. Renders as
+ *  a small segmented control, same shape as the theme selector above but
+ *  for the document surface's own (chrome-independent) light/dark state. */
+function buildDocThemeEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-theme-editor';
+  const options: { value: 'followApp' | 'light' | 'dark'; label: string }[] = [
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+    { value: 'followApp', label: 'Follow app theme' },
+  ];
+  for (const o of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-theme-editor-btn';
+    btn.textContent = o.label;
+    btn.dataset['value'] = o.value;
+    btn.addEventListener('click', () => settings.set('docTheme', o.value));
+    wrap.appendChild(btn);
+  }
+  function refresh(): void {
+    const cur = settings.get('docTheme');
+    for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
+      btn.setAttribute('aria-pressed', btn.dataset['value'] === cur ? 'true' : 'false');
+    }
+  }
+  refresh();
+  const unsub2 = settings.subscribe(refresh);
+  registerRowCleanup(wrap, () => unsub2());
   return wrap;
 }
 
