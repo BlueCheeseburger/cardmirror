@@ -5,6 +5,70 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## 1.5.1 — 2026-08-29
+
+### Fixed: duplicate heading ids from docx round trips (nav misjumps)
+
+The importer adopted `pmd-heading-*` bookmark ids verbatim; Word
+enforces bookmark uniqueness but the tools around it (Verbatim OOXML
+ops, LibreOffice, Google Docs) duplicate a bookmarked heading
+paragraph happily — e.g. a heading line copied as a style template
+and retyped. Two headings then shared one id, and every id-keyed
+lookup (the nav pane's [data-id] jump, transclusion's extractSection,
+the docx anchor locator) resolves first-match-in-document-order, so
+clicking one heading navigated to the other. `dedupeHeadingIds` now
+walks in document order and re-mints later occurrences — first wins,
+which is exactly behavior-preserving for anything that resolved
+before. Runs in both fromDocx variants and in the `.cmir` load chain,
+so already-infected files heal on open, and re-export writes each
+bookmark once again instead of propagating the duplicate.
+
+### Fixed: long-session credential staleness killed collab sync
+
+The rooms client froze its bearer into a closure at construction,
+defeating the interface's own re-read-per-request entitlement seam.
+Entitlements expire after 72 hours and renew in the background; the
+fresh token landed in the store while a long-running session kept
+presenting the old one — every room call 401'd (updates, presence,
+stream) until an app restart, and even unlink + relink couldn't reach
+the frozen closure. Credentials now resolve per request, with the
+routing code paired to the credential source at call time; on desktop
+the renderer's cached baked defaults refresh on the main process's
+entitlement-changed broadcast. An entitlement that expires with no
+renewal also stops being presented rather than 401ing as a dead
+bearer.
+
+### Fixed: a dead gzip worker hung every .cmir save forever
+
+`.cmir` serialization compresses on fflate's worker thread; the
+fallback only caught a worker that failed to SPAWN. One that spawned
+and then died (a weeks-old renderer under memory pressure) never
+called back, stranding the save promise BEFORE the save watchdog
+(which wraps only the disk write) and before Save As even opened the
+OS file picker — while `.docx` saves, which zip synchronously, worked
+throughout. A 5-second timeout now falls back to synchronous
+compression (byte-identical output) and latches the session to the
+sync path — fflate spawns a fresh worker per call, so there is
+nothing to restart, and re-probing would tax every save with the
+timeout while the killing condition persists. The save flows'
+serialization phase is now also covered by a slow-save notice, so any
+future pre-write hang surfaces instead of ambering silently.
+
+### Fixed: editing over a head-tail cross-container selection threw
+
+A selection ending INSIDE a container's required head block (a card's
+tag, an analytic unit's head) is the one range shape ProseMirror's
+replace cannot fit — closing it must join the tail container's
+remainder onto the from-side container, which no depth combination
+allows. Typing or deleting over such a selection threw "Cannot join
+card onto analytic_unit" uncaught and did nothing. The rebuild now
+applies merge-up semantics, exactly as if the boundary had been
+deleted first: the head's remaining text flows up inline into the cut
+block and the tail container's remaining body blocks follow it into
+the from-side container. Engaged only after the direct replace
+throws; every legal selection (including body-to-body, which always
+merged correctly) keeps ProseMirror's existing behavior.
+
 ## 1.5.0 — 2026-08-28
 
 ### Added: rich payloads on the local insert bridge
@@ -5388,7 +5452,7 @@ single-pane module state that is stale garbage in the workspace.
   file minifies byte-identically to its pre-audit version (esbuild,
   comments stripped), an adversarial reviewer pass per shard restored
   over-trimmed load-bearing info (7 restorations, 17 drift fixes), and
-  typecheck + the full suite stay green. Excluded: `card-cutter-*`
+  typecheck + the full suite stay green. Excluded: experimental
   files, generated `icons.css`, CI-owned `pairing-build.ts`.
 
 - **Terminology: "shading" → "background color" in user-facing text**
@@ -5615,7 +5679,7 @@ single-pane module state that is stale garbage in the workspace.
   plain white (maintainer call: no strikethrough). Untouched by
   design: `setHighlightColor`/`setShadingColor` stay string-only (their
   only null-adjacent caller is the picker, and voice's `applyPen`
-  guards on `pen.color`); the card-cutter port already null-safes with
+  guards on `pen.color`); the experimental port already null-safes with
   `|| 'yellow'` (no changes near the live experiment); the status-bar
   Hl:/Sh: names read marks at the cursor, not the pen. Two null-pen
   regression tests added to ribbon-commands.test.ts.
@@ -5920,8 +5984,8 @@ acceptance).
   `setSpeechDocResolver`, `DEFAULT_FILE_OBJECT_KINDS`,
   `isBodyTextblock`/`isStructuralTextblock`, `findChildren`,
   `textEl`/`rootNamespaces`, `ensureId`, `voiceSessionInfo`). Deliberate
-  keepers: `cardCutterEngineLoaded` (the card-cutter experiment is live —
-  untouched by decision), and word-break.ts's five unit-boundary
+  keepers: one experimental integration hook (untouched by decision),
+  and word-break.ts's five unit-boundary
   functions, now under an explicit "spec reference implementations"
   banner — their doc comments claimed they served Ctrl+Arrow caret
   movement, but the live caret code walks `classifyChar` directly; the
@@ -7207,7 +7271,7 @@ acceptance).
   `pmd-mobile-layout-{editor,row,row-label}` classes that were never defined in
   `style.css`, so the `webOnly` `mobileLayout` radios rendered unstyled (no column
   layout, gap, or matching font). Repointed them at the shared `pmd-heading-mode-*`
-  classes used by the other radio editors (Heading Mode, the card-cutter radios) —
+  classes used by the other radio editors (Heading Mode among them) —
   the DOM is identical, so they now match exactly. The radio `groupName` keeps its
   own value (it's the input `name` attribute, not a CSS class).
 
