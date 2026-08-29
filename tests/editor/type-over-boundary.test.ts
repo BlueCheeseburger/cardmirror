@@ -10,7 +10,7 @@ import { EditorState, TextSelection } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
-import { typeOverBoundaryPlugin } from '../../src/editor/type-over-boundary.js';
+import { typeOverBoundaryPlugin, crossContainerDeleteSelection } from '../../src/editor/type-over-boundary.js';
 
 function tag(text: string) {
   return schema.nodes['tag']!.create({ id: newHeadingId() }, schema.text(text));
@@ -23,6 +23,12 @@ function body(text: string) {
 }
 function card(...children: PMNode[]) {
   return schema.nodes['card']!.createChecked(null, children);
+}
+function analytic(text: string) {
+  return schema.nodes['analytic']!.create({ id: newHeadingId() }, schema.text(text));
+}
+function analyticUnit(...children: PMNode[]) {
+  return schema.nodes['analytic_unit']!.createChecked(null, children);
 }
 function para(text: string) {
   return schema.nodes['paragraph']!.create(null, schema.text(text));
@@ -136,5 +142,98 @@ describe('typeOverBoundaryPlugin', () => {
     // aside and normal insertion appends.
     const second = typeOver(first.doc, sel.from, sel.to, 'Y');
     expect(second.handled).toBe(false);
+  });
+});
+
+describe('editing over a head-tail cross-container selection (field crash 2026-08-29)', () => {
+  // A mouse drag ending INSIDE a container's required head block (a
+  // card's tag, an analytic unit's head) is the one selection shape
+  // ProseMirror's replace cannot fit — it threw "Cannot join card
+  // onto analytic_unit" UNCAUGHT and the edit did nothing. The fixed
+  // semantics: exactly as if the boundary had been deleted first —
+  // the head's remaining text flows up inline, and the tail
+  // container's remaining body blocks follow it into the from-side
+  // container.
+  function crossDoc() {
+    const doc = makeDoc(
+      card(tag('Tag'), body('1xx')),
+      analyticUnit(analytic('Analytic'), body('xx3')),
+    );
+    let cardBodyStart = -1;
+    let analyticStart = -1;
+    let unitBodyStart = -1;
+    doc.descendants((n, pos) => {
+      if (n.type.name === 'card_body') {
+        if (cardBodyStart === -1) cardBodyStart = pos + 1;
+        else if (unitBodyStart === -1) unitBodyStart = pos + 1;
+      }
+      if (n.type.name === 'analytic' && analyticStart === -1) analyticStart = pos + 1;
+      return true;
+    });
+    return { doc, cardBodyStart, analyticStart, unitBodyStart };
+  }
+
+  it('sanity: the body-tail shape already merges correctly via the default path', () => {
+    const { doc, cardBodyStart, unitBodyStart } = crossDoc();
+    let state = EditorState.create({ doc });
+    state = state.apply(
+      state.tr.setSelection(TextSelection.create(state.doc, cardBodyStart + 2, unitBodyStart + 2)),
+    );
+    // The command must DEFER here — PM's own delete is legal and right.
+    expect(crossContainerDeleteSelection(state, undefined)).toBe(false);
+    const next = state.apply(state.tr.deleteSelection()).doc;
+    expect(blocks(next)).toEqual([
+      ['tag', 'Tag'],
+      ['card_body', '1x3'],
+    ]);
+  });
+
+  it('Backspace over a head-tail selection merges the tail container up', () => {
+    const { doc, cardBodyStart, analyticStart } = crossDoc();
+    let state = EditorState.create({ doc });
+    const from = cardBodyStart + 2; // after "1x"
+    const to = analyticStart + 3; // "Ana|lytic"
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, from, to)));
+    // This is exactly the shape whose direct delete throws.
+    expect(() => state.tr.deleteSelection()).toThrow(/Cannot join/);
+    let dispatched = false;
+    const handled = crossContainerDeleteSelection(state, (tr) => {
+      dispatched = true;
+      state = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(() => state.doc.check()).not.toThrow();
+    expect(blocks(state.doc)).toEqual([
+      ['tag', 'Tag'],
+      ['card_body', '1xlytic'],
+      ['card_body', 'xx3'],
+    ]);
+    expect(state.selection.empty).toBe(true);
+    expect(state.selection.from).toBe(from);
+  });
+
+  it('typing over a head-tail selection merges up and lands the typed text at the cut', () => {
+    const { doc, cardBodyStart, analyticStart } = crossDoc();
+    const from = cardBodyStart + 2;
+    const to = analyticStart + 3;
+    const { handled, doc: next, state } = typeOver(doc, from, to, 'Z');
+    expect(handled).toBe(true);
+    expect(() => next.check()).not.toThrow();
+    expect(blocks(next)).toEqual([
+      ['tag', 'Tag'],
+      ['card_body', '1xZlytic'],
+      ['card_body', 'xx3'],
+    ]);
+    // Caret collapsed after the typed character — the next keystroke
+    // types, not re-replaces.
+    expect(state.selection.empty).toBe(true);
+    expect(state.selection.from).toBe(from + 1);
+  });
+
+  it('an ordinary within-block replacement still defers to the default path', () => {
+    const doc = makeDoc(para('hello world'));
+    const { handled } = typeOver(doc, 1, 6, 'X');
+    expect(handled).toBe(false);
   });
 });

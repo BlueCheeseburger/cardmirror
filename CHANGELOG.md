@@ -17,6 +17,13 @@ see `DETAILED_CHANGELOG.md`.
   relinking your account — could revive it. Sessions now always
   present the current credential, so background renewal (or a relink)
   takes effect immediately.
+- **Typing or deleting over a selection that ends inside a card's tag
+  (or an analytic's heading) now works.** Selecting from one card or
+  analytic into the middle of the next one's heading and then typing
+  or pressing Delete used to do nothing at all. It now behaves as if
+  the boundary had been deleted first: the rest of the heading's text
+  and the remaining body flow up into the block you started the
+  selection in.
 - **Saving can no longer hang forever preparing a .cmir file.** The
   background thread that compresses .cmir saves could die silently in
   a long-lived window, leaving the Save button stuck in its saving

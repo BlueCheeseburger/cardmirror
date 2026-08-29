@@ -244,7 +244,7 @@ import { showConfirm } from './confirm-dialog.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
 import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
-import { typeOverBoundaryPlugin } from './type-over-boundary.js';
+import { typeOverBoundaryPlugin, crossContainerDeleteSelection } from './type-over-boundary.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
 import { customDashPlugin } from './custom-dash-plugin.js';
 import { autoCapitalizePlugin } from './auto-capitalize-plugin.js';
@@ -5304,6 +5304,10 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // Backspace / Delete / Enter when the cursor is in a tag.
     keymap({
       Backspace: (state, dispatch, view) =>
+        // First: a selection PM's own delete cannot fit (head-tail
+        // cross-container shape) gets the merge-up rebuild instead of
+        // an uncaught TransformError (field crash 2026-08-29).
+        crossContainerDeleteSelection(state, dispatch, view) ||
         backspaceAtTagStart(state, dispatch, view) ||
         backspaceAtFirstBodyStart(state, dispatch, view) ||
         keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
@@ -5311,6 +5315,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
         // whole card / body at a card-adjacent boundary.
         blockBackspaceNodeSelect(state, dispatch, view),
       Delete: (state, dispatch, view) =>
+        crossContainerDeleteSelection(state, dispatch, view) ||
         deleteAtTagEnd(state, dispatch, view) ||
         deleteAtContainerEnd(state, dispatch, view) ||
         keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
