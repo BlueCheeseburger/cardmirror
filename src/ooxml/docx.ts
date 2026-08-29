@@ -17,20 +17,55 @@
  * but don't generate from scratch.
  */
 
-import { unzipSync, zipSync } from 'fflate';
+import { unzipSync, zipSync, zip as zipWorker } from 'fflate';
 import { canonicalStylesXml } from './styles.js';
 import { XML_PROLOG, escText } from './xml.js';
 
 const utf8Decoder = new TextDecoder('utf-8');
 const utf8Encoder = new TextEncoder();
 
+// A failed worker spawn usually means the environment can't spawn workers
+// at all (no Worker global, a CSP restriction) — so the next several calls
+// skip straight to the sync fallback rather than each paying for a doomed
+// spawn attempt. Time-boxed rather than permanent, though: the failure
+// could be transient (a momentary resource limit), so the worker path is
+// retried periodically instead of being given up on for the rest of the
+// process. `0` means "not currently known broken".
+let zipWorkerBrokenUntil = 0;
+const ZIP_WORKER_RETRY_MS = 5 * 60 * 1000;
+
+/** Test seam: clear the broken-window state so each test starts from
+ *  "not known broken" rather than inheriting a prior test's failure. */
+export function __resetZipWorkerStateForTests(): void {
+  zipWorkerBrokenUntil = 0;
+}
+
+/** Record a zip-worker failure, gating the fallback for `ZIP_WORKER_RETRY_MS`
+ *  and logging the transition — but only once per broken streak, not once
+ *  per call, so a debounced autosave hammering this during an outage
+ *  doesn't flood the console. */
+function markZipWorkerBroken(): void {
+  const alreadyKnownBroken = Date.now() < zipWorkerBrokenUntil;
+  zipWorkerBrokenUntil = Date.now() + ZIP_WORKER_RETRY_MS;
+  if (!alreadyKnownBroken) {
+    console.warn(
+      '[cardmirror] .docx zip worker unavailable — falling back to synchronous ' +
+        `compression for the next ~${Math.round(ZIP_WORKER_RETRY_MS / 60000)} minute(s) ` +
+        '(will retry periodically). Large-document autosave/export may briefly stutter ' +
+        'typing until it recovers.',
+    );
+  }
+}
+
 /** Loaded docx — an in-memory zip we can read parts from and modify.
  *
  *  Backed by fflate (the same DEFLATE the `.cmir` codec uses) over a
  *  part-name → bytes Map. Insertion order is preserved through
  *  `toBuffer`, so a loaded file re-serializes with its original part
- *  order. Reads/writes are synchronous internally; the async method
- *  signatures are part of the public API. */
+ *  order. Part reads/writes (`writeText`, `readText`, etc.) are
+ *  synchronous internally; `toBuffer`'s DEFLATE genuinely runs off-thread
+ *  (see its own doc comment) — every method keeps an `async` signature
+ *  regardless, so callers don't need to know which is which. */
 export class Docx {
   private constructor(private parts: Map<string, Uint8Array>) {}
 
@@ -173,9 +208,34 @@ export class Docx {
     return m ? m[1]! : null;
   }
 
-  /** Serialize the zip to bytes. */
+  /** Serialize the zip to bytes. DEFLATE runs on fflate's internal worker
+   *  thread so the caller's thread stays free — this method's `async`
+   *  signature always covered this seam (see the class docblock); autosave's
+   *  debounced writes are the reason it matters now (the sync path stalls
+   *  typing on large docs, same problem `gzipAsync` solves for `.cmir`).
+   *  Falls back to the sync path where workers are unavailable (unit tests,
+   *  exotic CSP) — unlike `gzipAsync`'s permanent one-way fallback, this one
+   *  is time-boxed (`markZipWorkerBroken`) and logged, since a spawn failure
+   *  isn't necessarily permanent and a silent, session-long slowdown is
+   *  hard to diagnose. */
   async toBuffer(): Promise<Uint8Array> {
-    return zipSync(Object.fromEntries(this.parts), { level: 6 });
+    const entries = Object.fromEntries(this.parts);
+    if (Date.now() < zipWorkerBrokenUntil) return zipSync(entries, { level: 6 });
+    return new Promise((resolve) => {
+      try {
+        zipWorker(entries, { level: 6 }, (err, out) => {
+          if (err || !out) {
+            markZipWorkerBroken();
+            resolve(zipSync(entries, { level: 6 }));
+          } else {
+            resolve(out);
+          }
+        });
+      } catch {
+        markZipWorkerBroken();
+        resolve(zipSync(entries, { level: 6 }));
+      }
+    });
   }
 
   /** List all part paths in the zip. */
