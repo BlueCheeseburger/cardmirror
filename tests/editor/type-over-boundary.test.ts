@@ -237,3 +237,78 @@ describe('editing over a head-tail cross-container selection (field crash 2026-0
     expect(handled).toBe(false);
   });
 });
+
+describe('head-FULLY-covered selections merge via the default path (all pairings)', () => {
+  // The user-facing rule: a selection that flows past an entire tag /
+  // analytic heading and into the text below deletes the heading and
+  // merges the lower container into the higher one. ProseMirror's own
+  // replace already does this correctly in every pairing — these pins
+  // exist so a prosemirror upgrade can't silently change that, and so
+  // the throwing shape stays exactly "tail INSIDE a head block".
+  const unit = (t: string, b: string) =>
+    analyticUnit(analytic(t), body(b));
+  const flatBlock = (t: string) =>
+    schema.nodes['block']!.create({ id: newHeadingId() }, schema.text(t));
+
+  function deleteAcross(docNode: PMNode): Array<[string, string]> {
+    const blocksIn: Array<{ pos: number; node: PMNode }> = [];
+    docNode.descendants((x, p) => {
+      if (x.isTextblock) blocksIn.push({ pos: p, node: x });
+      return true;
+    });
+    const first = blocksIn.find((b) => b.node.textContent.startsWith('1'))!;
+    const last = blocksIn[blocksIn.length - 1]!;
+    const from = first.pos + 3; // after "1x"
+    const to = last.pos + 3; // after "xx"
+    let state = EditorState.create({ doc: docNode });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, from, to)));
+    // The merge-up command must DEFER — the default delete is legal here.
+    expect(crossContainerDeleteSelection(state, undefined)).toBe(false);
+    const next = state.apply(state.tr.deleteSelection()).doc;
+    expect(() => next.check()).not.toThrow();
+    return blocks(next);
+  }
+
+  it('card → analytic unit', () => {
+    expect(deleteAcross(makeDoc(card(tag('Tag'), body('1xx')), unit('Analytic', 'xx3')))).toEqual([
+      ['tag', 'Tag'],
+      ['card_body', '1x3'],
+    ]);
+  });
+
+  it('analytic unit → card', () => {
+    expect(deleteAcross(makeDoc(unit('Analytic', '1xx'), card(tag('Tag'), body('xx3'))))).toEqual([
+      ['analytic', 'Analytic'],
+      ['card_body', '1x3'],
+    ]);
+  });
+
+  it('card → card', () => {
+    expect(deleteAcross(makeDoc(card(tag('TagA'), body('1xx')), card(tag('TagB'), body('xx3'))))).toEqual([
+      ['tag', 'TagA'],
+      ['card_body', '1x3'],
+    ]);
+  });
+
+  it('analytic unit → analytic unit', () => {
+    expect(deleteAcross(makeDoc(unit('HeadA', '1xx'), unit('HeadB', 'xx3')))).toEqual([
+      ['analytic', 'HeadA'],
+      ['card_body', '1x3'],
+    ]);
+  });
+
+  it('card → flat heading → paragraph (heading fully covered)', () => {
+    expect(
+      deleteAcross(makeDoc(card(tag('Tag'), body('1xx')), flatBlock('Block Heading'), para('xx3'))),
+    ).toEqual([
+      ['tag', 'Tag'],
+      ['card_body', '1x3'],
+    ]);
+  });
+
+  it('paragraph → card (tag fully covered)', () => {
+    expect(deleteAcross(makeDoc(para('1xx'), card(tag('Tag'), body('xx3'))))).toEqual([
+      ['paragraph', '1x3'],
+    ]);
+  });
+});
