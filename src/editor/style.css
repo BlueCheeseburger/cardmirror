@@ -629,6 +629,7 @@ button {
   --pmd-c-text-muted: #666;            /* dimmer secondary */
   --pmd-c-text-faint: #888;            /* faint annotations */
   --pmd-c-text-on-accent: #fff;        /* text on a filled accent surface */
+  --pmd-c-segmented-selected-text: #fff; /* selected segmented-control text */
   /* Card numbering glyphs. Defaults to muted text (theme-aware via the var),
      but is its OWN token so it's user-overridable — see CUSTOMIZABLE_COLOR_TOKENS
      ('pmd-c-card-number') and the Card numbering settings color control. */
@@ -877,6 +878,7 @@ button {
   --pmd-c-text-muted: #9a9a9a;
   --pmd-c-text-faint: #7a7a7a;
   --pmd-c-text-on-accent: #fff;
+  --pmd-c-segmented-selected-text: #fff;
 
   /* Hover / press — solid surfaces lift toward lighter grays;
      button-* overlays flip to translucent WHITE so they brighten
@@ -1328,7 +1330,6 @@ html:has(body.pmd-speech-banner-visible) {
 /* Shared scaffolding (accent fill (2-prop)).
    Diverge by pulling a selector out, not by re-copying. */
 #ribbon #timer-toggle-btn[aria-pressed="true"],
-.pmd-theme-editor-btn[aria-pressed='true'],
 .pmd-pane-focused .pmd-pane-chip,
 :is(#ribbon, body.pmd-timer-popout-page) .pmd-timer-start[aria-pressed="true"] {
   background: var(--pmd-c-accent);
@@ -3535,8 +3536,17 @@ body.pmd-override-shading [data-shading] {
   font-size: 0.85rem;
   cursor: pointer;
 }
+.pmd-theme-editor-btn:not([aria-pressed='true']):hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-theme-editor-btn[aria-pressed='true'] {
+  background: var(--pmd-c-accent);
+  color: var(--pmd-c-segmented-selected-text);
+}
+.pmd-theme-editor-btn[aria-pressed='true']:hover {
+  background: var(--pmd-c-accent-hover);
+}
 .pmd-theme-editor-btn:last-child { border-right: none; }
-.pmd-theme-editor-btn:hover { background: var(--pmd-c-hover); }
 
 
 /* Multi-slot color editor — highlight / shading display
@@ -5689,9 +5699,9 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 /* Tab bar below the header. The bar wraps the tab nav and a
    left/right arrow on each side — the arrows are revealed by JS
-   only when the tab list overflows its container. Active tab is
-   indicated by a bottom border + heavier weight (border lives on
-   the bar so the active-tab border can overlay it). */
+   only when the tab list overflows its container. The active tab is
+   indicated by color + a bottom border (the border lives on the bar
+   so the active-tab border can overlay it). */
 .pmd-settings-tabs-bar {
   display: flex;
   flex: 0 0 auto;
@@ -5774,7 +5784,6 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 .pmd-settings-tab-active {
   color: var(--pmd-c-text-strong);
   border-bottom-color: var(--pmd-c-accent);
-  font-weight: 600;
 }
 
 .pmd-settings-list {
@@ -6900,28 +6909,34 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 #ribbon .ribbon-doc-menu-btn {
   height: 1.45rem;
   width: auto;
-  padding: 0 0.5rem;
+  /* Compact side padding leaves room for each label and chevron
+     without letting either intrude into the button's padding box. */
+  padding: 0 0.25rem;
   font-size: 0.78rem;
   line-height: 1;
+  justify-content: space-between;
+  gap: 0.12rem;
 }
 
-/* Doc / Card dropdown-arrow chevron — gray to match the color-panel
-   arrows. Only the A▴ / A▾ font-size increment / decrement buttons
-   keep black arrows (they're action buttons, not dropdown triggers).
-   Margin-left because the smaller font-size on the chevron span
-   would otherwise eat the visual space between "Doc" / "Card" and
-   the arrow. */
+/* Table's fixed two-track width is about 1.2px narrower than the
+   intrinsic label + icon + gap at the shared padding. Release that
+   final fraction so both visual insets remain equal. */
+#ribbon .ribbon-doc-menu-btn.ribbon-format-table-btn {
+  padding-inline: 0.2rem;
+}
+
+/* Doc / Card / Table dropdown-arrow chevron — gray to match the
+   color-panel arrows. The button owns the inter-item gap, so this icon
+   can occupy the same stable right-hand position for every label. */
 .ribbon-doc-menu-arrow {
   color: var(--pmd-c-text-secondary);
   font-size: 0.65rem;
-  margin-left: 0.35rem;
 }
-/* The modern chevron icon reads wider / heavier than the classic ▾
-   glyph (which has its own side-bearing), so the Table / Doc / Card
-   dropdowns feel cramped only in modern mode. Pull the arrow closer to
-   its label there to free up room at the button edges. */
+/* `.pmd-icon`'s normal -0.125em baseline correction has no effect when
+   the icon is a flex item. Reapply that optical offset in modern mode;
+   the classic ▾ is a text glyph with its own baseline and side-bearing. */
 :root[data-icons='modern'] .ribbon-doc-menu-arrow {
-  margin-left: 0.12rem;
+  transform: translateY(0.125em);
 }
 
 .pmd-doc-menu {
