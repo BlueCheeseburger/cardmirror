@@ -12646,13 +12646,35 @@ html.pmd-timer-right #timer-panel {
   content: "N: ";
 }
 
-/* Flash-red animation at the configured remaining thresholds. */
+/* Flash-red animation at the configured remaining thresholds.
+   COMPOSITOR-ONLY: the pulse animates the OPACITY of a promoted
+   overlay pseudo-element behind the text — never background/color on
+   the display itself. Paint-property keyframes (with var()s, no less)
+   run on the main thread at ~60fps for the whole flash window, and on
+   a big document those frames interleave with ProseMirror's keystroke
+   style/layout work — field report: typing lagged whenever the timer
+   flashed. Opacity on a will-change layer costs the main thread
+   nothing after the first frame. */
 @keyframes pmd-timer-flash-pulse {
-  0%, 100% { background: var(--pmd-c-bg); color: var(--pmd-c-text); }
-  50%      { background: var(--pmd-c-neg); color: white; }
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
 }
 .pmd-timer-display.pmd-timer-flash {
+  /* Own stacking context so the z-index:-1 overlay sits behind the
+     time text but above nothing outside the display. */
+  position: relative;
+  z-index: 0;
+}
+.pmd-timer-display.pmd-timer-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 2px;
+  background: var(--pmd-c-neg);
   animation: pmd-timer-flash-pulse 600ms ease-in-out infinite;
+  will-change: opacity;
+  pointer-events: none;
 }
 
 /* Ran-out state: steady alert red (the flash pulse's peak color)
