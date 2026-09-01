@@ -292,8 +292,10 @@ export class ReaderController {
     this.indicator.remove();
     const strip = this.strip();
     if (strip) {
+      strip.style.removeProperty('transform');
+      strip.style.removeProperty('transition');
       for (const p of [
-        '--pmd-reader-x', '--pmd-reader-cols', '--pmd-reader-page-w',
+        '--pmd-reader-cols', '--pmd-reader-page-w',
         '--pmd-reader-gap', '--pmd-reader-h',
       ]) {
         strip.style.removeProperty(p);
@@ -396,9 +398,9 @@ export class ReaderController {
   }
 
   private currentTranslateX(): number {
-    const raw = this.strip()?.style.getPropertyValue('--pmd-reader-x') ?? '';
-    const n = parseFloat(raw);
-    return Number.isFinite(n) ? n : 0;
+    const raw = this.strip()?.style.transform ?? '';
+    const m = /translateX\((-?[\d.]+)px\)/.exec(raw);
+    return m ? parseFloat(m[1]!) : 0;
   }
 
   /** `#editor { zoom: var(--editor-zoom) }` scales rects; CSS lengths
@@ -418,9 +420,14 @@ export class ReaderController {
     const clamped = Math.max(0, Math.min(this.pages - 1, page));
     const animate = (opts.animate ?? true) && !motionReduced() && clamped !== this.page;
     this.page = clamped;
-    strip.classList.toggle('pmd-reader-no-anim', !animate);
+    // Inline transform, NEVER a custom property: custom props inherit,
+    // so touching one on the strip invalidates style for the whole
+    // multi-thousand-node subtree — a long pause before every flip
+    // (field report). An inline transform recalcs one element and
+    // goes straight to the compositor.
+    strip.style.transition = animate ? '' : 'none';
     if (animate) this.animating = true;
-    strip.style.setProperty('--pmd-reader-x', `${-clamped * this.layout.stride}px`);
+    strip.style.transform = `translateX(${-clamped * this.layout.stride}px)`;
     if (!animate) this.animating = false;
     this.leftBtn.classList.toggle('pmd-reader-edge-hidden', clamped === 0);
     this.rightBtn.classList.toggle('pmd-reader-edge-hidden', clamped >= this.pages - 1);

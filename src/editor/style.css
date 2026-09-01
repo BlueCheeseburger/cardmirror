@@ -15635,7 +15635,8 @@ body.pmd-multi-doc #collab-chip {
      JS page geometry is exact. */
   padding: 14px 0 18px;
   box-sizing: border-box;
-  transform: translateX(var(--pmd-reader-x, 0px));
+  /* transform is set INLINE by the controller (a custom property
+     would inherit and invalidate the whole subtree per flip). */
   will-change: transform;
   transition: transform 240ms cubic-bezier(0.2, 0, 0.2, 1);
 }
