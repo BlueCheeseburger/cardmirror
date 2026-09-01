@@ -212,6 +212,9 @@ covered in full in the section linked.
 - **[Read-time word counts](#read-time-estimates)** — the status bar shows
   how long the visible (or selected) text takes to read, per reader, not
   just a raw word count.
+- **[Auto-scroll](#auto-scroll)** — a hands-free teleprompter that scrolls
+  the document at your actual reading pace, slowing for dense highlighted
+  text and speeding through everything else.
 - **[Send-to-speech with a dropzone](#send-to-speech-and-the-dropzone)** —
   send cards and headings into a speech doc, with a holding shelf for
   staging evidence before you place it.
@@ -1027,6 +1030,27 @@ Press the eye again to exit. In the
 [multi-doc workspace](#7-the-multi-doc-workspace), read mode is
 per-pane, so one slot can be a reading surface while another stays
 editable.
+
+### Auto-scroll
+
+Click the **chevrons** button next to the eye (or run *Toggle
+Auto-Scroll* from the command palette) to scroll the document on its
+own, paced to how long the content under it would actually take to
+read aloud — the same read-aloud math and reader rate behind the
+[read-time estimates](#read-time-estimates) below, just applied
+continuously instead of shown as a number. Dense highlighted stretches
+scroll slowly; tags, cites, and unhighlighted filler scroll faster.
+It paces against your **first configured reader** (Settings →
+General → "Readers for read-time estimates").
+
+It works in either mode, but is most useful combined with read mode:
+with everything that isn't read aloud already hidden, the scroll
+speed tracks your actual delivery pace almost exactly — a hands-free
+teleprompter for practicing a speech. Any manual scroll, wheel, touch,
+or click hands control straight back to you and stops it; running out
+of document does too. Switching focus to another pane (in the
+multi-doc workspace) also stops it — it never keeps scrolling somewhere
+you're not looking.
 
 ### Read-time estimates
 

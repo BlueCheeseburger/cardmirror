@@ -172,6 +172,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
     title: 'View',
     commands: [
       'toggleReadMode',
+      'toggleAutoScroll',
       'toggleNavPane',
       'toggleMorphMode',
       'wordCountSelection',
