@@ -340,7 +340,7 @@ export class ReaderController {
     // document tall — columns would never overflow horizontally).
     const scroller = nearestScrollerOf(this.host);
     const viewH = Math.max(120, (scroller?.clientHeight ?? window.innerHeight) - 8);
-    const pageW = Math.max(READER_MIN_COL, Math.floor(natural.width));
+    const pageW = Math.max(READER_MIN_COL, Math.floor(natural.width / this.zoomFactor()));
     this.layout = computeReaderLayout(pageW + READER_GAP * 2, settings.get('maxTextWidthPx'));
     // Exact column geometry from the REAL page width: the box is one
     // page wide, column-count divides it exactly, and overflow columns
@@ -354,9 +354,43 @@ export class ReaderController {
     strip.style.setProperty('--pmd-reader-page-w', `${pageW}px`);
     strip.style.setProperty('--pmd-reader-gap', `${READER_GAP}px`);
     strip.style.setProperty('--pmd-reader-h', `${viewH}px`);
-    const stripW = Math.max(1, strip.scrollWidth);
+    const stripW = this.measureStripExtent(strip);
     this.pages = pageCount(stripW, this.layout.stride);
     this.goTo(pageOfOffset(frac * stripW, this.layout.stride), { animate: false });
+  }
+
+  /** Total strip extent including the multicol OVERFLOW columns —
+   *  which `scrollWidth` does NOT report on a plain element (field
+   *  bug: a 60-page doc read "1 / 1" and flips went nowhere). The
+   *  last DOM children sit in the last column (document order =
+   *  column order), so the max right edge over the tail children is
+   *  the strip's true content extent. Rects are visual px: undo the
+   *  current translate and the #editor zoom factor. */
+  private measureStripExtent(strip: HTMLElement): number {
+    const zoom = this.zoomFactor();
+    const stripRect = strip.getBoundingClientRect();
+    const translated = this.currentTranslateX() * zoom;
+    const baseLeft = stripRect.left - translated;
+    let maxRight = stripRect.right - translated;
+    const kids = strip.children;
+    for (let i = Math.max(0, kids.length - 8); i < kids.length; i++) {
+      const r = kids[i]!.getBoundingClientRect();
+      if (r.right - translated > maxRight) maxRight = r.right - translated;
+    }
+    return Math.max(1, (maxRight - baseLeft) / zoom);
+  }
+
+  private currentTranslateX(): number {
+    const raw = this.strip()?.style.getPropertyValue('--pmd-reader-x') ?? '';
+    const n = parseFloat(raw);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  /** `#editor { zoom: var(--editor-zoom) }` scales rects; CSS lengths
+   *  we set are pre-zoom. */
+  private zoomFactor(): number {
+    const z = parseFloat(getComputedStyle(this.host).zoom || '1');
+    return Number.isFinite(z) && z > 0 ? z : 1;
   }
 
   flip(dir: number): void {

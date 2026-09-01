@@ -15630,6 +15630,10 @@ body.pmd-multi-doc #collab-chip {
   column-fill: auto;
   height: var(--pmd-reader-h, 100%);
   width: var(--pmd-reader-page-w, 100%);
+  /* Block padding gives the columns breathing room top and bottom
+     (no clipped descenders at the fold); inline stays 0 so the
+     JS page geometry is exact. */
+  padding: 14px 0 18px;
   box-sizing: border-box;
   transform: translateX(var(--pmd-reader-x, 0px));
   will-change: transform;
