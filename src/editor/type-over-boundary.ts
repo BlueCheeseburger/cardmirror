@@ -110,6 +110,25 @@ export function mergingCrossDelete(
   }
 }
 
+/** Wrap a command so an escaping TransformError becomes a logged
+ *  no-op instead of an uncaught crash. For the BASE-command fallbacks
+ *  at the end of the Enter/Backspace/Delete chains: ProseMirror's
+ *  join/split machinery still has fit shapes it cannot close (fuzzer
+ *  finds, 2026-08-31 — cursor joins at container boundaries), and an
+ *  uncaught throw out of a keystroke ate the input and spammed the
+ *  console (field log, 2026-08-29). A no-op is honest: the edit had
+ *  no legal result. */
+export function neverThrow(cmd: Command): Command {
+  return (state, dispatch, view) => {
+    try {
+      return cmd(state, dispatch, view);
+    } catch (err) {
+      console.warn('[cardmirror] editing command failed on this selection:', err);
+      return true; // claim the key: half-dispatched work must not cascade
+    }
+  };
+}
+
 /** Backspace/Delete over a selection the direct delete cannot fit —
  *  runs the merge-up rebuild. Defers to the default commands (returns
  *  false) whenever the ordinary delete is legal. */
@@ -130,6 +149,34 @@ export const crossContainerDeleteSelection: Command = (state, dispatch) => {
   }
   return true;
 };
+
+/** Make the current selection safe to replace-over: when the direct
+ *  delete of the selected range cannot fit (the head-tail shape),
+ *  merge-delete it and leave a collapsed cursor at the cut point, so
+ *  a following replaceSelection (paste, drop) proceeds instead of
+ *  throwing "Cannot join …" out of the input pipeline (fuzzer find,
+ *  2026-08-31 — the paste-over cousin of the typing crash). Returns
+ *  false only when the selection was unfittable AND the rebuild
+ *  failed; callers should then swallow the gesture. */
+export function prepareSelectionForReplace(view: {
+  state: EditorState;
+  dispatch: (tr: Transaction) => void;
+}): boolean {
+  const { state } = view;
+  const { empty, from, to } = state.selection;
+  if (empty) return true;
+  try {
+    state.tr.deleteSelection();
+    return true; // fits — the replace's own delete will be fine
+  } catch {
+    /* unfittable — merge-delete below */
+  }
+  const tr = mergingCrossDelete(state, from, to);
+  if (!tr) return false;
+  tr.setSelection(TextSelection.create(tr.doc, from));
+  view.dispatch(tr);
+  return true;
+}
 
 export const typeOverBoundaryPlugin: Plugin = new Plugin({
   props: {

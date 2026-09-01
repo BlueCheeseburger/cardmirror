@@ -244,7 +244,8 @@ import { showConfirm } from './confirm-dialog.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
 import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
-import { typeOverBoundaryPlugin, crossContainerDeleteSelection } from './type-over-boundary.js';
+import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
+import { headingIdGuardPlugin } from './heading-id-guard.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
 import { customDashPlugin } from './custom-dash-plugin.js';
 import { autoCapitalizePlugin } from './auto-capitalize-plugin.js';
@@ -5312,15 +5313,16 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
         backspaceAtFirstBodyStart(state, dispatch, view) ||
         keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
         // Last: never let baseKeymap's selectNodeBackward node-select a
-        // whole card / body at a card-adjacent boundary.
-        blockBackspaceNodeSelect(state, dispatch, view),
+        // whole card / body at a card-adjacent boundary. neverThrow: PM
+        // join shapes that cannot fit must no-op, not crash the key.
+        neverThrow(blockBackspaceNodeSelect)(state, dispatch, view),
       Delete: (state, dispatch, view) =>
         crossContainerDeleteSelection(state, dispatch, view) ||
         deleteAtTagEnd(state, dispatch, view) ||
         deleteAtContainerEnd(state, dispatch, view) ||
         keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
         // Mirror of the Backspace guard: never forward-node-select a card/body.
-        blockDeleteNodeSelect(state, dispatch, view),
+        neverThrow(blockDeleteNodeSelect)(state, dispatch, view),
       Enter: (state, dispatch, view) =>
         // Live-view bottom edge first: inside the read-only mirror the
         // handlers below would claim the key and have their splits
@@ -5334,7 +5336,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
         enterAtTagEnd(state, dispatch, view) ||
         enterAtZoneStart(state, dispatch, view) ||
         enterMidTag(state, dispatch, view) ||
-        enterInHeading(state, dispatch, view),
+        neverThrow(enterInHeading)(state, dispatch, view),
     }),
     // Ribbon commands — structural style hotkeys (F4–F7 / Mod-F7)
     // plus inline mark toggles (Mod-B / Mod-I) and the color-aware
@@ -5368,7 +5370,13 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // Ctrl+Arrow / PageUp/Down bindings take precedence over
     // anything baseKeymap defines (and the browser default).
     wordSelectionKeymap,
-    keymap(baseKeymap),
+    // Every base command wrapped in neverThrow: ProseMirror's
+    // join/split machinery still has cross-container fit shapes it
+    // cannot close, and a TransformError escaping a keystroke ate the
+    // input and spammed the console (field log 2026-08-29; fuzzer
+    // reproduces cursor-join shapes). A logged no-op is the honest
+    // outcome — the edit had no legal result.
+    keymap(Object.fromEntries(Object.entries(baseKeymap).map(([k, c]) => [k, neverThrow(c)]))),
     readModePlugin,
     markUnreadPlugin,
     commentsPlugin,
@@ -5445,6 +5453,10 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // extend by the right unit.
     wordSelectionPlugin,
     typeOverBoundaryPlugin,
+    // Backstop for the heading-id uniqueness invariant: repairs
+    // fit-synthesized null ids and replace-split duplicate ids on the
+    // offending LOCAL transaction (see heading-id-guard.ts).
+    headingIdGuardPlugin,
     highlightFrequencyPlugin,
     // Swallow the browser's `dragstart` on the editor's content-
     // editable so the user can't initiate a text-move drag from a

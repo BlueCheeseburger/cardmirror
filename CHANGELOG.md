@@ -5,6 +5,25 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed
+
+- **Duplicate and missing heading identities can no longer be created
+  while editing.** Certain edits — pasting into the middle of a
+  heading, or deletions that rebuild a card's structure — could
+  silently give two headings the same identity (making nav-pane
+  clicks jump to the wrong one) or none at all (making a heading
+  invisible to the nav pane). A safety net now repairs the identity
+  on the spot, as part of the same edit. Documents already carrying
+  these from older versions are still repaired when opened.
+- **Pasting or deleting across certain card boundaries no longer
+  fails silently.** A few selection and paste shapes had no legal
+  result and crashed internally, eating the keystroke or the paste
+  with no feedback. They now complete sensibly where possible (the
+  pasted content is placed whole; the selection merges cleanly) and
+  otherwise do nothing visibly instead of breaking the editor.
+
 ## 1.5.1 — 2026-08-29
 
 ### Fixed
