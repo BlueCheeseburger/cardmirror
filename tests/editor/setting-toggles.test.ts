@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SettingsStore,
   SETTING_METADATA,
+  SETTINGS_DEFAULTS,
   toggleableSettingMetas,
   cleanToggleLabel,
   toggleCommandName,
@@ -182,5 +183,15 @@ describe('cyclable settings', () => {
   it('names cycle commands from the cleaned label', () => {
     const meta = SETTING_METADATA.find((m) => m.key === 'iconSet')!;
     expect(cycleCommandName(meta)).toBe('Cycle Icon style');
+  });
+});
+
+describe('dragInteractions setting (iPad classroom request, 2026-08-31)', () => {
+  it('defaults ON, registered as a general toggle, sanitize preserves explicit off', () => {
+    expect(SETTINGS_DEFAULTS.dragInteractions).toBe(true);
+    const meta = SETTING_METADATA.find((m) => m.key === 'dragInteractions');
+    expect(meta).toBeDefined();
+    expect(meta!.kind).toBe('toggle');
+    expect(meta!.category).toBe('general');
   });
 });

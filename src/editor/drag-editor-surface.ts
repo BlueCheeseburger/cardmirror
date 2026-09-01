@@ -637,6 +637,9 @@ export class EditorDragSurface implements DragSurface {
       label: this.hovered.label,
     };
 
+    // Drag-to-rearrange disabled: the pickup chord stays inert.
+    if (!settings.get('dragInteractions')) return;
+
     this.dragOriginatedHere = true;
     this.removeHighlight();
     this.hovered = null;

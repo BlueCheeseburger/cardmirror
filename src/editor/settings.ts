@@ -407,6 +407,12 @@ export interface Settings {
    *  Scroll only: the cursor, the nav selection, and the collapsed set are
    *  untouched. On by default. */
   navFollowCursor: boolean;
+  /** Master switch for drag-to-rearrange: nav-pane row drags and the
+   *  editor's pickup-modifier drag. OFF turns those gestures inert
+   *  (clicks still navigate; nothing moves) — for touch devices where
+   *  a scrolling finger reads as a drag (iPad classroom request,
+   *  2026-08-31). Sends/receives and pane resizing are unaffected. */
+  dragInteractions: boolean;
   /** When true (default), `New document` mounts the CardMirror
    *  welcome / onboarding doc. When false, it mounts a blank
    *  doc — a single empty paragraph. The starter is the same one
@@ -1604,6 +1610,7 @@ const DEFAULTS: Settings = {
   navWidth: 300,
   navMaxLevel: 3,
   navFollowCursor: true,
+  dragInteractions: true,
   copyPreviousCiteNearestOnly: true,
   showOnboardingStarter: true,
   hasSeenUiTour: false,
@@ -2084,6 +2091,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Workspace',
     aliases: ['nav depth', 'outline depth', 'navigation level', 'nav pane depth'],
+  },
+  {
+    key: 'dragInteractions',
+    label: 'Drag to rearrange',
+    description:
+      'Move cards and sections by dragging — rows in the navigation pane, and the pickup-modifier drag in the editor. Turn this off on touch devices where scrolling with a finger keeps picking things up instead; clicking still navigates, and moving content still works via cut/paste and Send.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    aliases: ['drag and drop', 'click drag', 'touch drag', 'reorder', 'drag to move'],
   },
   {
     key: 'navFollowCursor',
@@ -4135,6 +4152,7 @@ function sanitize(s: Settings): Settings {
     navWidth: clamp(s.navWidth, 150, 800),
     navMaxLevel: clamp(Math.round(s.navMaxLevel), 1, 4),
     navFollowCursor: s.navFollowCursor !== false,
+    dragInteractions: s.dragInteractions !== false,
     // Default-on: preserve `false` only when explicitly set so the
     // onboarding shows up for new installs and survives upgrades
     // from before this setting existed.

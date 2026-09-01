@@ -1107,7 +1107,12 @@ export class NavigationPanel {
     // Mobile: arm the drag by long-press, never by movement (movement
     // is a scroll). Destination mode is tap-only — no pickup at all —
     // and read mode disables mobile pickup entirely.
-    if (isMobileShellActive() && !this.destinationCb && !settings.get('readMode')) {
+    if (
+      isMobileShellActive() &&
+      !this.destinationCb &&
+      !settings.get('readMode') &&
+      settings.get('dragInteractions')
+    ) {
       this.cancelLongPress();
       this.longPressLi = li;
       this.longPressTimer = window.setTimeout(() => {
@@ -1430,6 +1435,10 @@ export class NavigationPanel {
       }
       // 5px threshold — below this, count as a click, not a drag.
       if (dx * dx + dy * dy < 25) return;
+      // Drag-to-rearrange disabled (touch devices where a scrolling
+      // finger reads as a drag): the movement stays inert; releasing
+      // still counts as a click below the threshold path.
+      if (!settings.get('dragInteractions')) return;
       // Drag-reorder is allowed even in read mode: the drop is position-
       // validated and the resulting transaction is read-mode-permitted (see
       // READ_MODE_DRAG_META). A click below the threshold still just navigates.

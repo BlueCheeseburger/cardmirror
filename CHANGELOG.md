@@ -7,6 +7,15 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **New setting: Drag to rearrange (Settings → General).** Turns the
+  drag gestures for moving content — navigation-pane rows and the
+  editor's pickup drag — on or off. Default on. Turn it off on touch
+  devices (iPads) where scrolling with a finger keeps picking up
+  headings instead; clicking still navigates, and pane resizing is
+  unaffected.
+
 ### Fixed
 
 - **Small UI polish.** Clicking a color-picker's arrow now closes its
