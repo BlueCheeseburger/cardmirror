@@ -107,6 +107,12 @@ import { buildDescriptor, resolveDescriptor, type AnchorDescriptor } from './lea
 import { countSelectionImages } from './ai/explain-context.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
 import {
+  startAutoScroll,
+  stopAutoScroll,
+  isAutoScrolling,
+  stopAutoScrollIfOtherView,
+} from './auto-scroll.js';
+import {
   captureViewportAnchor,
   restoreViewportAnchor,
   type ViewportAnchor,
@@ -502,6 +508,7 @@ const autosaveBtn = document.getElementById('autosave-btn') as HTMLButtonElement
 const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
 const referenceBtn = document.getElementById('reference-btn') as HTMLButtonElement | null;
 const readModeBtn = document.getElementById('read-mode-btn') as HTMLButtonElement;
+const autoScrollBtn = document.getElementById('auto-scroll-btn') as HTMLButtonElement | null;
 const navPaneToggleBtn = document.getElementById('nav-pane-toggle-btn') as HTMLButtonElement | null;
 const navPanePullTab = document.getElementById('nav-pane-pull-tab') as HTMLButtonElement | null;
 const insertImageBtn = document.getElementById('insert-image-btn') as HTMLButtonElement | null;
@@ -1294,6 +1301,11 @@ export function setActiveView(v: EditorView | null): void {
   refreshReadModeBtn();
   refreshSpeechMarkBtn();
   refreshAutosaveBtn();
+  // A real focus change away from the pane auto-scroll is running on stops
+  // it — a no-op when it's running on THIS view (including the multi-pane
+  // per-transaction re-run of setActiveView, which passes the same view).
+  stopAutoScrollIfOtherView(v);
+  refreshAutoScrollBtn();
   // Status-bar zoom % reflects the focused pane's per-pane zoom in multi-doc.
   refreshZoomStatus();
   updateWindowTitle();
@@ -1643,6 +1655,19 @@ const ribbonContext: RibbonContext = {
       const tr = view.state.tr.setSelection(Selection.atStart(view.state.doc));
       view.dispatch(tr.scrollIntoView());
     }
+  },
+  toggleAutoScroll: () => {
+    if (isAutoScrolling()) {
+      stopAutoScroll();
+      return;
+    }
+    if (!view) return;
+    const reader = settings.get('readers')[0] ?? { name: 'Reader 1', wpm: 200 };
+    const started = startAutoScroll(view, reader, () => refreshAutoScrollBtn());
+    if (!started) {
+      showToast('Nothing to auto-scroll — this document already fits on screen.');
+    }
+    refreshAutoScrollBtn();
   },
   openShortcutsReference: () => openReference(),
   toggleCommentsVisible: () => {
@@ -2648,6 +2673,7 @@ if (cardMenuBtn) {
   });
 }
 readModeBtn.addEventListener('click', () => runRibbon('toggleReadMode'));
+autoScrollBtn?.addEventListener('click', () => runRibbon('toggleAutoScroll'));
 wordCountBtn.addEventListener('click', () => runRibbon('wordCountSelection'));
 
 /** Push the current `navPaneVisible` setting into a body class so
@@ -4125,6 +4151,7 @@ if (timerToggleBtn) {
   button('settings-btn', 'openSettings');
   button('reference-btn', 'openShortcutsReference');
   button('read-mode-btn', 'toggleReadMode');
+  button('auto-scroll-btn', 'toggleAutoScroll');
   button('nav-pane-toggle-btn', 'toggleNavPane');
   button('comments-toggle-btn', 'toggleCommentsVisible');
   button('add-comment-btn', 'addCommentToSelection');
@@ -5026,6 +5053,14 @@ export function setAutosaveStateResolver(resolver: () => boolean): void {
 
 function refreshReadModeBtn(): void {
   readModeBtn.classList.toggle('pmd-active', readModeStateForActive());
+}
+
+/** Update the auto-scroll button's pressed state. Unlike read mode /
+ *  autosave there's no per-pane setting behind it — it's just "is
+ *  auto-scroll running right now" — so this reads the controller
+ *  directly rather than going through a resolver. */
+function refreshAutoScrollBtn(): void {
+  autoScrollBtn?.classList.toggle('pmd-active', isAutoScrolling());
 }
 
 const navPanel = new NavigationPanel(navEl);
