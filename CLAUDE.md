@@ -22,3 +22,5 @@ anything a future contributor would want to know isn't in upstream — add
 or update an entry there in the same turn as the change, not as an
 afterthought. Keep entries short (a sentence or two) and note whether the
 change has landed on `main` or is still out on an open PR.
+
+## Update DETAILED_CHANGELOG.MD with features made to this fork.
