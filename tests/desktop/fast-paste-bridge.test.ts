@@ -66,6 +66,21 @@ async function fetchJson(opts: {
   }
 }
 
+
+/** Wait until the bridge has forwarded to the renderer — the fixed
+ *  20ms sleeps this replaces flaked on loaded CI runners (run
+ *  33458582069, 2026-09-01): the HTTP round-trip + dispatch can take
+ *  longer than any constant. Polls fast, fails loud at 2s. */
+async function untilForwarded(count = 1): Promise<void> {
+  const deadline = Date.now() + 2000;
+  while (sentToRenderer.length < count) {
+    if (Date.now() > deadline) {
+      throw new Error(`renderer never received forward #${count} (got ${sentToRenderer.length})`);
+    }
+    await new Promise((r) => setTimeout(r, 5));
+  }
+}
+
 function fireRendererAck(ack: any): void {
   const listeners = ipcListeners.get('external:insert-result') ?? [];
   for (const l of listeners) l(null, ack);
@@ -178,7 +193,7 @@ describe('fast-paste-bridge', () => {
       token: ep.token,
       body: { text: 'hello', role: 'card', newParagraph: true },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     expect(sentToRenderer).toHaveLength(1);
     const sent = sentToRenderer[0]!;
     expect(sent.channel).toBe('external:insert-text');
@@ -204,7 +219,7 @@ describe('fast-paste-bridge', () => {
         html: '<p>rich <strong>content</strong></p>',
       },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     const sent = sentToRenderer[0]!;
     // Both travel: html for a rich-aware renderer, text as the fallback
     // an older renderer (or unusable html) renders.
@@ -225,7 +240,7 @@ describe('fast-paste-bridge', () => {
       token: ep.token,
       body: { text: 'plain', newParagraph: true, html: 12345 },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     const sent = sentToRenderer[0]!;
     expect(sent.payload.text).toBe('plain');
     expect('html' in sent.payload).toBe(false);
@@ -239,7 +254,7 @@ describe('fast-paste-bridge', () => {
       method: 'POST', path: '/insert', port: ep.port, token: ep.token,
       body: { text: 'X', role: 'card', newParagraph: true },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     fireRendererAck({ requestId: sentToRenderer[0]!.payload.requestId, ok: false, error: 'no-target-doc' });
     const r = await inserted;
     expect(r.status).toBe(200);
@@ -252,7 +267,7 @@ describe('fast-paste-bridge', () => {
       method: 'POST', path: '/insert', port: ep.port, token: ep.token,
       body: { text: 'X', role: 'card', newParagraph: true },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     fireRendererAck({ requestId: sentToRenderer[0]!.payload.requestId, ok: false, error: 'doc-readonly' });
     const r = await inserted;
     expect(r.status).toBe(200);
@@ -265,7 +280,7 @@ describe('fast-paste-bridge', () => {
       method: 'POST', path: '/insert', port: ep.port, token: ep.token,
       body: { text: 'X', role: 'card', newParagraph: true },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     fireRendererAck({ requestId: sentToRenderer[0]!.payload.requestId, ok: false, error: 'internal' });
     const r = await inserted;
     expect(r.status).toBe(500);
@@ -303,7 +318,7 @@ describe('fast-paste-bridge', () => {
       method: 'POST', path: '/insert', port: ep.port, token: ep.token,
       body: { text: 'X', role: 'mystery', newParagraph: true },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     expect(sentToRenderer[0]!.payload.role).toBe('card');
     fireRendererAck({ requestId: sentToRenderer[0]!.payload.requestId, ok: true });
     await inserted;
@@ -317,7 +332,7 @@ describe('fast-paste-bridge', () => {
         method: 'POST', path: '/insert', port: ep.port, token: ep.token,
         body: { text: 'X', role, newParagraph: true },
       });
-      await new Promise((r) => setTimeout(r, 20));
+      await untilForwarded();
       expect(sentToRenderer[0]!.payload.role).toBe(role);
       fireRendererAck({ requestId: sentToRenderer[0]!.payload.requestId, ok: true });
       await inserted;
@@ -352,7 +367,7 @@ describe('fast-paste-bridge', () => {
       method: 'POST', path: '/insert', port: ep.port, token: ep.token,
       body: { text: 'from background', role: 'card', newParagraph: true },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     expect(sentToRenderer).toHaveLength(1);
     expect(sentToRenderer[0]!.channel).toBe('external:insert-text');
     fireRendererAck({ requestId: sentToRenderer[0]!.payload.requestId, ok: true });
@@ -456,7 +471,7 @@ describe('fast-paste-bridge', () => {
         method: 'POST', path: '/jump', port: ep.port, token: ep.token,
         body: { source },
       });
-      await new Promise((r) => setTimeout(r, 20));
+      await untilForwarded();
       const sent = sentToRenderer.find((s) => s.channel === 'external:jump')!;
       const listeners = ipcListeners.get('external:jump-result') ?? [];
       for (const l of listeners) l(null, { requestId: sent.payload.requestId, ok: true });
@@ -516,7 +531,7 @@ describe('external-app consent (identity gate)', () => {
       method: 'POST', path: '/insert', port: ep.port, token: ep.token, appId: null,
       body: { text: 'legacy hello', role: 'card', newParagraph: true },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     const inserts = sent('external:insert-text');
     expect(inserts).toHaveLength(1);
     expect(inserts[0]!.payload.text).toBe('legacy hello');
@@ -697,7 +712,7 @@ describe('doc targeting (/docs + insert target)', () => {
     expect(anon.json.error).toBe('unidentified');
     const unknown = await fetchJson({ method: 'GET', path: '/docs', port: ep.port, token: ep.token, appId: 'newapp' });
     expect(unknown.json).toEqual({ ok: true, docs: null, pending: 'consent' });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     const prompt = sent('external:consent-prompt')[0]!;
     fireConsentPromptResult({ requestId: prompt.payload.requestId, outcome: 'dismissed' });
   });
@@ -708,7 +723,7 @@ describe('doc targeting (/docs + insert target)', () => {
       method: 'POST', path: '/insert', port: ep.port, token: ep.token,
       body: { text: 'aimed', role: 'card', newParagraph: true, target: 'doc-b' },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     const inserts = sent('external:insert-text');
     expect(inserts).toHaveLength(1);
     expect(inserts[0]!.payload.target).toBe('doc-b');
@@ -735,7 +750,7 @@ describe('doc targeting (/docs + insert target)', () => {
       method: 'POST', path: '/insert', port: ep.port, token: ep.token,
       body: { text: 'aimed', role: 'card', newParagraph: true, target: 'doc-a' },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     fireRendererAck({ requestId: sent('external:insert-text')[0]!.payload.requestId, ok: true });
     expect((await inserted).json).toEqual({ ok: true, inserted: true, docTitle: 'alpha.cmir' });
   });
@@ -746,7 +761,7 @@ describe('doc targeting (/docs + insert target)', () => {
       method: 'POST', path: '/insert', port: ep.port, token: ep.token,
       body: { text: 'legacy', role: 'card', newParagraph: true },
     });
-    await new Promise((r) => setTimeout(r, 20));
+    await untilForwarded();
     const inserts = sent('external:insert-text');
     expect(inserts).toHaveLength(1);
     expect(inserts[0]!.payload.target).toBeUndefined();
