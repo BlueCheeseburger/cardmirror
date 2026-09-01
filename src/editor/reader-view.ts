@@ -48,6 +48,7 @@ import type { EditorView } from 'prosemirror-view';
 import { settings } from './settings.js';
 import { isSyncOrigin } from './sync-origin.js';
 import { NORMALIZER_META } from './normalizer-guard.js';
+import { trayBottomClearance } from './pill-scroll-clearance.js';
 import { READING_MARKER_META, READ_MODE_UNDO_META } from './reading-marker.js';
 
 export const PMD_READER_VIEW_TOGGLE = 'pmdReaderViewToggle';
@@ -206,6 +207,7 @@ export class ReaderController {
   private overlayHost!: HTMLElement;
   private scrollScale = 1;
   private animRaf = 0;
+  private mutObs: MutationObserver | null = null;
   private leftGutter!: HTMLElement;
   private rightGutter!: HTMLElement;
   private readonly leftBtn: HTMLButtonElement;
@@ -297,6 +299,23 @@ export class ReaderController {
         ? new ResizeObserver(() => this.scheduleRelayout())
         : null;
     this.resizeObs?.observe(host);
+    // Class flips change the page geometry without a doc change or a
+    // resize: invisibility mode on the host (the doc's rendered
+    // extent collapses — field report: toggling it AFTER entering
+    // reading view left a stale page count, and flipping into the
+    // phantom tail looked like a freeze), the pill tray on <html>
+    // (bottom clearance), and the tray-anchored pane class.
+    this.mutObs =
+      typeof MutationObserver === 'function'
+        ? new MutationObserver(() => this.scheduleRelayout())
+        : null;
+    if (this.mutObs) {
+      const opts = { attributes: true, attributeFilter: ['class'] };
+      this.mutObs.observe(host, opts);
+      this.mutObs.observe(host.ownerDocument.documentElement, opts);
+      const pane = host.closest('.pmd-pane');
+      if (pane) this.mutObs.observe(pane, opts);
+    }
     this.relayout();
   }
 
@@ -310,6 +329,7 @@ export class ReaderController {
     this.offWheel();
     this.offEnd();
     this.resizeObs?.disconnect();
+    this.mutObs?.disconnect();
     this.leftBtn.remove();
     this.rightBtn.remove();
     this.indicator.remove();
@@ -418,9 +438,15 @@ export class ReaderController {
     // height), divided by the #editor zoom (the strip lays out in
     // zoomed coordinate space; the scroller sits outside it). Any
     // stray scroll would show blank space past the short strip — pin.
+    // The send/receive pill tray overlays the bottom of the anchored
+    // pane (leftmost in three-pane, the editor in single-doc); the
+    // normal-mode fix is runway padding, which reading view's own
+    // padding rule overrides — shorten the columns instead so the
+    // last line ends above the tray.
+    const trayPad = trayBottomClearance(this.host);
     const viewH = Math.max(
       120,
-      Math.floor(((scroller?.clientHeight ?? window.innerHeight) - 8) / zoom),
+      Math.floor(((scroller?.clientHeight ?? window.innerHeight) - 8 - trayPad) / zoom),
     );
     // No clip-path (it clipped the flip buttons too — and they now
     // live outside the host anyway); the opaque gutters below cover
