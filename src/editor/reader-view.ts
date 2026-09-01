@@ -163,6 +163,19 @@ export function readerControllerFor(view: EditorView): ReaderController | null {
   return controllers.get(view) ?? null;
 }
 
+/** Nearest scrolling ancestor — the element whose viewport caps the
+ *  strip height (single-doc #app, a pane's body). Local copy rather
+ *  than importing precise-scroll's (that module imports us). */
+function nearestScrollerOf(el: HTMLElement): HTMLElement | null {
+  let cur: HTMLElement | null = el.parentElement;
+  while (cur) {
+    const cs = getComputedStyle(cur);
+    if (cs.overflowY === 'auto' || cs.overflowY === 'scroll') return cur;
+    cur = cur.parentElement;
+  }
+  return null;
+}
+
 function motionReduced(): boolean {
   if (settings.get('readerReduceMotion')) return true;
   const pref = settings.get('reduceMotion');
@@ -256,6 +269,7 @@ export class ReaderController {
   }
 
   dispose(): void {
+    this.host.style.removeProperty('clip-path');
     this.offKey();
     this.offWheel();
     this.offEnd();
@@ -265,9 +279,12 @@ export class ReaderController {
     this.indicator.remove();
     const strip = this.strip();
     if (strip) {
-      strip.style.removeProperty('--pmd-reader-x');
-      strip.style.removeProperty('--pmd-reader-col-w');
-      strip.style.removeProperty('--pmd-reader-h');
+      for (const p of [
+        '--pmd-reader-x', '--pmd-reader-cols', '--pmd-reader-page-w',
+        '--pmd-reader-gap', '--pmd-reader-h',
+      ]) {
+        strip.style.removeProperty(p);
+      }
     }
   }
 
@@ -301,11 +318,42 @@ export class ReaderController {
     // column widths change, but the doc's linear order doesn't.
     const prevStripW = Math.max(1, strip.scrollWidth);
     const frac = this.currentOffset() / prevStripW;
-    const rect = this.host.getBoundingClientRect();
-    this.layout = computeReaderLayout(rect.width, settings.get('maxTextWidthPx'));
-    strip.style.setProperty('--pmd-reader-col-w', `${this.layout.colW}px`);
-    strip.style.setProperty('--pmd-reader-gap', `${this.layout.gap}px`);
-    strip.style.setProperty('--pmd-reader-h', `${Math.max(100, rect.height)}px`);
+    // Measure the NATURAL content box: strip reader styling, read the
+    // element's normal-layout rect (it already clears the nav pane /
+    // pane chrome and carries the text-width margins), then restore.
+    // Paid only on relayout (resize / content change), never per flip.
+    this.host.classList.remove('pmd-reader-view');
+    const natural = strip.getBoundingClientRect();
+    const hostRect = this.host.getBoundingClientRect();
+    this.host.classList.add('pmd-reader-view');
+    // Clip the host to exactly the page window: the strip's overflow
+    // columns otherwise bleed into the centering margins at idle. The
+    // edge flip zones move inside the window with it.
+    const clipL = Math.max(0, Math.round(natural.left - hostRect.left));
+    const clipR = Math.max(0, Math.round(hostRect.right - natural.right));
+    this.host.style.clipPath = `inset(0 ${clipR}px 0 ${clipL}px)`;
+    this.leftBtn.style.left = `${clipL}px`;
+    this.rightBtn.style.right = `${clipR}px`;
+    // Page width = the NATURAL content-box width (already carries the
+    // text-width cap and centering margins). Height = the SCROLLER's
+    // viewport, never the host's natural height (that's the whole
+    // document tall — columns would never overflow horizontally).
+    const scroller = nearestScrollerOf(this.host);
+    const viewH = Math.max(120, (scroller?.clientHeight ?? window.innerHeight) - 8);
+    const pageW = Math.max(READER_MIN_COL, Math.floor(natural.width));
+    this.layout = computeReaderLayout(pageW + READER_GAP * 2, settings.get('maxTextWidthPx'));
+    // Exact column geometry from the REAL page width: the box is one
+    // page wide, column-count divides it exactly, and overflow columns
+    // continue at the same pitch — one page stride = pageW + gap,
+    // always matching the rendered columns (column-count, never the
+    // column-width hint, whose browser-chosen widths drift).
+    const count = this.layout.count;
+    const colW = Math.floor((pageW - READER_GAP * (count - 1)) / count);
+    this.layout = { count, colW, gap: READER_GAP, stride: pageW + READER_GAP };
+    strip.style.setProperty('--pmd-reader-cols', String(count));
+    strip.style.setProperty('--pmd-reader-page-w', `${pageW}px`);
+    strip.style.setProperty('--pmd-reader-gap', `${READER_GAP}px`);
+    strip.style.setProperty('--pmd-reader-h', `${viewH}px`);
     const stripW = Math.max(1, strip.scrollWidth);
     this.pages = pageCount(stripW, this.layout.stride);
     this.goTo(pageOfOffset(frac * stripW, this.layout.stride), { animate: false });

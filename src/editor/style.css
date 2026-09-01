@@ -15617,25 +15617,30 @@ body.pmd-multi-doc #collab-chip {
   overflow: hidden !important;
   position: relative;
 }
-.pmd-reader-view .ProseMirror {
-  column-width: var(--pmd-reader-col-w, 560px);
+:is(#editor, .pmd-pane-editor).pmd-reader-view .ProseMirror {
+  /* Exact page geometry, all JS-measured (reader-view.ts relayout):
+     the box is ONE page wide (the natural content box's width, which
+     already clears the nav pane via --pmd-reader-ml) and column-COUNT
+     divides it — never column-width, whose browser-chosen actual
+     widths would break the stride math. column-fill:auto + capped
+     height makes the extra columns overflow HORIZONTALLY past the
+     box; the host clips and translateX flips between them. */
+  column-count: var(--pmd-reader-cols, 1);
   column-gap: var(--pmd-reader-gap, 48px);
   column-fill: auto;
   height: var(--pmd-reader-h, 100%);
-  width: max-content;
-  max-width: none;
-  padding: 0 var(--pmd-reader-gap, 48px);
+  width: var(--pmd-reader-page-w, 100%);
   box-sizing: border-box;
   transform: translateX(var(--pmd-reader-x, 0px));
   will-change: transform;
   transition: transform 240ms cubic-bezier(0.2, 0, 0.2, 1);
 }
 .pmd-reader-view .ProseMirror.pmd-reader-no-anim,
-:root[data-motion='reduce'] .pmd-reader-view .ProseMirror {
+:root[data-motion='reduce'] :is(#editor, .pmd-pane-editor).pmd-reader-view .ProseMirror {
   transition: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion='normal']) .pmd-reader-view .ProseMirror {
+  :root:not([data-motion='normal']) :is(#editor, .pmd-pane-editor).pmd-reader-view .ProseMirror {
     transition: none;
   }
 }
