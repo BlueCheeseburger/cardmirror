@@ -152,7 +152,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "ant981228",
+      "owner": "BlueCheeseburger",
       "repo": "cardmirror"
     },
     "afterSign": "scripts/sign-mac.js"
