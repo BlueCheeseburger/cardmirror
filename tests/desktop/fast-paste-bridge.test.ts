@@ -71,11 +71,15 @@ async function fetchJson(opts: {
  *  20ms sleeps this replaces flaked on loaded CI runners (run
  *  33458582069, 2026-09-01): the HTTP round-trip + dispatch can take
  *  longer than any constant. Polls fast, fails loud at 2s. */
-async function untilForwarded(count = 1): Promise<void> {
+async function untilForwarded(count = 1, channel?: string): Promise<void> {
   const deadline = Date.now() + 2000;
-  while (sentToRenderer.length < count) {
+  const matched = (): number =>
+    channel ? sentToRenderer.filter((s) => s.channel === channel).length : sentToRenderer.length;
+  while (matched() < count) {
     if (Date.now() > deadline) {
-      throw new Error(`renderer never received forward #${count} (got ${sentToRenderer.length})`);
+      throw new Error(
+        `renderer never received forward #${count}${channel ? ` on ${channel}` : ''} (got ${matched()})`,
+      );
     }
     await new Promise((r) => setTimeout(r, 5));
   }
@@ -712,7 +716,10 @@ describe('doc targeting (/docs + insert target)', () => {
     expect(anon.json.error).toBe('unidentified');
     const unknown = await fetchJson({ method: 'GET', path: '/docs', port: ep.port, token: ep.token, appId: 'newapp' });
     expect(unknown.json).toEqual({ ok: true, docs: null, pending: 'consent' });
-    await untilForwarded();
+    // Channel-scoped: a consent-NOTE forward can land first and satisfy
+    // an any-channel wait while the prompt is still in flight (Ubuntu
+    // CI flake, run 33459739485).
+    await untilForwarded(1, 'external:consent-prompt');
     const prompt = sent('external:consent-prompt')[0]!;
     fireConsentPromptResult({ requestId: prompt.payload.requestId, outcome: 'dismissed' });
   });
