@@ -15487,36 +15487,31 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   height: 100%;
   min-height: 0;
 }
+/* Hosts a REAL NavigationPanel (readOnly mode) so the preview's nav
+   is the user's actual nav pane — level buttons, chevrons,
+   double-click collapse, per-type styling, all of it. Overrides scope
+   it to the dialog: fixed width (no resize handle, no --nav-width
+   coupling), no close button (there's nothing to close). */
 .pmd-recover-preview-nav {
-  width: 190px;
+  width: 240px;
   flex: none;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   border-right: 1px solid var(--pmd-c-border-soft);
-  padding: 0.35rem 0.25rem;
-  font-size: 0.76rem;
 }
-.pmd-recover-preview-nav-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.pmd-recover-preview-nav .pmd-nav-panel {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  position: static;
+  display: flex;
+  flex-direction: column;
 }
-.pmd-recover-preview-nav-row {
-  padding: 0.14rem 0.3rem;
-  border-radius: 3px;
-  cursor: pointer;
-  color: var(--pmd-c-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.pmd-recover-preview-nav .pmd-nav-close,
+.pmd-recover-preview-nav .pmd-nav-resize-handle {
+  display: none;
 }
-.pmd-recover-preview-nav-row:hover {
-  background: var(--pmd-c-hover);
-  color: var(--pmd-c-text);
-}
-.pmd-recover-preview-nav-l1 { font-weight: 700; }
-.pmd-recover-preview-nav-l2 { padding-left: 0.9rem; font-weight: 600; }
-.pmd-recover-preview-nav-l3 { padding-left: 1.5rem; }
-.pmd-recover-preview-nav-l4 { padding-left: 2.1rem; }
 .pmd-recover-preview-scroll {
   flex: 1;
   min-width: 0;

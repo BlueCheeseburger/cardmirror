@@ -196,6 +196,7 @@ export function installNavResizeHandle(host: HTMLElement): HTMLElement {
 export class NavigationPanel {
   private root: HTMLElement;
   private view: EditorView | null = null;
+  private readonly readOnly: boolean = false;
   private listEl: HTMLOListElement;
   private emptyEl: HTMLElement;
   private currentDoc: PMNode | null = null;
@@ -330,9 +331,16 @@ export class NavigationPanel {
     parent: HTMLElement,
     opts?: {
       onClose?: () => void;
+      /** Outline-only mode (the recover dialogs' version previews):
+       *  navigation, level buttons, and expand/collapse work, but the
+       *  panel never starts drags and never registers as a drop
+       *  surface — its view is a read-only preview, not a document
+       *  anyone may reorder. */
+      readOnly?: boolean;
     },
   ) {
     this.onClose = opts?.onClose ?? null;
+    this.readOnly = opts?.readOnly === true;
     this.root = document.createElement('aside');
     this.root.className = 'pmd-nav-panel';
 
@@ -456,6 +464,7 @@ export class NavigationPanel {
     // editor pickup-mode drag → both surfaces show indicators too).
     if (this.unregisterSurface) this.unregisterSurface();
     if (this.unsubscribeDrag) this.unsubscribeDrag();
+    if (this.readOnly) return;
     this.unregisterSurface = dragController.registerSurface(this.dragSurfaceImpl);
     this.unsubscribeDrag = dragController.subscribe((event) => {
       if (event === 'begin') {
@@ -1109,6 +1118,7 @@ export class NavigationPanel {
     // and read mode disables mobile pickup entirely.
     if (
       isMobileShellActive() &&
+      !this.readOnly &&
       !this.destinationCb &&
       !settings.get('readMode') &&
       settings.get('dragInteractions')
@@ -1438,7 +1448,7 @@ export class NavigationPanel {
       // Drag-to-rearrange disabled (touch devices where a scrolling
       // finger reads as a drag): the movement stays inert; releasing
       // still counts as a click below the threshold path.
-      if (!settings.get('dragInteractions')) return;
+      if (this.readOnly || !settings.get('dragInteractions')) return;
       // Drag-reorder is allowed even in read mode: the drop is position-
       // validated and the resulting transaction is read-mode-permitted (see
       // READ_MODE_DRAG_META). A click below the threshold still just navigates.

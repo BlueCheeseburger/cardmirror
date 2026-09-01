@@ -31,8 +31,7 @@ import { settings } from './settings.js';
 import { showToast } from './toast.js';
 import { parseNative } from '../native/index.js';
 import { countReadAloudWords } from './word-count.js';
-import { collectHeadings } from './headings.js';
-import { preciseScrollIntoView } from './precise-scroll.js';
+import { NavigationPanel } from './nav-panel.js';
 
 export type VersionHistoryTier = 'off' | 'standard' | 'extended' | 'custom';
 
@@ -223,60 +222,48 @@ export function formatDelta(d: SnapshotDelta): string {
 }
 
 /**
- * Mount a read-only rendered preview of `doc` into `pane`: an outline
- * nav on the left (same heading walk as the real nav pane, click to
- * jump) and the document on the right, rendered by a real ProseMirror
- * view wearing `.pmd-pane-editor` so the full document stylesheet
- * applies. Returns the view — caller owns destroy().
+ * Mount a read-only rendered preview of `doc` into `pane`: a REAL
+ * NavigationPanel on the left (the user's actual nav pane — level
+ * buttons, chevron + double-click expand/collapse, per-type styling)
+ * and the document on the right, rendered by a real ProseMirror view
+ * wearing `.pmd-pane-editor` so the full document stylesheet applies.
+ * Returns the view — caller owns destroy() (the nav panel is torn
+ * down with it via the returned view's destroy hook).
  */
 export function mountVersionPreview(pane: HTMLElement, doc: PMNode): EditorView {
   pane.innerHTML = '';
   const wrap = document.createElement('div');
   wrap.className = 'pmd-recover-preview-wrap';
+  const navHost = document.createElement('div');
+  navHost.className = 'pmd-recover-preview-nav';
   const scrollHost = document.createElement('div');
   scrollHost.className = 'pmd-recover-preview-scroll';
   const mountHost = document.createElement('div');
   mountHost.className = 'pmd-pane-editor pmd-recover-preview-editor';
   scrollHost.appendChild(mountHost);
+  wrap.append(navHost, scrollHost);
+  pane.appendChild(wrap);
   const view = new EditorView(mountHost, {
     state: EditorState.create({ doc }),
     editable: () => false,
+    // Hard read-only: selection may move (nav jumps set it), but no
+    // transaction may change the doc — belt to `editable`'s braces,
+    // and the guarantee that makes embedding interactive chrome (the
+    // nav panel) safe against stray dispatches.
+    dispatchTransaction(tr) {
+      if (tr.docChanged) return;
+      view.updateState(view.state.apply(tr));
+    },
   });
-  const headings = collectHeadings(doc, { skipCite: true });
-  if (headings.length > 0) {
-    const nav = document.createElement('nav');
-    nav.className = 'pmd-recover-preview-nav';
-    const list = document.createElement('ol');
-    list.className = 'pmd-recover-preview-nav-list';
-    for (const e of headings) {
-      const li = document.createElement('li');
-      li.className = `pmd-recover-preview-nav-row pmd-recover-preview-nav-l${e.level}`;
-      li.textContent = e.text || '(untitled)';
-      li.title = e.text;
-      li.addEventListener('click', () => {
-        // Prefer the stable id (survives cv:auto skips via the
-        // refinement loop); fall back to the doc position.
-        let el: Element | null = e.id
-          ? view.dom.querySelector(`[data-id="${CSS.escape(e.id)}"]`)
-          : null;
-        if (!el) {
-          try {
-            let n: Node | null = view.domAtPos(e.pos + 1).node;
-            while (n && n.nodeType !== Node.ELEMENT_NODE) n = n.parentNode;
-            el = n as Element | null;
-          } catch {
-            el = null;
-          }
-        }
-        if (el instanceof HTMLElement) preciseScrollIntoView(view, el);
-      });
-      list.appendChild(li);
-    }
-    nav.appendChild(list);
-    wrap.appendChild(nav);
-  }
-  wrap.appendChild(scrollHost);
-  pane.appendChild(wrap);
+  const nav = new NavigationPanel(navHost, { readOnly: true, onClose: () => {} });
+  nav.attach(view);
+  // Tear the panel down with the view (both dialogs only ever call
+  // view.destroy()).
+  const baseDestroy = view.destroy.bind(view);
+  view.destroy = () => {
+    nav.destroy();
+    baseDestroy();
+  };
   return view;
 }
 
