@@ -334,29 +334,35 @@ export class ReaderController {
     // previous extent comes from our own measurement (scrollWidth
     // ignores multicol overflow columns).
     const frac = this.stripExtent > 0 ? this.currentOffset() / this.stripExtent : 0;
-    // Measure the NATURAL content box: strip reader styling, read the
-    // element's normal-layout rect (it already clears the nav pane /
-    // pane chrome and carries the text-width margins), then restore.
-    // Paid only on relayout (resize / content change), never per flip.
-    this.host.classList.remove('pmd-reader-view');
-    const natural = strip.getBoundingClientRect();
-    const hostRect = this.host.getBoundingClientRect();
-    this.host.classList.add('pmd-reader-view');
+    // Page geometry is PURE MATH from clientWidth + the text-width
+    // settings — the earlier strip-the-class-and-measure approach
+    // forced two full-document layouts per relayout AND let #app keep
+    // a stale scrollTop from the momentary full-height doc, scrolling
+    // the viewport past the short strip (field report: marker drop
+    // whited out the screen).
+    const available = Math.max(READER_MIN_COL, this.host.clientWidth);
+    const cap = settings.get('maxTextWidthPx');
+    const pageW = cap > 0 ? Math.min(Math.max(READER_MIN_COL, cap), available) : available;
+    const extra = Math.max(0, available - pageW);
+    const align = settings.get('maxTextWidthAlign');
+    const clipL = align === 'left' ? 0 : align === 'right' ? extra : Math.round(extra / 2);
+    const clipR = extra - clipL;
     // Clip the host to exactly the page window: the strip's overflow
-    // columns otherwise bleed into the centering margins at idle. The
-    // edge flip zones move inside the window with it.
-    const clipL = Math.max(0, Math.round(natural.left - hostRect.left));
-    const clipR = Math.max(0, Math.round(hostRect.right - natural.right));
+    // columns otherwise bleed into the margins at idle. The edge flip
+    // zones move inside the window with it.
     this.host.style.clipPath = `inset(0 ${clipR}px 0 ${clipL}px)`;
     this.leftBtn.style.left = `${clipL}px`;
     this.rightBtn.style.right = `${clipR}px`;
-    // Page width = the NATURAL content-box width (already carries the
-    // text-width cap and centering margins). Height = the SCROLLER's
-    // viewport, never the host's natural height (that's the whole
-    // document tall — columns would never overflow horizontally).
+    // Height = the SCROLLER's viewport (never the host's natural
+    // height), divided by the #editor zoom (the strip lays out in
+    // zoomed coordinate space; the scroller sits outside it). Any
+    // stray scroll would show blank space past the short strip — pin.
     const scroller = nearestScrollerOf(this.host);
-    const viewH = Math.max(120, (scroller?.clientHeight ?? window.innerHeight) - 8);
-    const pageW = Math.max(READER_MIN_COL, Math.floor(natural.width / this.zoomFactor()));
+    if (scroller) scroller.scrollTop = 0;
+    const viewH = Math.max(
+      120,
+      Math.floor(((scroller?.clientHeight ?? window.innerHeight) - 8) / this.zoomFactor()),
+    );
     this.layout = computeReaderLayout(pageW + READER_GAP * 2, settings.get('maxTextWidthPx'));
     // Exact column geometry from the REAL page width: the box is one
     // page wide, column-count divides it exactly, and overflow columns
