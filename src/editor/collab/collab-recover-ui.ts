@@ -37,6 +37,16 @@ import {
 } from './collab-history.js';
 import { LoroDoc } from 'loro-crdt';
 import { configTextStyle } from './collab-session.js';
+import { EditorState } from 'prosemirror-state';
+import { EditorView } from 'prosemirror-view';
+import type { Node as PMNode } from 'prosemirror-model';
+import {
+  computeSnapshotStats,
+  diffSnapshotStats,
+  cardsMissingFrom,
+  formatDelta,
+  type SnapshotStats,
+} from '../version-history.js';
 
 /** How a recovered copy gets opened. index.ts supplies a mode-aware
  *  opener: multi-pane mounts it into a slot of THIS window (via the
@@ -84,7 +94,7 @@ export async function openRecoverPreviousVersion(
     envelope = await pickEnvelopeFromFile();
     if (!envelope) return; // cancelled, or already toasted
   }
-  openVersionDialog(envelope, openDoc);
+  openVersionDialog(envelope, openDoc, solo?.currentDoc ?? null);
 }
 
 async function pickEnvelopeFromFile(): Promise<HistoryEnvelope | null> {
@@ -100,7 +110,11 @@ async function pickEnvelopeFromFile(): Promise<HistoryEnvelope | null> {
   return envelope;
 }
 
-function openVersionDialog(envelope: HistoryEnvelope, openDoc?: OpenRecoveredDoc): void {
+function openVersionDialog(
+  envelope: HistoryEnvelope,
+  openDoc?: OpenRecoveredDoc,
+  currentDoc?: PMNode | null,
+): void {
   // Derive the list up front; the snapshot import is the expensive part
   // and it is shared by every later checkout.
   let ldoc: LoroDoc;
@@ -122,16 +136,19 @@ function openVersionDialog(envelope: HistoryEnvelope, openDoc?: OpenRecoveredDoc
   const overlay = document.createElement('div');
   overlay.className = 'pmd-bulk-overlay';
   const dialog = document.createElement('div');
-  dialog.className = 'pmd-bulk-dialog pmd-recover-dialog';
+  dialog.className = 'pmd-bulk-dialog pmd-recover-dialog pmd-recover-dialog-wide';
   overlay.appendChild(dialog);
 
   const token = pushOverlay();
   let closed = false;
+  let previewView: EditorView | null = null;
   const close = (): void => {
     if (closed) return;
     closed = true;
     popOverlay(token);
     document.removeEventListener('keydown', onKey, true);
+    previewView?.destroy();
+    previewView = null;
     overlay.remove();
   };
   const onKey = (e: KeyboardEvent): void => {
@@ -161,21 +178,109 @@ function openVersionDialog(envelope: HistoryEnvelope, openDoc?: OpenRecoveredDoc
   dialog.appendChild(header);
 
   const body = document.createElement('div');
-  body.className = 'pmd-bulk-body pmd-recover-body';
+  body.className = 'pmd-bulk-body pmd-recover-body pmd-recover-body-wide';
   const blurb = document.createElement('p');
   blurb.className = 'pmd-bulk-blurb';
   blurb.textContent =
     `“${envelope.docTitle}” — history through ${fmtTime(envelope.updatedAt)}. ` +
-    `Opening a version makes a separate unsaved copy; the shared document is not changed.`;
+    `Click a version to preview it. Opening a version makes a separate unsaved copy; the shared document is not changed.`;
   body.appendChild(blurb);
 
+  const split = document.createElement('div');
+  split.className = 'pmd-recover-split';
   const list = document.createElement('div');
-  list.className = 'pmd-recover-list';
+  list.className = 'pmd-recover-list pmd-recover-versions pmd-recover-versions-session';
+  const previewPane = document.createElement('div');
+  previewPane.className = 'pmd-recover-preview-pane';
+  const previewEmpty = document.createElement('div');
+  previewEmpty.className = 'pmd-recover-preview-empty';
+  previewEmpty.textContent = 'Select a version to preview it.';
+  previewPane.appendChild(previewEmpty);
+
+  // ── Preview + digest machinery ──
+  // materializeVersion is a SYNCHRONOUS loro checkout (~10s worst case
+  // on tournament masters), so digests are computed lazily on the
+  // user's own preview clicks — never as an eager background sweep
+  // that would freeze the renderer — and cached per row.
+  const snapshot = snapshotFromEnvelope(envelope);
+  const currentStats = currentDoc ? computeSnapshotStats(currentDoc) : null;
+  const statsByRow = new Map<VersionRow, SnapshotStats>();
+  const selectables = new Set<HTMLElement>();
+  let previewSeq = 0;
+
+  interface GroupRefs {
+    endRow: VersionRow;
+    digest: HTMLElement;
+    delta: HTMLElement;
+    badge: HTMLElement;
+  }
+  const groupRefs: GroupRefs[] = []; // newest-first, matching the list
+
+  const refreshDigests = (): void => {
+    for (let i = 0; i < groupRefs.length; i++) {
+      const g = groupRefs[i]!;
+      const st = statsByRow.get(g.endRow);
+      if (!st) continue;
+      g.digest.textContent = `${st.words.toLocaleString()} words · ${st.cards.toLocaleString()} cards`;
+      if (currentStats) {
+        const missing = cardsMissingFrom(st, currentStats);
+        g.badge.textContent =
+          missing > 0 ? `${missing} card${missing === 1 ? '' : 's'} not in current doc` : '';
+      }
+      const older = groupRefs[i + 1] ? statsByRow.get(groupRefs[i + 1]!.endRow) : undefined;
+      if (older) g.delta.textContent = formatDelta(diffSnapshotStats(st, older));
+    }
+  };
+
+  const previewRow = (row: VersionRow, el: HTMLElement): void => {
+    const seq = ++previewSeq;
+    for (const sel of selectables) sel.classList.toggle('pmd-recover-version-selected', sel === el);
+    previewPane.innerHTML = '';
+    const loading = document.createElement('div');
+    loading.className = 'pmd-recover-preview-empty';
+    loading.textContent = 'Reconstructing version…';
+    previewPane.appendChild(loading);
+    // Yield a beat so the busy state PAINTS before the sync checkout
+    // (same trick as recoverButton).
+    setTimeout(() => {
+      if (closed || seq !== previewSeq) return;
+      let node: PMNode;
+      try {
+        node = materializeVersion(snapshot, row.frontier);
+      } catch (err) {
+        console.error('[recover] failed to materialize preview:', err);
+        loading.textContent = 'Could not reconstruct this version — the history may be damaged.';
+        return;
+      }
+      if (closed || seq !== previewSeq) return;
+      if (!statsByRow.has(row)) {
+        statsByRow.set(row, computeSnapshotStats(node));
+        refreshDigests();
+      }
+      previewPane.innerHTML = '';
+      previewView?.destroy();
+      const mountHost = document.createElement('div');
+      mountHost.className = 'pmd-pane-editor pmd-recover-preview-editor';
+      previewPane.appendChild(mountHost);
+      previewView = new EditorView(mountHost, {
+        state: EditorState.create({ doc: node }),
+        editable: () => false,
+      });
+    }, 30);
+  };
+
   // Newest first — vandalism recovery reaches for "just before the end".
   for (const group of [...groups].reverse()) {
-    list.appendChild(groupRow(group, envelope, close, openDoc));
+    list.appendChild(
+      groupRow(group, envelope, close, openDoc, {
+        previewRow,
+        selectables,
+        registerGroup: (refs) => groupRefs.push(refs),
+      }),
+    );
   }
-  body.appendChild(list);
+  split.append(list, previewPane);
+  body.appendChild(split);
   dialog.appendChild(body);
 
   const actions = document.createElement('div');
@@ -188,7 +293,7 @@ function openVersionDialog(envelope: HistoryEnvelope, openDoc?: OpenRecoveredDoc
     void pickEnvelopeFromFile().then((other) => {
       if (!other) return;
       close();
-      openVersionDialog(other, openDoc);
+      openVersionDialog(other, openDoc, currentDoc);
     });
   });
   const done = document.createElement('button');
@@ -203,17 +308,33 @@ function openVersionDialog(envelope: HistoryEnvelope, openDoc?: OpenRecoveredDoc
   done.focus();
 }
 
+interface GroupRowCtx {
+  /** Materialize + render `row` in the preview pane; `el` gets the
+   *  selected highlight. */
+  previewRow: (row: VersionRow, el: HTMLElement) => void;
+  /** All preview-selectable elements (for exclusive highlighting). */
+  selectables: Set<HTMLElement>;
+  registerGroup: (refs: {
+    endRow: VersionRow;
+    digest: HTMLElement;
+    delta: HTMLElement;
+    badge: HTMLElement;
+  }) => void;
+}
+
 function groupRow(
   group: VersionGroup,
   envelope: HistoryEnvelope,
   closeDialog: () => void,
-  openDoc?: OpenRecoveredDoc,
+  openDoc: OpenRecoveredDoc | undefined,
+  ctx: GroupRowCtx,
 ): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-recover-group';
+  const endRow = group.rows[group.rows.length - 1]!;
 
   const head = document.createElement('div');
-  head.className = 'pmd-recover-group-head';
+  head.className = 'pmd-recover-group-head pmd-recover-group-head-clickable';
 
   const expand = document.createElement('button');
   expand.type = 'button';
@@ -237,10 +358,28 @@ function groupRow(
 
   // The group's recover target is its LAST change — "the document as it
   // stood at the end of this burst of editing".
-  const open = recoverButton(group.rows[group.rows.length - 1]!, envelope, closeDialog, openDoc);
+  const open = recoverButton(endRow, envelope, closeDialog, openDoc);
 
   head.append(expand, label, meta, open);
   wrap.appendChild(head);
+
+  // Digest lines (filled lazily once this group's end state has been
+  // previewed — the checkout is too expensive to run eagerly).
+  const digest = document.createElement('div');
+  digest.className = 'pmd-recover-version-stats pmd-recover-group-digest';
+  const delta = document.createElement('div');
+  delta.className = 'pmd-recover-version-delta pmd-recover-group-digest';
+  const badge = document.createElement('div');
+  badge.className = 'pmd-recover-version-badge pmd-recover-group-digest';
+  wrap.append(digest, delta, badge);
+  ctx.registerGroup({ endRow, digest, delta, badge });
+
+  // Clicking the group (not its buttons) previews its end state.
+  ctx.selectables.add(head);
+  head.addEventListener('click', (e) => {
+    if (e.target instanceof HTMLElement && e.target.closest('button')) return;
+    ctx.previewRow(endRow, head);
+  });
 
   let detail: HTMLElement | null = null;
   expand.addEventListener('click', () => {
@@ -264,6 +403,12 @@ function groupRow(
       who.className = 'pmd-recover-row-peer';
       who.textContent = row.isSeed ? 'session started (initial document)' : `editor …${row.peer.slice(-4)}`;
       line.append(t, who, recoverButton(row, envelope, closeDialog, openDoc));
+      line.classList.add('pmd-recover-row-clickable');
+      ctx.selectables.add(line);
+      line.addEventListener('click', (e) => {
+        if (e.target instanceof HTMLElement && e.target.closest('button')) return;
+        ctx.previewRow(row, line);
+      });
       detail.appendChild(line);
     }
     wrap.appendChild(detail);

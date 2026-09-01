@@ -15499,6 +15499,33 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   min-height: 0;
 }
 
+/* Session-history flavor of the two-pane dialog: group rows keep
+   their existing chrome, made preview-clickable; digest lines fill
+   lazily after a preview materializes that group's end state. */
+.pmd-recover-versions-session {
+  width: 360px;
+}
+.pmd-recover-group-head-clickable,
+.pmd-recover-row-clickable {
+  cursor: pointer;
+  border-radius: 4px;
+}
+.pmd-recover-group-head-clickable:hover,
+.pmd-recover-row-clickable:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-recover-group-head-clickable.pmd-recover-version-selected,
+.pmd-recover-row-clickable.pmd-recover-version-selected {
+  background: var(--pmd-c-accent-soft, var(--pmd-c-hover));
+  outline: 1px solid var(--pmd-c-accent);
+}
+.pmd-recover-group-digest {
+  margin-left: 1.4rem;
+}
+.pmd-recover-group-digest:empty {
+  display: none;
+}
+
 /* Session-preparation veil (collab-ui sessionPrepOverlay). */
 .pmd-session-prep {
   z-index: 1200; /* above dialogs — nothing is interactive during the freeze */
