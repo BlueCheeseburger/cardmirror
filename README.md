@@ -8,18 +8,6 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
-> - **`npm run desktop:install` self-heals a bad Electron binary install**
->   instead of failing confusingly later — on some Node versions, Electron's
->   own bundled unzip tool silently truncates its ~500MB download and still
->   exits 0, so `desktop:dev` later dies with a cryptic `path.txt` error;
->   a postinstall check now detects that and re-extracts from the already-
->   downloaded cache with a native unzip tool. Also pins Node to the
->   version this is tested against (`engines` + `.nvmrc`). *(open PR, not
->   yet on `main`)*
-> - **"Check for updates" now points at this fork** instead of upstream — it
->   used to check `ant981228/cardmirror`'s releases, which would have
->   offered an upstream build as an "update" that silently drops everything
->   this fork adds.
 > - **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >   document at your actual reading pace, slowing for dense highlighted
 >   text and speeding through everything else.
