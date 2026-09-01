@@ -4313,6 +4313,7 @@ export type RibbonCommandId =
   | 'standardizeHighlightExcept'
   | 'standardizeShadingExcept'
   | 'toggleReadMode'
+  | 'toggleAutoScroll'
   | 'toggleCommentsVisible'
   | 'addCommentToSelection'
   | 'addNoteToSelection'
@@ -4543,6 +4544,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'standardizeHighlightExcept',
   'standardizeShadingExcept',
   'toggleReadMode',
+  'toggleAutoScroll',
   'toggleCommentsVisible',
   'addCommentToSelection',
   'addNoteToSelection',
@@ -4725,6 +4727,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   standardizeHighlightExcept: 'Standardize Highlighting (with Exception)',
   standardizeShadingExcept: 'Standardize Background Color (with Exception)',
   toggleReadMode: 'Toggle Read Mode',
+  toggleAutoScroll: 'Toggle Auto-Scroll (Paced to Reading Speed)',
   toggleCommentsVisible: 'Show / Hide Comments',
   addCommentToSelection: 'Add Comment to Selection',
   addNoteToSelection: 'Add Note to Selection',
@@ -4893,6 +4896,15 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   toggleCommentsVisible: ['toggle comments', 'comments'],
   toggleNavPane: ['toggle navigation pane', 'toggle nav pane', 'sidebar', 'outline pane'],
   toggleReadMode: ['show read mode', 'hide read mode', 'reader mode', 'reading mode'],
+  toggleAutoScroll: [
+    'auto scroll',
+    'autoscroll',
+    'teleprompter',
+    'paced scroll',
+    'scroll to read time',
+    'start scrolling',
+    'stop scrolling',
+  ],
   toggleAutosave: ['enable autosave', 'disable autosave', 'turn on autosave', 'turn off autosave'],
   markActiveAsSpeech: ['toggle speech doc', 'set speech document'],
   // vague / Word-flavored labels
@@ -5065,6 +5077,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   standardizeHighlightExcept: '',
   standardizeShadingExcept: '',
   toggleReadMode: '',
+  toggleAutoScroll: '',
   toggleCommentsVisible: '',
   addCommentToSelection: '',
   addNoteToSelection: 'Mod-Shift-n',
@@ -5304,6 +5317,7 @@ export interface RibbonContext {
   runCreateReference: () => void;
   openWordCountDialog: () => void;
   toggleReadMode: () => void;
+  toggleAutoScroll: () => void;
   openShortcutsReference: () => void;
   toggleCommentsVisible: () => void;
   addCommentToSelection: () => void;
@@ -5493,6 +5507,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   runCreateReference: () => {},
   openWordCountDialog: () => {},
   toggleReadMode: () => {},
+  toggleAutoScroll: () => {},
   openShortcutsReference: () => {},
   toggleCommentsVisible: () => {},
   addCommentToSelection: () => {},
@@ -5734,6 +5749,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.toggleReadMode();
+        return true;
+      };
+    case 'toggleAutoScroll':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.toggleAutoScroll();
         return true;
       };
     case 'toggleCommentsVisible':
