@@ -8,9 +8,13 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **"Check for updates" now points at this fork** instead of upstream — it
+>   used to check `ant981228/cardmirror`'s releases, which would have
+>   offered an upstream build as an "update" that silently drops everything
+>   this fork adds. *(open PR, not yet on `main`)*
 > - **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >   document at your actual reading pace, slowing for dense highlighted
->   text and speeding through everything else. *(open PR, not yet on `main`)*
+>   text and speeding through everything else.
 > - **Autosave for `.docx` files**, not just `.cmir` — plus a time-boxed,
 >   logged fallback for the zip worker and a ribbon button that
 >   distinguishes "saving" from "paused" (e.g. a doc with a live view /
