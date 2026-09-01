@@ -207,7 +207,7 @@ export function runHeadingIdFuzz(seeds: number, opsPerSeed: number): FuzzResult 
         if (!setSel(a, b)) continue;
         const { from, to } = state.selection;
         opLabel = `type@${from}-${to}`;
-        const handler = typeOverBoundaryPlugin.props.handleTextInput! as (
+        const handler = typeOverBoundaryPlugin.props.handleTextInput! as unknown as (
           v: never, f: number, t: number, s: string,
         ) => boolean;
         if (!handler(view, from, to, 'x')) {
