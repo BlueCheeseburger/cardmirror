@@ -4863,6 +4863,7 @@ body.pmd-nav-resize-active {
    Diverge by pulling a selector out, not by re-copying. */
 .pmd-nav-level-btn-active,
 #read-mode-btn.pmd-active,
+#reader-view-btn.pmd-active,
 .pmd-prompt-btn-primary,
 .pmd-clod-btn-primary,
 .pmd-recovery-sidebar-row-btn-open,
@@ -5535,7 +5536,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 
 
-#read-mode-btn.pmd-active:hover:not(:disabled) {
+#read-mode-btn.pmd-active:hover:not(:disabled),
+#reader-view-btn.pmd-active:hover:not(:disabled) {
   background: var(--pmd-c-accent-hover);
 }
 

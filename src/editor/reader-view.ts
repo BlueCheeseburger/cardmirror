@@ -110,7 +110,7 @@ export interface ReaderLayout {
 
 export const READER_GAP = 48;
 /** Width of the reserved edge flip lanes (px, host space). */
-export const READER_EDGE_W = 40;
+export const READER_EDGE_W = 48;
 /** Comfortable reading column when no accessibility cap is set. */
 export const READER_IDEAL_COL = 560;
 export const READER_MIN_COL = 280;
@@ -204,6 +204,8 @@ export class ReaderController {
   private relayoutAfterAnim = false;
   private readonly pager = new WheelPager();
   private overlayHost!: HTMLElement;
+  private scrollScale = 1;
+  private animRaf = 0;
   private leftGutter!: HTMLElement;
   private rightGutter!: HTMLElement;
   private readonly leftBtn: HTMLButtonElement;
@@ -299,6 +301,7 @@ export class ReaderController {
   }
 
   dispose(): void {
+    cancelAnimationFrame(this.animRaf);
     this.leftGutter.remove();
     this.rightGutter.remove();
     this.overlayHost.classList.remove('pmd-reader-overlay-host');
@@ -334,9 +337,11 @@ export class ReaderController {
     return this.page * this.layout.stride;
   }
 
-  /** Host scroll units per page (host scroll space is zoomed). */
+  /** Host scroll units per page. `scrollScale` = visual px per
+   *  scrollLeft unit, calibrated in relayout (CSS zoom makes the
+   *  unit engine-dependent). */
   private strideScroll(): number {
-    return this.layout.stride * this.zoomFactor();
+    return (this.layout.stride * this.zoomFactor()) / this.scrollScale;
   }
 
   scheduleRelayout(): void {
@@ -391,10 +396,18 @@ export class ReaderController {
       this.host.clientWidth,
       Math.max(READER_MIN_COL, Math.floor((visibleRight - hostRect.left) / zoom)),
     );
+    // Measure the strip's intrinsic left offset (padding/base margins
+    // between host and strip border box) with margins zeroed — page
+    // geometry below compensates for it instead of assuming zero.
+    strip.style.marginLeft = '0';
+    strip.style.marginRight = '0';
+    this.host.scrollLeft = 0;
+    const base = (strip.getBoundingClientRect().left - hostRect.left) / zoom;
+    const overshoot = Math.max(0, base - READER_EDGE_W);
     // Reserve flip lanes on both sides so the edge buttons never sit
     // on top of the text (field report), then let the text-width cap
     // + alignment settings place the page inside what remains.
-    const inner = Math.max(READER_MIN_COL, available - READER_EDGE_W * 2);
+    const inner = Math.max(READER_MIN_COL, available - READER_EDGE_W * 2 - overshoot);
     const cap = settings.get('maxTextWidthPx');
     const pageW = cap > 0 ? Math.min(Math.max(READER_MIN_COL, cap), inner) : inner;
     const extra = Math.max(0, inner - pageW);
@@ -426,10 +439,16 @@ export class ReaderController {
     strip.style.setProperty('--pmd-reader-page-w', `${pageW}px`);
     strip.style.setProperty('--pmd-reader-gap', `${READER_GAP}px`);
     strip.style.setProperty('--pmd-reader-h', `${viewH}px`);
-    // Anchor the page box at the gutter edge (the base stylesheet
-    // centers with auto margins — override inline).
-    strip.style.marginLeft = `${gutterL}px`;
-    strip.style.marginRight = '0';
+    // Anchor the page box at the gutter edge — MEASURED, not assumed:
+    // zero the margin, read where the strip's border box really lands
+    // relative to the host, and compensate for whatever intrinsic
+    // offset (padding/base margins) sits between them. This is what
+    // fixed the field report of "extra space on the left + text under
+    // the right arrow": any un-modeled offset shifted the whole page
+    // right of where the lanes were drawn.
+    const ml = Math.max(0, gutterL - base);
+    const textLeft = base + ml;
+    strip.style.marginLeft = `${ml}px`;
     // Overlays sit on the PARENT (they must not ride the host's
     // scroll), so their geometry is parent-space: host offset plus
     // zoomed inner distances.
@@ -443,14 +462,26 @@ export class ReaderController {
       el.style.height = `${bandH}px`;
     }
     this.leftGutter.style.left = `${ox}px`;
-    this.leftGutter.style.width = `${vz(gutterL)}px`;
-    this.rightGutter.style.left = `${ox + vz(gutterL + pageW)}px`;
-    this.rightGutter.style.width = `${Math.max(vz(READER_EDGE_W), vz(available - gutterL - pageW))}px`;
-    this.leftBtn.style.left = `${ox + Math.max(0, vz(gutterL - READER_EDGE_W))}px`;
+    this.leftGutter.style.width = `${vz(textLeft)}px`;
+    this.rightGutter.style.left = `${ox + vz(textLeft + pageW)}px`;
+    this.rightGutter.style.width = `${Math.max(vz(READER_EDGE_W), vz(available - textLeft - pageW))}px`;
+    // Buttons hug the OUTER edges of their lanes — flush against the
+    // text they crowded it (field report).
+    this.leftBtn.style.left = `${ox}px`;
     this.leftBtn.style.right = 'auto';
-    this.rightBtn.style.left = `${ox + vz(gutterL + pageW)}px`;
+    this.rightBtn.style.left = `${ox + vz(available) - this.rightBtn.offsetWidth}px`;
     this.rightBtn.style.right = 'auto';
-    this.indicator.style.left = `${ox + vz(gutterL + pageW / 2)}px`;
+    this.indicator.style.left = `${ox + vz(textLeft + pageW / 2)}px`;
+    // Calibrate scroll units: with CSS zoom in play, engines differ on
+    // whether scrollLeft is visual or local px. Nudge and measure.
+    this.scrollScale = zoom;
+    const beforeL = strip.getBoundingClientRect().left;
+    this.host.scrollLeft = 37;
+    if (this.host.scrollLeft > 0) {
+      const moved = (beforeL - strip.getBoundingClientRect().left) / this.host.scrollLeft;
+      if (moved > 0) this.scrollScale = moved;
+      this.host.scrollLeft = 0;
+    }
     const stripW = this.measureStripExtent(strip);
     this.stripExtent = stripW;
     this.pages = pageCount(stripW, this.layout.stride);
@@ -469,7 +500,7 @@ export class ReaderController {
    *  tail-children probe stays as a floor for engines that disagree. */
   private measureStripExtent(strip: HTMLElement): number {
     const zoom = this.zoomFactor();
-    const fromScroll = this.host.scrollWidth / zoom;
+    const fromScroll = (this.host.scrollWidth * this.scrollScale) / zoom;
     const scrollLeft = this.host.scrollLeft;
     const stripRect = strip.getBoundingClientRect();
     const baseLeft = stripRect.left + scrollLeft;
@@ -505,15 +536,50 @@ export class ReaderController {
     // that vanished when invisibility mode shrank the doc. Scrolling
     // is the machinery browsers already optimize for huge content:
     // tiled raster follows the scroll, no giant layer.
-    if (animate) this.animating = true;
-    this.host.scrollTo({
-      left: Math.round(clamped * this.layout.stride * this.zoomFactor()),
-      behavior: animate ? 'smooth' : ('auto' as ScrollBehavior),
-    });
-    if (!animate) this.animating = false;
+    const left = Math.round(clamped * this.strideScroll());
+    if (animate) {
+      this.animateScrollTo(left);
+    } else {
+      cancelAnimationFrame(this.animRaf);
+      this.host.scrollLeft = left;
+      this.animating = false;
+    }
     this.leftBtn.classList.toggle('pmd-reader-edge-hidden', clamped === 0);
     this.rightBtn.classList.toggle('pmd-reader-edge-hidden', clamped >= this.pages - 1);
     this.indicator.textContent = `${clamped + 1} / ${this.pages}`;
+  }
+
+  /** Fast page-turn: ~120ms ease-out (starts at full speed, settles
+   *  quickly). The UA's smooth scrollTo was distance-based ~500ms
+   *  with a soft ramp on both ends — field report: "too slow,
+   *  sluggish ramp". Driving scrollLeft per frame stays on the
+   *  browser's native scroll raster path. */
+  private animateScrollTo(left: number): void {
+    cancelAnimationFrame(this.animRaf);
+    const start = this.host.scrollLeft;
+    const dist = left - start;
+    if (dist === 0) {
+      this.animating = false;
+      return;
+    }
+    const D = 120;
+    const t0 = performance.now();
+    this.animating = true;
+    const step = (now: number): void => {
+      const t = Math.min(1, (now - t0) / D);
+      const e = 1 - Math.pow(1 - t, 3);
+      this.host.scrollLeft = start + dist * e;
+      if (t < 1) {
+        this.animRaf = requestAnimationFrame(step);
+      } else {
+        this.animating = false;
+        if (this.relayoutAfterAnim) {
+          this.relayoutAfterAnim = false;
+          this.relayout();
+        }
+      }
+    };
+    this.animRaf = requestAnimationFrame(step);
   }
 
   /** Jump so `el` (a heading the nav clicked, a find hit) is on
