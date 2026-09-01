@@ -77,10 +77,15 @@ export const readerViewPlugin: Plugin<{ on: boolean }> = new Plugin<{ on: boolea
   },
   view() {
     return {
-      update(view) {
-        // Content changed (a marker, a remote edit) → anchored
-        // relayout, deferred if a flip is animating.
-        controllers.get(view)?.scheduleRelayout();
+      update(view, prevState) {
+        // Only CONTENT changes need a relayout (a marker, a remote
+        // edit). Selection-only updates fire on every caret move —
+        // relayouting on those made each keypress pay a double
+        // full-document layout before anything flipped (field
+        // report: "huge pause before anything happens").
+        if (view.state.doc !== prevState.doc) {
+          controllers.get(view)?.scheduleRelayout();
+        }
       },
     };
   },
@@ -189,6 +194,7 @@ export class ReaderController {
   private page = 0;
   private pages = 1;
   private relayoutQueued = false;
+  private stripExtent = 0;
   private animating = false;
   private relayoutAfterAnim = false;
   private readonly pager = new WheelPager();
@@ -243,9 +249,16 @@ export class ReaderController {
       const dir = this.pager.feed(delta, performance.now());
       if (dir) this.flip(dir);
     };
-    host.addEventListener('keydown', onKey);
+    // CAPTURE phase: the flip keys must never reach ProseMirror —
+    // in bubble order PM sees them first, moves the caret, and the
+    // resulting churn delays the flip.
+    const onKeyCapture = (e: KeyboardEvent): void => {
+      onKey(e);
+      if (e.defaultPrevented) e.stopPropagation();
+    };
+    host.addEventListener('keydown', onKeyCapture, true);
     host.addEventListener('wheel', onWheel, { passive: false });
-    this.offKey = () => host.removeEventListener('keydown', onKey);
+    this.offKey = () => host.removeEventListener('keydown', onKeyCapture, true);
     this.offWheel = () => host.removeEventListener('wheel', onWheel);
 
     const strip = this.strip();
@@ -315,9 +328,10 @@ export class ReaderController {
     const strip = this.strip();
     if (!strip) return;
     // Pin the current place as a strip-fraction before re-measuring —
-    // column widths change, but the doc's linear order doesn't.
-    const prevStripW = Math.max(1, strip.scrollWidth);
-    const frac = this.currentOffset() / prevStripW;
+    // column widths change, but the doc's linear order doesn't. The
+    // previous extent comes from our own measurement (scrollWidth
+    // ignores multicol overflow columns).
+    const frac = this.stripExtent > 0 ? this.currentOffset() / this.stripExtent : 0;
     // Measure the NATURAL content box: strip reader styling, read the
     // element's normal-layout rect (it already clears the nav pane /
     // pane chrome and carries the text-width margins), then restore.
@@ -355,6 +369,7 @@ export class ReaderController {
     strip.style.setProperty('--pmd-reader-gap', `${READER_GAP}px`);
     strip.style.setProperty('--pmd-reader-h', `${viewH}px`);
     const stripW = this.measureStripExtent(strip);
+    this.stripExtent = stripW;
     this.pages = pageCount(stripW, this.layout.stride);
     this.goTo(pageOfOffset(frac * stripW, this.layout.stride), { animate: false });
   }
