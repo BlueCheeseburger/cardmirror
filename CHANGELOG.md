@@ -9,6 +9,22 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **Reading view (Word-style paginated columns).** The new book
+  button on the ribbon (in the navigation pane toggle's old spot)
+  flips the current document into full-screen column pages for
+  reading a speech: one to three columns sized from the pane width
+  (respecting the maximum-text-width accessibility cap), arrow keys /
+  Page keys / Space / one mouse-wheel click flip a full screen at a
+  time, with click zones at each edge and a page indicator. The
+  navigation pane stays available and clicking it jumps to the right
+  page. Editing is locked except dropping reading markers, and it
+  combines with Read Mode. Per-document: in the three-pane workspace
+  each document keeps its own state — full-screen the slot you're
+  speaking from as usual. Page flips are animated by default;
+  "Reduce animations in reading view" in Accessibility (or the global
+  Reduce motion setting) makes them instant. Show/Hide Navigation
+  Pane remains available from the command bar, as a custom ribbon
+  button, and as a bindable shortcut.
 - **New setting: Drag to rearrange (Settings → General).** Turns the
   drag gestures for moving content — navigation-pane rows and the
   editor's pickup drag — on or off. Default on. Turn it off on touch

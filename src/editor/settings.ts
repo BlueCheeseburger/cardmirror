@@ -575,6 +575,10 @@ export interface Settings {
    *  reduced. Resolved into a `data-motion` attribute on the
    *  document root; CSS rules in `style.css` consume it. */
   reduceMotion: 'auto' | 'on' | 'off';
+  /** Skip the reading view's page-flip animation regardless of the
+   *  global reduceMotion resolution (mid-speech readers who want
+   *  instant flips without flattening every other animation). */
+  readerReduceMotion: boolean;
   /** Accessibility: remap the meaning-carrying hues (annotation
    *  accents, voice-mode dots, timer Aff/Neg, search matches, category
    *  chips) onto the Okabe-Ito colorblind-safe palette. Resolved into
@@ -1635,6 +1639,7 @@ const DEFAULTS: Settings = {
   updateChecksPausedUntil: 0,
   commentsColumnWidth: 320,
   reduceMotion: 'auto',
+  readerReduceMotion: false,
   colorVisionFriendly: false,
   annotationShapes: false,
   distinguishShading: false,
@@ -2553,6 +2558,15 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'accessibility',
     mobile: true,
     aliases: ['animations', 'disable animations'],
+  },
+  {
+    key: 'readerReduceMotion',
+    label: 'Reduce animations in reading view',
+    description:
+      'Page flips in the reading view snap instantly instead of sliding. Use this if the flip animation ever stutters while you are reading a speech; the global Reduce motion setting also disables it.',
+    kind: 'toggle',
+    category: 'accessibility',
+    aliases: ['reading view animation', 'page flip animation', 'reader animations'],
   },
   {
     key: 'disableCursorBlink',
@@ -4153,6 +4167,7 @@ function sanitize(s: Settings): Settings {
     navMaxLevel: clamp(Math.round(s.navMaxLevel), 1, 4),
     navFollowCursor: s.navFollowCursor !== false,
     dragInteractions: s.dragInteractions !== false,
+    readerReduceMotion: s.readerReduceMotion === true,
     // Default-on: preserve `false` only when explicitly set so the
     // onboarding shows up for new installs and survives upgrades
     // from before this setting existed.

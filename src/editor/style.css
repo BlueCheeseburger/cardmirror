@@ -15606,3 +15606,81 @@ body.pmd-multi-doc #collab-chip {
   display: flex;
   gap: 0.4rem;
 }
+
+/* ---- Reading view (paginated columns) ----
+ * The ProseMirror element becomes a height-capped multicolumn strip
+ * (columns overflow horizontally); the host clips and a compositor
+ * translateX flips full pages. Everything is laid out up front —
+ * content-visibility forced ON inside the strip so column math is
+ * exact and flips never trigger layout/paint (the no-hitch rule). */
+.pmd-reader-view {
+  overflow: hidden !important;
+  position: relative;
+}
+.pmd-reader-view .ProseMirror {
+  column-width: var(--pmd-reader-col-w, 560px);
+  column-gap: var(--pmd-reader-gap, 48px);
+  column-fill: auto;
+  height: var(--pmd-reader-h, 100%);
+  width: max-content;
+  max-width: none;
+  padding: 0 var(--pmd-reader-gap, 48px);
+  box-sizing: border-box;
+  transform: translateX(var(--pmd-reader-x, 0px));
+  will-change: transform;
+  transition: transform 240ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+.pmd-reader-view .ProseMirror.pmd-reader-no-anim,
+:root[data-motion='reduce'] .pmd-reader-view .ProseMirror {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='normal']) .pmd-reader-view .ProseMirror {
+    transition: none;
+  }
+}
+/* Exact column math needs everything rendered; and a tag/cite never
+ * strands at a column bottom away from its first body line. */
+.pmd-reader-view .ProseMirror .pmd-card,
+.pmd-reader-view .ProseMirror .pmd-hat,
+.pmd-reader-view .ProseMirror .pmd-block {
+  content-visibility: visible;
+  contain: none;
+}
+.pmd-reader-view .ProseMirror .pmd-tag,
+.pmd-reader-view .ProseMirror .pmd-cite-para {
+  break-after: avoid-column;
+}
+/* Word-style edge flip zones + the page indicator. */
+.pmd-reader-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2.2rem;
+  border: none;
+  background: transparent;
+  color: var(--pmd-c-text-faint);
+  font-size: 1.6rem;
+  cursor: pointer;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+.pmd-reader-view:hover .pmd-reader-edge { opacity: 1; }
+.pmd-reader-edge:hover { background: var(--pmd-c-hover); color: var(--pmd-c-text-strong); }
+.pmd-reader-edge-left { left: 0; }
+.pmd-reader-edge-right { right: 0; }
+.pmd-reader-edge-hidden { visibility: hidden; }
+.pmd-reader-page-indicator {
+  position: absolute;
+  bottom: 0.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  color: var(--pmd-c-text-faint);
+  background: var(--pmd-c-bg);
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.6rem;
+  pointer-events: none;
+  z-index: 4;
+}

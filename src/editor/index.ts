@@ -245,6 +245,7 @@ import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
 import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
+import { readerViewPlugin, applyReaderViewToTarget } from './reader-view.js';
 import { headingIdGuardPlugin } from './heading-id-guard.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
 import { customDashPlugin } from './custom-dash-plugin.js';
@@ -506,7 +507,7 @@ const autosaveBtn = document.getElementById('autosave-btn') as HTMLButtonElement
 const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement;
 const referenceBtn = document.getElementById('reference-btn') as HTMLButtonElement | null;
 const readModeBtn = document.getElementById('read-mode-btn') as HTMLButtonElement;
-const navPaneToggleBtn = document.getElementById('nav-pane-toggle-btn') as HTMLButtonElement | null;
+const readerViewBtn = document.getElementById('reader-view-btn') as HTMLButtonElement | null;
 const navPanePullTab = document.getElementById('nav-pane-pull-tab') as HTMLButtonElement | null;
 const insertImageBtn = document.getElementById('insert-image-btn') as HTMLButtonElement | null;
 // Speech-doc buttons. Visible in multi-doc and multi-window modes
@@ -1095,6 +1096,7 @@ export function enableMultiDocMode(opts: {
   showInContext?: (req: ShowInContextRequest) => Promise<void> | void;
   onNewDoc?: () => Promise<void> | void;
   toggleReadMode?: () => void;
+  toggleReaderView?: () => void;
   toggleAutosave?: () => void;
   /** Zoom the focused pane's body by a percentage delta (per-pane zoom). */
   zoomFocusedBy?: (deltaPct: number) => void;
@@ -1162,6 +1164,7 @@ export function enableMultiDocMode(opts: {
   multiDocShowInContext = opts.showInContext ?? null;
   multiDocOnNewDoc = opts.onNewDoc ?? null;
   multiDocToggleReadMode = opts.toggleReadMode ?? null;
+  multiDocToggleReaderView = opts.toggleReaderView ?? null;
   multiDocToggleAutosave = opts.toggleAutosave ?? null;
   multiDocZoomBy = opts.zoomFocusedBy ?? null;
   multiDocZoomResetHook = opts.zoomFocusedReset ?? null;
@@ -1620,6 +1623,7 @@ const ribbonContext: RibbonContext = {
   openWordCountDialog: () => {
     if (view) openWordCount(view);
   },
+  toggleReaderView: () => toggleReaderViewCommand(),
   toggleReadMode: () => {
     if (multiDocActive && multiDocToggleReadMode) {
       // Per-pane in multi-doc mode: flip the focused pane's
@@ -2634,16 +2638,13 @@ wordCountBtn.addEventListener('click', () => runRibbon('wordCountSelection'));
  *  tab. Called on boot and on every setting change. */
 function applyNavPaneVisible(visible: boolean): void {
   document.body.classList.toggle('pmd-nav-hidden', !visible);
-  if (navPaneToggleBtn) {
-    navPaneToggleBtn.setAttribute('aria-pressed', visible ? 'true' : 'false');
-  }
 }
-if (navPaneToggleBtn) {
-  navPaneToggleBtn.addEventListener('mousedown', (e) => e.preventDefault());
-  navPaneToggleBtn.addEventListener('click', () => {
-    if (multiDocActive && multiDocToggleAllNav) multiDocToggleAllNav();
-    else settings.set('navPaneVisible', !settings.get('navPaneVisible'));
-  });
+// The reading-view button took the nav toggle's permanent ribbon slot
+// (2026-08-31); Show/Hide Navigation Pane stays available as a
+// command (command bar, custom ribbon buttons, bindable hotkey).
+if (readerViewBtn) {
+  readerViewBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  readerViewBtn.addEventListener('click', () => runRibbon('toggleReaderView'));
 }
 if (navPanePullTab) {
   // Pull-tab is only ever shown when the nav pane is hidden;
@@ -4100,7 +4101,7 @@ if (timerToggleBtn) {
   button('settings-btn', 'openSettings');
   button('reference-btn', 'openShortcutsReference');
   button('read-mode-btn', 'toggleReadMode');
-  button('nav-pane-toggle-btn', 'toggleNavPane');
+  button('reader-view-btn', 'toggleReaderView');
   button('comments-toggle-btn', 'toggleCommentsVisible');
   button('add-comment-btn', 'addCommentToSelection');
   button('create-flashcard-btn', 'createFlashcard', 'Create flashcard from selection');
@@ -4915,6 +4916,36 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
  * to have exactly one doc, so the `settings.readMode` setting
  * drives this one editor's read-mode flag.
  */
+/** Reading view is per-doc SESSION state (never a setting): module
+ *  flag in single-doc; the multi-pane shell keeps a per-record flag
+ *  and installs a focused-doc resolver for the ribbon button. */
+let readerViewOn = false;
+let multiDocToggleReaderView: (() => void) | null = null;
+let readerViewStateForActive: () => boolean = () => readerViewOn;
+
+export function setMultiDocToggleReaderView(fn: (() => void) | null): void {
+  multiDocToggleReaderView = fn;
+}
+
+export function setReaderViewStateResolver(resolver: () => boolean): void {
+  readerViewStateForActive = resolver;
+  refreshReaderViewBtn();
+}
+
+export function refreshReaderViewBtn(): void {
+  readerViewBtn?.classList.toggle('pmd-active', readerViewStateForActive());
+}
+
+function toggleReaderViewCommand(): void {
+  if (multiDocActive && multiDocToggleReaderView) {
+    multiDocToggleReaderView();
+  } else if (view) {
+    readerViewOn = !readerViewOn;
+    applyReaderViewToTarget(editorEl, view, readerViewOn);
+  }
+  refreshReaderViewBtn();
+}
+
 function applyReadMode(on: boolean): void {
   // Read mode collapses most of the document; capture what's at the top of
   // the viewport so we can pin it back afterward (§ scroll-anchor) — UNLESS
@@ -5457,6 +5488,9 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // fit-synthesized null ids and replace-split duplicate ids on the
     // offending LOCAL transaction (see heading-id-guard.ts).
     headingIdGuardPlugin,
+    // Reading view: per-doc paginated columns; carries the marker-only
+    // transaction lock + relayout hook (see reader-view.ts).
+    readerViewPlugin,
     highlightFrequencyPlugin,
     // Swallow the browser's `dragstart` on the editor's content-
     // editable so the user can't initiate a text-move drag from a

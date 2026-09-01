@@ -56,6 +56,7 @@ function formatFromFilename(name: string): DocFormat | null {
 }
 import { NavigationPanel, installNavResizeHandle } from './nav-panel.js';
 import { EditorDragSurface } from './drag-editor-surface.js';
+import { applyReaderViewToTarget } from './reader-view.js';
 import { dragController, rewriteHeadingIds } from './drag-controller.js';
 import { isBenchmarkActive } from './benchmark-state.js';
 import {
@@ -99,6 +100,8 @@ import {
   getActiveView,
   applyReadModeToTarget,
   setReadModeStateResolver,
+  refreshReaderViewBtn,
+  setReaderViewStateResolver,
   applyZoomToTarget,
   setZoomStateResolver,
   refreshZoomStatus,
@@ -368,6 +371,9 @@ interface DocRecord {
    *  property of an individual open doc — the ribbon toggle flips
    *  this for the focused pane only, leaving other panes untouched. */
   readMode: boolean;
+  /** Reading view (paginated columns) — same per-doc story as
+   *  `readMode`; session-only, never persisted. */
+  readerView: boolean;
   /** Per-pane body-text zoom (50–300%). Same per-doc story as `readMode`: the
    *  zoom controls affect the FOCUSED pane only; other panes stay at theirs.
    *  Opens at `defaultZoomPct`, transient (resets on reload). */
@@ -1502,6 +1508,7 @@ class MultiPaneShell {
     // read-mode button show?" — in multi-doc that's the focused
     // pane's per-doc state, not the global setting.
     setReadModeStateResolver(() => this.focusedSlot?.visible?.readMode ?? false);
+    setReaderViewStateResolver(() => this.focusedSlot?.visible?.readerView ?? false);
     // Same story for the status-bar zoom readout — it reflects the focused
     // pane's per-pane zoom (the shell refreshes it on focus change).
     setZoomStateResolver(
@@ -2111,6 +2118,17 @@ class MultiPaneShell {
    *  Called by the ribbon's `toggleReadMode` command (the global
    *  command dispatches into the shell via `enableMultiDocMode`'s
    *  `toggleReadMode` hook). No-op if no pane is focused. */
+  /** Flip the READING VIEW of the focused pane's visible doc — same
+   *  per-doc story as toggleFocusedReadMode below. */
+  toggleFocusedReaderView(): void {
+    const rec = this.focusedSlot?.visible;
+    if (!rec) return;
+    rec.readerView = !rec.readerView;
+    applyReaderViewToTarget(rec.editorEl, rec.view, rec.readerView);
+    setActiveView(rec.view);
+    refreshReaderViewBtn();
+  }
+
   toggleFocusedReadMode(): void {
     const rec = this.focusedSlot?.visible;
     if (!rec) return;
@@ -3276,6 +3294,7 @@ function buildDocRecord(
     // New docs always start with read mode OFF. The user toggles
     // it per-pane via the ribbon command after opening.
     readMode: false,
+    readerView: false,
     zoomPct: settings.get('defaultZoomPct'),
     // Autosave is per-pane in multi-doc — same intent as read mode.
     // Off by default, but a file the user previously turned autosave
@@ -3347,6 +3366,7 @@ export function mountMultiPaneShell(): void {
     showInContext: (req) => shell!.showInContext(req),
     onNewDoc: () => shell!.createNewDoc(),
     toggleReadMode: () => shell!.toggleFocusedReadMode(),
+    toggleReaderView: () => shell!.toggleFocusedReaderView(),
     toggleAutosave: () => shell!.toggleFocusedAutosave(),
     zoomFocusedBy: (delta) => shell!.zoomFocusedBy(delta),
     zoomFocusedReset: () => shell!.zoomFocusedReset(),
