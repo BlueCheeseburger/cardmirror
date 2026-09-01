@@ -629,7 +629,6 @@ button {
   --pmd-c-text-muted: #666;            /* dimmer secondary */
   --pmd-c-text-faint: #888;            /* faint annotations */
   --pmd-c-text-on-accent: #fff;        /* text on a filled accent surface */
-  --pmd-c-segmented-selected-text: #fff; /* selected segmented-control text */
   /* Card numbering glyphs. Defaults to muted text (theme-aware via the var),
      but is its OWN token so it's user-overridable — see CUSTOMIZABLE_COLOR_TOKENS
      ('pmd-c-card-number') and the Card numbering settings color control. */
@@ -878,7 +877,6 @@ button {
   --pmd-c-text-muted: #9a9a9a;
   --pmd-c-text-faint: #7a7a7a;
   --pmd-c-text-on-accent: #fff;
-  --pmd-c-segmented-selected-text: #fff;
 
   /* Hover / press — solid surfaces lift toward lighter grays;
      button-* overlays flip to translucent WHITE so they brighten
@@ -3541,7 +3539,7 @@ body.pmd-override-shading [data-shading] {
 }
 .pmd-theme-editor-btn[aria-pressed='true'] {
   background: var(--pmd-c-accent);
-  color: var(--pmd-c-segmented-selected-text);
+  color: var(--pmd-c-text-on-accent);
 }
 .pmd-theme-editor-btn[aria-pressed='true']:hover {
   background: var(--pmd-c-accent-hover);

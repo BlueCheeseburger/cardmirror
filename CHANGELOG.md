@@ -9,6 +9,11 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **Small UI polish.** Clicking a color-picker's arrow now closes its
+  open picker instead of reopening it; the Doc, Card, and Table menu
+  chevrons align consistently; the settings theme buttons have proper
+  hover and selected contrast; and switching settings tabs no longer
+  shifts the tab bar's layout. Thanks to Elli (@0-elli)!
 - **Duplicate and missing heading identities can no longer be created
   while editing.** Certain edits — pasting into the middle of a
   heading, or deletions that rebuild a card's structure — could
