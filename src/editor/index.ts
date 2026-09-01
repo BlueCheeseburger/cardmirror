@@ -1624,6 +1624,22 @@ const ribbonContext: RibbonContext = {
     if (view) openWordCount(view);
   },
   toggleReaderView: () => toggleReaderViewCommand(),
+  openContainingFolder: () => {
+    const host = getElectronHost();
+    if (!host) {
+      showToast('Open Containing Folder requires the desktop edition.');
+      return;
+    }
+    // Focus-aware in both modes: activeFile() reads the focused pane's
+    // record in multi-doc, the module-level values in single-doc. The
+    // handle IS the absolute path on desktop.
+    const { handle } = activeFile();
+    if (typeof handle === 'string' && handle.length > 0) {
+      void host.showItemInFolder(handle);
+    } else {
+      showToast('This document hasn\u2019t been saved to a file yet.');
+    }
+  },
   toggleReadMode: () => {
     if (multiDocActive && multiDocToggleReadMode) {
       // Per-pane in multi-doc mode: flip the focused pane's

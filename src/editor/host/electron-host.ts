@@ -470,6 +470,7 @@ interface ElectronAPI {
   openCrashDumpsFolder(): Promise<void>;
   /** Open the OS file manager at the crash-recovery journals folder. */
   openJournalsFolder(): Promise<void>;
+  showItemInFolder?(handle: string): Promise<void>;
   /** Renderer accessibility tree toggle. Default off — works around a known
    *  Chromium AX-serialization crash. Machine-local pref; changing it needs an
    *  app restart (`relaunchApp`). `isAccessibilitySupportActive` reports whether
@@ -1336,6 +1337,11 @@ export class ElectronHost implements Host {
     await api().openCrashDumpsFolder();
   }
 
+  /** Reveal a saved document in Finder / Explorer. Optional-chained:
+   *  no-ops gracefully on an older preload without the surface. */
+  async showItemInFolder(handle: string): Promise<void> {
+    await api().showItemInFolder?.(handle);
+  }
   async openJournalsFolder(): Promise<void> {
     await api().openJournalsFolder();
   }

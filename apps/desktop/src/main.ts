@@ -684,6 +684,14 @@ ipcMain.handle('host:open-crash-dumps', async () => {
 /** Open the OS file manager at the crash-recovery journals folder
  *  ({userData}/journals). Ensures the folder exists first so the
  *  command works even before any journal has been written. */
+/** Reveal a document in the OS file manager (Finder / Explorer),
+ *  highlighted inside its containing folder. The handle IS the
+ *  absolute path on desktop (same contract as host:save-existing). */
+ipcMain.handle('host:show-item-in-folder', (_event, handle: unknown) => {
+  if (typeof handle !== 'string' || handle.length === 0) return;
+  shell.showItemInFolder(handle);
+});
+
 ipcMain.handle('host:open-journals-folder', async () => {
   await ensureJournalsDir();
   await shell.openPath(journalsDir());
