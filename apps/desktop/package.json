@@ -7,7 +7,11 @@
   "private": true,
   "type": "commonjs",
   "main": "dist/main.js",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
+    "postinstall": "node scripts/verify-electron-binary.cjs",
     "build:main": "tsc -p tsconfig.json",
     "build:service": "node scripts/build-file-index-service.cjs",
     "build": "tsc -p tsconfig.json",
