@@ -106,6 +106,8 @@ export interface ReaderLayout {
 }
 
 export const READER_GAP = 48;
+/** Width of the reserved edge flip lanes (px, host space). */
+export const READER_EDGE_W = 40;
 /** Comfortable reading column when no accessibility cap is set. */
 export const READER_IDEAL_COL = 560;
 export const READER_MIN_COL = 280;
@@ -198,6 +200,8 @@ export class ReaderController {
   private animating = false;
   private relayoutAfterAnim = false;
   private readonly pager = new WheelPager();
+  private leftGutter!: HTMLElement;
+  private rightGutter!: HTMLElement;
   private readonly leftBtn: HTMLButtonElement;
   private readonly rightBtn: HTMLButtonElement;
   private readonly indicator: HTMLElement;
@@ -220,6 +224,12 @@ export class ReaderController {
       host.appendChild(b);
       return b;
     };
+    this.leftGutter = document.createElement('div');
+    this.leftGutter.className = 'pmd-reader-gutter';
+    this.rightGutter = document.createElement('div');
+    this.rightGutter.className = 'pmd-reader-gutter';
+    host.appendChild(this.leftGutter);
+    host.appendChild(this.rightGutter);
     this.leftBtn = mk('pmd-reader-edge-left', 'Previous page', -1);
     this.rightBtn = mk('pmd-reader-edge-right', 'Next page', 1);
     this.indicator = document.createElement('div');
@@ -282,7 +292,8 @@ export class ReaderController {
   }
 
   dispose(): void {
-    this.host.style.removeProperty('clip-path');
+    this.leftGutter.remove();
+    this.rightGutter.remove();
     this.offKey();
     this.offWheel();
     this.offEnd();
@@ -294,6 +305,8 @@ export class ReaderController {
     if (strip) {
       strip.style.removeProperty('transform');
       strip.style.removeProperty('transition');
+      strip.style.removeProperty('margin-left');
+      strip.style.removeProperty('margin-right');
       for (const p of [
         '--pmd-reader-cols', '--pmd-reader-page-w',
         '--pmd-reader-gap', '--pmd-reader-h',

@@ -15661,6 +15661,16 @@ body.pmd-multi-doc #collab-chip {
 .pmd-reader-view .ProseMirror .pmd-cite-para {
   break-after: avoid-column;
 }
+/* Opaque gutters: cover the strip's column bleed on both sides of
+ * the page window and host the flip buttons (a clip-path would clip
+ * the buttons too). */
+.pmd-reader-gutter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--pmd-c-bg);
+  z-index: 3;
+}
 /* Word-style edge flip zones + the page indicator. */
 .pmd-reader-edge {
   position: absolute;
