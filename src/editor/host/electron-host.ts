@@ -271,8 +271,11 @@ interface ElectronAPI {
     docId: string,
     bytes: Uint8Array,
     policy: { retentionDays: number; maxDocBytes: number; maxTotalBytes: number },
+    trigger?: 'manual' | 'auto' | 'close',
   ): Promise<{ stored: boolean; reason?: string }>;
-  historyList?(docId: string): Promise<Array<{ id: string; ts: number; size: number }>>;
+  historyList?(
+    docId: string,
+  ): Promise<Array<{ id: string; ts: number; size: number; trigger?: 'manual' | 'auto' | 'close' }>>;
   historyRead?(docId: string, id: string): Promise<Uint8Array | null>;
   historyUsage?(): Promise<{ totalBytes: number; snapshots: number }>;
   historyClear?(): Promise<void>;
@@ -904,10 +907,13 @@ export class ElectronHost implements Host {
     docId: string,
     bytes: Uint8Array,
     policy: { retentionDays: number; maxDocBytes: number; maxTotalBytes: number },
+    trigger?: 'manual' | 'auto' | 'close',
   ): Promise<{ stored: boolean; reason?: string }> {
-    return (await api().historySnapshot?.(docId, bytes, policy)) ?? { stored: false };
+    return (await api().historySnapshot?.(docId, bytes, policy, trigger)) ?? { stored: false };
   }
-  async historyList(docId: string): Promise<Array<{ id: string; ts: number; size: number }>> {
+  async historyList(
+    docId: string,
+  ): Promise<Array<{ id: string; ts: number; size: number; trigger?: 'manual' | 'auto' | 'close' }>> {
     return (await api().historyList?.(docId)) ?? [];
   }
   async historyRead(docId: string, id: string): Promise<Uint8Array | null> {

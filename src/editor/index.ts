@@ -2122,6 +2122,9 @@ const ribbonContext: RibbonContext = {
       m.recoverPreviousVersionFlow(openRecovered, {
         docId: activeSavedDocId() ?? null,
         docTitle: activeFile().filename ?? 'Untitled',
+        // Focused doc in both modes (setActiveView tracks the pane) —
+        // powers the version rows' "N cards not in current doc" badge.
+        currentDoc: getActiveView()?.state.doc ?? null,
       }),
     );
   },
@@ -7995,7 +7998,7 @@ async function runSaveFlowInner(): Promise<boolean> {
     // Version-history snapshot BEFORE the disk write is awaited: a save
     // whose destination folder hangs (cloud-sync placeholder) still
     // leaves a recoverable version in app data. Fire-and-forget.
-    maybeSnapshotVersion(docId, bytes);
+    maybeSnapshotVersion(docId, bytes, 'manual');
     try {
       // Watchdog: a write that HANGS (cloud-sync placeholder hydration
       // stalling — the silent-save field case) warns at 10s and offers
@@ -8321,7 +8324,7 @@ async function runAutosaveAttempt(): Promise<void> {
       activeSavedDocId(),
     );
     // Same pre-write snapshot as the manual save path (see there).
-    maybeSnapshotVersion(activeSavedDocId(), bytes);
+    maybeSnapshotVersion(activeSavedDocId(), bytes, 'auto');
     // Watchdog without the dialog — never a modal mid-typing; the
     // 10s warning chip still converts a hung autosave into feedback.
     await awaitWithSaveWatchdog(getHost().saveExisting(file.handle, bytes), file.filename, {

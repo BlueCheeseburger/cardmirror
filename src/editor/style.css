@@ -15383,6 +15383,122 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   width: auto;
 }
 
+/* Solo version dialog overhaul: wide two-pane layout — version rows
+   with stats/delta/badge on the left, a read-only rendered preview on
+   the right (a real ProseMirror mount wearing .pmd-pane-editor so the
+   document stylesheet applies). */
+.pmd-recover-dialog-wide {
+  max-width: min(1100px, 94vw);
+  width: min(1100px, 94vw);
+  display: flex;
+  flex-direction: column;
+  height: min(760px, 90vh);
+}
+.pmd-recover-body-wide {
+  max-height: none;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pmd-recover-split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 0.75rem;
+}
+.pmd-recover-versions {
+  width: 300px;
+  flex: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-right: 0.25rem;
+}
+.pmd-recover-version-row {
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.pmd-recover-version-row:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-recover-version-row.pmd-recover-version-selected {
+  border-color: var(--pmd-c-accent);
+  background: var(--pmd-c-accent-soft, var(--pmd-c-hover));
+}
+.pmd-recover-version-top {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.pmd-recover-version-time {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--pmd-c-text);
+}
+.pmd-recover-trigger-chip {
+  font-size: 0.68rem;
+  line-height: 1.4;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 0.6rem;
+  padding: 0 0.4rem;
+  color: var(--pmd-c-text-secondary);
+}
+.pmd-recover-version-size {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--pmd-c-text-faint);
+}
+.pmd-recover-version-stats,
+.pmd-recover-version-delta {
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-secondary);
+}
+.pmd-recover-version-delta:empty,
+.pmd-recover-version-badge:empty {
+  display: none;
+}
+.pmd-recover-version-badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pmd-c-accent);
+}
+.pmd-recover-version-row .pmd-recover-open {
+  align-self: flex-start;
+  margin-top: 0.2rem;
+}
+.pmd-recover-preview-pane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 6px;
+  background: var(--pmd-c-bg);
+}
+.pmd-recover-preview-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--pmd-c-text-faint);
+  font-size: 0.85rem;
+}
+.pmd-recover-preview-editor {
+  /* Height comes from content (the pane scrolls); the class's usual
+     100% min-height is for real panes. */
+  min-height: 0;
+  height: auto;
+}
+.pmd-recover-preview-editor .ProseMirror {
+  padding: 1rem 1.25rem;
+  min-height: 0;
+}
+
 /* Session-preparation veil (collab-ui sessionPrepOverlay). */
 .pmd-session-prep {
   z-index: 1200; /* above dialogs — nothing is interactive during the freeze */

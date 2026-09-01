@@ -1694,13 +1694,15 @@ function validHistoryPolicy(raw: unknown): HistoryPolicy | null {
 
 ipcMain.handle(
   'host:history-snapshot',
-  async (_event, docId: string, bytes: unknown, policy: unknown) => {
+  async (_event, docId: string, bytes: unknown, policy: unknown, trigger?: unknown) => {
     if (typeof docId !== 'string' || !docId) return { stored: false, reason: 'bad-doc-id' };
     const pol = validHistoryPolicy(policy);
     if (!pol) return { stored: false, reason: 'bad-doc-id' };
     const buf = bytesToBuffer(bytes);
     if (buf.length === 0) return { stored: false, reason: 'bad-doc-id' };
-    return storeHistorySnapshot(versionHistoryRoot(), docId, buf, pol);
+    const trig =
+      trigger === 'manual' || trigger === 'auto' || trigger === 'close' ? trigger : undefined;
+    return storeHistorySnapshot(versionHistoryRoot(), docId, buf, pol, trig);
   },
 );
 

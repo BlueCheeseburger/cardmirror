@@ -47,7 +47,11 @@ export type OpenRecoveredDoc = (name: string, bytes: Uint8Array) => Promise<void
 export async function openRecoverPreviousVersion(
   session: CollabSession | null,
   openDoc?: OpenRecoveredDoc,
-  solo?: { docId: string | null; docTitle: string },
+  solo?: {
+    docId: string | null;
+    docTitle: string;
+    currentDoc?: import('prosemirror-model').Node | null;
+  },
 ): Promise<void> {
   const host = getElectronHost();
   if (!host) {
@@ -71,7 +75,11 @@ export async function openRecoverPreviousVersion(
     // session history (doc closed, file copied from another machine).
     if (solo?.docId) {
       const vh = await import('../version-history.js');
-      if (await vh.openVersionSnapshotDialog(solo.docId, solo.docTitle, openDoc)) return;
+      if (
+        await vh.openVersionSnapshotDialog(solo.docId, solo.docTitle, openDoc, solo.currentDoc)
+      ) {
+        return;
+      }
     }
     envelope = await pickEnvelopeFromFile();
     if (!envelope) return; // cancelled, or already toasted
