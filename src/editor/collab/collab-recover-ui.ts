@@ -37,14 +37,14 @@ import {
 } from './collab-history.js';
 import { LoroDoc } from 'loro-crdt';
 import { configTextStyle } from './collab-session.js';
-import { EditorState } from 'prosemirror-state';
-import { EditorView } from 'prosemirror-view';
+import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import {
   computeSnapshotStats,
   diffSnapshotStats,
   cardsMissingFrom,
   formatDelta,
+  mountVersionPreview,
   type SnapshotStats,
 } from '../version-history.js';
 
@@ -257,15 +257,8 @@ function openVersionDialog(
         statsByRow.set(row, computeSnapshotStats(node));
         refreshDigests();
       }
-      previewPane.innerHTML = '';
       previewView?.destroy();
-      const mountHost = document.createElement('div');
-      mountHost.className = 'pmd-pane-editor pmd-recover-preview-editor';
-      previewPane.appendChild(mountHost);
-      previewView = new EditorView(mountHost, {
-        state: EditorState.create({ doc: node }),
-        editable: () => false,
-      });
+      previewView = mountVersionPreview(previewPane, node);
     }, 30);
   };
 

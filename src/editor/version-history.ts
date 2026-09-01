@@ -31,6 +31,8 @@ import { settings } from './settings.js';
 import { showToast } from './toast.js';
 import { parseNative } from '../native/index.js';
 import { countReadAloudWords } from './word-count.js';
+import { collectHeadings } from './headings.js';
+import { preciseScrollIntoView } from './precise-scroll.js';
 
 export type VersionHistoryTier = 'off' | 'standard' | 'extended' | 'custom';
 
@@ -220,6 +222,64 @@ export function formatDelta(d: SnapshotDelta): string {
   return parts.length ? `${parts.join(' \u00b7 ')} vs previous` : 'No content changes vs previous';
 }
 
+/**
+ * Mount a read-only rendered preview of `doc` into `pane`: an outline
+ * nav on the left (same heading walk as the real nav pane, click to
+ * jump) and the document on the right, rendered by a real ProseMirror
+ * view wearing `.pmd-pane-editor` so the full document stylesheet
+ * applies. Returns the view — caller owns destroy().
+ */
+export function mountVersionPreview(pane: HTMLElement, doc: PMNode): EditorView {
+  pane.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-recover-preview-wrap';
+  const scrollHost = document.createElement('div');
+  scrollHost.className = 'pmd-recover-preview-scroll';
+  const mountHost = document.createElement('div');
+  mountHost.className = 'pmd-pane-editor pmd-recover-preview-editor';
+  scrollHost.appendChild(mountHost);
+  const view = new EditorView(mountHost, {
+    state: EditorState.create({ doc }),
+    editable: () => false,
+  });
+  const headings = collectHeadings(doc, { skipCite: true });
+  if (headings.length > 0) {
+    const nav = document.createElement('nav');
+    nav.className = 'pmd-recover-preview-nav';
+    const list = document.createElement('ol');
+    list.className = 'pmd-recover-preview-nav-list';
+    for (const e of headings) {
+      const li = document.createElement('li');
+      li.className = `pmd-recover-preview-nav-row pmd-recover-preview-nav-l${e.level}`;
+      li.textContent = e.text || '(untitled)';
+      li.title = e.text;
+      li.addEventListener('click', () => {
+        // Prefer the stable id (survives cv:auto skips via the
+        // refinement loop); fall back to the doc position.
+        let el: Element | null = e.id
+          ? view.dom.querySelector(`[data-id="${CSS.escape(e.id)}"]`)
+          : null;
+        if (!el) {
+          try {
+            let n: Node | null = view.domAtPos(e.pos + 1).node;
+            while (n && n.nodeType !== Node.ELEMENT_NODE) n = n.parentNode;
+            el = n as Element | null;
+          } catch {
+            el = null;
+          }
+        }
+        if (el instanceof HTMLElement) preciseScrollIntoView(view, el);
+      });
+      list.appendChild(li);
+    }
+    nav.appendChild(list);
+    wrap.appendChild(nav);
+  }
+  wrap.appendChild(scrollHost);
+  pane.appendChild(wrap);
+  return view;
+}
+
 /** Session cache: snapshot content is immutable (the hash is in the
  *  id), so a digest computed once serves every dialog open. */
 const statsCache = new Map<string, SnapshotStats>();
@@ -391,17 +451,7 @@ export async function openVersionSnapshotDialog(
       previewPane.appendChild(err);
       return;
     }
-    // Read-only render with the real editor stylesheet: the
-    // `pmd-pane-editor` class picks up the full document typography
-    // (size vars live on documentElement), and cv:auto keeps big
-    // snapshots cheap to mount.
-    const mountHost = document.createElement('div');
-    mountHost.className = 'pmd-pane-editor pmd-recover-preview-editor';
-    previewPane.appendChild(mountHost);
-    previewView = new EditorView(mountHost, {
-      state: EditorState.create({ doc: loaded.doc }),
-      editable: () => false,
-    });
+    previewView = mountVersionPreview(previewPane, loaded.doc);
   };
 
   entries.forEach((entry, index) => {
