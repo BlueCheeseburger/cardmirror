@@ -15609,12 +15609,19 @@ body.pmd-multi-doc #collab-chip {
 
 /* ---- Reading view (paginated columns) ----
  * The ProseMirror element becomes a height-capped multicolumn strip
- * (columns overflow horizontally); the host clips and a compositor
- * translateX flips full pages. Everything is laid out up front —
+ * (columns overflow horizontally); the host clips and native
+ * scrollTo flips full pages. Everything is laid out up front —
  * content-visibility forced ON inside the strip so column math is
- * exact and flips never trigger layout/paint (the no-hitch rule). */
+ * exact and flips never trigger layout (the no-hitch rule). */
 .pmd-reader-view {
+  /* The host IS the pager: a scroll container whose scrollbar is
+     hidden; flips are programmatic scrollTo (native tiled raster —
+     a translated will-change strip blew the compositing budget on
+     big docs and fell back to per-flip main-thread paint). */
   overflow: hidden !important;
+  position: relative;
+}
+.pmd-reader-overlay-host {
   position: relative;
 }
 :is(#editor, .pmd-pane-editor).pmd-reader-view .ProseMirror {
@@ -15635,20 +15642,11 @@ body.pmd-multi-doc #collab-chip {
      JS page geometry is exact. */
   padding: 14px 0 18px;
   box-sizing: border-box;
-  /* transform is set INLINE by the controller (a custom property
-     would inherit and invalidate the whole subtree per flip). */
-  will-change: transform;
-  transition: transform 240ms cubic-bezier(0.2, 0, 0.2, 1);
+  /* No transform, no will-change: flips are native scrolls of the
+     host — promoting a pages-wide strip to a compositor layer blew
+     the budget on big docs. */
 }
 .pmd-reader-view .ProseMirror.pmd-reader-no-anim,
-:root[data-motion='reduce'] :is(#editor, .pmd-pane-editor).pmd-reader-view .ProseMirror {
-  transition: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion='normal']) :is(#editor, .pmd-pane-editor).pmd-reader-view .ProseMirror {
-    transition: none;
-  }
-}
 /* Exact column math needs everything rendered; and a tag/cite never
  * strands at a column bottom away from its first body line. */
 .pmd-reader-view .ProseMirror .pmd-card,
@@ -15686,7 +15684,7 @@ body.pmd-multi-doc #collab-chip {
   opacity: 0;
   transition: opacity 120ms ease, background 120ms ease;
 }
-.pmd-reader-view:hover .pmd-reader-edge { opacity: 1; }
+.pmd-reader-overlay-host:hover .pmd-reader-edge { opacity: 1; }
 .pmd-reader-edge:hover { background: var(--pmd-c-hover); color: var(--pmd-c-text-strong); }
 .pmd-reader-edge-left { left: 0; }
 .pmd-reader-edge-right { right: 0; }

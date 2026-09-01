@@ -7,12 +7,15 @@
  * multicolumn strip (`column-fill: auto`), so content flows into as
  * many columns as it needs, overflowing HORIZONTALLY. The viewport
  * shows `count` columns (1–3, derived from PANE width and the
- * accessibility text-width cap) and a page flip is a pure compositor
- * `translateX` of the pre-laid-out strip — the whole document is
- * already rendered on both sides of the visible page, which is what
- * makes the animation hitch-proof (no layout, no paint during the
- * transition; `content-visibility` is forced ON inside the strip so
- * column math is exact). Word semantics throughout: full-screen
+ * accessibility text-width cap) and a page flip is a NATIVE smooth
+ * scroll of the clipped host — the whole document is laid out up
+ * front (`content-visibility` forced ON inside the strip so column
+ * math is exact), and the browser's tiled scroll raster paints only
+ * near the viewport. The earlier design translated a `will-change`
+ * strip instead; a pages-wide layer blows Chromium's compositing
+ * budget on big docs and every flip fell back to main-thread paint
+ * of the whole strip (field-reported multi-second click lag that
+ * disappeared when invisibility mode shrank the doc). Word semantics throughout: full-screen
  * replacement flips (the "option A" answer), line-granularity column
  * breaks with tags/cites kept with their first body line (CSS
  * break-after), nav clicks land on the containing page.
@@ -200,6 +203,7 @@ export class ReaderController {
   private animating = false;
   private relayoutAfterAnim = false;
   private readonly pager = new WheelPager();
+  private overlayHost!: HTMLElement;
   private leftGutter!: HTMLElement;
   private rightGutter!: HTMLElement;
   private readonly leftBtn: HTMLButtonElement;
@@ -214,6 +218,11 @@ export class ReaderController {
     private readonly host: HTMLElement,
     private readonly view: EditorView,
   ) {
+    // Overlays live on the host's PARENT: the host is now the scroll
+    // container (flips = native smooth scroll), so its own children
+    // would ride along with the pages.
+    this.overlayHost = host.parentElement ?? host;
+    this.overlayHost.classList.add('pmd-reader-overlay-host');
     const mk = (cls: string, label: string, dir: 1 | -1): HTMLButtonElement => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -221,20 +230,20 @@ export class ReaderController {
       b.setAttribute('aria-label', label);
       b.textContent = dir > 0 ? '›' : '‹';
       b.addEventListener('click', () => this.flip(dir));
-      host.appendChild(b);
+      this.overlayHost.appendChild(b);
       return b;
     };
     this.leftGutter = document.createElement('div');
     this.leftGutter.className = 'pmd-reader-gutter';
     this.rightGutter = document.createElement('div');
     this.rightGutter.className = 'pmd-reader-gutter';
-    host.appendChild(this.leftGutter);
-    host.appendChild(this.rightGutter);
+    this.overlayHost.appendChild(this.leftGutter);
+    this.overlayHost.appendChild(this.rightGutter);
     this.leftBtn = mk('pmd-reader-edge-left', 'Previous page', -1);
     this.rightBtn = mk('pmd-reader-edge-right', 'Next page', 1);
     this.indicator = document.createElement('div');
     this.indicator.className = 'pmd-reader-page-indicator';
-    host.appendChild(this.indicator);
+    this.overlayHost.appendChild(this.indicator);
 
     const onKey = (e: KeyboardEvent): void => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -271,17 +280,15 @@ export class ReaderController {
     this.offKey = () => host.removeEventListener('keydown', onKeyCapture, true);
     this.offWheel = () => host.removeEventListener('wheel', onWheel);
 
-    const strip = this.strip();
-    const onEnd = (e: TransitionEvent): void => {
-      if (e.propertyName !== 'transform') return;
+    const onEnd = (): void => {
       this.animating = false;
       if (this.relayoutAfterAnim) {
         this.relayoutAfterAnim = false;
         this.relayout();
       }
     };
-    strip?.addEventListener('transitionend', onEnd);
-    this.offEnd = () => strip?.removeEventListener('transitionend', onEnd);
+    host.addEventListener('scrollend', onEnd);
+    this.offEnd = () => host.removeEventListener('scrollend', onEnd);
 
     this.resizeObs =
       typeof ResizeObserver === 'function'
@@ -294,6 +301,8 @@ export class ReaderController {
   dispose(): void {
     this.leftGutter.remove();
     this.rightGutter.remove();
+    this.overlayHost.classList.remove('pmd-reader-overlay-host');
+    this.host.scrollLeft = 0;
     this.offKey();
     this.offWheel();
     this.offEnd();
@@ -301,10 +310,9 @@ export class ReaderController {
     this.leftBtn.remove();
     this.rightBtn.remove();
     this.indicator.remove();
+    this.host.style.removeProperty('clip-path');
     const strip = this.strip();
     if (strip) {
-      strip.style.removeProperty('transform');
-      strip.style.removeProperty('transition');
       strip.style.removeProperty('margin-left');
       strip.style.removeProperty('margin-right');
       for (const p of [
@@ -326,6 +334,11 @@ export class ReaderController {
     return this.page * this.layout.stride;
   }
 
+  /** Host scroll units per page (host scroll space is zoomed). */
+  private strideScroll(): number {
+    return this.layout.stride * this.zoomFactor();
+  }
+
   scheduleRelayout(): void {
     if (this.animating) {
       this.relayoutAfterAnim = true;
@@ -342,6 +355,16 @@ export class ReaderController {
   relayout(): void {
     const strip = this.strip();
     if (!strip) return;
+    // The overlays live on the host's PARENT and no longer detach
+    // with it (three-pane swaps stacked docs by unplugging editorEl):
+    // hide them whenever the host isn't the one on screen. The
+    // ResizeObserver fires on both detach (0×0) and re-attach, so
+    // this self-heals when the doc comes back.
+    const attached = this.host.isConnected && this.host.clientWidth > 0;
+    for (const el of [this.leftGutter, this.rightGutter, this.leftBtn, this.rightBtn, this.indicator]) {
+      el.style.display = attached ? '' : 'none';
+    }
+    if (!attached) return;
     // Pin the current place as a strip-fraction before re-measuring —
     // column widths change, but the doc's linear order doesn't. The
     // previous extent comes from our own measurement (scrollWidth
@@ -353,29 +376,43 @@ export class ReaderController {
     // a stale scrollTop from the momentary full-height doc, scrolling
     // the viewport past the short strip (field report: marker drop
     // whited out the screen).
-    const available = Math.max(READER_MIN_COL, this.host.clientWidth);
+    const zoom = this.zoomFactor();
+    // Width = what's actually VISIBLE, not host.clientWidth: the host
+    // can extend past the window's right edge (field screenshot: pages
+    // spilling off-screen). Derive the band from the outer scroller's
+    // viewport, converted into the host's zoomed coordinate space.
+    const scroller = nearestScrollerOf(this.host);
+    if (scroller) scroller.scrollTop = 0;
+    const hostRect = this.host.getBoundingClientRect();
+    const visibleRight = scroller
+      ? scroller.getBoundingClientRect().left + scroller.clientWidth
+      : window.innerWidth;
+    const available = Math.min(
+      this.host.clientWidth,
+      Math.max(READER_MIN_COL, Math.floor((visibleRight - hostRect.left) / zoom)),
+    );
+    // Reserve flip lanes on both sides so the edge buttons never sit
+    // on top of the text (field report), then let the text-width cap
+    // + alignment settings place the page inside what remains.
+    const inner = Math.max(READER_MIN_COL, available - READER_EDGE_W * 2);
     const cap = settings.get('maxTextWidthPx');
-    const pageW = cap > 0 ? Math.min(Math.max(READER_MIN_COL, cap), available) : available;
-    const extra = Math.max(0, available - pageW);
+    const pageW = cap > 0 ? Math.min(Math.max(READER_MIN_COL, cap), inner) : inner;
+    const extra = Math.max(0, inner - pageW);
     const align = settings.get('maxTextWidthAlign');
-    const clipL = align === 'left' ? 0 : align === 'right' ? extra : Math.round(extra / 2);
-    const clipR = extra - clipL;
-    // Clip the host to exactly the page window: the strip's overflow
-    // columns otherwise bleed into the margins at idle. The edge flip
-    // zones move inside the window with it.
-    this.host.style.clipPath = `inset(0 ${clipR}px 0 ${clipL}px)`;
-    this.leftBtn.style.left = `${clipL}px`;
-    this.rightBtn.style.right = `${clipR}px`;
+    const offL = align === 'left' ? 0 : align === 'right' ? extra : Math.round(extra / 2);
+    const gutterL = READER_EDGE_W + offL;
     // Height = the SCROLLER's viewport (never the host's natural
     // height), divided by the #editor zoom (the strip lays out in
     // zoomed coordinate space; the scroller sits outside it). Any
     // stray scroll would show blank space past the short strip — pin.
-    const scroller = nearestScrollerOf(this.host);
-    if (scroller) scroller.scrollTop = 0;
     const viewH = Math.max(
       120,
-      Math.floor(((scroller?.clientHeight ?? window.innerHeight) - 8) / this.zoomFactor()),
+      Math.floor(((scroller?.clientHeight ?? window.innerHeight) - 8) / zoom),
     );
+    // No clip-path (it clipped the flip buttons too — and they now
+    // live outside the host anyway); the opaque gutters below cover
+    // the strip's column bleed instead. Clear any leftover.
+    this.host.style.removeProperty('clip-path');
     this.layout = computeReaderLayout(pageW + READER_GAP * 2, settings.get('maxTextWidthPx'));
     // Exact column geometry from the REAL page width: the box is one
     // page wide, column-count divides it exactly, and overflow columns
@@ -389,6 +426,31 @@ export class ReaderController {
     strip.style.setProperty('--pmd-reader-page-w', `${pageW}px`);
     strip.style.setProperty('--pmd-reader-gap', `${READER_GAP}px`);
     strip.style.setProperty('--pmd-reader-h', `${viewH}px`);
+    // Anchor the page box at the gutter edge (the base stylesheet
+    // centers with auto margins — override inline).
+    strip.style.marginLeft = `${gutterL}px`;
+    strip.style.marginRight = '0';
+    // Overlays sit on the PARENT (they must not ride the host's
+    // scroll), so their geometry is parent-space: host offset plus
+    // zoomed inner distances.
+    const ox = this.host.offsetLeft;
+    const oy = this.host.offsetTop;
+    const vz = (px: number): number => Math.round(px * zoom);
+    const bandH = vz(viewH + 14 + 18);
+    for (const el of [this.leftGutter, this.rightGutter, this.leftBtn, this.rightBtn]) {
+      el.style.top = `${oy}px`;
+      el.style.bottom = 'auto';
+      el.style.height = `${bandH}px`;
+    }
+    this.leftGutter.style.left = `${ox}px`;
+    this.leftGutter.style.width = `${vz(gutterL)}px`;
+    this.rightGutter.style.left = `${ox + vz(gutterL + pageW)}px`;
+    this.rightGutter.style.width = `${Math.max(vz(READER_EDGE_W), vz(available - gutterL - pageW))}px`;
+    this.leftBtn.style.left = `${ox + Math.max(0, vz(gutterL - READER_EDGE_W))}px`;
+    this.leftBtn.style.right = 'auto';
+    this.rightBtn.style.left = `${ox + vz(gutterL + pageW)}px`;
+    this.rightBtn.style.right = 'auto';
+    this.indicator.style.left = `${ox + vz(gutterL + pageW / 2)}px`;
     const stripW = this.measureStripExtent(strip);
     this.stripExtent = stripW;
     this.pages = pageCount(stripW, this.layout.stride);
@@ -402,24 +464,22 @@ export class ReaderController {
    *  column order), so the max right edge over the tail children is
    *  the strip's true content extent. Rects are visual px: undo the
    *  current translate and the #editor zoom factor. */
+  /** Strip extent in HOST-space px. The host is a scroll container
+   *  now, so scrollWidth includes the multicol overflow columns; the
+   *  tail-children probe stays as a floor for engines that disagree. */
   private measureStripExtent(strip: HTMLElement): number {
     const zoom = this.zoomFactor();
+    const fromScroll = this.host.scrollWidth / zoom;
+    const scrollLeft = this.host.scrollLeft;
     const stripRect = strip.getBoundingClientRect();
-    const translated = this.currentTranslateX() * zoom;
-    const baseLeft = stripRect.left - translated;
-    let maxRight = stripRect.right - translated;
+    const baseLeft = stripRect.left + scrollLeft;
+    let maxRight = stripRect.right + scrollLeft;
     const kids = strip.children;
     for (let i = Math.max(0, kids.length - 8); i < kids.length; i++) {
       const r = kids[i]!.getBoundingClientRect();
-      if (r.right - translated > maxRight) maxRight = r.right - translated;
+      if (r.right + scrollLeft > maxRight) maxRight = r.right + scrollLeft;
     }
-    return Math.max(1, (maxRight - baseLeft) / zoom);
-  }
-
-  private currentTranslateX(): number {
-    const raw = this.strip()?.style.transform ?? '';
-    const m = /translateX\((-?[\d.]+)px\)/.exec(raw);
-    return m ? parseFloat(m[1]!) : 0;
+    return Math.max(1, fromScroll, (maxRight - baseLeft) / zoom);
   }
 
   /** `#editor { zoom: var(--editor-zoom) }` scales rects; CSS lengths
@@ -434,19 +494,22 @@ export class ReaderController {
   }
 
   goTo(page: number, opts: { animate?: boolean } = {}): void {
-    const strip = this.strip();
-    if (!strip) return;
+    if (!this.strip()) return;
     const clamped = Math.max(0, Math.min(this.pages - 1, page));
     const animate = (opts.animate ?? true) && !motionReduced() && clamped !== this.page;
     this.page = clamped;
-    // Inline transform, NEVER a custom property: custom props inherit,
-    // so touching one on the strip invalidates style for the whole
-    // multi-thousand-node subtree — a long pause before every flip
-    // (field report). An inline transform recalcs one element and
-    // goes straight to the compositor.
-    strip.style.transition = animate ? '' : 'none';
+    // Flip = NATIVE scroll of the clipped host. A translated
+    // will-change strip blew Chromium's compositing budget on big
+    // docs (the layer is pages × page-width wide), silently falling
+    // back to main-thread paint per flip — the field-reported lag
+    // that vanished when invisibility mode shrank the doc. Scrolling
+    // is the machinery browsers already optimize for huge content:
+    // tiled raster follows the scroll, no giant layer.
     if (animate) this.animating = true;
-    strip.style.transform = `translateX(${-clamped * this.layout.stride}px)`;
+    this.host.scrollTo({
+      left: Math.round(clamped * this.layout.stride * this.zoomFactor()),
+      behavior: animate ? 'smooth' : ('auto' as ScrollBehavior),
+    });
     if (!animate) this.animating = false;
     this.leftBtn.classList.toggle('pmd-reader-edge-hidden', clamped === 0);
     this.rightBtn.classList.toggle('pmd-reader-edge-hidden', clamped >= this.pages - 1);
