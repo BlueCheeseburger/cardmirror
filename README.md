@@ -4,6 +4,25 @@
 
 # CardMirror
 
+> **This is a fork** ([`BlueCheeseburger/cardmirror`](https://github.com/BlueCheeseburger/cardmirror))
+> of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
+> added on top of upstream, newest first:
+>
+> - **Paced auto-scroll** — a hands-free teleprompter that scrolls the
+>   document at your actual reading pace, slowing for dense highlighted
+>   text and speeding through everything else. *(open PR, not yet on `main`)*
+> - **Autosave for `.docx` files**, not just `.cmir` — plus a time-boxed,
+>   logged fallback for the zip worker and a ribbon button that
+>   distinguishes "saving" from "paused" (e.g. a doc with a live view /
+>   linked copy Word can't hold).
+> - **Independent document background theme** — the editor surface's
+>   light/dark appearance can now be set separately from the app chrome's
+>   theme.
+> - **Independent multi-window three-pane workspace** — additional
+>   windows no longer have to mirror the main window's pane layout.
+> - **Google Gemini** as a third AI provider, alongside Anthropic and
+>   OpenRouter.
+
 CardMirror is a debate text editor focused on high school and college
 policy debate. It's a standalone
 replacement for the editor side of

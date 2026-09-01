@@ -11,3 +11,14 @@ reliably as real-time PR-activity events in practice. Rely on the
 subscription; only schedule a check-in when there's a specific reason to
 distrust it (e.g. a suspiciously long silence on a PR someone is actively
 waiting on).
+
+## Keep the README's fork-changes section current
+
+This fork (`BlueCheeseburger/cardmirror`) carries changes on top of
+upstream (`ant981228/cardmirror`). `README.md` has a section near the top,
+right under the title, listing what this fork adds beyond upstream.
+Whenever a change is made to this fork — a new feature, a meaningful fix,
+anything a future contributor would want to know isn't in upstream — add
+or update an entry there in the same turn as the change, not as an
+afterthought. Keep entries short (a sentence or two) and note whether the
+change has landed on `main` or is still out on an open PR.
