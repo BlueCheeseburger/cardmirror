@@ -5,7 +5,7 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 1.6.0 — 2026-09-01
 
 ### Added
 
@@ -31,6 +31,23 @@ see `DETAILED_CHANGELOG.md`.
   devices (iPads) where scrolling with a finger keeps picking up
   headings instead; clicking still navigates, and pane resizing is
   unaffected.
+- **Recover Previous Version, overhauled.** Both version dialogs — the
+  saved-document snapshot list and a shared session's history — are now
+  two-pane: click a version to read it right there in a full-fidelity
+  preview, complete with its own navigation pane (level buttons,
+  expand/collapse, your nav styling), instead of opening windows to
+  find the right one. Version rows now tell you what's in them: word
+  and card counts, what changed vs the previous version ("+3 cards ·
+  +1,240 words"), and — the question you actually came to answer — a
+  badge showing how many cards a version holds that your current
+  document doesn't. Snapshots also record what saved them (manual save
+  vs autosave), shown as a chip on each row. Opening a version still
+  makes a separate unsaved copy; nothing touches your document or the
+  shared session.
+- **New command: Open Containing Folder.** Reveals the current
+  document, highlighted, in Finder / File Explorer. Unbound by
+  default — run it from the command bar (try "reveal in finder" or
+  "show in folder"), or wire it to a custom ribbon button or shortcut.
 
 ### Fixed
 
@@ -47,6 +64,12 @@ see `DETAILED_CHANGELOG.md`.
   invisible to the nav pane). A safety net now repairs the identity
   on the spot, as part of the same edit. Documents already carrying
   these from older versions are still repaired when opened.
+- **The timer's threshold flash no longer lags typing.** The flashing
+  countdown animated in a way that competed with the editor for the
+  main thread, so keystrokes hiccupped during every flash window on
+  large documents. The pulse now runs entirely on the compositor —
+  typing cost is unaffected no matter the document size. (The flash
+  peak now shows your normal text color on red rather than white.)
 - **Pasting or deleting across certain card boundaries no longer
   fails silently.** A few selection and paste shapes had no legal
   result and crashed internally, eating the keystroke or the paste

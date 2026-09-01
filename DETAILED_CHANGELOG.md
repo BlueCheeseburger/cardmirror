@@ -5,6 +5,139 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## 1.6.0 — 2026-09-01
+
+### Added: Reading view (Word-style paginated columns)
+
+The ribbon's permanent nav-pane toggle gave way to a book button that
+flips the focused document into full-screen column pages for reading a
+speech (the nav-pane toggle lives on as a command / custom ribbon
+button / bindable key). The live ProseMirror element becomes a
+height-capped CSS multicolumn strip whose extra columns overflow
+horizontally; the host clips to exactly one screenful and page flips
+are NATIVE scrolls of that clipped host, driven by a fast ~120 ms
+ease-out animator. The naive alternative — translating a
+`will-change: transform` strip — was tried and reverted: a
+pages-wide compositor layer blows Chromium's layer budget on real
+tournament files, silently demoting every flip to a main-thread paint
+of the whole strip (multi-second clicks that got *faster* when read
+mode shrank the doc — the tell that led to the rewrite). Native
+scrolling uses the browser's tiled raster path, which only ever paints
+near the viewport.
+
+Geometry is measured, not assumed: relayout derives the visible band
+from the scroller, reserves flip lanes so the edge buttons never sit
+on text, measures the strip's real offset and compensates, and
+calibrates scroll units (CSS zoom makes them engine-dependent).
+Repagination triggers cover the cases layout can't see coming: doc
+edits, resizes, and — via class observation — read-mode toggles (the
+rendered doc collapses with no doc change; without this, flipping into
+the phantom tail looked like a freeze), the send/receive pill tray
+(columns end above it), and three-pane doc swaps. Drop targets don't
+render on a reading-view host: its transaction lock (read mode's
+allowances minus the drag exception) would reject the drop anyway.
+
+Interaction follows Word: 1–3 columns from pane width (the
+maximum-text-width cap bounds column width), arrows / PgUp / PgDn /
+Space / Home / End, one mouse-wheel detent or trackpad swipe = one
+flip, click zones at each edge, a page indicator, nav-pane clicks land
+on the containing page. Combinable with read mode; per-document in the
+three-pane workspace (each doc in a slot keeps its own state).
+Animations flatten to instant flips under the new "Reduce animations
+in reading view" accessibility setting or the global reduce-motion
+preference.
+
+### Added: Recover Previous Version overhaul (preview, digests, save triggers)
+
+Version rows used to be a timestamp and a size; seeing what a version
+held meant opening it in a new window. Both dialogs — the solo
+document's snapshot list and the shared session's history — are now
+two-pane: the version list on the left, and a click-to-preview pane on
+the right that renders the version read-only with the real document
+stylesheet AND a real navigation pane (an actual NavigationPanel
+instance in a new read-only mode: level buttons, chevron and
+double-click expand/collapse, per-type styling — but it never starts
+drags or registers as a drop target, and the preview view drops any
+doc-changing transaction by construction).
+
+Rows carry digests: word and card counts, a delta line vs the previous
+version ("+3 cards · −1 card · +1,240 words"), and a badge counting
+cards that version holds which the current document lacks — computed
+from tag-id set differences, answering the actual recovery question
+("which version has the thing I lost?"). The solo dialog digests all
+its snapshots progressively in the background (one parse at a time,
+cached for the session — snapshot content is immutable); the session
+dialog computes digests lazily on preview clicks instead, because
+reconstructing a session version is a synchronous CRDT checkout that
+must never run as an eager background sweep.
+
+Snapshots now also record their save trigger — manual save vs
+autosave — encoded in the snapshot filename (no sidecar for pruning to
+manage; pre-existing snapshots still parse, they just show no chip).
+Dedup stays purely content-based, so identical content saved twice
+keeps the first snapshot's chip.
+
+### Added: Drag to rearrange setting (Settings → General)
+
+A teacher's iPad classroom kept triggering nav-pane drags when
+students scrolled with a finger. The new toggle (default on) gates the
+content-move drag surfaces — nav-pane row drags and the editor's
+pickup drag — in both the single-doc and three-pane editors. Clicking
+still navigates; pane resizing is unrelated and unaffected.
+
+### Added: Open Containing Folder command
+
+Reveals the focused document, highlighted, in Finder / File Explorer
+(`shell.showItemInFolder`; the desktop file handle is the absolute
+path). Unbound by default; command-bar aliases cover "reveal in
+finder" / "show in folder" / "file location", and it sits in the File
+group for custom ribbon buttons. Focus-aware in the three-pane
+workspace; toasts when the document has never been saved, and on the
+web edition.
+
+### Fixed: heading identities can no longer duplicate or vanish mid-edit
+
+1.5.1 healed duplicate heading ids arriving from docx round trips;
+this release closes the doors that could mint them (or their opposite,
+null ids) during native editing. A purpose-built fuzzer — real command
+chains against a live view, clipboard HTML round-trips included —
+found the actual culprits: pasting into the middle of a heading
+duplicates the heading node around the paste (ProseMirror's
+replace-split copies attrs, ids included), and several
+cross-container selection shapes crashed the keystroke instead of
+editing. Three layers shipped: a schema-level appendTransaction guard
+that re-mints duplicate/null ids in the same transaction that would
+create them (provenance-aware — the ORIGINAL heading keeps its id,
+the copy gets the new one, so nav selection and collab cursors stay
+put; sync-origin transactions are exempt, since remote peers heal
+their own), crash-free paste and deletion fallbacks that produce the
+sensible merge instead of throwing (deleting across a card boundary
+now carries the tail content up into the surviving container, exactly
+as if the intervening structure had been deleted first), and the
+fuzzer graduated into the suite as a regression fence.
+
+### Fixed: timer threshold flash lagged typing on big documents
+
+The flash animated `background-color` and `color` — paint properties
+that cannot run on the compositor (their keyframes resolve CSS
+variables, forcing per-frame style resolution too). For the whole
+flash window the main thread ran a style → paint → commit cycle at
+~60 fps, and on large documents those frames interleaved with
+ProseMirror's keystroke layout work: visible input hiccups every time
+the timer flashed. The pulse is now the opacity of a promoted overlay
+pseudo-element behind the time text — compositor-only after the first
+frame, so typing cost is untouched. Visual delta: the flash peak shows
+the normal text color on red rather than white on red.
+
+### Fixed: small UI polish (community PR)
+
+Elli (@0-elli): color-picker triggers now toggle their picker closed
+instead of reopening it; Doc / Card / Table menu chevrons align
+consistently; the settings theme buttons gained proper hover and
+selected contrast (selected text now uses the shared on-accent token,
+so it stays correct across themes); and switching settings tabs no
+longer shifts the tab bar's layout. Thanks, Elli!
+
 ## 1.5.1 — 2026-08-29
 
 ### Fixed: duplicate heading ids from docx round trips (nav misjumps)
