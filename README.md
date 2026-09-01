@@ -37,8 +37,6 @@ Run it as a **desktop app** for tournament-day work, or as a **web
 preview** in any browser for trying it out or working from a Chromebook
 or locked-down school machine.
 
-**▶ Try the live web preview: <https://cardmirror.app/>**
-
 > **Keep backups.** CardMirror is stable and used daily, but no
 > editor is bug-free — keep a copy of anything critical in a second
 > format.
@@ -56,7 +54,7 @@ manual; [`PRIVACY.md`](./PRIVACY.md) for how CardMirror handles your data;
 
 You can find a video walkthrough of CardMirror's basic functions [here](https://www.youtube.com/playlist?list=PLXM5iwKNQkSs). 
 
-## Support
+## Support Upstream Cardmirror
 
 The core CardMirror editor is free, and built and maintained by one
 person. If it's useful to you, two ways to help keep it going:
@@ -70,7 +68,7 @@ person. If it's useful to you, two ways to help keep it going:
 
 ## Install
 
-Desktop builds live on the [Releases page](https://github.com/ant981228/cardmirror/releases).
+Desktop builds live on the [Releases page](https://github.com/BlueCheeseburger/cardmirror/releases).
 Pick the file for your operating system, run the installer, and
 launch CardMirror like any other app.
 
@@ -127,41 +125,9 @@ Two options for installation, depending upon distribution:
   sudo pacman -U cardmirror-x.x.x.pacman
   ```
 
-### Web app (Chromebook & browser)
-
-No download needed — open the
-[live web app](https://cardmirror.app/) in a Chromium browser
-(Chrome, Edge, or ChromeOS) and click the **Install** button in the address bar
-to run CardMirror in its own window, offline, updating itself on relaunch. On a
-Chromebook this is the way to run it — no desktop build required.
-
-Installed, the web app does most of what the desktop editions do: **save in
-place** and autosave (it may ask for permission to edit each file),
-one-keystroke **Paste Text**, **multiple windows** (New Document / New Speech
-Document open their own window) with the dropzone, Quick Cards, and send-to-speech
-kept in sync across them, the **three-pane workspace**, and single-file **Clean /
-Convert / Compress** tools on the home screen.
-
-Still desktop-only: background file-library search, folder-wide bulk operations,
-Send to Verbatim Flow, voice control, card sharing, and real-time **co-editing**
-(share a document and edit it together live — experimental). Firefox and Safari run the
-editor but lack the File System Access API, so there Save falls back to a
-download. See **[Desktop vs. web](./MANUAL.md#desktop-vs-web)** in the manual for
-the full breakdown.
-
-> **Web feels slow on big documents? Check your extensions.** Some browser
-> extensions — password managers (1Password, LastPass, Bitwarden) and form
-> fillers especially — rescan the whole page every time you focus a text box,
-> which can freeze the editor for a second or more on a large file. The desktop
-> app never hits this because it loads no extensions. To confirm, open the app
-> in an Incognito window (extensions are off there) — if it's snappy, an
-> extension is the cause. To fix it without turning the extension off
-> everywhere, tell Chrome to run it only on this site by request: click the
-> **puzzle-piece (Extensions)** icon in the toolbar, click the **⋮** next to the
-> extension, and set **"This can read and change site data" → "When you click
-> the extension."**
-
 ### Updates
+
+Updates specifically pull from BlueCheeseburger/cardmirror, not upstream cardmirror.
 
 **Help → Check for Updates…** checks manually: it tells you you're
 current, or announces an available update and downloads it in the
@@ -200,9 +166,14 @@ A few features call out to an AI model:
 
 Two providers are supported; pick either one:
 
-- **Anthropic** (the default) talks directly to Anthropic's Claude
+- **Anthropic** talks directly to Anthropic's Claude
   API. Get an API key from
   [console.anthropic.com](https://console.anthropic.com/) (you'll
+  need to top up a small amount of credit — Anthropic doesn't have
+  a free tier for the API).
+- **Gemini** talks directly to Google's Gemini
+  API. Get an API key from
+  [aistudio.google.com/api-keys](https://aistudio.google.com/api-keys) (you'll
   need to top up a small amount of credit — Anthropic doesn't have
   a free tier for the API).
 - **OpenRouter** talks to [openrouter.ai](https://openrouter.ai/),
@@ -218,7 +189,7 @@ To enable them:
 2. In CardMirror, click the ⚙ gear icon in the ribbon.
 3. Toggle **AI features** on, choose your provider under
    **AI provider**, and paste your key into that provider's key
-   field (**Anthropic API key** or **OpenRouter API key**).
+   field (**Anthropic API key**, **Gemini API key**, or **OpenRouter API key**).
 
 The key is stored locally on your machine and is sent directly to
 the provider you picked when you trigger an AI feature. It doesn't
