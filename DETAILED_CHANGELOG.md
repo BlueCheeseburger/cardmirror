@@ -5,6 +5,20 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## 1.6.0-bcb.1 — 2026-09-02
+
+First tagged release of the BlueCheeseburger fork — the first time
+this fork's own accumulated work (Gemini provider, independent
+multi-window workspace, independent document background theme,
+`.docx` autosave, paced auto-scroll, and the update-check fix
+pointing at this fork's own releases) ships as an actual tagged
+GitHub Release with built installers, rather than living only on
+`main`. No new implementation work in this entry — see this fork's
+individual PRs and `README.md`'s fork-changes section for the
+rationale and implementation details behind each item; see
+`CHANGELOG.md` for the user-facing summary. Built on top of
+upstream's 1.6.0 (below).
+
 ## 1.6.0 — 2026-09-01
 
 ### Added: Reading view (Word-style paginated columns)
