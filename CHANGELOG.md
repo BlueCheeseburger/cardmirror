@@ -5,6 +5,17 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## 1.6.0-bcb.2 — 2026-09-02
+
+### Fixed
+
+- **Reading view / auto-scroll ribbon buttons were overflowing their
+  group**, clipped at the top and bottom of the ribbon instead of
+  sitting in a clean 2×2 grid, with the nav-pane-toggle button's icon
+  effectively invisible as a result. All four buttons (Read mode,
+  Auto-scroll, Reading view, Toggle nav pane) now render fully inside
+  their normal ribbon height.
+
 ## 1.6.0-bcb.1 — 2026-09-02
 
 First tagged release of the BlueCheeseburger fork. Built on top of

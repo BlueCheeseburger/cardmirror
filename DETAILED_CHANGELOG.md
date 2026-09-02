@@ -5,6 +5,26 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## 1.6.0-bcb.2 — 2026-09-02
+
+### Fixed: view-ops-panel ribbon buttons overflowing their 2-row height
+
+`#view-ops-panel` kept the base `.ribbon-doc-ops-panel` class (1
+column, 2 fixed 1.45rem rows) from when it held only `read-mode-btn`
+and `nav-pane-toggle-btn`. Auto-scroll and reading-view (`book`) were
+added as buttons 2 and 3 later without adding the `-2col` modifier
+class the comments panel next to it already uses for its own
+multi-button layout, so the 4 buttons landed in 4 implicit grid rows
+in a single column instead of a 2×2 grid — overflowing the panel's
+fixed 2-row height, clipped by the ribbon at both top and bottom, with
+the last button (`nav-pane-toggle-btn`) rendering mostly outside the
+visible/clipped area. Fixed by adding
+`ribbon-doc-ops-panel-2col` to the panel's class list
+(`index.html`), giving it the 2-column grid its 4 buttons need.
+Verified in the browser: the panel now renders as a clean 2×2 (read
+mode / auto-scroll on top, reading view / nav-pane toggle below) at
+its intended height, with every icon visible.
+
 ## 1.6.0-bcb.1 — 2026-09-02
 
 First tagged release of the BlueCheeseburger fork — the first time
