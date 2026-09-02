@@ -5,6 +5,36 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## 1.6.0-bcb.1 — 2026-09-02
+
+First tagged release of the BlueCheeseburger fork. Built on top of
+upstream's 1.6.0 (below), plus everything this fork has added on top
+of upstream so far:
+
+### Added
+
+- **Google Gemini** as a third AI provider, alongside Anthropic and
+  OpenRouter.
+- **Independent multi-window three-pane workspace.** Additional
+  windows no longer have to mirror the main window's pane layout.
+- **Independent document background theme.** The editor surface's
+  light/dark appearance can now be set separately from the app
+  chrome's theme.
+- **Autosave for `.docx` files**, not just `.cmir` — plus a
+  time-boxed, logged fallback for the zip worker and a ribbon button
+  that distinguishes "saving" from "paused" (e.g. a doc with a live
+  view / linked copy Word can't hold).
+- **Paced auto-scroll** — a hands-free teleprompter that scrolls the
+  document at your actual reading pace, slowing for dense highlighted
+  text and speeding through everything else.
+
+### Fixed
+
+- **Update checks now point at this fork's own releases**, not
+  upstream's — so in-app "check for updates" and the desktop
+  auto-updater compare against `BlueCheeseburger/cardmirror` releases
+  instead of `ant981228/cardmirror`.
+
 ## 1.6.0 — 2026-09-01
 
 ### Added
