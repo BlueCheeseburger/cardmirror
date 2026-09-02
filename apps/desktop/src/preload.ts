@@ -159,6 +159,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /** Open the OS file manager at the crash-recovery journals folder. */
   openJournalsFolder: () => ipcRenderer.invoke('host:open-journals-folder'),
+  showItemInFolder: (handle: string) => ipcRenderer.invoke('host:show-item-in-folder', handle),
 
   /** Minimize this OS window (the `minimizeWindow` ribbon command /
    *  macOS Window-menu Minimize). */
@@ -366,11 +367,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     docId: string,
     bytes: Uint8Array,
     policy: { retentionDays: number; maxDocBytes: number; maxTotalBytes: number },
+    trigger?: 'manual' | 'auto' | 'close',
   ): Promise<{ stored: boolean; reason?: string }> =>
-    ipcRenderer.invoke('host:history-snapshot', docId, bytes, policy),
+    ipcRenderer.invoke('host:history-snapshot', docId, bytes, policy, trigger),
   historyList: (
     docId: string,
-  ): Promise<Array<{ id: string; ts: number; size: number }>> =>
+  ): Promise<Array<{ id: string; ts: number; size: number; trigger?: 'manual' | 'auto' | 'close' }>> =>
     ipcRenderer.invoke('host:history-list', docId),
   historyRead: (docId: string, id: string): Promise<Uint8Array | null> =>
     ipcRenderer.invoke('host:history-read', docId, id),

@@ -5,7 +5,118 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 1.6.0 — 2026-09-01
+
+### Added
+
+- **Reading view (Word-style paginated columns).** The new book
+  button on the ribbon (in the navigation pane toggle's old spot)
+  flips the current document into full-screen column pages for
+  reading a speech: one to three columns sized from the pane width
+  (respecting the maximum-text-width accessibility cap), arrow keys /
+  Page keys / Space / one mouse-wheel click flip a full screen at a
+  time, with click zones at each edge and a page indicator. The
+  navigation pane stays available and clicking it jumps to the right
+  page. Editing is locked except dropping reading markers, and it
+  combines with Read Mode. Per-document: in the three-pane workspace
+  each document keeps its own state — full-screen the slot you're
+  speaking from as usual. Page flips are animated by default;
+  "Reduce animations in reading view" in Accessibility (or the global
+  Reduce motion setting) makes them instant. Show/Hide Navigation
+  Pane remains available from the command bar, as a custom ribbon
+  button, and as a bindable shortcut.
+- **New setting: Drag to rearrange (Settings → General).** Turns the
+  drag gestures for moving content — navigation-pane rows and the
+  editor's pickup drag — on or off. Default on. Turn it off on touch
+  devices (iPads) where scrolling with a finger keeps picking up
+  headings instead; clicking still navigates, and pane resizing is
+  unaffected.
+- **Recover Previous Version, overhauled.** Both version dialogs — the
+  saved-document snapshot list and a shared session's history — are now
+  two-pane: click a version to read it right there in a full-fidelity
+  preview, complete with its own navigation pane (level buttons,
+  expand/collapse, your nav styling), instead of opening windows to
+  find the right one. Version rows now tell you what's in them: word
+  and card counts, what changed vs the previous version ("+3 cards ·
+  +1,240 words"), and — the question you actually came to answer — a
+  badge showing how many cards a version holds that your current
+  document doesn't. Snapshots also record what saved them (manual save
+  vs autosave), shown as a chip on each row. Opening a version still
+  makes a separate unsaved copy; nothing touches your document or the
+  shared session.
+- **New command: Open Containing Folder.** Reveals the current
+  document, highlighted, in Finder / File Explorer. Unbound by
+  default — run it from the command bar (try "reveal in finder" or
+  "show in folder"), or wire it to a custom ribbon button or shortcut.
+
+### Fixed
+
+- **Small UI polish.** Clicking a color-picker's arrow now closes its
+  open picker instead of reopening it; the Doc, Card, and Table menu
+  chevrons align consistently; the settings theme buttons have proper
+  hover and selected contrast; and switching settings tabs no longer
+  shifts the tab bar's layout. Thanks to Elli (@0-elli)!
+- **Duplicate and missing heading identities can no longer be created
+  while editing.** Certain edits — pasting into the middle of a
+  heading, or deletions that rebuild a card's structure — could
+  silently give two headings the same identity (making nav-pane
+  clicks jump to the wrong one) or none at all (making a heading
+  invisible to the nav pane). A safety net now repairs the identity
+  on the spot, as part of the same edit. Documents already carrying
+  these from older versions are still repaired when opened.
+- **The timer's threshold flash no longer lags typing.** The flashing
+  countdown animated in a way that competed with the editor for the
+  main thread, so keystrokes hiccupped during every flash window on
+  large documents. The pulse now runs entirely on the compositor —
+  typing cost is unaffected no matter the document size. (The flash
+  peak now shows your normal text color on red rather than white.)
+- **Pasting or deleting across certain card boundaries no longer
+  fails silently.** A few selection and paste shapes had no legal
+  result and crashed internally, eating the keystroke or the paste
+  with no feedback. They now complete sensibly where possible (the
+  pasted content is placed whole; the selection merges cleanly) and
+  otherwise do nothing visibly instead of breaking the editor.
+
+## 1.5.1 — 2026-08-29
+
+### Fixed
+
+- **Long-running collaboration sessions no longer lose sync when
+  their sign-in credential rotates.** A session held onto the
+  credential it started with; when that credential expired (they
+  refresh roughly every three days), syncing silently stopped and
+  nothing short of restarting the app — not even unlinking and
+  relinking your account — could revive it. Sessions now always
+  present the current credential, so background renewal (or a relink)
+  takes effect immediately.
+- **Typing or deleting over a selection that ends inside a card's tag
+  (or an analytic's heading) now works.** Selecting from one card or
+  analytic into the middle of the next one's heading and then typing
+  or pressing Delete used to do nothing at all. It now behaves as if
+  the boundary had been deleted first: the rest of the heading's text
+  and the remaining body flow up into the block you started the
+  selection in.
+- **Saving can no longer hang forever preparing a .cmir file.** The
+  background thread that compresses .cmir saves could die silently in
+  a long-lived window, leaving the Save button stuck in its saving
+  state (and Save As never reaching the file picker) with no error.
+  Compression now falls back to the main thread within a few seconds
+  if the background thread stops responding, and the save-progress
+  warning now also covers the preparation step, so any slowdown there
+  shows a notice instead of silence.
+
+- **Nav-pane clicks no longer jump to the wrong heading in documents
+  that picked up duplicate heading identities from a Word round
+  trip.** Word add-ins and other editors can duplicate the invisible
+  bookmark CardMirror uses to identify a heading — for example when a
+  heading line is copied as a formatting template and retyped —
+  which made clicking one heading navigate to the other, and could
+  point live views at the wrong section. Importing a .docx now keeps
+  the first occurrence and assigns the copy its own identity, and
+  documents that already carry duplicates are repaired automatically
+  when opened.
+
+## 1.5.0 — 2026-08-28
 
 ### Fixed
 
@@ -16,7 +127,8 @@ see `DETAILED_CHANGELOG.md`.
   an uninstall. CardMirror now registers only as an "Open with" choice
   for .docx — Word keeps its default and its New menu — and installing
   this version automatically repairs machines the old installers
-  affected.
+  affected. Thanks to [Q Cooper](https://github.com/mosuqc) for
+  sketching out the fix.
 - **Unlinking your Debate Decoded account now frees that machine's
   seat immediately.** Disconnecting used to only forget the link on the
   machine itself, so the seat stayed occupied server-side and could
@@ -27,6 +139,14 @@ see `DETAILED_CHANGELOG.md`.
   confirm.** On the web edition, confirming "Link This Browser" in the
   seat-limit dialog re-showed the same dialog instead of linking; the
   confirmation now goes through.
+- **A collaboration session joined by invite link now ends cleanly
+  when the invite expires.** Invite credentials last seven days;
+  before, a session past that point silently retried forever and just
+  looked offline. It now shows "Session invite expired," keeps your
+  copy of the document, and stops — ask the host for a fresh link to
+  rejoin. A brief sign-in page on school or hotel wifi is not
+  mistaken for an expired invite, and being offline never triggers
+  this.
 - **Genuinely empty files now open as blank documents.** A zero-byte
   file — like the one Explorer's "New → Microsoft Word Document"
   creates — opens as a blank document bound to that file, the same way

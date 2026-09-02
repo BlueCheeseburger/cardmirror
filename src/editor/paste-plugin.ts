@@ -50,6 +50,7 @@ import {
 } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 import { schema, newHeadingId } from '../schema/index.js';
+import { prepareSelectionForReplace } from './type-over-boundary.js';
 import { settings } from './settings.js';
 import { freshHeadingIds } from './drag-controller.js';
 import { condenseBranchC, condenseMerge } from './condense.js';
@@ -394,7 +395,7 @@ export function clipboardHasMeaningfulText(cd: DataTransfer): boolean {
  *  business. */
 const HEAD_OF_CONTAINER: Record<string, string> = { card: 'tag', analytic_unit: 'analytic' };
 
-function healHeadlessContainersInSlice(slice: Slice): Slice {
+export function healHeadlessContainersInSlice(slice: Slice): Slice {
   const healFragment = (frag: Fragment, openStart: number, openEnd: number): Fragment => {
     let changed = false;
     const kids: PMNode[] = [];
@@ -507,6 +508,38 @@ export function buildPastePlugin(ctx: PastePluginCtx): Plugin<PluginState> {
       // happens to card-fit or split must look like any other paste to
       // them.
       handlePaste(view, event, slice) {
+        // A selection PM's replace cannot fit (head-tail cross-
+        // container shape) must be merge-collapsed BEFORE any paste
+        // branch replaces over it — otherwise replaceSelection throws
+        // "Cannot join …" uncaught and the paste dies silently.
+        if (!prepareSelectionForReplace(view)) return true;
+        // And a SLICE whose open container edges can't fit at this
+        // cursor (copy from mid-analytic-unit pasted inside a card)
+        // makes PM's own default replaceSelection throw. Probe it; on
+        // failure paste a closed + healed rendering of the same
+        // content, and as a last resort swallow with a warning — a
+        // no-op paste beats an uncaught crash that looks identical
+        // to "paste is broken".
+        {
+          let fits = true;
+          try {
+            view.state.tr.replaceSelection(slice);
+          } catch {
+            fits = false;
+          }
+          if (!fits) {
+            event.preventDefault();
+            try {
+              const closed = healHeadlessContainersInSlice(
+                new Slice(slice.content, 0, 0),
+              );
+              view.dispatch(view.state.tr.replaceSelection(closed).scrollIntoView());
+            } catch (err) {
+              console.warn('[cardmirror] paste could not fit at this position:', err);
+            }
+            return true;
+          }
+        }
         // Clipboard image paste — screenshots, copy-image from a
         // browser, etc. Take precedence over text / HTML branches
         // when the clipboard carries `image/*` file data; users

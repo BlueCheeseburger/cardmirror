@@ -591,6 +591,20 @@ function sessionCallbacks(deps: CollabUiDeps, getSess: () => ActiveSession | nul
       notifyCollabCopresenceChange();
     },
     onPresence: (bytes: Uint8Array) => getSess()?.cursors.applyRemote(bytes),
+    onGuestAuthExpired: () => {
+      // Terminal-cause notice for a guest whose (immutable, 7-day) pass
+      // the relay refused: onEnded fires right after this and its toast
+      // says the session ended — this says WHY, and what to do about it.
+      postNotice({
+        severity: 'error',
+        title: 'Session invite expired',
+        body:
+          'Your invite to this session has expired, so it can’t reconnect. ' +
+          'Ask the host for a fresh invite link if the session is still going. ' +
+          'This copy of the document is yours to keep.',
+        key: 'collab-guest-expired',
+      });
+    },
     onAuthRejected: () => {
       // Mid-session 401/403 — without this the endless retry loop reads
       // exactly like being offline (audit find, 2026-07-10). Fired once
@@ -1364,7 +1378,11 @@ export function activeSession(): CollabSession | null {
  *  recover module needs no import back into this one. */
 export async function recoverPreviousVersionFlow(
   openDoc?: import('./collab-recover-ui.js').OpenRecoveredDoc,
-  solo?: { docId: string | null; docTitle: string },
+  solo?: {
+    docId: string | null;
+    docTitle: string;
+    currentDoc?: import('prosemirror-model').Node | null;
+  },
 ): Promise<void> {
   const m = await import('./collab-recover-ui.js');
   await m.openRecoverPreviousVersion(activeSession(), openDoc, solo);

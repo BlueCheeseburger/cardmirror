@@ -86,6 +86,13 @@ export interface CollabSessionCallbacks {
    *  indistinguishable from being offline). Retrying continues at the
    *  backoff ceiling in case the entitlement returns. */
   onAuthRejected?: () => void;
+  /** A GUEST-PASS session's pass was refused by the relay (twice,
+   *  portal-checked — see RoomStream.onAuthDead). Terminal cause
+   *  notice: the pass is immutable and guests cannot re-mint, so the
+   *  session is about to end (onEnded follows immediately). Lets the
+   *  UI say WHY — "invite expired" — where onEnded's toast only says
+   *  what. */
+  onGuestAuthExpired?: () => void;
   /** The session ended (host ended it, or the room was GC'd). Terminal. */
   onEnded?: () => void;
   /** The room is at participant capacity. Terminal for this attempt. */
@@ -487,6 +494,7 @@ export class CollabSession {
           })();
         },
         onEnded: () => this.handleEnded(),
+        onAuthDead: () => this.handleAuthDead(),
         onFull: () => {
           this.callbacks.onFull?.();
         },
@@ -1132,6 +1140,12 @@ export class CollabSession {
 
   async sendPresence(blob: Uint8Array): Promise<void> {
     if (this.ended) return;
+    // Presence frames are DELIVERED over the stream, so while it isn't
+    // connected nobody can see ours (and we can't see theirs) — posting
+    // is pure waste, and on a dead credential it was the bulk of an
+    // all-night 401 churn (field observation 2026-08-28). The keepalive
+    // cadence resumes on the next post after the stream re-hellos.
+    if (!this.stream?.connected) return;
     try {
       await this.client.postPresence(this.roomId, await encryptBlob(this.key, blob), this.streamSid);
     } catch {
@@ -1222,6 +1236,24 @@ export class CollabSession {
     if (this.authNotified) return;
     this.authNotified = true;
     this.callbacks.onAuthRejected?.();
+  }
+
+  /** The stream saw two consecutive relay-confirmed 401/403s. For a
+   *  GUEST-PASS session that's terminal: the pass is immutable, guests
+   *  cannot re-mint one (host-only endpoint), and auth runs before the
+   *  room lookup server-side — so the client can never even learn
+   *  whether the room still exists. Retrying forever just churned
+   *  presence/stream against week-expired passes all night (field
+   *  observation 2026-08-28). Members keep today's behavior: notify
+   *  once and let the stream retry at its ceiling, because an expired
+   *  entitlement can quietly renew and heal the session. */
+  private handleAuthDead(): void {
+    if (this.client.opts.guestAuth === true) {
+      this.callbacks.onGuestAuthExpired?.();
+      this.handleEnded();
+      return;
+    }
+    this.notifyAuthRejected();
   }
 
   private emitStatus(): void {

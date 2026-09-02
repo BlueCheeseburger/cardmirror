@@ -12,7 +12,7 @@ vi.mock('../../src/editor/text-prompt.js', () => ({ promptForRouteChoice: vi.fn(
 
 import { postNotice } from '../../src/editor/status-notices.js';
 import { promptForRouteChoice } from '../../src/editor/text-prompt.js';
-import { awaitWithSaveWatchdog } from '../../src/editor/save-watchdog.js';
+import { awaitWithSaveWatchdog, warnIfSlow } from '../../src/editor/save-watchdog.js';
 
 const notice = vi.mocked(postNotice);
 const prompt = vi.mocked(promptForRouteChoice);
@@ -111,5 +111,31 @@ describe('awaitWithSaveWatchdog', () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(notice).not.toHaveBeenCalled();
     expect(prompt).not.toHaveBeenCalled();
+  });
+});
+
+describe('warnIfSlow (pre-write phases)', () => {
+  it('a fast phase passes its result through silently', async () => {
+    const out = await warnIfSlow(Promise.resolve('bytes'), 'a.cmir', 100);
+    expect(out).toBe('bytes');
+    await vi.advanceTimersByTimeAsync(500);
+    expect(notice).not.toHaveBeenCalled();
+  });
+
+  it('a slow phase posts the warning notice and still resolves', async () => {
+    let finish!: (v: string) => void;
+    const p = warnIfSlow(new Promise<string>((r) => (finish = r)), 'a.cmir', 100);
+    await vi.advanceTimersByTimeAsync(150);
+    expect(notice).toHaveBeenCalledTimes(1);
+    expect(notice.mock.calls[0]![0]).toMatchObject({ severity: 'warning', key: 'slow-save:a.cmir' });
+    finish('late-bytes');
+    expect(await p).toBe('late-bytes');
+  });
+
+  it('a rejection propagates unchanged and clears the timer', async () => {
+    const p = warnIfSlow(Promise.reject(new Error('boom')), 'a.cmir', 100);
+    await expect(p).rejects.toThrow('boom');
+    await vi.advanceTimersByTimeAsync(500);
+    expect(notice).not.toHaveBeenCalled();
   });
 });

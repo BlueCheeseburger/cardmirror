@@ -41,6 +41,34 @@ export interface SaveWatchdogOptions {
   dialogMs?: number;
 }
 
+/** Lightweight phase watchdog for the save pipeline's PRE-WRITE steps
+ *  (serialization): posts a warning notice if `work` runs past
+ *  `warnMs`, and lets the result/rejection through untouched. The
+ *  write watchdog below can't see these phases — a serialize that
+ *  hung left the save silently amber forever (field case 2026-08-29,
+ *  gzip worker death; the codec now has its own timeout, this is the
+ *  belt-and-braces so ANY future pre-write hang surfaces). No
+ *  escalation dialog: Save As would rerun the same serialize. */
+export function warnIfSlow<T>(
+  work: Promise<T>,
+  filename: string | null,
+  warnMs: number = SAVE_WARN_MS,
+): Promise<T> {
+  const name = filename ?? 'This document';
+  const timer = setTimeout(() => {
+    postNotice({
+      severity: 'warning',
+      title: 'Save is taking a long time',
+      body:
+        `Preparing "${name}" to be saved is taking unusually long. ` +
+        `The save will continue — if this happens repeatedly, restart ` +
+        `CardMirror and report it.`,
+      key: `slow-save:${name}`,
+    });
+  }, warnMs);
+  return work.finally(() => clearTimeout(timer));
+}
+
 export function awaitWithSaveWatchdog(
   write: Promise<void>,
   filename: string | null,

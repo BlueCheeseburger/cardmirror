@@ -172,6 +172,17 @@ export default defineConfig(({ command }) => {
     ],
     server: {
       fs: { allow: [path.resolve(__dirname), path.resolve(__dirname, '../card-cutter')] },
+      // Pre-transform the collab chain (and the loro wasm loader
+      // behind it) on dev-server start. Without this, the renderer's
+      // pairing catch-up poll dynamically imports collab-ui seconds
+      // after launch and can race a COLD vite's transform pipeline —
+      // one .wasm request slipped through untransformed (served
+      // application/wasm, rejected by strict module-script MIME
+      // checking), and Chromium caches failed module fetches,
+      // poisoning every later import('collab-ui') until reload.
+      warmup: {
+        clientFiles: ['./src/editor/collab/collab-ui.ts'],
+      },
     },
     // Second HTML entry: the floating always-on-top timer window
     // (desktop pop-out; timer.html → timer-popout.ts). Tiny by

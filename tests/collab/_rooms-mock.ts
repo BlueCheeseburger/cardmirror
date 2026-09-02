@@ -37,6 +37,10 @@ export interface RoomsMock {
   /** Zombie-instance simulation: store + ack posts but skip stream
    *  fan-out (streams stay open with heartbeats, receiving nothing). */
   mutePush(on: boolean): void;
+  /** Captive-portal simulation: EVERY request (any path, any token)
+   *  answers 401 with an HTML login page — the not-the-relay 401 shape
+   *  the stream's auth-dead detection must ignore. */
+  setPortalMode(on: boolean): void;
 }
 
 const MAX_STREAMS_PER_ROOM = 10;
@@ -52,6 +56,7 @@ export function startRoomsMock(): Promise<RoomsMock> {
   let guestPassValue: string | null = null;
   let streamAttempts = 0;
   let pushMuted = false;
+  let portalMode = false;
 
   const json = (res: http.ServerResponse, status: number, body?: unknown) => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -83,6 +88,11 @@ export function startRoomsMock(): Promise<RoomsMock> {
     const url = new URL(req.url!, 'http://x');
     const path = url.pathname;
     if (paused) return json(res, 503, { error: 'paused' });
+    if (portalMode) {
+      res.writeHead(401, { 'Content-Type': 'text/html' });
+      res.end('<html><body>Please sign in to campus wifi</body></html>');
+      return;
+    }
     if (req.headers.authorization !== `Bearer ${token}`) {
       return json(res, 401, { error: 'unauthorized' });
     }
@@ -235,6 +245,9 @@ export function startRoomsMock(): Promise<RoomsMock> {
         },
         mutePush: (on) => {
           pushMuted = on;
+        },
+        setPortalMode: (on) => {
+          portalMode = on;
         },
         close: () =>
           new Promise<void>((r) => {

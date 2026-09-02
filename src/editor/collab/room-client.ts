@@ -68,6 +68,12 @@ export interface RoomsClientOptions {
    *  bearer is an entitlement (machine binding). ''/absent = omit the
    *  header (shared-token or self-hosted relay — nothing to bind). */
   routingCode?: () => string;
+  /** True when the bearer is a room GUEST PASS — an immutable,
+   *  room-scoped credential the client can never refresh (re-minting is
+   *  a host-only endpoint). Lets the session treat a relay-confirmed
+   *  401 as terminal instead of retrying a credential that cannot come
+   *  back. Absent/false for tokens and entitlements, which CAN renew. */
+  guestAuth?: boolean;
   fetchImpl?: RoomsFetch;
 }
 
@@ -246,6 +252,13 @@ export interface RoomStreamCallbacks {
    *  is already underway. Lets the session mark itself offline instead
    *  of discovering the outage on the next failed send. */
   onDown?: () => void;
+  /** The RELAY (confirmed by response shape — not a captive portal)
+   *  refused our credential twice in a row. Policy belongs to the
+   *  caller: a guest-pass session ends (the pass can't heal), a member
+   *  session notifies and keeps retrying (entitlements renew). The
+   *  stream itself keeps its backoff retry unless the callback stops
+   *  it. May fire again on later consecutive refusals. */
+  onAuthDead?: () => void;
 }
 
 export interface RoomStreamOptions {
@@ -273,6 +286,9 @@ export class RoomStream {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private helloed = false;
   private everHelloed = false;
+  /** Consecutive relay-confirmed 401/403 handshakes. Portal/HTML 401s
+   *  never count; a hello resets it. At 2, onAuthDead fires. */
+  private authFails = 0;
 
   constructor(private readonly opts: RoomStreamOptions) {
     this.backoffMs = opts.minBackoffMs ?? 1000;
@@ -292,6 +308,7 @@ export class RoomStream {
     if (!this.stopped) return;
     this.stopped = false;
     this.backoffMs = this.opts.minBackoffMs ?? 1000;
+    this.authFails = 0;
     void this.connectLoop();
   }
 
@@ -359,6 +376,7 @@ export class RoomStream {
       this.backoffMs = this.opts.minBackoffMs ?? 1000;
       this.helloed = true;
       this.everHelloed = true;
+      this.authFails = 0;
       let lastSeq = 0;
       try {
         const parsed = JSON.parse(dataText || '{}') as { lastSeq?: number };
@@ -417,6 +435,28 @@ export class RoomStream {
           this.stopped = true;
           this.opts.callbacks.onFull();
           return;
+        }
+        this.scheduleRetry();
+        return;
+      }
+      if (res.status === 401 || res.status === 403) {
+        // Only a refusal the RELAY actually sent counts: its error
+        // bodies are JSON objects (FastAPI `detail`, mock/self-host
+        // variants), while a captive portal intercepting everything
+        // with its own 401 serves an HTML login page. One confirmed
+        // refusal is still not enough — a second consecutive one
+        // (i.e. after a full backoff interval) fires onAuthDead, and
+        // the wifi-login case self-heals through the ordinary retry.
+        let relayShaped = false;
+        try {
+          const parsed = JSON.parse(await res.text()) as unknown;
+          relayShaped = !!parsed && typeof parsed === 'object';
+        } catch {
+          /* HTML / empty / opaque body — not the relay speaking */
+        }
+        if (relayShaped && ++this.authFails >= 2) {
+          this.opts.callbacks.onAuthDead?.();
+          if (this.stopped) return; // the callback ended the session
         }
         this.scheduleRetry();
         return;

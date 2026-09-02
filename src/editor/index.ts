@@ -60,7 +60,7 @@ import {
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { installExternalConsent } from './external-consent-ui.js';
 import { maybeSnapshotVersion } from './version-history.js';
-import { awaitWithSaveWatchdog } from './save-watchdog.js';
+import { awaitWithSaveWatchdog, warnIfSlow } from './save-watchdog.js';
 import { installExternalInsertHost } from './external-insert-host.js';
 import { installPluginRegistry } from './plugin-registry.js';
 import { createPluginApi } from './plugin-api.js';
@@ -247,7 +247,9 @@ import { showConfirm } from './confirm-dialog.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
 import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
-import { typeOverBoundaryPlugin } from './type-over-boundary.js';
+import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
+import { readerViewPlugin, applyReaderViewToTarget } from './reader-view.js';
+import { headingIdGuardPlugin } from './heading-id-guard.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
 import { customDashPlugin } from './custom-dash-plugin.js';
 import { autoCapitalizePlugin } from './auto-capitalize-plugin.js';
@@ -509,6 +511,7 @@ const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement
 const referenceBtn = document.getElementById('reference-btn') as HTMLButtonElement | null;
 const readModeBtn = document.getElementById('read-mode-btn') as HTMLButtonElement;
 const autoScrollBtn = document.getElementById('auto-scroll-btn') as HTMLButtonElement | null;
+const readerViewBtn = document.getElementById('reader-view-btn') as HTMLButtonElement | null;
 const navPaneToggleBtn = document.getElementById('nav-pane-toggle-btn') as HTMLButtonElement | null;
 const navPanePullTab = document.getElementById('nav-pane-pull-tab') as HTMLButtonElement | null;
 const insertImageBtn = document.getElementById('insert-image-btn') as HTMLButtonElement | null;
@@ -1108,6 +1111,7 @@ export function enableMultiDocMode(opts: {
   showInContext?: (req: ShowInContextRequest) => Promise<void> | void;
   onNewDocDefaultSlot?: () => Promise<void> | void;
   toggleReadMode?: () => void;
+  toggleReaderView?: () => void;
   toggleAutosave?: () => void;
   /** Zoom the focused pane's body by a percentage delta (per-pane zoom). */
   zoomFocusedBy?: (deltaPct: number) => void;
@@ -1178,6 +1182,7 @@ export function enableMultiDocMode(opts: {
   multiDocShowInContext = opts.showInContext ?? null;
   multiDocOnNewDocDefaultSlot = opts.onNewDocDefaultSlot ?? null;
   multiDocToggleReadMode = opts.toggleReadMode ?? null;
+  multiDocToggleReaderView = opts.toggleReaderView ?? null;
   multiDocToggleAutosave = opts.toggleAutosave ?? null;
   multiDocZoomBy = opts.zoomFocusedBy ?? null;
   multiDocZoomResetHook = opts.zoomFocusedReset ?? null;
@@ -1641,6 +1646,23 @@ const ribbonContext: RibbonContext = {
   },
   openWordCountDialog: () => {
     if (view) openWordCount(view);
+  },
+  toggleReaderView: () => toggleReaderViewCommand(),
+  openContainingFolder: () => {
+    const host = getElectronHost();
+    if (!host) {
+      showToast('Open Containing Folder requires the desktop edition.');
+      return;
+    }
+    // Focus-aware in both modes: activeFile() reads the focused pane's
+    // record in multi-doc, the module-level values in single-doc. The
+    // handle IS the absolute path on desktop.
+    const { handle } = activeFile();
+    if (typeof handle === 'string' && handle.length > 0) {
+      void host.showItemInFolder(handle);
+    } else {
+      showToast('This document hasn\u2019t been saved to a file yet.');
+    }
   },
   toggleReadMode: () => {
     if (multiDocActive && multiDocToggleReadMode) {
@@ -2153,6 +2175,9 @@ const ribbonContext: RibbonContext = {
       m.recoverPreviousVersionFlow(openRecovered, {
         docId: activeSavedDocId() ?? null,
         docTitle: activeFile().filename ?? 'Untitled',
+        // Focused doc in both modes (setActiveView tracks the pane) —
+        // powers the version rows' "N cards not in current doc" badge.
+        currentDoc: getActiveView()?.state.doc ?? null,
       }),
     );
   },
@@ -2682,16 +2707,13 @@ wordCountBtn.addEventListener('click', () => runRibbon('wordCountSelection'));
  *  tab. Called on boot and on every setting change. */
 function applyNavPaneVisible(visible: boolean): void {
   document.body.classList.toggle('pmd-nav-hidden', !visible);
-  if (navPaneToggleBtn) {
-    navPaneToggleBtn.setAttribute('aria-pressed', visible ? 'true' : 'false');
-  }
 }
-if (navPaneToggleBtn) {
-  navPaneToggleBtn.addEventListener('mousedown', (e) => e.preventDefault());
-  navPaneToggleBtn.addEventListener('click', () => {
-    if (multiDocActive && multiDocToggleAllNav) multiDocToggleAllNav();
-    else settings.set('navPaneVisible', !settings.get('navPaneVisible'));
-  });
+// The reading-view button took the nav toggle's permanent ribbon slot
+// (2026-08-31); Show/Hide Navigation Pane stays available as a
+// command (command bar, custom ribbon buttons, bindable hotkey).
+if (readerViewBtn) {
+  readerViewBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  readerViewBtn.addEventListener('click', () => runRibbon('toggleReaderView'));
 }
 if (navPanePullTab) {
   // Pull-tab is only ever shown when the nav pane is hidden;
@@ -4152,6 +4174,7 @@ if (timerToggleBtn) {
   button('reference-btn', 'openShortcutsReference');
   button('read-mode-btn', 'toggleReadMode');
   button('auto-scroll-btn', 'toggleAutoScroll');
+  button('reader-view-btn', 'toggleReaderView');
   button('nav-pane-toggle-btn', 'toggleNavPane');
   button('comments-toggle-btn', 'toggleCommentsVisible');
   button('add-comment-btn', 'addCommentToSelection');
@@ -4967,6 +4990,36 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
  * to have exactly one doc, so the `settings.readMode` setting
  * drives this one editor's read-mode flag.
  */
+/** Reading view is per-doc SESSION state (never a setting): module
+ *  flag in single-doc; the multi-pane shell keeps a per-record flag
+ *  and installs a focused-doc resolver for the ribbon button. */
+let readerViewOn = false;
+let multiDocToggleReaderView: (() => void) | null = null;
+let readerViewStateForActive: () => boolean = () => readerViewOn;
+
+export function setMultiDocToggleReaderView(fn: (() => void) | null): void {
+  multiDocToggleReaderView = fn;
+}
+
+export function setReaderViewStateResolver(resolver: () => boolean): void {
+  readerViewStateForActive = resolver;
+  refreshReaderViewBtn();
+}
+
+export function refreshReaderViewBtn(): void {
+  readerViewBtn?.classList.toggle('pmd-active', readerViewStateForActive());
+}
+
+function toggleReaderViewCommand(): void {
+  if (multiDocActive && multiDocToggleReaderView) {
+    multiDocToggleReaderView();
+  } else if (view) {
+    readerViewOn = !readerViewOn;
+    applyReaderViewToTarget(editorEl, view, readerViewOn);
+  }
+  refreshReaderViewBtn();
+}
+
 function applyReadMode(on: boolean): void {
   // Read mode collapses most of the document; capture what's at the top of
   // the viewport so we can pin it back afterward (§ scroll-anchor) — UNLESS
@@ -5365,18 +5418,24 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // Backspace / Delete / Enter when the cursor is in a tag.
     keymap({
       Backspace: (state, dispatch, view) =>
+        // First: a selection PM's own delete cannot fit (head-tail
+        // cross-container shape) gets the merge-up rebuild instead of
+        // an uncaught TransformError (field crash 2026-08-29).
+        crossContainerDeleteSelection(state, dispatch, view) ||
         backspaceAtTagStart(state, dispatch, view) ||
         backspaceAtFirstBodyStart(state, dispatch, view) ||
         keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
         // Last: never let baseKeymap's selectNodeBackward node-select a
-        // whole card / body at a card-adjacent boundary.
-        blockBackspaceNodeSelect(state, dispatch, view),
+        // whole card / body at a card-adjacent boundary. neverThrow: PM
+        // join shapes that cannot fit must no-op, not crash the key.
+        neverThrow(blockBackspaceNodeSelect)(state, dispatch, view),
       Delete: (state, dispatch, view) =>
+        crossContainerDeleteSelection(state, dispatch, view) ||
         deleteAtTagEnd(state, dispatch, view) ||
         deleteAtContainerEnd(state, dispatch, view) ||
         keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
         // Mirror of the Backspace guard: never forward-node-select a card/body.
-        blockDeleteNodeSelect(state, dispatch, view),
+        neverThrow(blockDeleteNodeSelect)(state, dispatch, view),
       Enter: (state, dispatch, view) =>
         // Live-view bottom edge first: inside the read-only mirror the
         // handlers below would claim the key and have their splits
@@ -5390,7 +5449,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
         enterAtTagEnd(state, dispatch, view) ||
         enterAtZoneStart(state, dispatch, view) ||
         enterMidTag(state, dispatch, view) ||
-        enterInHeading(state, dispatch, view),
+        neverThrow(enterInHeading)(state, dispatch, view),
     }),
     // Ribbon commands — structural style hotkeys (F4–F7 / Mod-F7)
     // plus inline mark toggles (Mod-B / Mod-I) and the color-aware
@@ -5424,7 +5483,13 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // Ctrl+Arrow / PageUp/Down bindings take precedence over
     // anything baseKeymap defines (and the browser default).
     wordSelectionKeymap,
-    keymap(baseKeymap),
+    // Every base command wrapped in neverThrow: ProseMirror's
+    // join/split machinery still has cross-container fit shapes it
+    // cannot close, and a TransformError escaping a keystroke ate the
+    // input and spammed the console (field log 2026-08-29; fuzzer
+    // reproduces cursor-join shapes). A logged no-op is the honest
+    // outcome — the edit had no legal result.
+    keymap(Object.fromEntries(Object.entries(baseKeymap).map(([k, c]) => [k, neverThrow(c)]))),
     readModePlugin,
     markUnreadPlugin,
     commentsPlugin,
@@ -5501,6 +5566,13 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // extend by the right unit.
     wordSelectionPlugin,
     typeOverBoundaryPlugin,
+    // Backstop for the heading-id uniqueness invariant: repairs
+    // fit-synthesized null ids and replace-split duplicate ids on the
+    // offending LOCAL transaction (see heading-id-guard.ts).
+    headingIdGuardPlugin,
+    // Reading view: per-doc paginated columns; carries the marker-only
+    // transaction lock + relayout hook (see reader-view.ts).
+    readerViewPlugin,
     highlightFrequencyPlugin,
     // Swallow the browser's `dragstart` on the editor's content-
     // editable so the user can't initiate a text-move drag from a
@@ -7640,18 +7712,23 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     // Before serializing, same as runSaveFlowInner — mid-write edits
     // must keep the doc dirty. Only consumed on the full-save path.
     const commitClean = captureActiveDocCleanToken();
-    const bytes = await serializeForSave(
-      choice.format,
-      {
-        includeComments: choice.includeComments,
-        includeAnalytics: choice.includeAnalytics,
-        includeUndertags: choice.includeUndertags,
-        readMode: choice.readMode,
-        includeNotes: choice.includeNotes,
-        includeAiThreads: choice.includeAiThreads,
-        markedCardsOnly: choice.markedCardsOnly,
-      },
-      forkDocId,
+    // Same pre-write watchdog as the in-place save: a hung serialize
+    // here suppressed even the OS file picker (field case 2026-08-29).
+    const bytes = await warnIfSlow(
+      serializeForSave(
+        choice.format,
+        {
+          includeComments: choice.includeComments,
+          includeAnalytics: choice.includeAnalytics,
+          includeUndertags: choice.includeUndertags,
+          readMode: choice.readMode,
+          includeNotes: choice.includeNotes,
+          includeAiThreads: choice.includeAiThreads,
+          markedCardsOnly: choice.markedCardsOnly,
+        },
+        forkDocId,
+      ),
+      choice.filename,
     );
     const result = await getHost().saveAs(choice.filename, bytes, {
       filters: saveFiltersForFormat(choice.format),
@@ -7996,22 +8073,27 @@ async function runSaveFlowInner(): Promise<boolean> {
     // Capture the clean token BEFORE serializing: edits that land from
     // here on are not in the written bytes and must keep the doc dirty.
     const commitClean = captureActiveDocCleanToken();
-    const bytes = await serializeForSave(
-      file.format,
-      {
-        // Silent saves preserve everything by default — the
-        // user-facing toggles only fire from the Save-As dialog.
-        includeComments: true,
-        includeAnalytics: true,
-        includeUndertags: true,
-        readMode: false,
-      },
-      docId,
+    // warnIfSlow: a pre-write hang (serialize) is invisible to the
+    // write watchdog below — surface it instead of ambering silently.
+    const bytes = await warnIfSlow(
+      serializeForSave(
+        file.format,
+        {
+          // Silent saves preserve everything by default — the
+          // user-facing toggles only fire from the Save-As dialog.
+          includeComments: true,
+          includeAnalytics: true,
+          includeUndertags: true,
+          readMode: false,
+        },
+        docId,
+      ),
+      file.filename,
     );
     // Version-history snapshot BEFORE the disk write is awaited: a save
     // whose destination folder hangs (cloud-sync placeholder) still
     // leaves a recoverable version in app data. Fire-and-forget.
-    maybeSnapshotVersion(docId, bytes);
+    maybeSnapshotVersion(docId, bytes, 'manual');
     try {
       // Watchdog: a write that HANGS (cloud-sync placeholder hydration
       // stalling — the silent-save field case) warns at 10s and offers
@@ -8357,7 +8439,7 @@ async function runAutosaveAttempt(): Promise<void> {
       activeSavedDocId(),
     );
     // Same pre-write snapshot as the manual save path (see there).
-    maybeSnapshotVersion(activeSavedDocId(), bytes);
+    maybeSnapshotVersion(activeSavedDocId(), bytes, 'auto');
     // Watchdog without the dialog — never a modal mid-typing; the
     // 10s warning chip still converts a hung autosave into feedback.
     await awaitWithSaveWatchdog(getHost().saveExisting(file.handle, bytes), file.filename, {

@@ -1052,6 +1052,36 @@ of document does too. Switching focus to another pane (in the
 multi-doc workspace) also stops it — it never keeps scrolling somewhere
 you're not looking.
 
+### Reading view
+
+Click the **book** in the ribbon (or bind a key to *Toggle Reading
+View*) to flip the document into Word-style full-screen pages: one to
+three columns sized from the pane's width, flipped a whole screen at a
+time. It's built for reading a speech without scrolling — every flip
+lands on a clean page boundary, and tags and cites are kept with the
+first line of their card so nothing strands at a column bottom.
+
+Flipping: **←/→**, **PgUp/PgDn**, **Space / Shift-Space**, one
+mouse-wheel click (or one trackpad swipe), or the click zones at the
+left and right edges. **Home/End** jump to the first and last page,
+and the indicator at the bottom shows where you are. The navigation
+pane stays available — clicking an entry lands on the page containing
+it.
+
+Like read mode, reading view locks editing; dropping a
+[reading marker](#read-mode) is the only edit allowed (drag-and-drop
+is disabled entirely here). The two combine well: read mode strips the
+document down to what's read aloud, and reading view paginates
+whatever is showing — together they're a teleprompter. Reading view is
+per-document in the [multi-doc workspace](#7-the-multi-doc-workspace),
+so stack your speech docs in one slot, flip each into reading view as
+you finish prepping it, and full-screen the slot when you stand up.
+
+The maximum-text-width accessibility cap bounds the column width, and
+page flips animate by default — **Reduce animations in reading view**
+(Settings → Accessibility) or the global reduce-motion preference
+makes them instant.
+
 ### Read-time estimates
 
 The status bar shows live read-time estimates — how long the visible
@@ -1902,6 +1932,12 @@ a normal, unencrypted file — CardMirror doesn't re-apply the password. (Only
 the modern Word encryption is supported; a file from very old Office versions
 will ask you to re-save it in a current Word first.)
 
+**Finding a file on disk.** The **Open Containing Folder** command
+(desktop; command bar — try "reveal in finder" — or a custom ribbon
+button / shortcut) opens your file manager with the current document
+highlighted in its folder. In the multi-doc workspace it acts on the
+focused document.
+
 ### Two formats
 
 - **`.cmir`** — CardMirror's native format. Lossless, and required for
@@ -2034,6 +2070,36 @@ stale draft never overwrites newer work silently. Recovering normally —
 your unsaved edits from the crashed session are newer than the file —
 never triggers the extra question.
 
+### Version history and Recover Previous Version
+
+**(Desktop only.)** With **Keep version history** on (Settings →
+Files), CardMirror quietly keeps periodic snapshots of your saved
+documents in its own app data — snapshots are written at save time
+*before* the file write happens, so even a save that hangs (a
+cloud-sync folder acting up) leaves a recoverable version. Standard
+keeps up to 30 days within modest disk caps; Extended keeps up to 90
+days with larger caps; Custom sets the caps yourself.
+
+**Recover Previous Version** (command bar, or the Collaboration group)
+browses them. Versions list newest first, and each row tells you
+what's inside: when it was saved and by what (a manual save or
+autosave), its word and card counts, what changed vs the previous
+version, and — most useful when something's gone missing — how many
+cards that version contains that your **current document doesn't**.
+Click a row to read the whole version in place: the preview renders
+with your real document styling and its own navigation pane, so you
+can check a version's actual content without opening anything.
+
+When you've found the right one, **Open a copy** opens it as a new,
+unsaved document — deliberately: a recovered copy can never silently
+overwrite the file (or a shared session) it came from. Copy across
+what you need.
+
+For documents in a [shared session](#9-collaboration), the same
+command opens the session's own change history instead — grouped by
+editing bursts, with per-editor detail rows — with the same
+click-to-preview and per-version digests.
+
 ### Damaged files
 
 Structural damage to a `.cmir` file is rare, and CardMirror defends
@@ -2145,6 +2211,11 @@ headers shown inside each tab.
   pinch or Ctrl + mouse-wheel, in the same 10% steps as the zoom buttons
   and Mod-= / Mod--. Off by default; enable it if you'd rather zoom by
   gesture.
+- **Drag to rearrange** — the drag gestures that move content:
+  navigation-pane row drags and the editor's pickup drag. On by
+  default. Turn it off on touch devices (iPads) where scrolling with a
+  finger keeps picking up headings; clicking still navigates, and pane
+  resizing is unaffected.
 - **Jump to doc top when read mode toggles** — when on, toggling read
   mode scrolls to the top and puts the cursor at the start.
 - **Read mode: preserve paragraph integrity** — when on, read mode keeps
@@ -2191,8 +2262,8 @@ headers shown inside each tab.
 
 ### Files
 
-Where new documents go, how the save presets name their files, and what
-file search scans.
+Where new documents go, how the save presets name their files, what
+file search scans, and how much version history to keep.
 
 **New documents**
 
@@ -2258,6 +2329,19 @@ file search scans.
 - **File search: auto-pin recent & frequent files** *(desktop)* — keeps
   recent and frequent files warm for instant dives; turn off to warm only
   files you pin by hand.
+
+**Version history**
+
+- **Keep version history** *(desktop)* — periodic snapshots of saved
+  documents, kept on this computer and browsable with
+  [Recover Previous Version](#version-history-and-recover-previous-version).
+  **Standard** (the default) keeps up to 30 days within modest disk
+  caps; **Extended** keeps up to 90 days with much larger caps and can
+  use several gigabytes; **Custom** sets the per-document and total
+  disk caps yourself (0 = uncapped). Off stops new snapshots; a
+  Clear button removes existing ones. Never a substitute for saving —
+  the crash journal guards unsaved work; this is a browsable trail
+  behind your saves.
 
 ### Appearance
 
@@ -2549,7 +2633,12 @@ remove one, **↺** to restore its default. A few window-level shortcuts
 - **Maximum text width** — cap how wide the document text column gets,
   so reading doesn't require sweeping your eyes across the whole
   screen. Off by default; when on, choose whether the column sits
-  centered or pinned to the left or right edge.
+  centered or pinned to the left or right edge. In
+  [reading view](#reading-view) it caps the column width instead.
+- **Reduce animations in reading view** — make
+  [reading view's](#reading-view) page flips instant instead of
+  animated. Off by default; the global reduce-motion preference also
+  flattens them.
 - **Screen reader support** *(desktop)* — let screen readers and other
   assistive technology read CardMirror. **Off by default**: a current Chromium
   bug crashes the window (white screen, lost work) while building the

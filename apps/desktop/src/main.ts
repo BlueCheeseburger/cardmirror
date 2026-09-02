@@ -684,6 +684,14 @@ ipcMain.handle('host:open-crash-dumps', async () => {
 /** Open the OS file manager at the crash-recovery journals folder
  *  ({userData}/journals). Ensures the folder exists first so the
  *  command works even before any journal has been written. */
+/** Reveal a document in the OS file manager (Finder / Explorer),
+ *  highlighted inside its containing folder. The handle IS the
+ *  absolute path on desktop (same contract as host:save-existing). */
+ipcMain.handle('host:show-item-in-folder', (_event, handle: unknown) => {
+  if (typeof handle !== 'string' || handle.length === 0) return;
+  shell.showItemInFolder(handle);
+});
+
 ipcMain.handle('host:open-journals-folder', async () => {
   await ensureJournalsDir();
   await shell.openPath(journalsDir());
@@ -1694,13 +1702,15 @@ function validHistoryPolicy(raw: unknown): HistoryPolicy | null {
 
 ipcMain.handle(
   'host:history-snapshot',
-  async (_event, docId: string, bytes: unknown, policy: unknown) => {
+  async (_event, docId: string, bytes: unknown, policy: unknown, trigger?: unknown) => {
     if (typeof docId !== 'string' || !docId) return { stored: false, reason: 'bad-doc-id' };
     const pol = validHistoryPolicy(policy);
     if (!pol) return { stored: false, reason: 'bad-doc-id' };
     const buf = bytesToBuffer(bytes);
     if (buf.length === 0) return { stored: false, reason: 'bad-doc-id' };
-    return storeHistorySnapshot(versionHistoryRoot(), docId, buf, pol);
+    const trig =
+      trigger === 'manual' || trigger === 'auto' || trigger === 'close' ? trigger : undefined;
+    return storeHistorySnapshot(versionHistoryRoot(), docId, buf, pol, trig);
   },
 );
 

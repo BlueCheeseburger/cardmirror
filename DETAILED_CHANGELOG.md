@@ -5,6 +5,297 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## 1.6.0 — 2026-09-01
+
+### Added: Reading view (Word-style paginated columns)
+
+The ribbon's permanent nav-pane toggle gave way to a book button that
+flips the focused document into full-screen column pages for reading a
+speech (the nav-pane toggle lives on as a command / custom ribbon
+button / bindable key). The live ProseMirror element becomes a
+height-capped CSS multicolumn strip whose extra columns overflow
+horizontally; the host clips to exactly one screenful and page flips
+are NATIVE scrolls of that clipped host, driven by a fast ~120 ms
+ease-out animator. The naive alternative — translating a
+`will-change: transform` strip — was tried and reverted: a
+pages-wide compositor layer blows Chromium's layer budget on real
+tournament files, silently demoting every flip to a main-thread paint
+of the whole strip (multi-second clicks that got *faster* when read
+mode shrank the doc — the tell that led to the rewrite). Native
+scrolling uses the browser's tiled raster path, which only ever paints
+near the viewport.
+
+Geometry is measured, not assumed: relayout derives the visible band
+from the scroller, reserves flip lanes so the edge buttons never sit
+on text, measures the strip's real offset and compensates, and
+calibrates scroll units (CSS zoom makes them engine-dependent).
+Repagination triggers cover the cases layout can't see coming: doc
+edits, resizes, and — via class observation — read-mode toggles (the
+rendered doc collapses with no doc change; without this, flipping into
+the phantom tail looked like a freeze), the send/receive pill tray
+(columns end above it), and three-pane doc swaps. Drop targets don't
+render on a reading-view host: its transaction lock (read mode's
+allowances minus the drag exception) would reject the drop anyway.
+
+Interaction follows Word: 1–3 columns from pane width (the
+maximum-text-width cap bounds column width), arrows / PgUp / PgDn /
+Space / Home / End, one mouse-wheel detent or trackpad swipe = one
+flip, click zones at each edge, a page indicator, nav-pane clicks land
+on the containing page. Combinable with read mode; per-document in the
+three-pane workspace (each doc in a slot keeps its own state).
+Animations flatten to instant flips under the new "Reduce animations
+in reading view" accessibility setting or the global reduce-motion
+preference.
+
+### Added: Recover Previous Version overhaul (preview, digests, save triggers)
+
+Version rows used to be a timestamp and a size; seeing what a version
+held meant opening it in a new window. Both dialogs — the solo
+document's snapshot list and the shared session's history — are now
+two-pane: the version list on the left, and a click-to-preview pane on
+the right that renders the version read-only with the real document
+stylesheet AND a real navigation pane (an actual NavigationPanel
+instance in a new read-only mode: level buttons, chevron and
+double-click expand/collapse, per-type styling — but it never starts
+drags or registers as a drop target, and the preview view drops any
+doc-changing transaction by construction).
+
+Rows carry digests: word and card counts, a delta line vs the previous
+version ("+3 cards · −1 card · +1,240 words"), and a badge counting
+cards that version holds which the current document lacks — computed
+from tag-id set differences, answering the actual recovery question
+("which version has the thing I lost?"). The solo dialog digests all
+its snapshots progressively in the background (one parse at a time,
+cached for the session — snapshot content is immutable); the session
+dialog computes digests lazily on preview clicks instead, because
+reconstructing a session version is a synchronous CRDT checkout that
+must never run as an eager background sweep.
+
+Snapshots now also record their save trigger — manual save vs
+autosave — encoded in the snapshot filename (no sidecar for pruning to
+manage; pre-existing snapshots still parse, they just show no chip).
+Dedup stays purely content-based, so identical content saved twice
+keeps the first snapshot's chip.
+
+### Added: Drag to rearrange setting (Settings → General)
+
+A teacher's iPad classroom kept triggering nav-pane drags when
+students scrolled with a finger. The new toggle (default on) gates the
+content-move drag surfaces — nav-pane row drags and the editor's
+pickup drag — in both the single-doc and three-pane editors. Clicking
+still navigates; pane resizing is unrelated and unaffected.
+
+### Added: Open Containing Folder command
+
+Reveals the focused document, highlighted, in Finder / File Explorer
+(`shell.showItemInFolder`; the desktop file handle is the absolute
+path). Unbound by default; command-bar aliases cover "reveal in
+finder" / "show in folder" / "file location", and it sits in the File
+group for custom ribbon buttons. Focus-aware in the three-pane
+workspace; toasts when the document has never been saved, and on the
+web edition.
+
+### Fixed: heading identities can no longer duplicate or vanish mid-edit
+
+1.5.1 healed duplicate heading ids arriving from docx round trips;
+this release closes the doors that could mint them (or their opposite,
+null ids) during native editing. A purpose-built fuzzer — real command
+chains against a live view, clipboard HTML round-trips included —
+found the actual culprits: pasting into the middle of a heading
+duplicates the heading node around the paste (ProseMirror's
+replace-split copies attrs, ids included), and several
+cross-container selection shapes crashed the keystroke instead of
+editing. Three layers shipped: a schema-level appendTransaction guard
+that re-mints duplicate/null ids in the same transaction that would
+create them (provenance-aware — the ORIGINAL heading keeps its id,
+the copy gets the new one, so nav selection and collab cursors stay
+put; sync-origin transactions are exempt, since remote peers heal
+their own), crash-free paste and deletion fallbacks that produce the
+sensible merge instead of throwing (deleting across a card boundary
+now carries the tail content up into the surviving container, exactly
+as if the intervening structure had been deleted first), and the
+fuzzer graduated into the suite as a regression fence.
+
+### Fixed: timer threshold flash lagged typing on big documents
+
+The flash animated `background-color` and `color` — paint properties
+that cannot run on the compositor (their keyframes resolve CSS
+variables, forcing per-frame style resolution too). For the whole
+flash window the main thread ran a style → paint → commit cycle at
+~60 fps, and on large documents those frames interleaved with
+ProseMirror's keystroke layout work: visible input hiccups every time
+the timer flashed. The pulse is now the opacity of a promoted overlay
+pseudo-element behind the time text — compositor-only after the first
+frame, so typing cost is untouched. Visual delta: the flash peak shows
+the normal text color on red rather than white on red.
+
+### Fixed: small UI polish (community PR)
+
+Elli (@0-elli): color-picker triggers now toggle their picker closed
+instead of reopening it; Doc / Card / Table menu chevrons align
+consistently; the settings theme buttons gained proper hover and
+selected contrast (selected text now uses the shared on-accent token,
+so it stays correct across themes); and switching settings tabs no
+longer shifts the tab bar's layout. Thanks, Elli!
+
+## 1.5.1 — 2026-08-29
+
+### Fixed: duplicate heading ids from docx round trips (nav misjumps)
+
+The importer adopted `pmd-heading-*` bookmark ids verbatim; Word
+enforces bookmark uniqueness but the tools around it (Verbatim OOXML
+ops, LibreOffice, Google Docs) duplicate a bookmarked heading
+paragraph happily — e.g. a heading line copied as a style template
+and retyped. Two headings then shared one id, and every id-keyed
+lookup (the nav pane's [data-id] jump, transclusion's extractSection,
+the docx anchor locator) resolves first-match-in-document-order, so
+clicking one heading navigated to the other. `dedupeHeadingIds` now
+walks in document order and re-mints later occurrences — first wins,
+which is exactly behavior-preserving for anything that resolved
+before. Runs in both fromDocx variants and in the `.cmir` load chain,
+so already-infected files heal on open, and re-export writes each
+bookmark once again instead of propagating the duplicate.
+
+### Fixed: long-session credential staleness killed collab sync
+
+The rooms client froze its bearer into a closure at construction,
+defeating the interface's own re-read-per-request entitlement seam.
+Entitlements expire after 72 hours and renew in the background; the
+fresh token landed in the store while a long-running session kept
+presenting the old one — every room call 401'd (updates, presence,
+stream) until an app restart, and even unlink + relink couldn't reach
+the frozen closure. Credentials now resolve per request, with the
+routing code paired to the credential source at call time; on desktop
+the renderer's cached baked defaults refresh on the main process's
+entitlement-changed broadcast. An entitlement that expires with no
+renewal also stops being presented rather than 401ing as a dead
+bearer.
+
+### Fixed: a dead gzip worker hung every .cmir save forever
+
+`.cmir` serialization compresses on fflate's worker thread; the
+fallback only caught a worker that failed to SPAWN. One that spawned
+and then died (a weeks-old renderer under memory pressure) never
+called back, stranding the save promise BEFORE the save watchdog
+(which wraps only the disk write) and before Save As even opened the
+OS file picker — while `.docx` saves, which zip synchronously, worked
+throughout. A 5-second timeout now falls back to synchronous
+compression (byte-identical output) and latches the session to the
+sync path — fflate spawns a fresh worker per call, so there is
+nothing to restart, and re-probing would tax every save with the
+timeout while the killing condition persists. The save flows'
+serialization phase is now also covered by a slow-save notice, so any
+future pre-write hang surfaces instead of ambering silently.
+
+### Fixed: editing over a head-tail cross-container selection threw
+
+A selection ending INSIDE a container's required head block (a card's
+tag, an analytic unit's head) is the one range shape ProseMirror's
+replace cannot fit — closing it must join the tail container's
+remainder onto the from-side container, which no depth combination
+allows. Typing or deleting over such a selection threw "Cannot join
+card onto analytic_unit" uncaught and did nothing. The rebuild now
+applies merge-up semantics, exactly as if the boundary had been
+deleted first: the head's remaining text flows up inline into the cut
+block and the tail container's remaining body blocks follow it into
+the from-side container. Engaged only after the direct replace
+throws; every legal selection (including body-to-body, which always
+merged correctly) keeps ProseMirror's existing behavior.
+
+## 1.5.0 — 2026-08-28
+
+### Added: rich payloads on the local insert bridge
+
+The `/insert` bridge accepts an optional `html` field alongside the
+(still required) plain `text`. When present and usable, the HTML is
+parsed through the editor schema's own parseDOM inside an inert
+detached document, with script/style/iframe/object/embed stripped
+before parsing — so CardMirror-native markup round-trips at full
+fidelity (cards, highlight colors, cite/underline marks), generic
+formatted HTML maps to the nearest schema constructs, and hostile
+markup is inert. Whole cards land at a valid outline slot via the
+same nearest-valid-position logic as internal pastes, never splitting
+the card under the cursor. Anything unusable (empty, over the 2 MiB
+cap, nothing parseable) falls back to the `text` path, which is also
+what older CardMirror versions do with the same payload — senders
+need no version detection. The insert consent prompt now says
+"insert content" rather than "insert text."
+
+### Fixed: the Windows .docx association, done right
+
+electron-builder's fileAssociations mechanism overwrites an
+extension's DEFAULT ProgId, and Explorer only shows the "New >" menu
+entry belonging to the current default — so installing (or updating)
+CardMirror removed Word's "New > Microsoft Word Document" right-click
+entry, and uninstalling left .docx pointing at a deleted class. The
+installer now registers .docx by hand: a properly-namespaced
+CardMirror.docx class listed under OpenWithProgids ONLY — CardMirror
+appears in "Open with" and default-apps UI while Word keeps its
+default, its New-menu entry, and double-click. A healing pass runs on
+every install/update and on uninstall: machines the old installers
+broke (default still reading our old "Word Document" class name) get
+Word.Document.12 restored when Word is present, or the dangling value
+deleted so Windows re-resolves. `.cmir` also gains its own ShellNew
+template ("New > CardMirror Document"). Verified in a real Windows
+VM, both healing branches. Thanks to
+[Q Cooper](https://github.com/mosuqc) for diagnosing the mechanism
+and sketching out the fix.
+
+### Fixed: genuinely empty files open as blank documents
+
+A zero-byte file — Explorer's "New > Microsoft Word Document"
+(Office's ShellNew template is literally 0 bytes by design), `touch`,
+some export tools — was refused with "This file is empty or hasn't
+finished downloading," a guard meant for cloud placeholders. The two
+cases are distinguishable on disk: a not-yet-downloaded placeholder
+stats at the file's REAL size while reading short (the Windows Cloud
+Files API requires the size in placeholder metadata; macOS dataless
+files keep true st_size — verified empirically against Dropbox and
+Google Drive), so stat size 0 means genuinely empty. The host flags
+such files at read time and every open path substitutes canonical
+blank-document bytes for the format, so the file mounts as a blank
+doc bound to its path — exactly Word's behavior — and saves write
+real content back to it. Short reads with a non-zero stat keep the
+placeholder message, and a 0-byte journal still reports corrupt.
+
+### Fixed: account seats release on unlink; web confirm-evict loop
+
+Disconnecting a Debate Decoded account only wiped local state; the
+server-side seat stayed occupied until another machine evicted it, so
+the seat-limit dialog kept naming machines the user had already
+unlinked. A new relay endpoint releases the caller's own seat, and
+both editions fire it best-effort on Disconnect — after the local
+wipe (so a quick re-link can't be clobbered), authenticated by the
+machine's own entitlement (desktop) or a purpose-scoped key proof
+(web); a bare routing code can never release a seat. Offline
+disconnects simply leave the seat held until an evict, the previous
+behavior. Separately, the web edition's seat-limit dialog retried
+with the confirmation flag unset, so "Link This Browser" consumed the
+fresh retry code, hit the limit again, and re-showed the same dialog
+forever; the confirmation now rides the retry (the desktop dialog was
+always correct).
+
+### Fixed: guest sessions end cleanly when the invite expires
+
+Room-data authentication runs before the room lookup server-side, so
+once a guest's invite pass (immutable, 7-day lifetime, not
+refreshable by guests) expires, the client only ever sees 401 — the
+"session ended" answers it treats as terminal are unreachable — and
+it retried forever, indistinguishable from being offline (observed as
+all-night presence/stream churn in relay logs). The stream now
+detects credential death conservatively: only a 401/403 whose body is
+the relay's JSON shape counts (a captive portal's HTML login page
+never does — school-wifi sign-in pages self-heal through ordinary
+retry), and only on the second consecutive refusal, a full backoff
+interval apart; being offline can't trigger it at all. Guest-pass
+sessions then end with a "Session invite expired" notice, keep the
+document as a local copy, and clear the persisted record so they
+can't auto-resume against a dead pass. Member sessions keep the
+notify-once-and-retry behavior, since an expired entitlement can
+quietly renew mid-session. Presence also posts only while the stream
+is connected — presence is delivered over the stream, so posting into
+a dead one was pure waste.
+
 ## 1.4.0 — 2026-08-25
 
 ### Added: version history for saved documents
@@ -5294,7 +5585,7 @@ single-pane module state that is stale garbage in the workspace.
   file minifies byte-identically to its pre-audit version (esbuild,
   comments stripped), an adversarial reviewer pass per shard restored
   over-trimmed load-bearing info (7 restorations, 17 drift fixes), and
-  typecheck + the full suite stay green. Excluded: `card-cutter-*`
+  typecheck + the full suite stay green. Excluded: experimental
   files, generated `icons.css`, CI-owned `pairing-build.ts`.
 
 - **Terminology: "shading" → "background color" in user-facing text**
@@ -5521,7 +5812,7 @@ single-pane module state that is stale garbage in the workspace.
   plain white (maintainer call: no strikethrough). Untouched by
   design: `setHighlightColor`/`setShadingColor` stay string-only (their
   only null-adjacent caller is the picker, and voice's `applyPen`
-  guards on `pen.color`); the card-cutter port already null-safes with
+  guards on `pen.color`); the experimental port already null-safes with
   `|| 'yellow'` (no changes near the live experiment); the status-bar
   Hl:/Sh: names read marks at the cursor, not the pen. Two null-pen
   regression tests added to ribbon-commands.test.ts.
@@ -5826,8 +6117,8 @@ acceptance).
   `setSpeechDocResolver`, `DEFAULT_FILE_OBJECT_KINDS`,
   `isBodyTextblock`/`isStructuralTextblock`, `findChildren`,
   `textEl`/`rootNamespaces`, `ensureId`, `voiceSessionInfo`). Deliberate
-  keepers: `cardCutterEngineLoaded` (the card-cutter experiment is live —
-  untouched by decision), and word-break.ts's five unit-boundary
+  keepers: one experimental integration hook (untouched by decision),
+  and word-break.ts's five unit-boundary
   functions, now under an explicit "spec reference implementations"
   banner — their doc comments claimed they served Ctrl+Arrow caret
   movement, but the live caret code walks `classifyChar` directly; the
@@ -7113,7 +7404,7 @@ acceptance).
   `pmd-mobile-layout-{editor,row,row-label}` classes that were never defined in
   `style.css`, so the `webOnly` `mobileLayout` radios rendered unstyled (no column
   layout, gap, or matching font). Repointed them at the shared `pmd-heading-mode-*`
-  classes used by the other radio editors (Heading Mode, the card-cutter radios) —
+  classes used by the other radio editors (Heading Mode among them) —
   the DOM is identical, so they now match exactly. The radio `groupName` keeps its
   own value (it's the input `name` attribute, not a CSS class).
 
