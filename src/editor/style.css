@@ -1387,7 +1387,6 @@ html:has(body.pmd-speech-banner-visible) {
 /* Shared scaffolding (accent fill (2-prop)).
    Diverge by pulling a selector out, not by re-copying. */
 #ribbon #timer-toggle-btn[aria-pressed="true"],
-.pmd-theme-editor-btn[aria-pressed='true'],
 .pmd-pane-focused .pmd-pane-chip,
 :is(#ribbon, body.pmd-timer-popout-page) .pmd-timer-start[aria-pressed="true"] {
   background: var(--pmd-c-accent);
@@ -3594,8 +3593,17 @@ body.pmd-override-shading [data-shading] {
   font-size: 0.85rem;
   cursor: pointer;
 }
+.pmd-theme-editor-btn:not([aria-pressed='true']):hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-theme-editor-btn[aria-pressed='true'] {
+  background: var(--pmd-c-accent);
+  color: var(--pmd-c-text-on-accent);
+}
+.pmd-theme-editor-btn[aria-pressed='true']:hover {
+  background: var(--pmd-c-accent-hover);
+}
 .pmd-theme-editor-btn:last-child { border-right: none; }
-.pmd-theme-editor-btn:hover { background: var(--pmd-c-hover); }
 
 
 /* Multi-slot color editor — highlight / shading display
@@ -4916,6 +4924,7 @@ body.pmd-nav-resize-active {
 .pmd-nav-level-btn-active,
 #read-mode-btn.pmd-active,
 #auto-scroll-btn.pmd-active,
+#reader-view-btn.pmd-active,
 .pmd-prompt-btn-primary,
 .pmd-clod-btn-primary,
 .pmd-recovery-sidebar-row-btn-open,
@@ -5590,7 +5599,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 
 #read-mode-btn.pmd-active:hover:not(:disabled),
-#auto-scroll-btn.pmd-active:hover:not(:disabled) {
+#auto-scroll-btn.pmd-active:hover:not(:disabled),
+#reader-view-btn.pmd-active:hover:not(:disabled) {
   background: var(--pmd-c-accent-hover);
 }
 
@@ -5752,9 +5762,9 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 /* Tab bar below the header. The bar wraps the tab nav and a
    left/right arrow on each side — the arrows are revealed by JS
-   only when the tab list overflows its container. Active tab is
-   indicated by a bottom border + heavier weight (border lives on
-   the bar so the active-tab border can overlay it). */
+   only when the tab list overflows its container. The active tab is
+   indicated by color + a bottom border (the border lives on the bar
+   so the active-tab border can overlay it). */
 .pmd-settings-tabs-bar {
   display: flex;
   flex: 0 0 auto;
@@ -5837,7 +5847,6 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 .pmd-settings-tab-active {
   color: var(--pmd-c-text-strong);
   border-bottom-color: var(--pmd-c-accent);
-  font-weight: 600;
 }
 
 .pmd-settings-list {
@@ -6963,28 +6972,34 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 #ribbon .ribbon-doc-menu-btn {
   height: 1.45rem;
   width: auto;
-  padding: 0 0.5rem;
+  /* Compact side padding leaves room for each label and chevron
+     without letting either intrude into the button's padding box. */
+  padding: 0 0.25rem;
   font-size: 0.78rem;
   line-height: 1;
+  justify-content: space-between;
+  gap: 0.12rem;
 }
 
-/* Doc / Card dropdown-arrow chevron — gray to match the color-panel
-   arrows. Only the A▴ / A▾ font-size increment / decrement buttons
-   keep black arrows (they're action buttons, not dropdown triggers).
-   Margin-left because the smaller font-size on the chevron span
-   would otherwise eat the visual space between "Doc" / "Card" and
-   the arrow. */
+/* Table's fixed two-track width is about 1.2px narrower than the
+   intrinsic label + icon + gap at the shared padding. Release that
+   final fraction so both visual insets remain equal. */
+#ribbon .ribbon-doc-menu-btn.ribbon-format-table-btn {
+  padding-inline: 0.2rem;
+}
+
+/* Doc / Card / Table dropdown-arrow chevron — gray to match the
+   color-panel arrows. The button owns the inter-item gap, so this icon
+   can occupy the same stable right-hand position for every label. */
 .ribbon-doc-menu-arrow {
   color: var(--pmd-c-text-secondary);
   font-size: 0.65rem;
-  margin-left: 0.35rem;
 }
-/* The modern chevron icon reads wider / heavier than the classic ▾
-   glyph (which has its own side-bearing), so the Table / Doc / Card
-   dropdowns feel cramped only in modern mode. Pull the arrow closer to
-   its label there to free up room at the button edges. */
+/* `.pmd-icon`'s normal -0.125em baseline correction has no effect when
+   the icon is a flex item. Reapply that optical offset in modern mode;
+   the classic ▾ is a text glyph with its own baseline and side-bearing. */
 :root[data-icons='modern'] .ribbon-doc-menu-arrow {
-  margin-left: 0.12rem;
+  transform: translateY(0.125em);
 }
 
 .pmd-doc-menu {
@@ -12696,13 +12711,35 @@ html.pmd-timer-right #timer-panel {
   content: "N: ";
 }
 
-/* Flash-red animation at the configured remaining thresholds. */
+/* Flash-red animation at the configured remaining thresholds.
+   COMPOSITOR-ONLY: the pulse animates the OPACITY of a promoted
+   overlay pseudo-element behind the text — never background/color on
+   the display itself. Paint-property keyframes (with var()s, no less)
+   run on the main thread at ~60fps for the whole flash window, and on
+   a big document those frames interleave with ProseMirror's keystroke
+   style/layout work — field report: typing lagged whenever the timer
+   flashed. Opacity on a will-change layer costs the main thread
+   nothing after the first frame. */
 @keyframes pmd-timer-flash-pulse {
-  0%, 100% { background: var(--pmd-c-bg); color: var(--pmd-c-text); }
-  50%      { background: var(--pmd-c-neg); color: white; }
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
 }
 .pmd-timer-display.pmd-timer-flash {
+  /* Own stacking context so the z-index:-1 overlay sits behind the
+     time text but above nothing outside the display. */
+  position: relative;
+  z-index: 0;
+}
+.pmd-timer-display.pmd-timer-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 2px;
+  background: var(--pmd-c-neg);
   animation: pmd-timer-flash-pulse 600ms ease-in-out infinite;
+  will-change: opacity;
+  pointer-events: none;
 }
 
 /* Ran-out state: steady alert red (the flash pulse's peak color)
@@ -15411,6 +15448,184 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   width: auto;
 }
 
+/* Solo version dialog overhaul: wide two-pane layout — version rows
+   with stats/delta/badge on the left, a read-only rendered preview on
+   the right (a real ProseMirror mount wearing .pmd-pane-editor so the
+   document stylesheet applies). */
+.pmd-recover-dialog-wide {
+  max-width: min(1100px, 94vw);
+  width: min(1100px, 94vw);
+  display: flex;
+  flex-direction: column;
+  height: min(760px, 90vh);
+}
+.pmd-recover-body-wide {
+  max-height: none;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pmd-recover-split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 0.75rem;
+}
+.pmd-recover-versions {
+  width: 300px;
+  flex: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-right: 0.25rem;
+}
+.pmd-recover-version-row {
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.pmd-recover-version-row:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-recover-version-row.pmd-recover-version-selected {
+  border-color: var(--pmd-c-accent);
+  background: var(--pmd-c-accent-soft, var(--pmd-c-hover));
+}
+.pmd-recover-version-top {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.pmd-recover-version-time {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--pmd-c-text);
+}
+.pmd-recover-trigger-chip {
+  font-size: 0.68rem;
+  line-height: 1.4;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 0.6rem;
+  padding: 0 0.4rem;
+  color: var(--pmd-c-text-secondary);
+}
+.pmd-recover-version-size {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--pmd-c-text-faint);
+}
+.pmd-recover-version-stats,
+.pmd-recover-version-delta {
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-secondary);
+}
+.pmd-recover-version-delta:empty,
+.pmd-recover-version-badge:empty {
+  display: none;
+}
+.pmd-recover-version-badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pmd-c-accent);
+}
+.pmd-recover-version-row .pmd-recover-open {
+  align-self: flex-start;
+  margin-top: 0.2rem;
+}
+.pmd-recover-preview-pane {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 6px;
+  background: var(--pmd-c-bg);
+}
+.pmd-recover-preview-wrap {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+/* Hosts a REAL NavigationPanel (readOnly mode) so the preview's nav
+   is the user's actual nav pane — level buttons, chevrons,
+   double-click collapse, per-type styling, all of it. Overrides scope
+   it to the dialog: fixed width (no resize handle, no --nav-width
+   coupling), no close button (there's nothing to close). */
+.pmd-recover-preview-nav {
+  width: 240px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--pmd-c-border-soft);
+}
+.pmd-recover-preview-nav .pmd-nav-panel {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  position: static;
+  display: flex;
+  flex-direction: column;
+}
+.pmd-recover-preview-nav .pmd-nav-close,
+.pmd-recover-preview-nav .pmd-nav-resize-handle {
+  display: none;
+}
+.pmd-recover-preview-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+.pmd-recover-preview-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--pmd-c-text-faint);
+  font-size: 0.85rem;
+}
+.pmd-recover-preview-editor {
+  /* Height comes from content (the pane scrolls); the class's usual
+     100% min-height is for real panes. */
+  min-height: 0;
+  height: auto;
+}
+.pmd-recover-preview-editor .ProseMirror {
+  padding: 1rem 1.25rem;
+  min-height: 0;
+}
+
+/* Session-history flavor of the two-pane dialog: group rows keep
+   their existing chrome, made preview-clickable; digest lines fill
+   lazily after a preview materializes that group's end state. */
+.pmd-recover-versions-session {
+  width: 360px;
+}
+.pmd-recover-group-head-clickable,
+.pmd-recover-row-clickable {
+  cursor: pointer;
+  border-radius: 4px;
+}
+.pmd-recover-group-head-clickable:hover,
+.pmd-recover-row-clickable:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-recover-group-head-clickable.pmd-recover-version-selected,
+.pmd-recover-row-clickable.pmd-recover-version-selected {
+  background: var(--pmd-c-accent-soft, var(--pmd-c-hover));
+  outline: 1px solid var(--pmd-c-accent);
+}
+.pmd-recover-group-digest {
+  margin-left: 1.4rem;
+}
+.pmd-recover-group-digest:empty {
+  display: none;
+}
+
 /* Session-preparation veil (collab-ui sessionPrepOverlay). */
 .pmd-session-prep {
   z-index: 1200; /* above dialogs — nothing is interactive during the freeze */
@@ -15657,4 +15872,100 @@ body.pmd-multi-doc #collab-chip {
 .pmd-notice-actions {
   display: flex;
   gap: 0.4rem;
+}
+
+/* ---- Reading view (paginated columns) ----
+ * The ProseMirror element becomes a height-capped multicolumn strip
+ * (columns overflow horizontally); the host clips and native
+ * scrollTo flips full pages. Everything is laid out up front —
+ * content-visibility forced ON inside the strip so column math is
+ * exact and flips never trigger layout (the no-hitch rule). */
+.pmd-reader-view {
+  /* The host IS the pager: a scroll container whose scrollbar is
+     hidden; flips are programmatic scrollTo (native tiled raster —
+     a translated will-change strip blew the compositing budget on
+     big docs and fell back to per-flip main-thread paint). */
+  overflow: hidden !important;
+  position: relative;
+}
+.pmd-reader-overlay-host {
+  position: relative;
+}
+:is(#editor, .pmd-pane-editor).pmd-reader-view .ProseMirror {
+  /* Exact page geometry, all JS-measured (reader-view.ts relayout):
+     the box is ONE page wide (the natural content box's width, which
+     already clears the nav pane via --pmd-reader-ml) and column-COUNT
+     divides it — never column-width, whose browser-chosen actual
+     widths would break the stride math. column-fill:auto + capped
+     height makes the extra columns overflow HORIZONTALLY past the
+     box; the host clips and translateX flips between them. */
+  column-count: var(--pmd-reader-cols, 1);
+  column-gap: var(--pmd-reader-gap, 48px);
+  column-fill: auto;
+  height: var(--pmd-reader-h, 100%);
+  width: var(--pmd-reader-page-w, 100%);
+  /* Block padding gives the columns breathing room top and bottom
+     (no clipped descenders at the fold); inline stays 0 so the
+     JS page geometry is exact. */
+  padding: 14px 0 18px;
+  box-sizing: border-box;
+  /* No transform, no will-change: flips are native scrolls of the
+     host — promoting a pages-wide strip to a compositor layer blew
+     the budget on big docs. */
+}
+.pmd-reader-view .ProseMirror.pmd-reader-no-anim,
+/* Exact column math needs everything rendered; and a tag/cite never
+ * strands at a column bottom away from its first body line. */
+.pmd-reader-view .ProseMirror .pmd-card,
+.pmd-reader-view .ProseMirror .pmd-hat,
+.pmd-reader-view .ProseMirror .pmd-block {
+  content-visibility: visible;
+  contain: none;
+}
+.pmd-reader-view .ProseMirror .pmd-tag,
+.pmd-reader-view .ProseMirror .pmd-cite-para {
+  break-after: avoid-column;
+}
+/* Opaque gutters: cover the strip's column bleed on both sides of
+ * the page window and host the flip buttons (a clip-path would clip
+ * the buttons too). */
+.pmd-reader-gutter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--pmd-c-bg);
+  z-index: 3;
+}
+/* Word-style edge flip zones + the page indicator. */
+.pmd-reader-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2.2rem;
+  border: none;
+  background: transparent;
+  color: var(--pmd-c-text-faint);
+  font-size: 1.6rem;
+  cursor: pointer;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+.pmd-reader-overlay-host:hover .pmd-reader-edge { opacity: 1; }
+.pmd-reader-edge:hover { background: var(--pmd-c-hover); color: var(--pmd-c-text-strong); }
+.pmd-reader-edge-left { left: 0; }
+.pmd-reader-edge-right { right: 0; }
+.pmd-reader-edge-hidden { visibility: hidden; }
+.pmd-reader-page-indicator {
+  position: absolute;
+  bottom: 0.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  color: var(--pmd-c-text-faint);
+  background: var(--pmd-c-bg);
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.6rem;
+  pointer-events: none;
+  z-index: 4;
 }

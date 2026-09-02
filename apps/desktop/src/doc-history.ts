@@ -39,15 +39,22 @@ export interface HistoryPolicy {
   maxTotalBytes: number;
 }
 
+/** What caused the save that produced a snapshot. Rides in the
+ *  filename (no sidecar to prune); absent on pre-trigger files. */
+export type SnapshotTrigger = 'manual' | 'auto' | 'close';
+const TRIGGERS: readonly SnapshotTrigger[] = ['manual', 'auto', 'close'];
+
 export interface HistoryEntry {
   /** Opaque id (the filename) — pass back to `readHistorySnapshot`. */
   id: string;
   /** Snapshot time (ms since epoch, from the filename). */
   ts: number;
   size: number;
+  /** Save trigger, when the filename carries one. */
+  trigger?: SnapshotTrigger;
 }
 
-const SNAPSHOT_RE = /^(\d{10,16})-([0-9a-f]{12})\.cmir$/;
+const SNAPSHOT_RE = /^(\d{10,16})-([0-9a-f]{12})(?:-(manual|auto|close))?\.cmir$/;
 const DOC_ID_SAFE_RE = /^[a-zA-Z0-9_-]+$/;
 
 /** docId → directory name. Ids are app-minted (alphanumeric + dashes),
@@ -58,12 +65,13 @@ function docDirFor(historyRoot: string, docId: string): string | null {
   return path.join(historyRoot, docId);
 }
 
-function parseEntry(name: string): { ts: number; hash: string } | null {
+function parseEntry(name: string): { ts: number; hash: string; trigger?: SnapshotTrigger } | null {
   const m = SNAPSHOT_RE.exec(name);
   if (!m) return null;
   const ts = Number(m[1]);
   if (!Number.isFinite(ts)) return null;
-  return { ts, hash: m[2]! };
+  const trigger = m[3] as SnapshotTrigger | undefined;
+  return trigger ? { ts, hash: m[2]!, trigger } : { ts, hash: m[2]! };
 }
 
 async function listDir(dir: string): Promise<HistoryEntry[]> {
@@ -79,7 +87,11 @@ async function listDir(dir: string): Promise<HistoryEntry[]> {
     if (!parsed) continue;
     try {
       const st = await fs.stat(path.join(dir, name));
-      if (st.isFile()) out.push({ id: name, ts: parsed.ts, size: st.size });
+      if (st.isFile()) {
+        const e: HistoryEntry = { id: name, ts: parsed.ts, size: st.size };
+        if (parsed.trigger) e.trigger = parsed.trigger;
+        out.push(e);
+      }
     } catch {
       /* raced a prune — skip */
     }
@@ -118,6 +130,7 @@ export function storeHistorySnapshot(
   docId: string,
   buf: Buffer,
   policy: HistoryPolicy,
+  trigger?: SnapshotTrigger,
 ): Promise<SnapshotResult> {
   const dir = docDirFor(historyRoot, docId);
   if (!dir) return Promise.resolve({ stored: false, reason: 'bad-doc-id' });
@@ -130,7 +143,8 @@ export function storeHistorySnapshot(
       if (parsed && parsed.hash === hash) return { stored: false, reason: 'unchanged' as const };
     }
     await fs.mkdir(dir, { recursive: true });
-    const name = `${Date.now()}-${hash}.cmir`;
+    const tag = trigger && TRIGGERS.includes(trigger) ? `-${trigger}` : '';
+    const name = `${Date.now()}-${hash}${tag}.cmir`;
     const finalPath = path.join(dir, name);
     const tmpPath = `${finalPath}.tmp`;
     await fs.writeFile(tmpPath, buf);

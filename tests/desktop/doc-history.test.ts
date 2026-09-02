@@ -103,6 +103,38 @@ describe('storeHistorySnapshot', () => {
   });
 });
 
+describe('save triggers', () => {
+  it('stores the trigger in the filename and lists it back', async () => {
+    await storeHistorySnapshot(root, 'doc1', bytes('a'), POLICY, 'manual');
+    await sleep(5);
+    await storeHistorySnapshot(root, 'doc1', bytes('b'), POLICY, 'auto');
+    const list = await listHistorySnapshots(root, 'doc1');
+    expect(list.map((e) => e.trigger)).toEqual(['auto', 'manual']);
+    // Ids stay readable snapshot ids.
+    expect((await readHistorySnapshot(root, 'doc1', list[0]!.id))!.equals(bytes('b'))).toBe(true);
+  });
+
+  it('triggerless snapshots (legacy files) list with no trigger', async () => {
+    await storeHistorySnapshot(root, 'doc1', bytes('a'), POLICY);
+    const list = await listHistorySnapshots(root, 'doc1');
+    expect(list[0]!.trigger).toBeUndefined();
+  });
+
+  it('dedup is content-based: same bytes with a different trigger still skip', async () => {
+    await storeHistorySnapshot(root, 'doc1', bytes('a'), POLICY, 'manual');
+    const again = await storeHistorySnapshot(root, 'doc1', bytes('a'), POLICY, 'auto');
+    expect(again.stored).toBe(false);
+    expect(again.reason).toBe('unchanged');
+  });
+
+  it('an unknown trigger value is dropped, not stored in the name', async () => {
+    await storeHistorySnapshot(root, 'doc1', bytes('a'), POLICY, 'hax' as never);
+    const list = await listHistorySnapshots(root, 'doc1');
+    expect(list.length).toBe(1);
+    expect(list[0]!.trigger).toBeUndefined();
+  });
+});
+
 describe('usage + clear', () => {
   it('reports totals and clears everything', async () => {
     await storeHistorySnapshot(root, 'doc1', bytes('a', 500), POLICY);

@@ -408,6 +408,12 @@ export interface Settings {
    *  Scroll only: the cursor, the nav selection, and the collapsed set are
    *  untouched. On by default. */
   navFollowCursor: boolean;
+  /** Master switch for drag-to-rearrange: nav-pane row drags and the
+   *  editor's pickup-modifier drag. OFF turns those gestures inert
+   *  (clicks still navigate; nothing moves) — for touch devices where
+   *  a scrolling finger reads as a drag (iPad classroom request,
+   *  2026-08-31). Sends/receives and pane resizing are unaffected. */
+  dragInteractions: boolean;
   /** When true (default), `New document` mounts the CardMirror
    *  welcome / onboarding doc. When false, it mounts a blank
    *  doc — a single empty paragraph. The starter is the same one
@@ -578,6 +584,10 @@ export interface Settings {
    *  reduced. Resolved into a `data-motion` attribute on the
    *  document root; CSS rules in `style.css` consume it. */
   reduceMotion: 'auto' | 'on' | 'off';
+  /** Skip the reading view's page-flip animation regardless of the
+   *  global reduceMotion resolution (mid-speech readers who want
+   *  instant flips without flattening every other animation). */
+  readerReduceMotion: boolean;
   /** Accessibility: remap the meaning-carrying hues (annotation
    *  accents, voice-mode dots, timer Aff/Neg, search matches, category
    *  chips) onto the Okabe-Ito colorblind-safe palette. Resolved into
@@ -1625,6 +1635,7 @@ const DEFAULTS: Settings = {
   navWidth: 300,
   navMaxLevel: 3,
   navFollowCursor: true,
+  dragInteractions: true,
   copyPreviousCiteNearestOnly: true,
   showOnboardingStarter: true,
   hasSeenUiTour: false,
@@ -1649,6 +1660,7 @@ const DEFAULTS: Settings = {
   updateChecksPausedUntil: 0,
   commentsColumnWidth: 320,
   reduceMotion: 'auto',
+  readerReduceMotion: false,
   colorVisionFriendly: false,
   annotationShapes: false,
   distinguishShading: false,
@@ -2109,6 +2121,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['nav depth', 'outline depth', 'navigation level', 'nav pane depth'],
   },
   {
+    key: 'dragInteractions',
+    label: 'Drag to rearrange',
+    description:
+      'Move cards and sections by dragging — rows in the navigation pane, and the pickup-modifier drag in the editor. Turn this off on touch devices where scrolling with a finger keeps picking things up instead; clicking still navigates, and moving content still works via cut/paste and Send.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    aliases: ['drag and drop', 'click drag', 'touch drag', 'reorder', 'drag to move'],
+  },
+  {
     key: 'navFollowCursor',
     label: 'Navigation pane follows the cursor',
     description:
@@ -2559,6 +2581,15 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'accessibility',
     mobile: true,
     aliases: ['animations', 'disable animations'],
+  },
+  {
+    key: 'readerReduceMotion',
+    label: 'Reduce animations in reading view',
+    description:
+      'Page flips in the reading view snap instantly instead of sliding. Use this if the flip animation ever stutters while you are reading a speech; the global Reduce motion setting also disables it.',
+    kind: 'toggle',
+    category: 'accessibility',
+    aliases: ['reading view animation', 'page flip animation', 'reader animations'],
   },
   {
     key: 'disableCursorBlink',
@@ -4180,6 +4211,8 @@ function sanitize(s: Settings): Settings {
     navWidth: clamp(s.navWidth, 150, 800),
     navMaxLevel: clamp(Math.round(s.navMaxLevel), 1, 4),
     navFollowCursor: s.navFollowCursor !== false,
+    dragInteractions: s.dragInteractions !== false,
+    readerReduceMotion: s.readerReduceMotion === true,
     // Default-on: preserve `false` only when explicitly set so the
     // onboarding shows up for new installs and survives upgrades
     // from before this setting existed.

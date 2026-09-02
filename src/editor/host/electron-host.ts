@@ -271,8 +271,11 @@ interface ElectronAPI {
     docId: string,
     bytes: Uint8Array,
     policy: { retentionDays: number; maxDocBytes: number; maxTotalBytes: number },
+    trigger?: 'manual' | 'auto' | 'close',
   ): Promise<{ stored: boolean; reason?: string }>;
-  historyList?(docId: string): Promise<Array<{ id: string; ts: number; size: number }>>;
+  historyList?(
+    docId: string,
+  ): Promise<Array<{ id: string; ts: number; size: number; trigger?: 'manual' | 'auto' | 'close' }>>;
   historyRead?(docId: string, id: string): Promise<Uint8Array | null>;
   historyUsage?(): Promise<{ totalBytes: number; snapshots: number }>;
   historyClear?(): Promise<void>;
@@ -461,6 +464,7 @@ interface ElectronAPI {
   openCrashDumpsFolder(): Promise<void>;
   /** Open the OS file manager at the crash-recovery journals folder. */
   openJournalsFolder(): Promise<void>;
+  showItemInFolder?(handle: string): Promise<void>;
   /** Renderer accessibility tree toggle. Default off — works around a known
    *  Chromium AX-serialization crash. Machine-local pref; changing it needs an
    *  app restart (`relaunchApp`). `isAccessibilitySupportActive` reports whether
@@ -898,10 +902,13 @@ export class ElectronHost implements Host {
     docId: string,
     bytes: Uint8Array,
     policy: { retentionDays: number; maxDocBytes: number; maxTotalBytes: number },
+    trigger?: 'manual' | 'auto' | 'close',
   ): Promise<{ stored: boolean; reason?: string }> {
-    return (await api().historySnapshot?.(docId, bytes, policy)) ?? { stored: false };
+    return (await api().historySnapshot?.(docId, bytes, policy, trigger)) ?? { stored: false };
   }
-  async historyList(docId: string): Promise<Array<{ id: string; ts: number; size: number }>> {
+  async historyList(
+    docId: string,
+  ): Promise<Array<{ id: string; ts: number; size: number; trigger?: 'manual' | 'auto' | 'close' }>> {
     return (await api().historyList?.(docId)) ?? [];
   }
   async historyRead(docId: string, id: string): Promise<Uint8Array | null> {
@@ -1297,6 +1304,11 @@ export class ElectronHost implements Host {
     await api().openCrashDumpsFolder();
   }
 
+  /** Reveal a saved document in Finder / Explorer. Optional-chained:
+   *  no-ops gracefully on an older preload without the surface. */
+  async showItemInFolder(handle: string): Promise<void> {
+    await api().showItemInFolder?.(handle);
+  }
   async openJournalsFolder(): Promise<void> {
     await api().openJournalsFolder();
   }

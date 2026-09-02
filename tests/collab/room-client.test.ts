@@ -183,6 +183,103 @@ describe('RoomStream', () => {
     }
   });
 
+  it('fires onAuthDead on the SECOND relay-confirmed 401, not the first', async () => {
+    const { roomId } = await client.createRoom();
+    let authDead = 0;
+    const stream = new RoomStream({
+      baseUrl: () => mock.url,
+      token: () => 'expired-guest-pass',
+      roomId,
+      minBackoffMs: 20,
+      maxBackoffMs: 40,
+      callbacks: {
+        onHello: () => {},
+        onUpdate: () => {},
+        onPresence: () => {},
+        onEnded: () => {},
+        onFull: () => {},
+        onAuthDead: () => {
+          authDead++;
+          stream.stop(); // the guest-session policy: terminal
+        },
+      },
+    });
+    stream.start();
+    await sleep(15); // one attempt so far
+    expect(authDead).toBe(0);
+    await sleep(120); // past the first backoff → second confirmed 401
+    expect(authDead).toBe(1);
+    expect(stream.running).toBe(false);
+  });
+
+  it('captive-portal 401s (HTML body) never count as auth-dead and heal on their own', async () => {
+    const { roomId } = await client.createRoom();
+    let authDead = 0;
+    const hellos: number[] = [];
+    mock.setPortalMode(true);
+    const stream = new RoomStream({
+      baseUrl: () => mock.url,
+      token: () => mock.token, // credential is fine — the portal is in the way
+      roomId,
+      minBackoffMs: 20,
+      maxBackoffMs: 40,
+      callbacks: {
+        onHello: (n) => hellos.push(n),
+        onUpdate: () => {},
+        onPresence: () => {},
+        onEnded: () => {},
+        onFull: () => {},
+        onAuthDead: () => authDead++,
+      },
+    });
+    try {
+      stream.start();
+      await sleep(150); // several portal 401s worth of retries
+      expect(authDead).toBe(0);
+      mock.setPortalMode(false); // user logged into the wifi
+      await sleep(150);
+      expect(hellos.length).toBeGreaterThanOrEqual(1); // ordinary retry healed it
+      expect(authDead).toBe(0);
+    } finally {
+      mock.setPortalMode(false);
+      stream.stop();
+    }
+  });
+
+  it('a hello resets the consecutive-401 count', async () => {
+    const { roomId } = await client.createRoom();
+    let authDead = 0;
+    let denyToken = false;
+    const stream = new RoomStream({
+      baseUrl: () => mock.url,
+      token: () => (denyToken ? 'wrong' : mock.token),
+      roomId,
+      minBackoffMs: 20,
+      maxBackoffMs: 40,
+      callbacks: {
+        onHello: () => {},
+        onUpdate: () => {},
+        onPresence: () => {},
+        onEnded: () => {},
+        onFull: () => {},
+        onAuthDead: () => authDead++,
+      },
+    });
+    stream.start();
+    await sleep(50); // helloed with the good token
+    denyToken = true;
+    stream.restart(); // drop → one 401
+    await sleep(30);
+    denyToken = false; // credential "renewed" before the second refusal
+    stream.restart();
+    await sleep(60); // hello again — count must be back to zero
+    denyToken = true;
+    stream.restart();
+    await sleep(30); // one 401 since the reset: still under threshold
+    expect(authDead).toBe(0);
+    stream.stop();
+  });
+
   it('reports room-full as terminal', async () => {
     const { roomId } = await client.createRoom();
     const holders: RoomStream[] = [];

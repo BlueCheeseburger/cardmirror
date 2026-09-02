@@ -4314,6 +4314,8 @@ export type RibbonCommandId =
   | 'standardizeShadingExcept'
   | 'toggleReadMode'
   | 'toggleAutoScroll'
+  | 'toggleReaderView'
+  | 'openContainingFolder'
   | 'toggleCommentsVisible'
   | 'addCommentToSelection'
   | 'addNoteToSelection'
@@ -4545,6 +4547,8 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'standardizeShadingExcept',
   'toggleReadMode',
   'toggleAutoScroll',
+  'toggleReaderView',
+  'openContainingFolder',
   'toggleCommentsVisible',
   'addCommentToSelection',
   'addNoteToSelection',
@@ -4728,6 +4732,8 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   standardizeShadingExcept: 'Standardize Background Color (with Exception)',
   toggleReadMode: 'Toggle Read Mode',
   toggleAutoScroll: 'Toggle Auto-Scroll (Paced to Reading Speed)',
+  toggleReaderView: 'Toggle Reading View',
+  openContainingFolder: 'Open Containing Folder',
   toggleCommentsVisible: 'Show / Hide Comments',
   addCommentToSelection: 'Add Comment to Selection',
   addNoteToSelection: 'Add Note to Selection',
@@ -4895,7 +4901,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   // show/hide ⇄ toggle visibility pairs
   toggleCommentsVisible: ['toggle comments', 'comments'],
   toggleNavPane: ['toggle navigation pane', 'toggle nav pane', 'sidebar', 'outline pane'],
-  toggleReadMode: ['show read mode', 'hide read mode', 'reader mode', 'reading mode'],
+  toggleReadMode: ['show read mode', 'hide read mode', 'invisibility mode'],
   toggleAutoScroll: [
     'auto scroll',
     'autoscroll',
@@ -4905,6 +4911,8 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
     'start scrolling',
     'stop scrolling',
   ],
+  toggleReaderView: ['reading view', 'reader view', 'paginated view', 'read view', 'book view', 'columns'],
+  openContainingFolder: ['reveal in finder', 'show in folder', 'show in explorer', 'reveal file', 'file location', 'containing folder'],
   toggleAutosave: ['enable autosave', 'disable autosave', 'turn on autosave', 'turn off autosave'],
   markActiveAsSpeech: ['toggle speech doc', 'set speech document'],
   // vague / Word-flavored labels
@@ -5078,6 +5086,8 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   standardizeShadingExcept: '',
   toggleReadMode: '',
   toggleAutoScroll: '',
+  toggleReaderView: '',
+  openContainingFolder: '',
   toggleCommentsVisible: '',
   addCommentToSelection: '',
   addNoteToSelection: 'Mod-Shift-n',
@@ -5318,6 +5328,8 @@ export interface RibbonContext {
   openWordCountDialog: () => void;
   toggleReadMode: () => void;
   toggleAutoScroll: () => void;
+  toggleReaderView: () => void;
+  openContainingFolder: () => void;
   openShortcutsReference: () => void;
   toggleCommentsVisible: () => void;
   addCommentToSelection: () => void;
@@ -5508,6 +5520,8 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   openWordCountDialog: () => {},
   toggleReadMode: () => {},
   toggleAutoScroll: () => {},
+  toggleReaderView: () => {},
+  openContainingFolder: () => {},
   openShortcutsReference: () => {},
   toggleCommentsVisible: () => {},
   addCommentToSelection: () => {},
@@ -5755,6 +5769,18 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.toggleAutoScroll();
+        return true;
+      };
+    case 'toggleReaderView':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.toggleReaderView();
+        return true;
+      };
+    case 'openContainingFolder':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.openContainingFolder();
         return true;
       };
     case 'toggleCommentsVisible':

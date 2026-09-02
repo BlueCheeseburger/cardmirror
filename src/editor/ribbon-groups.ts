@@ -18,7 +18,7 @@ export interface RibbonGroup {
 export const RIBBON_GROUPS: RibbonGroup[] = [
   {
     title: 'File',
-    commands: ['newDocument', 'openFile', 'save', 'saveAs', 'saveSendDoc', 'saveMarkedCards', 'toggleAutosave', 'goHome'],
+    commands: ['newDocument', 'openFile', 'save', 'saveAs', 'saveSendDoc', 'saveMarkedCards', 'toggleAutosave', 'openContainingFolder', 'goHome'],
   },
   {
     title: 'Speech',
@@ -173,6 +173,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
     commands: [
       'toggleReadMode',
       'toggleAutoScroll',
+      'toggleReaderView',
       'toggleNavPane',
       'toggleMorphMode',
       'wordCountSelection',
