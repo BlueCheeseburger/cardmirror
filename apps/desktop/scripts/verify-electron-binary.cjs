@@ -1,29 +1,38 @@
 #!/usr/bin/env node
 /**
  * Verify (and, if needed, repair) the `electron` npm package's binary
- * install — run as apps/desktop's own `postinstall`, after `npm install`
- * has already run every dependency's own install scripts (including
- * electron's, which downloads and unzips its ~500MB binary via
- * `@electron/get` + `extract-zip`/`yauzl`).
+ * install — run as apps/desktop's own `postinstall`.
  *
- * The bug this guards against: on some Node versions (observed on
- * Node v26.7.0, vs. this repo's pinned `.node-version` of 22 — see
- * also the root/apps/desktop `engines.node` fields and `.nvmrc`), the
- * `extract-zip`/`yauzl` chain bundled *inside* electron's own installer
- * races and silently truncates the extraction — it stops after writing
- * only a couple of files (never `node_modules/electron/path.txt`), and
- * still exits 0 as if it had succeeded. The zip itself is valid (it
- * extracts fine with the system `unzip`, or any other zip reader); the
- * bug is specifically in that old bundled extractor. Undetected, this
- * surfaces much later and far more confusingly, as an
- * `ENOENT ... electron/path.txt` error out of `npm run desktop:dev`.
+ * Two distinct problems this guards against:
  *
- * So: check whether the install actually landed. If not, look for the
- * zip electron's own installer already downloaded into `@electron/get`'s
- * cache (no need to re-download — the zip was never the problem) and
- * re-extract it ourselves with a native platform tool instead of the
- * buggy bundled one. If no cached zip can be found either, fail loudly
- * with an actionable message — never a silent success.
+ * 1. electron@42's package.json declares no `postinstall`/`install` script
+ *    at all — the download is lazy, triggered the first time something
+ *    does `require('electron')` (node_modules/electron/index.js calls its
+ *    own install.js on a cache miss). Nothing else in this project's
+ *    install chain happens to require('electron') before this script
+ *    runs, so on a fresh clone/CI runner the binary is simply never
+ *    fetched. This script triggers that download itself, rather than
+ *    only reactively checking for a binary nothing ever asked for.
+ *
+ * 2. Separately, on some Node versions (observed on Node v26.7.0, vs.
+ *    this repo's pinned `.node-version` of 22 — see also the
+ *    root/apps/desktop `engines.node` fields and `.nvmrc`), the
+ *    `extract-zip`/`yauzl` chain bundled *inside* that install.js races
+ *    and silently truncates the extraction — it stops after writing only
+ *    a couple of files (never `node_modules/electron/path.txt`), and
+ *    still exits 0 as if it had succeeded. The zip itself is valid (it
+ *    extracts fine with the system `unzip`, or any other zip reader);
+ *    the bug is specifically in that old bundled extractor. Undetected,
+ *    this surfaces much later and far more confusingly, as an
+ *    `ENOENT ... electron/path.txt` error out of `npm run desktop:dev`.
+ *
+ * So: trigger the download (problem 1), then check whether the install
+ * actually landed. If not, look for the zip that attempt already put into
+ * `@electron/get`'s cache (no need to re-download — the zip was never the
+ * problem) and re-extract it ourselves with a native platform tool
+ * instead of the buggy bundled one (problem 2). If no cached zip can be
+ * found either, fail loudly with an actionable message — never a silent
+ * success.
  */
 'use strict';
 
@@ -206,11 +215,36 @@ function main() {
 
   if (isProperlyInstalled()) return; // happy path — stay silent
 
+  // electron@42's package.json has no `postinstall` at all — the binary
+  // downloads lazily, the first time something does `require('electron')`
+  // (see node_modules/electron/index.js: `module.exports = getElectronPath()`,
+  // which calls install.js on a cache miss). Nothing in this project's own
+  // install/build chain happens to trigger that require before this script
+  // runs, so on a machine with no prior Electron cache (a fresh clone, a
+  // clean CI runner) nothing has attempted a download yet — there is no
+  // "cache to repair from" because nothing populated it. Kick off that
+  // download ourselves here, so this script is the one thing guaranteed to
+  // trigger it. Best-effort and swallowed: install.js's own extraction step
+  // has the separate silent-truncation bug this script otherwise guards
+  // against (see the repair path below), so a non-zero exit or a truncated
+  // extract here is expected and fine — what we actually need out of this
+  // call is the zip landing in @electron/get's cache, which happens before
+  // extraction is attempted.
+  console.warn(
+    '[verify-electron-binary] electron is not installed — running its ' +
+      'installer to trigger a download…',
+  );
+  spawnSync(process.execPath, [path.join(ELECTRON_DIR, 'install.js')], {
+    stdio: 'inherit',
+  });
+
+  if (isProperlyInstalled()) return; // install.js's own extraction worked after all
+
   console.warn(
     '[verify-electron-binary] electron/path.txt (or the executable it names) is ' +
-      'missing after install — the bundled extractor likely failed silently ' +
-      '(a known issue on some Node versions; this repo pins Node 22 — see ' +
-      '.node-version / .nvmrc). Attempting to repair from the download cache…',
+      'still missing — the bundled extractor likely failed silently (a known ' +
+      'issue on some Node versions; this repo pins Node 22 — see .node-version ' +
+      '/ .nvmrc). Attempting to repair from the download cache…',
   );
 
   let version, platform, arch;
