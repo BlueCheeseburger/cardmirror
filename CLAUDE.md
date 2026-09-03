@@ -56,3 +56,20 @@ API call (deliberately hits the `/releases` list endpoint, not
 every release is prerelease). Net: it's safe to ship an important fix
 as a normal `-bcb.N` prerelease tag — no need to find a way to mark a
 release "not prerelease" to make sure users get it.
+
+## When trimming release assets, the .zip + .yml files are NOT optional
+
+If a release's asset list gets trimmed down (e.g. "just mac and
+windows," dropping Linux/Lite) — DO NOT drop `latest-mac.yml`,
+`latest.yml`, the `.blockmap` files, or `CardMirror-*-universal-
+mac.zip`. They look like build cruft next to the `.dmg`/`.exe`
+installers, but electron-updater's auto-updater reads them directly:
+macOS checks `latest-mac.yml` and downloads the `.zip` (not the
+`.dmg`) to apply an update, Windows checks `latest.yml`. Drop them and
+in-app "Check for Updates" 404s for every existing install — this
+happened for real across v1.6.0-bcb.1 through .3 before being caught
+and fixed on .3 (confirmed live: `latest-mac.yml` and `latest.yml`
+both resolve on the v1.6.0-bcb.3 release). Only the Linux/Lite/
+AppImage/pacman assets are safe to drop when trimming to mac+Windows —
+the zip+yml trio for the platforms you ARE keeping is load-bearing,
+not cruft.
