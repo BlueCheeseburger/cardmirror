@@ -8,6 +8,14 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Three-pane workspace toggle in the ribbon**, independently
+>   per window — no more Settings-dialog-only switch. Opening a
+>   document also now offers "New window" alongside the three
+>   slots, so a full workspace never forces you to replace an
+>   open pane. (main)
+> - **CardMirror registers as a `.docx` handler** on macOS/Windows —
+>   it now shows up (and can be set as default) in "Open With" for
+>   Word documents, not just its own native `.cmir` format. (main)
 > - **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >   document at your actual reading pace, slowing for dense highlighted
 >   text and speeding through everything else.

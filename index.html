@@ -203,6 +203,20 @@
                   aria-pressed="true" title="Show / hide the navigation pane"
                   aria-label="Toggle nav pane"><span class="pmd-icon pmd-icon-nav-toggle" aria-hidden="true"></span></button>
         </div>
+        <!-- Three-pane workspace toggle. A single button (not a 2-row
+             panel) so it doesn't inherit the row/column overflow risk
+             the view-ops-panel bug had — .ribbon-button-stack's
+             grid-auto-flow: column just centers one button in the
+             2-row-tall slot. Flips `multiDocWorkspace`, which is
+             entirely per-window (see multi-pane-shell.ts / index.ts's
+             mode-switch handler): toggling here reloads only this
+             window into its new layout, leaving every other open
+             window untouched, Electron-only or web alike. -->
+        <div id="three-pane-toggle-stack" class="ribbon-button-stack">
+          <button id="three-pane-toggle-btn" type="button" aria-pressed="false"
+                  title="Three-pane workspace — this window only"
+                  aria-label="Toggle three-pane workspace"><span class="pmd-icon pmd-icon-three-pane" aria-hidden="true"></span></button>
+        </div>
         <div id="comments-ops-panel" class="ribbon-doc-ops-panel ribbon-doc-ops-panel-3col" role="group" aria-label="Comments">
           <!-- 2-row × 3-col grid (row-major):
                   comments-toggle    add-comment       add-note

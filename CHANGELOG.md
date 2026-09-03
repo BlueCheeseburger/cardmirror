@@ -5,6 +5,21 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Added
+
+- **Three-pane workspace can now be toggled from the ribbon**, not
+  just Settings, and the toggle is per window — switching one
+  window's layout never affects any other open window.
+- **Opening a document offers "New window" alongside the three
+  workspace slots** (desktop only), so opening a fourth doc while
+  all three slots are full doesn't force replacing one of them.
+- **CardMirror registers as a `.docx` handler** on macOS/Windows —
+  it now appears (and can be set as default) in "Open With" for
+  Word documents, matching its native `.docx` support. Previously
+  only `.cmir` was registered.
+
 ## 1.6.0-bcb.2 — 2026-09-02
 
 ### Fixed
