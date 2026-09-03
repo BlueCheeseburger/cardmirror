@@ -24,3 +24,35 @@ afterthought. Keep entries short (a sentence or two) and note whether the
 change has landed on `main` or is still out on an open PR.
 
 ## Update DETAILED_CHANGELOG.md and CHANGELOG.md with features made to this fork.
+
+## README's documented Windows installer filename is wrong — TODO fix
+
+`README.md`'s Install section documents the Windows download as
+`CardMirror Setup x.x.x.exe` (with spaces). The real shipped filename
+is hyphenated, `CardMirror-Setup-x.x.x.exe` — verified live against
+v1.6.0-bcb.2's actual release asset (the space-separated name 404s,
+the hyphenated one is a real download). `apps/desktop/package.json`
+sets no custom `win.artifactName`, so this comes from
+electron-builder's actual default template, not a repo-side override
+— don't "fix" it by adding an artifactName override; just correct the
+README wording to match what really ships. Next session touching
+README.md or a release: fix this.
+
+## The update checker's prerelease behavior is fine — don't "fix" it
+
+Every tag this fork cuts (`vX.Y.Z-bcb.N`) gets auto-flagged
+`prerelease: true` by `release.yml` (any tag with a `-` after the
+version). That's fine, not a bug: `apps/desktop`'s `electron-updater`
+(`AppUpdater.js`) defaults `allowPrerelease` to `true` whenever the
+*currently running* version itself has a prerelease component, which
+is always true here since every installed build is `X.Y.Z-bcb.N` — so
+the desktop auto-updater does pick up prerelease-marked releases, not
+just full releases. Its channel-matching logic treats `bcb` as a
+custom channel and correctly matches new `-bcb.N` tags against the
+currently-running `-bcb.N` version. `src/editor/web-download.ts:24-27`
+already documents the same fact for the web edition's download-button
+API call (deliberately hits the `/releases` list endpoint, not
+`/releases/latest`, because `/releases/latest` returns nothing when
+every release is prerelease). Net: it's safe to ship an important fix
+as a normal `-bcb.N` prerelease tag — no need to find a way to mark a
+release "not prerelease" to make sure users get it.
