@@ -2577,11 +2577,34 @@ class MultiPaneShell {
 
   /** Called from the ribbon's Open button via `enableMultiDocMode`'s
    *  `onFileOpen` callback. The shell shows the inline slot picker
-   *  before loading, since the user didn't pre-choose a destination. */
+   *  before loading, since the user didn't pre-choose a destination.
+   *  Offers "New window" alongside the three slots (Electron only —
+   *  gated by `canSpawnWindow` inside `promptForSlot`) so opening a
+   *  doc while the workspace is full doesn't force replacing one of
+   *  the three you already have open. */
   async onFileOpen(opened: OpenedFile): Promise<void> {
     if (await this.surfaceDuplicateIfOpen(opened)) return;
-    const choice = await this.promptForSlot(opened.name);
+    const choice = await this.promptForSlot(opened.name, { allowNewWindow: true });
     if (!choice) return;
+    if (choice === 'new-window') {
+      const format = formatFromFilename(opened.name) ?? 'docx';
+      try {
+        await getHost().spawnWindow({
+          filename: opened.name,
+          bytes: opened.bytes,
+          // spawnWindow is Electron-only (canSpawnWindow, checked before
+          // this option is even offered); a web FileSystemFileHandle
+          // can't cross to a new window.
+          handle: typeof opened.handle === 'string' ? opened.handle : null,
+          format,
+          uid: null,
+        });
+      } catch (err) {
+        console.error('Spawn window failed:', err);
+        showToast(`Failed to open in a new window: ${err instanceof Error ? err.message : err}`);
+      }
+      return;
+    }
     await this.loadOpenedIntoSlot(opened, choice);
   }
 
@@ -2638,9 +2661,17 @@ class MultiPaneShell {
     return true;
   }
 
-  /** Show the inline "Send to slot…" picker; resolves with the
-   *  chosen slot, or null if the user cancels. */
-  private promptForSlot(filename: string): Promise<SlotId | null> {
+  /** Show the inline "Send to slot…" picker; resolves with the chosen
+   *  slot, `'new-window'` if `opts.allowNewWindow` was set and the user
+   *  picked that instead, or null if the user cancels. The New Window
+   *  option only renders when the host can actually spawn one
+   *  (Electron) — callers that pass `allowNewWindow: true` on a host
+   *  that can't just get the plain slot picker, same as before. */
+  private promptForSlot(
+    filename: string,
+    opts: { allowNewWindow?: boolean } = {},
+  ): Promise<SlotId | 'new-window' | null> {
+    const offerNewWindow = !!opts.allowNewWindow && getHost().canSpawnWindow;
     return new Promise((resolve) => {
       // Register on the shared overlay stack so background number-key
       // handlers stand down — without this, picking a slot with '1'/'2'/
@@ -2663,7 +2694,7 @@ class MultiPaneShell {
       // listener always detaches — a mouse-completed pick must not
       // leave a stale handler that eats the next typed '1'/'2'/'3'.
       let removeKeys = (): void => {};
-      const finish = (choice: SlotId | null): void => {
+      const finish = (choice: SlotId | 'new-window' | null): void => {
         popOverlay(overlayToken);
         removeKeys();
         overlay.remove();
@@ -2692,6 +2723,15 @@ class MultiPaneShell {
         row.appendChild(btn);
       }
       dialog.appendChild(row);
+      if (offerNewWindow) {
+        const newWindowBtn = document.createElement('button');
+        newWindowBtn.type = 'button';
+        newWindowBtn.className = 'pmd-route-btn pmd-route-btn-new-window';
+        newWindowBtn.innerHTML =
+          '<strong>New window</strong><br><span>Open in a fresh three-pane workspace</span>';
+        newWindowBtn.addEventListener('click', () => finish('new-window'));
+        dialog.appendChild(newWindowBtn);
+      }
       const cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.className = 'pmd-route-cancel';
@@ -2719,6 +2759,10 @@ class MultiPaneShell {
         else if (e.key === '3') idx = 2;
         if (idx >= 0) {
           finish(SLOT_IDS[idx]!);
+          return true;
+        }
+        if (offerNewWindow && e.key === '4') {
+          finish('new-window');
           return true;
         }
         return false;
@@ -2864,7 +2908,9 @@ class MultiPaneShell {
    *  then replaces the blank content with the session's CRDT state. */
   async createSessionDocIntoSlot(): Promise<string | null> {
     const target = await this.promptForSlot('collaboration session');
-    if (!target) return null;
+    // 'new-window' is never actually returned here — this call doesn't
+    // pass `allowNewWindow` — but the shared return type carries it.
+    if (!target || target === 'new-window') return null;
     const doc = makeBlankDoc();
     const slot = this.slots[target];
     const record = buildDocRecord('Session', doc, slot, {
@@ -2920,7 +2966,9 @@ class MultiPaneShell {
     if (!speechName) return;
     const trimmed = speechName;
     const target = await this.promptForSlot(`Speech ${trimmed}`);
-    if (!target) return;
+    // 'new-window' is never actually returned here — this call doesn't
+    // pass `allowNewWindow` — but the shared return type carries it.
+    if (!target || target === 'new-window') return;
     const format = settings.get('defaultSpeechDocFormat');
     const filename = formatSpeechFilename(trimmed, format);
     const includePocket = settings.get('includeSpeechDocPocket');

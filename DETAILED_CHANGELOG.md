@@ -5,6 +5,86 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Added: Ribbon toggle + New-window option for the three-pane workspace
+
+`multiDocWorkspace` was only reachable from Settings, and opening a
+doc into a full three-pane workspace only offered replacing one of
+the three slots. Two independent additions, both leaning on
+machinery that already existed:
+
+- A new `#three-pane-toggle-btn` ribbon button (`index.html`,
+  wired in `index.ts` right after the other ribbon-element const
+  declarations) does nothing but
+  `settings.set('multiDocWorkspace', !settings.get('multiDocWorkspace'))`
+  — the entire confirm-dialog / per-doc journal / reload sequence
+  already lived in the `settings.subscribe` mode-switch handler
+  further down `index.ts` (added in 5300d22, "Allow independent
+  three-pane workspace windows"), so the button is a thin trigger,
+  not new state machinery. It doesn't live-resync its own
+  `aria-pressed` while the window is up: a confirmed toggle reloads
+  the page (next boot reads the new value); a cancelled one reverts
+  the setting back to what the button already shows. New icon
+  `pmd-icon-three-pane` in `icons.css` (three vertical panes,
+  matching the existing outline-SVG icon style). The button sits in
+  its own single-item `.ribbon-button-stack` rather than joining
+  `view-ops-panel` — deliberately NOT reusing the fixed 2-row
+  `.ribbon-doc-ops-panel` grid that `view-ops-panel` had just been
+  fixed for overflowing (see the 9679ef3 entry above): a single-item
+  container has no room to grow past capacity the same way. Needed
+  its own height override (`grid-template-rows: 1.45rem 1.45rem`) —
+  `.ribbon-button-stack`'s default `repeat(2, auto)` rows collapse
+  to roughly half-height with only one button and no second row of
+  content, reading visibly shorter than its 2-row-tall neighbors
+  otherwise (caught in a Playwright screenshot before shipping).
+- `MultiPaneShell.promptForSlot` (`multi-pane-shell.ts`) gained an
+  `opts: { allowNewWindow?: boolean }` parameter and widened its
+  return type to `SlotId | 'new-window' | null`. When the caller
+  opts in AND `getHost().canSpawnWindow` (Electron only — false on
+  the web edition, so the option silently doesn't render there), the
+  dialog gets a fourth, full-width button below the three slots
+  (`'4'` is its keyboard shortcut, alongside the existing `1`/`2`/`3`).
+  Only `onFileOpen` (the ribbon Open button's entry point) passes
+  `allowNewWindow: true` — the other two `promptForSlot` callers
+  (joining a collaboration session, creating a new speech document)
+  don't, so they keep the plain three-slot picker; both needed a
+  `target === 'new-window'` narrowing guard added after their
+  existing `!target` check purely to satisfy the widened return
+  type, since neither can actually receive that value. Picking
+  "New window" builds a `SpawnWindowPayload` from the `OpenedFile`
+  (mirroring the payload shape the single-doc "windows mode" spawn
+  path already builds at `index.ts`'s `routeOpenedFile`) and calls
+  `getHost().spawnWindow(...)` instead of loading into a slot in
+  this window — the freshly-spawned window boots into three-pane
+  mode on its own (spawning already matched the spawning window's
+  mode before this change) with the file in its first slot.
+
+Verified: `tsc --noEmit` clean; `settings-backup`,
+`multi-pane-blank-doc`, `transclusion-ribbon`, `ribbon-custom-buttons`,
+`ribbon-groups`, and `ribbon-commands` test suites all pass. The
+ribbon toggle's full click → confirm-dialog → reload → three-pane-
+active flow was exercised end-to-end in a real browser (Playwright);
+the New-window option's actual spawn (Electron-only) was verified by
+code review and by mirroring the existing single-doc spawn path
+exactly, not by an Electron build — no Electron runtime was available
+to click through it directly.
+
+### Added: `.docx` file association (`apps/desktop/package.json`)
+
+`fileAssociations` only declared `.cmir`, so macOS's "Choose an
+application to open the document" dialog (and Windows' equivalent)
+showed CardMirror greyed out / unselectable for `.docx` files —
+LaunchServices only considers apps eligible for a file type they
+declare in `CFBundleDocumentTypes`, generated from this config. Not
+a code-signing issue (a common guess): signing gates whether an app
+is allowed to *launch*, not whether Finder considers it a valid
+handler to offer. Added a second `fileAssociations` entry for
+`docx` (role: Editor, matching the existing `cmir` entry's shape) so
+CardMirror can now be selected — and set as default — for `.docx`,
+one of its two core supported formats. Takes effect on the next
+built release, not the current dev checkout.
+
 ## 1.6.0-bcb.2 — 2026-09-02
 
 ### Fixed: view-ops-panel ribbon buttons overflowing their 2-row height

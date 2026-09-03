@@ -81,6 +81,12 @@
         "name": "CardMirror Document",
         "description": "CardMirror native document",
         "role": "Editor"
+      },
+      {
+        "ext": "docx",
+        "name": "Word Document",
+        "description": "Microsoft Word document",
+        "role": "Editor"
       }
     ],
     "mac": {

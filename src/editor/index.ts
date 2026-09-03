@@ -513,6 +513,7 @@ const readModeBtn = document.getElementById('read-mode-btn') as HTMLButtonElemen
 const autoScrollBtn = document.getElementById('auto-scroll-btn') as HTMLButtonElement | null;
 const readerViewBtn = document.getElementById('reader-view-btn') as HTMLButtonElement | null;
 const navPaneToggleBtn = document.getElementById('nav-pane-toggle-btn') as HTMLButtonElement | null;
+const threePaneToggleBtn = document.getElementById('three-pane-toggle-btn') as HTMLButtonElement | null;
 const navPanePullTab = document.getElementById('nav-pane-pull-tab') as HTMLButtonElement | null;
 const insertImageBtn = document.getElementById('insert-image-btn') as HTMLButtonElement | null;
 // Speech-doc buttons. Visible in multi-doc and multi-window modes
@@ -524,6 +525,27 @@ const speechNewBtn = document.getElementById('speech-new-btn') as HTMLButtonElem
 const speechMarkBtn = document.getElementById('speech-mark-btn') as HTMLButtonElement | null;
 const speechSendCursorBtn = document.getElementById('speech-send-cursor-btn') as HTMLButtonElement | null;
 const speechSendEndBtn = document.getElementById('speech-send-end-btn') as HTMLButtonElement | null;
+
+// Three-pane workspace ribbon toggle. Deliberately NOT routed through
+// the ribbonContext/multi-pane command indirection every other button
+// here uses — flipping `multiDocWorkspace` is entirely handled by the
+// mode-switch `settings.subscribe` listener further down this file
+// (confirm dialog, journal open docs, reload), so a direct
+// settings.set() is the whole job. No live re-sync while this window
+// is up: a confirmed toggle reloads the page (next boot reads the new
+// value); a cancelled one reverts the setting back to what this button
+// already shows, so there's nothing to correct.
+if (threePaneToggleBtn) {
+  const on = settings.get('multiDocWorkspace');
+  threePaneToggleBtn.setAttribute('aria-pressed', String(on));
+  threePaneToggleBtn.title = on
+    ? 'Three-pane workspace is on for this window — click to switch to one document per window'
+    : 'Turn on three-pane workspace for this window';
+  threePaneToggleBtn.addEventListener('click', () => {
+    settings.set('multiDocWorkspace', !settings.get('multiDocWorkspace'));
+  });
+}
+
 /** Resolver for "what value should the read-mode ribbon button
  *  show as pressed?". Single-doc mode reads `settings.readMode`;
  *  multi-doc swaps in a resolver that asks the focused pane's

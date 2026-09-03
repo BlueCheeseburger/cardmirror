@@ -1805,6 +1805,23 @@ body:not(.pmd-inplace-save) #autosave-btn { display: none; }
   border-left: 1px solid var(--pmd-c-border-soft);
 }
 .ribbon-doc-ops-panel.hidden { display: none; }
+/* Three-pane workspace toggle — a single-button .ribbon-button-stack,
+   given the same left divider as its doc-ops-panel-family neighbors
+   (view-ops-panel / comments-ops-panel) so it reads as its own group
+   rather than fusing into the panel on either side. */
+#three-pane-toggle-stack {
+  /* Override .ribbon-button-stack's `repeat(2, auto)` rows — with
+     only ever one button and no second row of content, auto-sized
+     rows collapse to roughly half the height of the 2-row-tall
+     doc-ops-panel-family groups on either side. Fix the height to
+     match instead, same as those panels use, and center the single
+     button within it. */
+  grid-template-rows: 1.45rem 1.45rem;
+  align-content: center;
+  padding-left: 0.5rem;
+  margin-left: 0.25rem;
+  border-left: 1px solid var(--pmd-c-border-soft);
+}
 /* 2×2 variant (comments group: toggle / add on top, flashcard / AI
    below) — a second column, same two fixed rows so the panel keeps the
    ribbon's height. */
@@ -11771,6 +11788,23 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
 }
 .pmd-route-btn strong { font-size: 0.9rem; }
 .pmd-route-btn span { color: var(--pmd-c-text-muted); }
+
+/* "New window" option in the slot picker — a full-width row below the
+   three slot buttons, set off with a top divider since it's a different
+   kind of choice (spawn elsewhere) rather than a fourth slot. */
+.pmd-route-btn-new-window {
+  width: 100%;
+  border-top: 1px solid var(--pmd-c-border-soft);
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 0;
+  padding-top: 0.6rem;
+  background: transparent;
+}
+.pmd-route-btn-new-window:hover {
+  background: var(--pmd-c-hover);
+}
 
 .pmd-route-cancel {
   align-self: flex-end;
