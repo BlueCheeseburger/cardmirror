@@ -2063,6 +2063,32 @@ class MultiPaneShell {
     return true;
   }
 
+  /** The top-level Save action's multi-pane fan-out: save every DIRTY doc
+   *  across every pane's stack, not just the focused one. Unlike the quit
+   *  path (promptSaveAllForQuit), this doesn't ask save-or-discard per doc —
+   *  Save All just saves — and it keeps going past an individual doc's
+   *  declined/failed save (e.g. the user cancels a docx live-link-flatten
+   *  confirm) rather than treating it as a reason to stop, since this isn't
+   *  gating some other action the way the quit prompt is. Shows + focuses
+   *  each dirty doc in turn before saving it, same as the quit path, because
+   *  runSaveFlow operates on whichever doc is currently focused rather than
+   *  taking an explicit target — then restores whatever was focused before
+   *  the sweep, since that's an implementation detail, not a real focus
+   *  change from the user's perspective. */
+  async saveAllDirty(): Promise<void> {
+    const priorFocus = this.focusedSlot;
+    for (const id of SLOT_IDS) {
+      const slot = this.slots[id];
+      for (const rec of [...slot.stack]) {
+        if (!rec.dirty) continue;
+        slot.showRecord(rec);
+        this.focusSlot(slot);
+        await runSaveFlow();
+      }
+    }
+    if (priorFocus && !priorFocus.paneEl.hidden) this.focusSlot(priorFocus);
+  }
+
   /** Mark `slot` as focused. The shared ribbon / chrome will route
    *  through its visible doc's EditorView. In wide-scroll layout
    *  with three active panes, also scroll the focused pane into
@@ -3526,6 +3552,7 @@ export function mountMultiPaneShell(): void {
     createSessionDoc: () => shell!.createSessionDocIntoSlot(),
     setFilenameForUid: (uid, name) => shell!.setFilenameForUid(uid, name),
     promptSaveAllForQuit: () => shell!.promptSaveAllForQuit(),
+    saveAllDirty: () => shell!.saveAllDirty(),
     onRecoveredDoc: (entry) => shell!.onRecoveredDoc(entry),
     journalAll: () => shell!.journalAll(),
     reduceToFocusedForModeSwitch: () => shell!.reduceToFocusedForModeSwitch(),

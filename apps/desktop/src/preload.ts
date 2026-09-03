@@ -404,6 +404,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('host:external-open', listener);
   },
 
+  /** Ask main to broadcast a "save everything" request to every OTHER
+   *  open document window (never this one). */
+  saveAllOtherWindows: () => ipcRenderer.invoke('host:save-all-windows'),
+
+  /** Subscribe to another window's save-all broadcast. Returns an
+   *  unsubscribe. */
+  onSaveAllRequested(handler: () => void): () => void {
+    const listener = (): void => handler();
+    ipcRenderer.on('host:save-all', listener);
+    return () => ipcRenderer.removeListener('host:save-all', listener);
+  },
+
   /** Spawn a new BrowserWindow, optionally pre-loaded with a doc. */
   spawnWindow: (payload: {
     filename: string;

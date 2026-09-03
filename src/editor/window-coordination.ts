@@ -35,7 +35,8 @@ type CoordMsg =
   | { kind: 'coord:here'; from: string }
   | { kind: 'coord:bye'; from: string }
   | { kind: 'file-open:query'; from: string; nonce: string; handle: unknown }
-  | { kind: 'file-open:hit'; from: string; nonce: string };
+  | { kind: 'file-open:hit'; from: string; nonce: string }
+  | { kind: 'save-all'; from: string };
 
 function makeChannel(): BroadcastChannel | null {
   try {
@@ -85,18 +86,28 @@ async function respondToFileQuery(
   }
 }
 
+/** The persistent coordination channel installed by
+ *  `installWindowCoordination`, kept around so `broadcastSaveAllToOtherWindows`
+ *  can reuse it instead of opening a fresh one per call. Null until
+ *  installed (or on Electron / no-BroadcastChannel hosts, where it never
+ *  gets set — those callers no-op instead). */
+let persistentChannel: BroadcastChannel | null = null;
+
 /**
  * Install the persistent coordination channel (once, at boot, on the browser
  * host only — Electron coordinates through main). Tracks live peers and answers
  * same-file queries. `getOpenHandles` returns the file handles this window
- * currently has open (for the duplicate-open guard).
+ * currently has open (for the duplicate-open guard). `onSaveAllRequested`,
+ * if given, fires when another window broadcasts a save-all request.
  */
 export function installWindowCoordination(hooks: {
   getOpenHandles: () => unknown[];
+  onSaveAllRequested?: () => void;
 }): void {
   if (getElectronHost()) return; // desktop coordinates through main
   const ch = makeChannel();
   if (!ch) return;
+  persistentChannel = ch;
   ch.addEventListener('message', (e: MessageEvent<CoordMsg>) => {
     const msg = e.data;
     if (!msg || msg.from === WINDOW_ID) return; // ignore our own broadcasts
@@ -114,6 +125,9 @@ export function installWindowCoordination(hooks: {
       case 'file-open:query':
         void respondToFileQuery(ch, hooks.getOpenHandles, msg);
         break;
+      case 'save-all':
+        hooks.onSaveAllRequested?.();
+        break;
       default:
         break; // 'file-open:hit' is collected in its query
     }
@@ -128,6 +142,17 @@ export function installWindowCoordination(hooks: {
       /* ignore */
     }
   });
+}
+
+/** Broadcast a "save everything" request to every OTHER web-edition
+ *  window/tab (the Electron counterpart is `ElectronHost.saveAllOtherWindows`,
+ *  which goes through main instead). No-op on Electron, where the caller
+ *  should use that instead, and where BroadcastChannel is unavailable. */
+export function broadcastSaveAllToOtherWindows(): void {
+  if (getElectronHost()) return;
+  const ch = persistentChannel ?? makeChannel();
+  if (!ch) return;
+  ch.postMessage({ kind: 'save-all', from: WINDOW_ID } satisfies CoordMsg);
 }
 
 /**

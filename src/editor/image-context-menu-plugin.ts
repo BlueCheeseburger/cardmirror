@@ -19,6 +19,7 @@ import { settings } from './settings.js';
 import { runGenerateAltText, runGenerateTable } from './ai/image-ai.js';
 import { AI_DISABLED_MESSAGE, AI_NO_KEY_MESSAGE, activeApiKey } from './ai/llm.js';
 import { promptForText } from './text-prompt.js';
+import { positionFloatingMenu } from './context-menu-position.js';
 
 /** PM plugin. Installed via `buildEditorPlugins` so every editor
  *  view (single-doc + each multi-pane slot) picks it up. */
@@ -124,14 +125,7 @@ function showImageContextMenu(
   }
 
   document.body.appendChild(menu);
-
-  // Clamp into viewport — match nav-panel's positioning logic so the
-  // menu never spawns off-screen.
-  const rect = menu.getBoundingClientRect();
-  const maxX = window.innerWidth - rect.width - 4;
-  const maxY = window.innerHeight - rect.height - 4;
-  menu.style.left = `${Math.min(x, Math.max(0, maxX))}px`;
-  menu.style.top = `${Math.min(y, Math.max(0, maxY))}px`;
+  positionFloatingMenu(menu, x, y);
 
   openMenuEl = menu;
   // Defer registration so the contextmenu's own mousedown doesn't

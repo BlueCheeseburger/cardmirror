@@ -88,6 +88,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'toggleSubscript',
       'adjustFontSizeUp',
       'adjustFontSizeDown',
+      'toggleLink',
     ],
   },
   {

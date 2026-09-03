@@ -8,6 +8,12 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Ctrl/Cmd+K adds or removes a hyperlink** — select text and press
+>   it for a small dialog (display text + URL); press it again on an
+>   existing link to remove it. (main)
+> - **Save (ribbon button or Mod-S) now saves everything, not just the
+>   current pane** — every dirty document across every pane in the
+>   current window, and every other open window too. (main)
 > - **Three-pane workspace toggle in the ribbon**, independently
 >   per window — no more Settings-dialog-only switch. Opening a
 >   document also now offers "New window" alongside the three

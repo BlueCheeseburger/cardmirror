@@ -636,3 +636,128 @@ export function confirmDialog(
     armDialogFocus(dialog, 'alertdialog', opts?.title ?? message);
   });
 }
+
+export interface LinkPromptOptions {
+  /** Prefills the display-text field — typically the current selection. */
+  initialText: string;
+  /** Prefills the URL field — empty when creating a new link. */
+  initialHref: string;
+}
+
+/** Modal that asks for a hyperlink's display text + URL (the Ctrl/Cmd+K
+ *  "create a link" flow). Returns both trimmed, or `null` on cancel.
+ *  Visual shape mirrors `promptForText` — two stacked inputs instead of
+ *  one, same overlay/dialog/button vocabulary. */
+export function promptForLink(opts: LinkPromptOptions): Promise<{ text: string; href: string } | null> {
+  return new Promise((resolve) => {
+    const restoreFocus = captureFocusForDialog();
+    const overlayToken = pushOverlay();
+    const overlay = document.createElement('div');
+    overlay.className = 'pmd-route-overlay';
+    const dialog = document.createElement('div');
+    dialog.className = 'pmd-route-dialog pmd-text-prompt-dialog';
+
+    const header = document.createElement('div');
+    header.className = 'pmd-route-header';
+    header.textContent = 'Add a hyperlink';
+    dialog.appendChild(header);
+
+    const textLabel = document.createElement('div');
+    textLabel.className = 'pmd-text-prompt-detail';
+    textLabel.textContent = 'Text to display';
+    dialog.appendChild(textLabel);
+    const textInput = document.createElement('input');
+    textInput.type = 'text';
+    textInput.className = 'pmd-text-prompt-input';
+    textInput.value = opts.initialText;
+    textInput.autocomplete = 'off';
+    textInput.spellcheck = false;
+    dialog.appendChild(textInput);
+
+    const hrefLabel = document.createElement('div');
+    hrefLabel.className = 'pmd-text-prompt-detail';
+    hrefLabel.textContent = 'Link to';
+    dialog.appendChild(hrefLabel);
+    const hrefInput = document.createElement('input');
+    hrefInput.type = 'text';
+    hrefInput.className = 'pmd-text-prompt-input';
+    hrefInput.value = opts.initialHref;
+    hrefInput.placeholder = 'https://…';
+    hrefInput.autocomplete = 'off';
+    hrefInput.spellcheck = false;
+    dialog.appendChild(hrefInput);
+
+    const buttons = document.createElement('div');
+    buttons.className = 'pmd-text-prompt-buttons';
+
+    let settled = false;
+    let removeKeys = (): void => {};
+    const cleanup = (): void => {
+      if (settled) return;
+      settled = true;
+      popOverlay(overlayToken);
+      overlay.remove();
+      removeKeys();
+      restoreFocus();
+    };
+    const submit = (): void => {
+      const href = hrefInput.value.trim();
+      if (!href) {
+        hrefInput.focus();
+        return;
+      }
+      const text = textInput.value.trim() || href;
+      cleanup();
+      resolve({ text, href });
+    };
+
+    const linkCancelBtn = document.createElement('button');
+    linkCancelBtn.type = 'button';
+    linkCancelBtn.className = 'pmd-route-cancel';
+    linkCancelBtn.textContent = 'Cancel';
+    linkCancelBtn.addEventListener('click', () => {
+      cleanup();
+      resolve(null);
+    });
+    buttons.appendChild(linkCancelBtn);
+
+    const linkOkBtn = document.createElement('button');
+    linkOkBtn.type = 'button';
+    linkOkBtn.className = 'pmd-text-prompt-ok';
+    linkOkBtn.textContent = 'Add Link';
+    linkOkBtn.addEventListener('click', submit);
+    buttons.appendChild(linkOkBtn);
+
+    dialog.appendChild(buttons);
+    overlay.appendChild(dialog);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        cleanup();
+        resolve(null);
+      }
+    });
+
+    removeKeys = installModalKeys(dialog, overlayToken, (e) => {
+      if (e.key === 'Escape') {
+        cleanup();
+        resolve(null);
+        return true;
+      }
+      if (e.key === 'Enter') {
+        submit();
+        return true;
+      }
+      return false;
+    });
+
+    document.body.appendChild(overlay);
+    armDialogFocus(dialog, 'dialog', 'Add a hyperlink');
+    setTimeout(() => {
+      // Focus the URL field, not the text field — the text is already
+      // filled in from the selection in the common case, so the next
+      // thing the user actually needs to type is the URL.
+      hrefInput.focus();
+      hrefInput.select();
+    }, 0);
+  });
+}
