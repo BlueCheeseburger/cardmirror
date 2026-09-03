@@ -5,7 +5,7 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 1.6.0-bcb.3 — 2026-09-03
 
 ### Added: Ribbon toggle + New-window option for the three-pane workspace
 
