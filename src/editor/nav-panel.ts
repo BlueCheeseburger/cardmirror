@@ -15,6 +15,7 @@ import { type Node as PMNode, DOMSerializer } from 'prosemirror-model';
 import { NodeSelection, TextSelection } from 'prosemirror-state';
 import { type Mappable } from 'prosemirror-transform';
 import { settings, SETTINGS_DEFAULTS } from './settings.js';
+import { positionFloatingMenu } from './context-menu-position.js';
 import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
 import { showToast } from './toast.js';
 import { setManualShadowSelection } from './similar-selection-plugin.js';
@@ -2199,13 +2200,7 @@ export class NavigationPanel {
     }
 
     document.body.appendChild(menu);
-
-    // Position the menu, clamping to viewport.
-    const rect = menu.getBoundingClientRect();
-    const maxX = window.innerWidth - rect.width - 4;
-    const maxY = window.innerHeight - rect.height - 4;
-    menu.style.left = `${Math.min(x, Math.max(0, maxX))}px`;
-    menu.style.top = `${Math.min(y, Math.max(0, maxY))}px`;
+    positionFloatingMenu(menu, x, y);
 
     openContextMenuEl = menu;
     registerOpenContextMenu(closeAnyOpenContextMenu);

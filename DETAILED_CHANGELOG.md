@@ -5,6 +5,84 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Added: Ctrl/Cmd+K hyperlink toggle (`link-context-menu-plugin.ts`, `ribbon-commands.ts`, `text-prompt.ts`)
+
+New `toggleLink` ribbon command, default-bound to `Mod-k`. Three
+cases:
+
+- Collapsed cursor inside an existing link → removes just that
+  link's contiguous run, found via `findLinkRunAtPos` — extracted
+  from `findLinkAt` (the right-click handler's own lookup) by
+  splitting out the coords→position resolution from the
+  position→link-run walk, so both share the walk-outward logic
+  instead of duplicating it.
+- Non-empty selection touching a link anywhere in range → removes
+  the link mark from the selection (`nodesBetween` scan + one
+  `removeMark`, matching `removeHyperlinks`'s own detection, just
+  always scoped to the selection here rather than the whole
+  document).
+- Non-empty selection with no link → `promptForLink` (new dialog in
+  `text-prompt.ts`, mirroring `promptForText`'s construction with a
+  second input) asks for display text (prefilled from the selection)
+  and a URL, then applies. Leaving the text field unedited adds the
+  link mark over the existing selection (preserves other formatting);
+  changing it replaces the selected text with fresh link-marked text.
+
+Caught and fixed two real bugs via testing in an actual Electron
+build (Playwright connected over CDP to a real `electron .` process
+under Xvfb — no way to reach this any other way, since the shortcut
+only matters with real click/select/keypress sequences a browser
+harness can't approximate):
+
+1. **Runtime crash on boot**: `toggleLink` was added to
+   `RIBBON_COMMAND_IDS` but not to `ribbon-groups.ts`'s
+   `RIBBON_GROUPS`, tripping a startup consistency assertion between
+   the two lists (`ribbon-groups.test.ts` covers this too, but only
+   catches command IDs added before the test runs — added `toggleLink`
+   to the "Inline formatting" group.
+2. **Silent space-eating**: a double-click word-select in a real
+   browser sometimes grabs a trailing space along with the word. The
+   dialog's returned text is always `.trim()`ed, so comparing it
+   against the raw (possibly space-carrying) selection to decide
+   "did the user change the text" false-positived on an untouched
+   selection, taking the destructive replace-text branch and
+   silently dropping the space from the document. Fixed by trimming
+   whitespace out of the actual link range up front (`linkFrom` /
+   `linkTo`, adjusted by the trimmed amount on each end) rather than
+   just the comparison, so a linked run never includes incidental
+   surrounding whitespace either way.
+
+Verified live: created a link on a double-click-selected word
+(space before the next word confirmed intact both in the rendered
+DOM text and via `.trim()`-independent inspection of the `<a>`
+element's own text content), then removed it via a collapsed cursor
+— `tsc --noEmit` clean throughout, plus the existing
+`clipboard-link-preservation`, `ribbon-groups`, and `ribbon-commands`
+suites.
+
+### Fixed: floating context menus rendering behind the status bar (`context-menu-position.ts`)
+
+`link-context-menu-plugin.ts`, `image-context-menu-plugin.ts`,
+`nav-panel.ts`, `text-context-menu-plugin.ts`, and
+`viewport-spellcheck.ts` each carried their own copy of the same
+positioning clamp: `Math.min(y, window.innerHeight - rect.height - 4)`.
+That only prevents the menu from starting past the *browser*
+viewport's bottom edge — it has no idea `#status-bar` is a
+fixed-position footer occupying the last ~24px of that same
+viewport, so a menu opened near the bottom of the window rendered
+with its last row or two underneath the bar (user screenshot: the
+link menu's "Remove Link" item partly hidden). New shared
+`positionFloatingMenu(menu, x, y)` fixes this two ways: subtracts
+`#status-bar`'s real measured height from the usable viewport height
+before clamping, and — the part the raw clamp never did — flips the
+menu to open ABOVE the click point when it wouldn't fit below,
+instead of sliding it up while still anchored underneath the cursor.
+Applied to all five call sites (same one-line swap each: append to
+DOM, call the helper, done) rather than fixing only the reported
+one, since all five shared the identical bug.
+
 ## 1.6.0-bcb.3 — 2026-09-03
 
 ### Added: Ribbon toggle + New-window option for the three-pane workspace
@@ -64,11 +142,89 @@ Verified: `tsc --noEmit` clean; `settings-backup`,
 `multi-pane-blank-doc`, `transclusion-ribbon`, `ribbon-custom-buttons`,
 `ribbon-groups`, and `ribbon-commands` test suites all pass. The
 ribbon toggle's full click → confirm-dialog → reload → three-pane-
-active flow was exercised end-to-end in a real browser (Playwright);
-the New-window option's actual spawn (Electron-only) was verified by
-code review and by mirroring the existing single-doc spawn path
-exactly, not by an Electron build — no Electron runtime was available
-to click through it directly.
+active flow was exercised end-to-end in a real browser (Playwright)
+at ship time. The New-window option's actual spawn was NOT click-
+tested at ship time (no Electron runtime was available in that
+session) — verified after the fact instead, in the same real-Electron
+session that verified Save Everywhere below: opening a 4th doc into a
+full three-pane window, picking "New window," and confirming a real
+second `BrowserWindow` opened with the file mounted in its slot 1
+(after one extra "which slot" prompt in the new, empty workspace —
+`routeInitialDocIntoWorkspace`'s existing spawned-window boot path
+always shows the slot picker rather than silently mounting into slot
+1, a pre-existing behavior from the OS-cold-launch case this reuses,
+not something this feature changed).
+
+### Added: Save saves everywhere — every pane, every window (`index.ts`, `multi-pane-shell.ts`, `window-coordination.ts`, `apps/desktop/src/{main,preload}.ts`, `src/editor/host/electron-host.ts`)
+
+Ctrl+S / the ribbon Save button previously saved only the FOCUSED
+document — not even the other panes in the same three-pane window,
+confirmed by reading `runSaveFlowInner`'s `activeFile()`, which
+resolves to `multiDocGetFocusedFile()` in multi-doc mode. User asked
+for Save to reach every open document everywhere, after being shown
+the tradeoffs (per-doc confirmation dialogs stacking across windows,
+breaking this app's otherwise-consistent per-window-independence
+model, silently saving a doc left dirty elsewhere on purpose) and
+choosing "everywhere" anyway.
+
+Two layers:
+
+- **This window's fan-out** (`MultiPaneShell.saveAllDirty`,
+  `multi-pane-shell.ts`): iterates every slot's stack, and for each
+  dirty record, shows + focuses it then calls the existing
+  `runSaveFlow()` — the same show-then-focus-then-save shape
+  `promptSaveDirtyForQuit` (the quit path) already used, reused here
+  because `runSaveFlow` has no other way to target a specific
+  background doc; it only ever operates on whichever doc is
+  currently focused. Unlike the quit path, this doesn't ask
+  save-or-discard per doc and doesn't abort the sweep if one doc's
+  save is declined or fails (e.g. a docx live-link-flatten confirm) —
+  it's a bulk save, not a gate on some other action. Single-doc mode
+  needs no fan-out: there's only ever the one doc, so `saveAllInThisWindow`
+  (`index.ts`) just calls `runSaveFlow` directly there.
+- **Cross-window broadcast**: two parallel transports, since Electron
+  and the web edition coordinate windows completely differently
+  already (`window-coordination.ts`'s own docstring: "the browser-
+  edition counterpart to the Electron main process, which the desktop
+  build uses as its coordination hub").
+  - Electron: new `ElectronHost.saveAllOtherWindows()` /
+    `onSaveAllRequested()`, backed by a new `host:save-all-windows`
+    IPC handler in `main.ts` that iterates `BrowserWindow.getAllWindows()`
+    and sends `host:save-all` to every window except the sender and the
+    timer pop-out — same `for (const w of getAllWindows())
+    w.webContents.send(...)` shape `broadcastSpeechState` and friends
+    already use elsewhere in `main.ts`, not a new pattern.
+  - Web / installed PWA: new `'save-all'` message kind on the existing
+    `pmd-window-coord` `BroadcastChannel`, plus an `onSaveAllRequested`
+    hook added to `installWindowCoordination`'s existing options
+    object and a `broadcastSaveAllToOtherWindows` export reusing the
+    persistent channel `installWindowCoordination` already opens.
+  - Both are one-hop and fire-and-forget: the window the user actually
+    pressed Save in is the only one that broadcasts; a window that
+    receives the request calls its own local `saveAllInThisWindow` and
+    does NOT re-broadcast, and the initiator never learns whether the
+    other windows' saves succeeded (same as not knowing when a
+    background autosave elsewhere completes).
+- Deliberately NOT a drop-in replacement for `runSaveFlow` — every
+  other internal caller (a close-prompt's "Save", a disk-conflict's
+  "Overwrite", the quit path) still calls `runSaveFlow` directly and
+  must keep doing so; only the two top-level entry points (the ribbon
+  Save button's click handler, and `ribbonContext.save` — which is
+  what the `save` ribbon command / Mod-S routes through) call the new
+  `runSaveAllFlow` wrapper.
+
+Verified for real, not just by code review — a genuine Electron
+build actually running (`electron .` under Xvfb with `--no-sandbox`,
+driven via Playwright connected over CDP; no way to reach this
+otherwise, since `canSpawnWindow` is false in a plain browser so
+there's nothing to even spawn a second window to test against there).
+Opened two real, separate `BrowserWindow`s, typed into the second
+window's document (a real file with a real on-disk path), recorded
+its file hash/mtime, clicked Save in the FIRST window only, and
+confirmed the second window's file changed on disk — hash, mtime, and
+size all different, and the saved bytes (gunzipped — `.cmir` is a
+gzip-compressed envelope) contained the exact text typed into that
+other window. Full round trip through real IPC, not simulated.
 
 ### Added: `.docx` file association (`apps/desktop/package.json`)
 

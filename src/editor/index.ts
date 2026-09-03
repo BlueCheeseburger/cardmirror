@@ -76,6 +76,7 @@ import {
 import {
   isFileOpenInAnotherWindow,
   installWindowCoordination,
+  broadcastSaveAllToOtherWindows,
 } from './window-coordination.js';
 import { resolveMobileLayout } from './mobile-layout.js';
 import { mobilePlugin, setMobileShellActive } from './mobile-plugin.js';
@@ -1054,6 +1055,10 @@ let multiDocSetFilenameForUid: ((uid: string, name: string) => void) | null = nu
 /** App-quit path: the shell prompts to save every unsaved pane, returning false
  *  if the user cancels (abort the quit). null in single-doc mode. */
 let multiDocPromptSaveAllForQuit: (() => Promise<boolean>) | null = null;
+/** Top-level Save action's multi-pane fan-out: save every dirty doc across
+ *  every pane in this window. null in single-doc mode (nothing to fan out
+ *  to — there's only ever the one doc). */
+let multiDocSaveAllDirty: (() => Promise<void>) | null = null;
 
 /** Full focused-file plumbing for the Save / Save-As flow — reads
  *  the filename plus the on-disk handle and on-disk format. */
@@ -1177,6 +1182,9 @@ export function enableMultiDocMode(opts: {
   /** App-quit path: prompt to save every unsaved doc across all panes (without
    *  closing them). Returns false if the user cancels — the quit aborts. */
   promptSaveAllForQuit?: () => Promise<boolean>;
+  /** The top-level Save action's multi-pane fan-out: save every dirty doc
+   *  across every pane in this window (not just the focused one). */
+  saveAllDirty?: () => Promise<void>;
   /** Called from single-doc save flows RIGHT BEFORE serializing so a
    *  successful save can mark the focused DocRecord clean + drop its
    *  journal — but only if no edits landed while the write was in
@@ -1227,6 +1235,7 @@ export function enableMultiDocMode(opts: {
   multiDocCreateSessionDoc = opts.createSessionDoc ?? null;
   multiDocSetFilenameForUid = opts.setFilenameForUid ?? null;
   multiDocPromptSaveAllForQuit = opts.promptSaveAllForQuit ?? null;
+  multiDocSaveAllDirty = opts.saveAllDirty ?? null;
   multiDocCaptureFocusedCleanToken = opts.captureFocusedCleanToken ?? null;
   multiDocOnRecoveredDoc = opts.onRecoveredDoc ?? null;
   multiDocJournalAll = opts.journalAll ?? null;
@@ -1982,7 +1991,7 @@ const ribbonContext: RibbonContext = {
     void runOpenFlow();
   },
   save: () => {
-    void runSaveFlow();
+    void runSaveAllFlow();
   },
   saveAs: () => {
     void runSaveAsFlow();
@@ -7156,6 +7165,15 @@ getElectronHost()?.onFocusAnchor(({ descriptor }) => {
   );
 });
 
+// Another window's top-level Save broadcast its own save-all request to us
+// (via main) — save everything open in THIS window in response. Never
+// re-broadcasts further: only the window the user actually pressed Save in
+// initiates the fan-out (see runSaveAllFlow), same one-hop shape as the web
+// edition's BroadcastChannel handler below.
+getElectronHost()?.onSaveAllRequested(() => {
+  void saveAllInThisWindow();
+});
+
 /** Subscribe to main's `host:external-open` forward (an OS "Open
  *  with… CardMirror" routed to this existing multi-pane window). Opens
  *  the path through the standard routing, so it lands in this window's
@@ -8021,6 +8039,46 @@ function setSaveInProgress(on: boolean): void {
   }
 }
 
+/** The window-local half of "Save everywhere": save everything open in
+ *  THIS window. Single-doc mode just runs the ordinary save (already
+ *  equivalent to "every doc in this window" — there's only ever the one);
+ *  multi-doc mode fans out across every pane via multiDocSaveAllDirty.
+ *  Doesn't touch any other window — see runSaveAllFlow for the version
+ *  that also asks them to do the same for themselves. Also the target of
+ *  the incoming save-all broadcast listeners above (Electron and web),
+ *  since responding to another window's Save is exactly this: save
+ *  everything HERE, don't re-broadcast further. */
+async function saveAllInThisWindow(): Promise<void> {
+  if (multiDocActive && multiDocSaveAllDirty) {
+    await multiDocSaveAllDirty();
+  } else {
+    await runSaveFlow();
+  }
+}
+
+/** Top-level Save action (ribbon Save button / Mod-S) — the ONLY two
+ *  callers of this, everything else in this file that needs to save one
+ *  specific doc (a close-prompt's "Save", a disk-conflict's "Overwrite",
+ *  the quit path) calls runSaveFlow directly and must keep doing so; this
+ *  wrapper is deliberately not a drop-in replacement for those. Saves
+ *  everything in this window, then asks every OTHER open window (Electron:
+ *  through main; web: over BroadcastChannel) to do the same for itself.
+ *  The cross-window half is fire-and-forget: this window has no channel
+ *  back from another window's save outcome, so it doesn't wait for or
+ *  report one — same as how a background autosave elsewhere isn't
+ *  reported back to this window either. */
+async function runSaveAllFlow(): Promise<void> {
+  await saveAllInThisWindow();
+  const electron = getElectronHost();
+  if (electron) {
+    void electron.saveAllOtherWindows().catch((err: unknown) => {
+      console.error('Broadcasting save-all to other windows failed:', err);
+    });
+  } else {
+    broadcastSaveAllToOtherWindows();
+  }
+}
+
 export async function runSaveFlow(): Promise<boolean> {
   setSaveInProgress(true);
   try {
@@ -8224,7 +8282,7 @@ async function runSaveFlowInner(): Promise<boolean> {
 // so the first save of a new doc still prompts for a location and
 // format.
 exportBtn.addEventListener('click', () => {
-  void runSaveFlow();
+  void runSaveAllFlow();
 });
 
 // ─── Save visual feedback ──────────────────────────────────────────
@@ -9090,6 +9148,11 @@ installIncomingSpeechSliceHandler();
 // unavailable.
 installWindowCoordination({
   getOpenHandles: getThisWindowOpenHandles,
+  // Web-edition counterpart to the Electron onSaveAllRequested listener
+  // above — same one-hop broadcast-only-from-the-pressed-window shape.
+  onSaveAllRequested: () => {
+    void saveAllInThisWindow();
+  },
 });
 // Load the persistent, cross-window Quick Cards library + subscribe to
 // changes. Done at boot (not on first UI mount) so the add command and

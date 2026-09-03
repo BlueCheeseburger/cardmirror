@@ -293,6 +293,13 @@ interface ElectronAPI {
   /** Main forwards an OS-opened file (absolute path) to this window
    *  when it's an existing multi-pane workspace. Returns unsubscribe. */
   onExternalOpen(handler: (payload: { path: string }) => void): () => void;
+  /** Ask main to broadcast a "save everything" request to every OTHER
+   *  open document window (never this one — the caller handles its
+   *  own save locally). Fire-and-forget from the caller's side; main
+   *  doesn't wait for or collect each window's result. */
+  saveAllOtherWindows(): Promise<void>;
+  /** Subscribe to another window's save-all broadcast. Returns unsubscribe. */
+  onSaveAllRequested(handler: () => void): () => void;
   closeSelf(): Promise<void>;
   /** Report that a close-request ended without closing (Cancel or a
    *  failed Save) so main can drop any pending quit intent. Optional
@@ -964,6 +971,15 @@ export class ElectronHost implements Host {
 
   onExternalOpen(handler: (payload: { path: string }) => void): () => void {
     const fn = api().onExternalOpen;
+    return typeof fn === 'function' ? fn(handler) : () => {};
+  }
+
+  async saveAllOtherWindows(): Promise<void> {
+    await api().saveAllOtherWindows?.();
+  }
+
+  onSaveAllRequested(handler: () => void): () => void {
+    const fn = api().onSaveAllRequested;
     return typeof fn === 'function' ? fn(handler) : () => {};
   }
 

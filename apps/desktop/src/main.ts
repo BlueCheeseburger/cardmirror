@@ -2080,6 +2080,21 @@ ipcMain.handle('host:doc-unregister', async (event, uid: string) => {
   }
 });
 
+/** Renderer asks every OTHER open document window to save its own
+ *  dirty docs — the desktop half of "Save" saving everywhere, not
+ *  just the window it was pressed in. Fire-and-forget: main doesn't
+ *  wait for or collect each window's save outcome, matching how the
+ *  sender already handles its own save locally before calling this.
+ *  Excludes the timer pop-out (not a document window) and, via the
+ *  sender-id check, the calling window itself. */
+ipcMain.handle('host:save-all-windows', (event) => {
+  const senderWin = BrowserWindow.fromWebContents(event.sender);
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (w.isDestroyed() || w === senderWin || isTimerWindow(w)) continue;
+    w.webContents.send('host:save-all');
+  }
+});
+
 /** Renderer pushes a uid's display info (currently just filename;
  *  the type is open for future fields). Called on doc mount and
  *  whenever the filename changes (save, save-as, rename). */

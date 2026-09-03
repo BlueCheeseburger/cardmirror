@@ -14,12 +14,13 @@
 
 import { Plugin } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
-import type { Mark } from 'prosemirror-model';
+import type { Mark, Node as PMNode } from 'prosemirror-model';
 import { schema } from '../schema/index.js';
-import { promptForText } from './text-prompt.js';
+import { promptForText, promptForLink } from './text-prompt.js';
 import { showToast } from './toast.js';
 import { writeClipboardText } from './clipboard-write.js';
 import { getElectronHost } from './host/index.js';
+import { positionFloatingMenu } from './context-menu-position.js';
 
 export const linkContextMenuPlugin: Plugin = new Plugin({
   props: {
@@ -54,21 +55,16 @@ interface LinkHit {
   mark: Mark;
 }
 
-/** Locate the link mark at a viewport (x, y) coordinate. Walks
- *  the doc from the resolved position outward to find the
- *  contiguous range of the same `link` mark instance — replace /
- *  remove operate on that whole range. Returns null if the
- *  resolved position has no link mark. */
-function findLinkAt(view: EditorView, x: number, y: number): LinkHit | null {
-  const coords = view.posAtCoords({ left: x, top: y });
-  if (!coords) return null;
+/** Locate the link mark covering a doc position (e.g. a collapsed cursor).
+ *  Walks the doc from `pos` outward to find the contiguous range of the
+ *  same `link` mark instance — replace / remove operate on that whole
+ *  range. Returns null when `pos` isn't inside a link. Shared by
+ *  `findLinkAt` (mouse click, resolves coords to a position first) and
+ *  the Ctrl/Cmd+K shortcut (collapsed cursor, already has a position). */
+function findLinkRunAtPos(doc: PMNode, pos: number): LinkHit | null {
   const linkType = schema.marks['link'];
   if (!linkType) return null;
-  // `posAtCoords` returns the DOM-level inside position. The mark
-  // we want is on the node AT or BEFORE that position; check both
-  // and prefer the one that actually carries a link.
-  const doc = view.state.doc;
-  const $pos = doc.resolve(Math.max(0, Math.min(coords.pos, doc.content.size)));
+  const $pos = doc.resolve(Math.max(0, Math.min(pos, doc.content.size)));
   const beforeMarks = $pos.nodeBefore?.marks ?? [];
   const afterMarks = $pos.nodeAfter?.marks ?? [];
   const linkBefore = beforeMarks.find((m) => m.type === linkType);
@@ -85,18 +81,18 @@ function findLinkAt(view: EditorView, x: number, y: number): LinkHit | null {
   const startSearch = linkAfter ? $pos.pos : $pos.pos - ($pos.nodeBefore?.nodeSize ?? 0);
   let from = startSearch;
   let to = startSearch;
-  doc.descendants((node, pos) => {
+  doc.descendants((node, nodePos) => {
     if (!node.isInline) return true;
     const has = node.marks.some((m) => m.eq(mark));
     if (!has) return false;
-    const end = pos + node.nodeSize;
-    if (pos <= startSearch && end >= startSearch) {
-      from = pos;
+    const end = nodePos + node.nodeSize;
+    if (nodePos <= startSearch && end >= startSearch) {
+      from = nodePos;
       to = end;
-    } else if (pos === to) {
+    } else if (nodePos === to) {
       to = end;
     } else if (end === from) {
-      from = pos;
+      from = nodePos;
     }
     return false;
   });
@@ -117,6 +113,15 @@ function findLinkAt(view: EditorView, x: number, y: number): LinkHit | null {
     to = p + n.nodeSize;
   }
   return { href, from, to, mark };
+}
+
+/** Locate the link mark at a viewport (x, y) coordinate — the
+ *  right-click target. `posAtCoords` returns the DOM-level inside
+ *  position; `findLinkRunAtPos` does the rest. */
+function findLinkAt(view: EditorView, x: number, y: number): LinkHit | null {
+  const coords = view.posAtCoords({ left: x, top: y });
+  if (!coords) return null;
+  return findLinkRunAtPos(view.state.doc, coords.pos);
 }
 
 interface MenuItem {
@@ -176,11 +181,7 @@ function showLinkContextMenu(
   }
 
   document.body.appendChild(menu);
-  const rect = menu.getBoundingClientRect();
-  const maxX = window.innerWidth - rect.width - 4;
-  const maxY = window.innerHeight - rect.height - 4;
-  menu.style.left = `${Math.min(x, Math.max(0, maxX))}px`;
-  menu.style.top = `${Math.min(y, Math.max(0, maxY))}px`;
+  positionFloatingMenu(menu, x, y);
 
   openMenuEl = menu;
   setTimeout(() => {
@@ -260,4 +261,70 @@ function removeLink(view: EditorView, hit: LinkHit): void {
   const linkType = schema.marks['link'];
   if (!linkType) return;
   view.dispatch(view.state.tr.removeMark(hit.from, hit.to, linkType));
+}
+
+/** Ctrl/Cmd+K: toggle a hyperlink.
+ *
+ *   - Collapsed cursor inside an existing link → remove just that link's
+ *     run (findLinkRunAtPos, same lookup the right-click menu uses).
+ *   - Collapsed cursor NOT in a link → nothing to link or unlink; toast.
+ *   - Non-empty selection touching a link anywhere in range → remove the
+ *     link mark from the selection (same scope as the Doc menu's Remove
+ *     Hyperlinks, just always scoped to the selection here).
+ *   - Non-empty selection with no link → prompt for display text (pre-
+ *     filled with the selection) + URL, then apply. Typing the text
+ *     field over its prefill REPLACES the selected text with the new
+ *     link text; leaving it alone just adds the link mark over the
+ *     existing selection, preserving whatever other formatting it had. */
+export async function toggleOrCreateLink(view: EditorView): Promise<void> {
+  const linkType = schema.marks['link'];
+  if (!linkType) return;
+  const { state } = view;
+  const { from, to, empty } = state.selection;
+
+  if (empty) {
+    const hit = findLinkRunAtPos(state.doc, from);
+    if (hit) {
+      view.dispatch(view.state.tr.removeMark(hit.from, hit.to, linkType));
+    } else {
+      showToast(
+        'Select text to add a hyperlink, or place the cursor in an existing link to remove it.',
+      );
+    }
+    return;
+  }
+
+  let hasLink = false;
+  state.doc.nodesBetween(from, to, (node) => {
+    if (node.marks.some((m) => m.type === linkType)) hasLink = true;
+  });
+  if (hasLink) {
+    view.dispatch(view.state.tr.removeMark(from, to, linkType));
+    return;
+  }
+
+  const rawSelected = state.doc.textBetween(from, to, ' ');
+  // Trim whitespace OUT of the range to actually link — a double-click
+  // word-select often grabs a trailing space, and a manual shift-select
+  // can grab either end. Linking that space too is harmless-looking but
+  // wrong (an underlined, clickable space), and worse, comparing it
+  // against promptForLink's always-trimmed return value would wrongly
+  // read as "the user changed the text," triggering the destructive
+  // replaceWith branch below and silently eating the space instead of
+  // just placing the mark on it.
+  const selectedText = rawSelected.trim();
+  const linkFrom = from + (rawSelected.length - rawSelected.trimStart().length);
+  const linkTo = to - (rawSelected.length - rawSelected.trimEnd().length);
+  if (!selectedText) {
+    showToast('Select some text to add a hyperlink.');
+    return;
+  }
+  const result = await promptForLink({ initialText: selectedText, initialHref: '' });
+  if (!result) return;
+  const mark = linkType.create({ href: result.href });
+  const tr =
+    result.text === selectedText
+      ? view.state.tr.addMark(linkFrom, linkTo, mark)
+      : view.state.tr.replaceWith(linkFrom, linkTo, schema.text(result.text, [mark]));
+  view.dispatch(tr);
 }

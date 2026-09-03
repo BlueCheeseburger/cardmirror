@@ -18,6 +18,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
 import { settings } from './settings.js';
 import { showToast } from './toast.js';
+import { positionFloatingMenu } from './context-menu-position.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
 
 const key = new PluginKey<DecorationSet>('viewportSpellcheck');
@@ -356,11 +357,7 @@ function showSpellMenu(
   }
 
   document.body.appendChild(menu);
-  const rect = menu.getBoundingClientRect();
-  const maxX = window.innerWidth - rect.width - 4;
-  const maxY = window.innerHeight - rect.height - 4;
-  menu.style.left = `${Math.min(x, Math.max(0, maxX))}px`;
-  menu.style.top = `${Math.min(y, Math.max(0, maxY))}px`;
+  positionFloatingMenu(menu, x, y);
 
   openSpellMenuEl = menu;
   registerOpenContextMenu(closeSpellMenu);

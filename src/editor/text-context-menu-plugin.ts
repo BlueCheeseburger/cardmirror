@@ -30,6 +30,7 @@ import { writeClipboardHtml, CLIPBOARD_BUSY_MESSAGE } from './clipboard-write.js
 import { getElectronHost } from './host/index.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
 import { formatKeyForDisplay } from './ribbon-commands.js';
+import { positionFloatingMenu } from './context-menu-position.js';
 
 export const textContextMenuPlugin: Plugin = new Plugin({
   props: {
@@ -109,11 +110,7 @@ function showTextContextMenu(x: number, y: number, view: EditorView): void {
   }
 
   document.body.appendChild(menu);
-  const rect = menu.getBoundingClientRect();
-  const maxX = window.innerWidth - rect.width - 4;
-  const maxY = window.innerHeight - rect.height - 4;
-  menu.style.left = `${Math.min(x, Math.max(0, maxX))}px`;
-  menu.style.top = `${Math.min(y, Math.max(0, maxY))}px`;
+  positionFloatingMenu(menu, x, y);
 
   openMenuEl = menu;
   registerOpenContextMenu(closeTextContextMenu);

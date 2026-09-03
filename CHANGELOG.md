@@ -5,6 +5,24 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Added
+
+- **Ctrl/Cmd+K adds or removes a hyperlink.** Select text with no link
+  and press it to get a small dialog for the display text (prefilled
+  from your selection) and the URL. Press it again with the cursor
+  in — or a selection touching — an existing link to remove it.
+  Previously the only way to get a link into a document was pasting
+  one in from somewhere else.
+
+### Fixed
+
+- **The link right-click menu (and every other small floating
+  menu — image, text-selection, nav-pane, spellcheck) could render
+  partly hidden behind the status bar** when opened near the bottom
+  of the window, instead of flipping to open above the click point.
+
 ## 1.6.0-bcb.3 — 2026-09-03
 
 ### Added

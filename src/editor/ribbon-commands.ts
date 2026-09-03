@@ -89,6 +89,7 @@ import { moveContainerUp, moveContainerDown } from './move-container.js';
 import { toggleNumberRole, toggleSubRole, toggleNumRestart } from './numbering-commands.js';
 import { settings } from './settings.js';
 import { matchAcronymPattern } from './acronym-patterns.js';
+import { toggleOrCreateLink } from './link-context-menu-plugin.js';
 import {
   getTimerState,
   loadSpeechPreset,
@@ -4344,6 +4345,7 @@ export type RibbonCommandId =
   | 'startUiTour'
   | 'selectSimilar'
   | 'removeHyperlinks'
+  | 'toggleLink'
   | 'convertAnalyticsToTags'
   | 'convertCitedAnalyticsToTags'
   | 'fixFormattingGaps'
@@ -4577,6 +4579,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'startUiTour',
   'selectSimilar',
   'removeHyperlinks',
+  'toggleLink',
   'convertAnalyticsToTags',
   'convertCitedAnalyticsToTags',
   'fixFormattingGaps',
@@ -4762,6 +4765,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   startUiTour: 'Take the UI Tour',
   selectSimilar: 'Select Similar Formatting',
   removeHyperlinks: 'Remove Hyperlinks',
+  toggleLink: 'Add / Remove Hyperlink',
   convertAnalyticsToTags: 'Convert Analytics to Tags',
   convertCitedAnalyticsToTags: 'Convert Cited Analytics to Tags',
   fixFormattingGaps: 'Fix Formatting Gaps',
@@ -4927,6 +4931,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   pasteAsText: ['paste without formatting', 'paste unformatted', 'paste text'],
   pasteCondensed: ['paste condense', 'paste merge', 'paste flatten', 'paste no paragraphs', 'destructive paste'],
   removeHyperlinks: ['remove links', 'unlink'], // "delete …" via the delete/remove synonym group
+  toggleLink: ['add link', 'insert link', 'hyperlink', 'create link', 'remove link', 'unlink selection'],
   applyShading: ['shading', 'text highlight color'],
   insertImage: ['add image', 'insert picture', 'photo'],
   // "Insert …" element commands also answer to "add …" (genuine equivalence —
@@ -5120,6 +5125,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   startUiTour: '',
   selectSimilar: '',
   removeHyperlinks: '',
+  toggleLink: 'Mod-k',
   convertAnalyticsToTags: '',
   convertCitedAnalyticsToTags: '',
   fixFormattingGaps: '',
@@ -5964,6 +5970,14 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return selectSimilar(ctx.effectivePtForNode);
     case 'removeHyperlinks':
       return removeHyperlinks();
+    case 'toggleLink':
+      // Async (may prompt for a URL) — same shape as startUiTour above:
+      // fire the async work, report the keypress as handled immediately.
+      return (_state, dispatch, view) => {
+        if (!dispatch || !view) return false;
+        void toggleOrCreateLink(view);
+        return true;
+      };
     case 'convertAnalyticsToTags':
       return convertAnalyticsToTags();
     case 'convertCitedAnalyticsToTags':
