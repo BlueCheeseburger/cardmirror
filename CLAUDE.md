@@ -73,3 +73,16 @@ both resolve on the v1.6.0-bcb.3 release). Only the Linux/Lite/
 AppImage/pacman assets are safe to drop when trimming to mac+Windows —
 the zip+yml trio for the platforms you ARE keeping is load-bearing,
 not cruft.
+
+## Standing permission: publish releases live, don't leave them as drafts
+
+The user has given standing permission (2026-09-04) for any session
+working this fork — this one or a peer session with release-publish
+access — to publish a cut release straight to live (not draft) once
+its builds succeed, with no need to check back in and wait for an
+explicit go-ahead each time. Nobody else is watching this fork, so
+there's no audience risk in publishing promptly. This doesn't relax
+anything else — still verify builds succeeded, still get the asset
+list/links right, still keep only one live release current (delete
+the superseded one) — it just removes the "wait for a human before
+hitting publish" step specifically.
