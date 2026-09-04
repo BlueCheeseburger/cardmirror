@@ -15,6 +15,9 @@ see `DETAILED_CHANGELOG.md`.
   in — or a selection touching — an existing link to remove it.
   Previously the only way to get a link into a document was pasting
   one in from somewhere else.
+- **Save now saves every dirty document across every pane and every
+  open window**, not just the focused one — no more clicking through
+  each window individually to save everything.
 
 ### Fixed
 
