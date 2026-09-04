@@ -24,6 +24,12 @@ import {
   clearRecents,
   type RecentFile,
 } from './recents-store.js';
+import {
+  listRecentWorkspaces,
+  subscribeRecentWorkspaces,
+  removeRecentWorkspace,
+  type RecentWorkspace,
+} from './recent-workspaces-store.js';
 import { learnStore, localToday } from './learn-store-host.js';
 import { getElectronHost } from './host/index.js';
 import { openLearnSession } from './learn-session-ui.js';
@@ -49,6 +55,11 @@ export interface HomeScreenCallbacks {
   /** Reopen a recent file in-place. The renderer reads the
    *  handle, mounts the doc, and prunes the entry on failure. */
   openRecent: (recent: RecentFile) => void;
+  /** Reopen a whole remembered multi-pane workspace — every doc that was
+   *  open together, back into the same slot layout. Electron only (the
+   *  section is empty/hidden everywhere else, since a workspace entry
+   *  needs on-disk paths to replay). */
+  reopenWorkspace?: (workspace: RecentWorkspace) => void;
   /** Open the Quick Cards manage overlay. */
   manageQuickCards: () => void;
   /** Open the .docx style cleaner. Electron-only (recursive folder I/O +
@@ -68,6 +79,8 @@ export interface HomeScreenCallbacks {
 
 class HomeScreen {
   private root!: HTMLDivElement;
+  private workspacesSection!: HTMLElement;
+  private workspacesEl!: HTMLDivElement;
   private recentsEl!: HTMLDivElement;
   private sessionsSection!: HTMLElement;
   private sessionsEl!: HTMLDivElement;
@@ -181,6 +194,24 @@ class HomeScreen {
       this.actionCard('Open…', 'Browse for a .cmir or .docx file.', this.actionRunners[2]!),
     );
     inner.appendChild(actions);
+
+    // Recent workspaces — remembered sets of docs that were open together
+    // in a multi-pane window, closed cleanly. A DEDICATED section above
+    // Recent so "reopen these N docs together" reads as one clear offer
+    // rather than the same files scattered across the individual Recent
+    // rows. Hidden entirely when there are none (Electron-only feature —
+    // see recent-workspaces-store.ts).
+    this.workspacesSection = document.createElement('section');
+    this.workspacesSection.className = 'pmd-home-workspaces-section';
+    this.workspacesSection.hidden = true;
+    const workspacesTitle = document.createElement('h2');
+    workspacesTitle.className = 'pmd-home-section-title';
+    workspacesTitle.textContent = 'Recent Workspaces';
+    this.workspacesSection.appendChild(workspacesTitle);
+    this.workspacesEl = document.createElement('div');
+    this.workspacesEl.className = 'pmd-home-workspaces';
+    this.workspacesSection.appendChild(this.workspacesEl);
+    inner.appendChild(this.workspacesSection);
 
     // Recent files.
     const recentsSection = document.createElement('section');
@@ -307,9 +338,11 @@ class HomeScreen {
     parent.appendChild(this.root);
 
     this.unsubscribe = subscribeRecents(() => this.renderRecents());
+    subscribeRecentWorkspaces(() => this.renderWorkspaces());
     learnStore.subscribe(() => this.renderLearn());
     subscribeSessionRecords(() => void this.renderSessions());
     this.renderRecents();
+    this.renderWorkspaces();
     void this.renderSessions();
     this.renderLearn();
   }
@@ -335,6 +368,7 @@ class HomeScreen {
     // opened a file); re-read. Same for the learn counts (cards may
     // have been created while a doc was open).
     this.renderRecents();
+    this.renderWorkspaces();
     void this.renderSessions();
     this.renderLearn();
     this.notifyVisibility(true);
@@ -407,6 +441,62 @@ class HomeScreen {
       btn.addEventListener('click', onClick);
     }
     return btn;
+  }
+
+  /** Rebuild the Recent Workspaces section. Hidden entirely when the
+   *  store has nothing (no callback wired, or no multi-pane window has
+   *  ever closed with 2+ real-path docs open). */
+  private renderWorkspaces(): void {
+    if (!this.workspacesSection) return;
+    const workspaces = this.callbacks?.reopenWorkspace ? listRecentWorkspaces() : [];
+    this.workspacesSection.hidden = workspaces.length === 0;
+    this.workspacesEl.innerHTML = '';
+    for (const ws of workspaces) {
+      this.workspacesEl.appendChild(this.workspaceRow(ws));
+    }
+  }
+
+  private workspaceRow(ws: RecentWorkspace): HTMLDivElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'pmd-home-workspace';
+
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'pmd-home-workspace-open';
+    const names = ws.docs.map((d) => stripKnownExt(d.filename));
+    row.title = names.join(' + ');
+
+    const count = document.createElement('span');
+    count.className = 'pmd-home-recent-format';
+    count.textContent = `${ws.docs.length} DOCS`;
+    row.appendChild(count);
+
+    const name = document.createElement('span');
+    name.className = 'pmd-home-recent-name';
+    name.textContent = names.join('  +  ');
+    row.appendChild(name);
+
+    const meta = document.createElement('span');
+    meta.className = 'pmd-home-recent-path';
+    meta.textContent = `closed ${relativeTime(ws.closedAt)}`;
+    row.appendChild(meta);
+
+    row.addEventListener('click', () => this.callbacks?.reopenWorkspace?.(ws));
+    wrap.appendChild(row);
+
+    const forget = document.createElement('button');
+    forget.type = 'button';
+    forget.className = 'pmd-home-session-forget';
+    forget.textContent = '✕';
+    forget.title = 'Remove this workspace suggestion';
+    forget.setAttribute('aria-label', 'Remove this workspace suggestion');
+    forget.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeRecentWorkspace(ws.id);
+    });
+    wrap.appendChild(forget);
+
+    return wrap;
   }
 
   private renderRecents(): void {

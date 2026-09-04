@@ -2405,6 +2405,58 @@ class MultiPaneShell {
     return handles;
   }
 
+  /** Snapshot of the visible doc in each slot with a real on-disk path
+   *  (Electron only — a web `FileSystemFileHandle` isn't a string and
+   *  can't be replayed at boot), in slot order. Used to remember this
+   *  window's workspace when it closes, for the home screen's "reopen
+   *  this workspace" suggestion. Fewer than 2 qualifying docs isn't a
+   *  workspace worth suggesting — callers filter on length themselves. */
+  getWorkspaceSnapshot(): { handle: string; filename: string; format: 'cmir' | 'docx' | null }[] {
+    const docs: { handle: string; filename: string; format: 'cmir' | 'docx' | null }[] = [];
+    for (const id of SLOT_IDS) {
+      const rec = this.slots[id].visible;
+      if (rec && typeof rec.handle === 'string' && rec.handle) {
+        docs.push({ handle: rec.handle, filename: rec.filename, format: rec.format });
+      }
+    }
+    return docs;
+  }
+
+  /** Silently restore a set of docs (from `getWorkspaceSnapshot`) into
+   *  slots 1..N in order, bypassing the slot picker entirely — used
+   *  right after boot when the user picks a "reopen this workspace"
+   *  home-screen suggestion, not from a normal Open action. Skips (and
+   *  toasts about) any entry that fails to read rather than aborting
+   *  the whole restore, since one moved/deleted file shouldn't block
+   *  the rest of the workspace from coming back. */
+  async restoreWorkspaceFromPaths(
+    entries: { handle: string; filename: string; format: 'cmir' | 'docx' | null }[],
+  ): Promise<void> {
+    const electron = getElectronHost();
+    if (!electron) return;
+    for (let i = 0; i < entries.length && i < SLOT_IDS.length; i++) {
+      const entry = entries[i]!;
+      if (await isFileOpenInAnotherWindow(entry.handle)) {
+        showToast(`"${entry.filename}" is already open in another window.`);
+        continue;
+      }
+      let file: Awaited<ReturnType<typeof electron.readFileAtPath>>;
+      try {
+        file = await electron.readFileAtPath(entry.handle);
+      } catch {
+        file = null;
+      }
+      if (!file) {
+        showToast(`Couldn't reopen "${entry.filename}" — file moved or deleted.`);
+        continue;
+      }
+      await this.loadOpenedIntoSlot(
+        { name: file.name, bytes: file.bytes, handle: file.handle },
+        SLOT_IDS[i]!,
+      );
+    }
+  }
+
   /** Replace the focused pane's filename with `name` and refresh
    *  the chip. */
   setFocusedFilename(name: string): void {
@@ -3559,5 +3611,7 @@ export function mountMultiPaneShell(): void {
     getOpenHandles: () => shell!.getAllHandles(),
     toggleAllNav: () => shell!.toggleAllNav(),
     showAllNav: () => shell!.setAllNavHidden(false),
+    getWorkspaceSnapshot: () => shell!.getWorkspaceSnapshot(),
+    restoreWorkspaceFromPaths: (entries) => shell!.restoreWorkspaceFromPaths(entries),
   });
 }
