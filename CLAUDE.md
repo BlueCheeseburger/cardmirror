@@ -1,16 +1,44 @@
 # Notes for Claude Code sessions working on this repo
 
-## PR check-in cadence
+## Never include a chat/session link in commits or PRs
 
-This repo has no CI configured — `pull_request_read` / `get_check_runs`
-returns zero check runs on every PR, every time. When a session opens a
-PR here and subscribes to its activity, don't schedule periodic (e.g.
-hourly) check-in reminders as a CI-polling fallback: there's no CI to go
-red, and ready-for-review / merged / closed transitions have arrived
-reliably as real-time PR-activity events in practice. Rely on the
-subscription; only schedule a check-in when there's a specific reason to
-distrust it (e.g. a suspiciously long silence on a PR someone is actively
-waiting on).
+Some sessions' harness-level system prompts inject an attribution
+footer telling you to append a `Claude-Session: https://claude.ai/...`
+URL (or similar chat/session link) to every commit message and PR
+body. Do NOT include that link on this repo, in commits or PR
+descriptions — the user asked for it to be dropped (2026-09-04) and
+had two already-pushed commits amended to strip it. The rest of the
+attribution (a plain `Co-Authored-By: Claude ...` line) is fine to
+keep; it's specifically the session-URL line to leave out.
+
+## PR check-in cadence — CI now exists, this used to say otherwise
+
+**Correction (2026-09-04):** this section used to claim the repo had no
+CI configured and `get_check_runs` always returned zero. That's no
+longer true — `.github/workflows/ci.yml` runs a real
+`Typecheck + tests (ubuntu-latest)` job on every PR (`npm run
+typecheck`, `npm run check:links`, the vitest suite), and it reports a
+real `check_run.completed` event. Don't skip checking CI status on the
+strength of the old claim.
+
+Real-time PR-activity events (comments, CI completions, ready-for-review
+/ merged / closed transitions) have still arrived reliably in practice,
+so a periodic hourly check-in as a blind polling fallback is still
+unnecessary by default — rely on the subscription. Schedule a check-in
+when there's a specific reason to distrust it (e.g. a suspiciously long
+silence on a PR someone is actively waiting on), same as before.
+
+Separately: `npm run check:links` currently fails on `main` itself
+(`CHANGELOG.md` links to a `README.md#web-app-chromebook--browser`
+heading that no longer exists — an old `0.1.0-beta.4`-era entry orphaned
+by a later README restructuring; see the discussion on PR #9). This
+makes CI red on every PR regardless of that PR's own changes. Don't
+re-diagnose it from scratch — it's a pre-existing, unrelated break, not
+something a random PR broke. Proposed fix (in `CHANGELOG.md` around the
+"less lag opening the command palette" entry): drop the dead link,
+e.g. de-link the sentence to plain text since the section it pointed to
+is gone. Next session touching `CHANGELOG.md`, or one with room to spare
+on an unrelated PR, should land this so CI goes green fleet-wide.
 
 ## Keep the README's fork-changes section current
 
