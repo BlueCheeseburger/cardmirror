@@ -4355,6 +4355,45 @@ html.pmd-home-active #speech-doc-banner {
      if it must. */
 }
 
+/* Recent Workspaces — remembered sets of docs from a multi-pane window
+   that closed together. Sits above Recent (same row shape as Sessions,
+   scrolls past ~6 rows for the same reason). Hidden via [hidden] when
+   the store is empty. */
+.pmd-home-workspaces-section {
+  margin-bottom: 1.1rem;
+}
+.pmd-home-workspaces {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+.pmd-home-workspace {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.pmd-home-workspace-open {
+  appearance: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--pmd-c-text);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pmd-home-workspace-open:hover {
+  background: var(--pmd-c-hover);
+}
+
 /* Collaboration sessions — dedicated section below Recent. Scrolls
    past ~6 rows so a long list never pushes the utilities off screen,
    and a session can never be displaced the way recents rotate. */

@@ -5,6 +5,17 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Added
+
+- **The home screen can now suggest reopening a whole three-pane
+  workspace, not just individual recent files.** When a multi-pane
+  window with 2+ saved documents open closes, CardMirror remembers
+  that set under a "Recent Workspaces" section — click it to reopen
+  every doc together in the same pane layout, instead of hunting
+  down each file separately in Recent. Desktop only.
+
 ## 1.6.0-bcb.3.1 — 2026-09-04
 
 ### Added

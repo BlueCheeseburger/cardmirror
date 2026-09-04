@@ -128,6 +128,7 @@ import { bulkCompressEnabled } from './bulk-compress-gate.js';
 import { openClean, runCleanSingleFileWeb } from './clean-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
 import { recordRecent, removeRecent, listRecents, type RecentFile } from './recents-store.js';
+import { recordRecentWorkspace, type RecentWorkspace } from './recent-workspaces-store.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
 import {
   settings,
@@ -1113,6 +1114,20 @@ function getThisWindowOpenHandles(): unknown[] {
   if (multiDocActive && multiDocGetOpenHandles) return multiDocGetOpenHandles();
   return currentDocHandle != null ? [currentDocHandle] : [];
 }
+/** "Recent workspaces" home-screen suggestion: the visible doc in each slot
+ *  with a real on-disk path, in slot order — snapshotted right before a
+ *  multi-pane window closes so it can be offered as a single "reopen this
+ *  workspace" suggestion later. Electron only (see `getWorkspaceSnapshot`
+ *  in multi-pane-shell.ts). */
+let multiDocGetWorkspaceSnapshot:
+  | (() => { handle: string; filename: string; format: 'cmir' | 'docx' | null }[])
+  | null = null;
+/** "Recent workspaces" restore: silently load a saved set of docs into
+ *  slots 1..N, bypassing the slot picker — used right after boot when the
+ *  user picks a "reopen this workspace" home-screen suggestion. */
+let multiDocRestoreWorkspaceFromPaths:
+  | ((entries: { handle: string; filename: string; format: 'cmir' | 'docx' | null }[]) => Promise<void>)
+  | null = null;
 /** Crash-recovery hook: load a recovered journal entry into the
  *  multi-pane workspace. The shell picks a slot (first empty, or
  *  prompts the user) and pushes a DocRecord built from the
@@ -1206,6 +1221,10 @@ export function enableMultiDocMode(opts: {
   getOpenHandles?: () => unknown[];
   toggleAllNav?: () => void;
   showAllNav?: () => void;
+  getWorkspaceSnapshot?: () => { handle: string; filename: string; format: 'cmir' | 'docx' | null }[];
+  restoreWorkspaceFromPaths?: (
+    entries: { handle: string; filename: string; format: 'cmir' | 'docx' | null }[],
+  ) => Promise<void>;
 }): void {
   multiDocActive = true;
   multiDocOnFileOpen = opts.onFileOpen;
@@ -1243,6 +1262,8 @@ export function enableMultiDocMode(opts: {
   multiDocGetOpenHandles = opts.getOpenHandles ?? null;
   multiDocToggleAllNav = opts.toggleAllNav ?? null;
   multiDocShowAllNav = opts.showAllNav ?? null;
+  multiDocGetWorkspaceSnapshot = opts.getWorkspaceSnapshot ?? null;
+  multiDocRestoreWorkspaceFromPaths = opts.restoreWorkspaceFromPaths ?? null;
   // Hide the single-doc editor surface. The multi-pane shell
   // mounts its own DOM into #app alongside it. The comments
   // column is NOT hidden — the shell adopts it as a sibling of
@@ -6774,6 +6795,33 @@ async function loadFileInPlace(file: {
   view?.focus();
 }
 
+/** sessionStorage key carrying a "reopen this workspace" click's target
+ *  doc paths across the mode-switch reload — read once at boot in the
+ *  `BOOT_MULTI_DOC_WORKSPACE` block, then cleared. */
+const WORKSPACE_RESTORE_KEY = 'cardmirror:workspace-restore';
+
+/** Home screen's "reopen this workspace" suggestion. Already-multi-pane:
+ *  restore straight into the running shell. Single-doc boot: nothing is
+ *  open behind a blank home screen, so switch into three-pane mode (same
+ *  confirm + reload path as the ribbon toggle, but with the confirm
+ *  skipped — the click IS the confirmation) and stash the target paths
+ *  for the post-reload boot block to pick up. */
+function reopenWorkspaceFromHome(ws: RecentWorkspace): void {
+  if (multiDocActive) {
+    homeScreen.hide();
+    void multiDocRestoreWorkspaceFromPaths?.(ws.docs);
+    return;
+  }
+  try {
+    sessionStorage.setItem(WORKSPACE_RESTORE_KEY, JSON.stringify(ws.docs));
+  } catch (err) {
+    console.warn('Could not stash workspace-restore payload:', err);
+    return;
+  }
+  modeSwitchSkipConfirm = true;
+  settings.set('multiDocWorkspace', true);
+}
+
 const homeCallbacks: HomeScreenCallbacks = {
   // Single-doc: load in-place in this window. Multi-pane: hide
   // home and route through the shell flows, which present the
@@ -6820,6 +6868,7 @@ const homeCallbacks: HomeScreenCallbacks = {
   openRecent: (recent: RecentFile) => {
     void openRecentInPlace(recent);
   },
+  reopenWorkspace: (ws: RecentWorkspace) => reopenWorkspaceFromHome(ws),
   resumeSession: (roomId: string) => {
     void (async (): Promise<void> => {
       // Duplicate guards BEFORE any spawn, so a redundant click never mints
@@ -8823,6 +8872,17 @@ async function handleUserCloseRequestInner(
   if (multiDocActive) {
     const ok = multiDocPromptSaveAllForQuit ? await multiDocPromptSaveAllForQuit() : true;
     if (ok) {
+      // Remember this window's open docs as a "recent workspace" for the
+      // home screen's reopen-together suggestion, before anything closes.
+      // Snapshot only includes docs with a real on-disk path (Electron),
+      // and recordRecentWorkspace itself no-ops below 2 docs.
+      if (multiDocGetWorkspaceSnapshot) {
+        try {
+          recordRecentWorkspace(multiDocGetWorkspaceSnapshot());
+        } catch (err) {
+          console.warn('Recording recent workspace failed:', err);
+        }
+      }
       // Explicitly flush every live session's record before the window dies —
       // "sessions persist on quit" otherwise rides only the fire-and-forget
       // pagehide write, which a fast teardown can cut off mid-write (audit
@@ -9495,12 +9555,29 @@ if (BOOT_MULTI_DOC_WORKSPACE) {
     // isn't the place to surface unrelated drafts (matches single-doc).
     const routedInitialDoc = await routeInitialDocIntoWorkspace();
     if (!routedInitialDoc) {
-      // Blank multi-pane launch → land on the home screen, matching
-      // single-pane. Shown BEFORE recovery (same order as single-pane):
-      // the recovery sidebar overlays it, and a mode-switch reload's
-      // auto-reopened docs hide it via the slot-populated hook.
-      homeScreen.show();
-      await runStartupRecovery();
+      // A "reopen this workspace" home-screen click stashes its target
+      // paths here (see reopenWorkspaceFromHome) right before switching
+      // into three-pane mode and reloading. Consume it once, silently —
+      // clicking the suggestion already WAS the user's confirmation, so
+      // this shouldn't also land on a blank home screen first.
+      let pendingWorkspace: { handle: string; filename: string; format: 'cmir' | 'docx' | null }[] | null = null;
+      try {
+        const raw = sessionStorage.getItem(WORKSPACE_RESTORE_KEY);
+        if (raw) pendingWorkspace = JSON.parse(raw);
+      } catch {
+        pendingWorkspace = null;
+      }
+      sessionStorage.removeItem(WORKSPACE_RESTORE_KEY);
+      if (pendingWorkspace && pendingWorkspace.length > 0 && multiDocRestoreWorkspaceFromPaths) {
+        await multiDocRestoreWorkspaceFromPaths(pendingWorkspace);
+      } else {
+        // Blank multi-pane launch → land on the home screen, matching
+        // single-pane. Shown BEFORE recovery (same order as single-pane):
+        // the recovery sidebar overlays it, and a mode-switch reload's
+        // auto-reopened docs hide it via the slot-populated hook.
+        homeScreen.show();
+        await runStartupRecovery();
+      }
     }
   })();
 } else {
@@ -9808,6 +9885,11 @@ async function mountFromSpawnPayload(
 // reload the page, and let the startup-recovery flow silently
 // reopen them in the new layout. On cancel: revert the setting.
 let modeSwitchInFlight = false;
+/** Set right before a flow triggers a mode switch that IS ALREADY the
+ *  user's explicit confirmation (e.g. "reopen this workspace" on the home
+ *  screen) — bypasses the normal switch-modes confirm dialog for exactly
+ *  the next switch, then resets. */
+let modeSwitchSkipConfirm = false;
 settings.subscribe((s, meta) => {
   if (modeSwitchInFlight) return;
   // The mobile shell forces single-doc rendering without writing the
@@ -9848,6 +9930,8 @@ async function handleModeSwitch(newValue: boolean): Promise<void> {
 
 async function handleModeSwitchInner(newValue: boolean): Promise<void> {
   modeSwitchInFlight = true;
+  const skipConfirm = modeSwitchSkipConfirm;
+  modeSwitchSkipConfirm = false;
   const electron = !!getElectronHost();
   let message: string;
   if (newValue) {
@@ -9872,12 +9956,14 @@ async function handleModeSwitchInner(newValue: boolean): Promise<void> {
   // 2026-07-03; audit find, 2026-07-10). And not the big route-choice cards
   // either: those are for genuine multi-option decisions, not a yes/no
   // (field feedback, 2026-07-11).
-  const confirmed = await confirmDialog(message, {
-    title: newValue
-      ? 'Switch to three-pane workspace?'
-      : 'Switch to one-document-per-window mode?',
-    okLabel: 'Switch',
-  });
+  const confirmed = skipConfirm
+    ? true
+    : await confirmDialog(message, {
+        title: newValue
+          ? 'Switch to three-pane workspace?'
+          : 'Switch to one-document-per-window mode?',
+        okLabel: 'Switch',
+      });
   if (!confirmed) {
     // Revert. The `modeSwitchInFlight` guard prevents the
     // subscriber from re-running and looping.
