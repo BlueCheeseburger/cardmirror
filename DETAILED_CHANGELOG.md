@@ -5,6 +5,75 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Added: Recent Workspaces — reopen a whole multi-pane window's docs together (`recent-workspaces-store.ts`, `multi-pane-shell.ts`, `home-screen.ts`, `index.ts`)
+
+Field report: a user had "AFF UQ" and "NEG UQ" open together in a
+two-pane window, closed CardMirror, reopened it, and the home screen's
+Recent list only offered the two files individually — no way to get
+back the same two-pane layout in one click. `recents-store.ts` only
+ever tracked individual files with no memory of which ones were open
+*together*, so this needed a new, separate store.
+
+- **`recent-workspaces-store.ts`** (new, mirrors `recents-store.ts`'s
+  shape): `RecentWorkspace { id, docs: {handle, filename, format}[],
+  closedAt }`, capped at 5, de-duped by a stable id (the sorted set of
+  doc handles joined) so re-closing the same set moves it to the front
+  instead of piling up near-duplicates, cross-window `storage`-event
+  sync like the plain recents store.
+- **`MultiPaneShell.getWorkspaceSnapshot()`** (`multi-pane-shell.ts`):
+  the visible doc in each slot with a real on-disk (string) handle, in
+  slot order — a web `FileSystemFileHandle` isn't a string and can't be
+  replayed at boot, so this is Electron-only in practice.
+- **`MultiPaneShell.restoreWorkspaceFromPaths(entries)`**: silently
+  loads a snapshot's docs into slots 1..N in order, bypassing the slot
+  picker entirely (this is a deliberate restore, not an Open action).
+  Reads each path via `getElectronHost().readFileAtPath` — the exact
+  same primitive `showInContext` (Flashcard "Show in context") already
+  uses — and skips + toasts per-entry on a failed read (moved/deleted
+  file, or a path the main-process read-scope hasn't granted) rather
+  than aborting the whole restore.
+- **Recording point**: `handleUserCloseRequestInner`'s multi-pane
+  success branch (`index.ts`), right before `electronHost.closeSelf()`
+  — snapshots the closing window's docs and hands them to
+  `recordRecentWorkspace` (which itself no-ops below 2 docs, since a
+  single file is already covered by plain Recents).
+- **Restoring, single-doc boot**: nothing is open behind a blank home
+  screen, so `reopenWorkspaceFromHome` stashes the target paths in
+  `sessionStorage` under `cardmirror:workspace-restore` and flips
+  `multiDocWorkspace` on, reusing the exact same confirm+reload
+  mode-switch path the ribbon toggle uses. Added a
+  `modeSwitchSkipConfirm` one-shot flag so this flow doesn't make the
+  user confirm twice — clicking the suggestion already *is* the
+  confirmation. The post-reload `BOOT_MULTI_DOC_WORKSPACE` boot block
+  consumes the sessionStorage key once (after `routeInitialDocIntoWorkspace()`
+  finds no OS-opened file) and calls `restoreWorkspaceFromPaths`
+  instead of falling through to a blank home screen.
+- **Restoring, already multi-pane**: `reopenWorkspaceFromHome` calls
+  `restoreWorkspaceFromPaths` directly — no mode switch needed.
+- **Hooks**: `getWorkspaceSnapshot` / `restoreWorkspaceFromPaths`
+  added to `enableMultiDocMode`'s opts interface, following the
+  existing hook-function-reference pattern (index.ts never reaches
+  into the `MultiPaneShell` instance directly).
+- **`home-screen.ts`**: new "Recent Workspaces" section above Recent
+  (hidden when empty), each row showing the doc count, joined
+  filenames, and a relative "closed Xm ago" time, plus a dismiss (✕)
+  button wired to `removeRecentWorkspace`.
+
+Verified end-to-end in a real Electron build (Playwright over CDP,
+`xvfb-run` — the close→reopen cycle can't be exercised in a plain
+browser): pre-granted two real `.cmir` files in the main process's
+read-scope journal (`granted-reads.json`, the same persistence the
+existing "Recent Files" reopen-by-path relies on — a file only reaches
+`getWorkspaceSnapshot` in the first place via a real open/save/drop,
+which already grants it), injected a two-doc workspace entry, and
+confirmed: the suggestion renders on the home screen, clicking it
+switches into three-pane mode with no extra confirm dialog, and both
+docs land back in slots 1 and 2 in their original order. Also
+confirmed the graceful-failure path (ungranted / moved / deleted
+paths) toasts per-file and never crashes.
+
 ## 1.6.0-bcb.3.1 — 2026-09-04
 
 ### Added: Ctrl/Cmd+K hyperlink toggle (`link-context-menu-plugin.ts`, `ribbon-commands.ts`, `text-prompt.ts`)

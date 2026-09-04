@@ -8,6 +8,10 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Home screen suggests reopening a whole three-pane workspace**,
+>   not just individual files — closing a multi-pane window with 2+
+>   saved docs open remembers that set, so one click puts all of them
+>   back in the same pane layout. Desktop only. (open PR)
 > - **Ctrl/Cmd+K adds or removes a hyperlink** — select text and press
 >   it for a small dialog (display text + URL); press it again on an
 >   existing link to remove it. (main)
