@@ -5,7 +5,7 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 1.6.0-bcb.3.1 — 2026-09-04
 
 ### Added
 
