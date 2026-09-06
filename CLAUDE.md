@@ -28,17 +28,12 @@ unnecessary by default — rely on the subscription. Schedule a check-in
 when there's a specific reason to distrust it (e.g. a suspiciously long
 silence on a PR someone is actively waiting on), same as before.
 
-Separately: `npm run check:links` currently fails on `main` itself
-(`CHANGELOG.md` links to a `README.md#web-app-chromebook--browser`
-heading that no longer exists — an old `0.1.0-beta.4`-era entry orphaned
-by a later README restructuring; see the discussion on PR #9). This
-makes CI red on every PR regardless of that PR's own changes. Don't
-re-diagnose it from scratch — it's a pre-existing, unrelated break, not
-something a random PR broke. Proposed fix (in `CHANGELOG.md` around the
-"less lag opening the command palette" entry): drop the dead link,
-e.g. de-link the sentence to plain text since the section it pointed to
-is gone. Next session touching `CHANGELOG.md`, or one with room to spare
-on an unrelated PR, should land this so CI goes green fleet-wide.
+**Fixed (2026-09-05):** the paragraph above used to describe a
+`check:links` failure on `main` — a dead `CHANGELOG.md` link to a
+`README.md#web-app-chromebook--browser` heading that no longer
+existed. That's been fixed (the sentence was de-linked to plain text);
+`npm run check:links` is green on `main` again. Don't re-diagnose this
+from scratch if it comes up in old PR/session history — it's resolved.
 
 ## Keep the README's fork-changes section current
 
