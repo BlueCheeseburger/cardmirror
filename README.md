@@ -8,6 +8,16 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Ctrl/Cmd+K auto-fills the "Link to" field** when the selected text
+>   already looks like a URL (has a scheme, a `www.` prefix, or a
+>   recognized domain ending) — no more retyping a pasted link into the
+>   hyperlink dialog after selecting it as the display text. (open PR)
+> - **Closing with unsaved changes in multiple panes now shows one named
+>   dialog per document, all at once**, instead of a single unnamed
+>   "You have unsaved changes" prompt repeated one at a time with no
+>   indication which doc it was about. A doc whose saved file can no
+>   longer be found also gets a "Bind new filepath…" button in place of
+>   plain Save. (open PR)
 > - **The autosave-failure notice offers a "Save As…" button** when
 >   the file has gone missing or its folder refused the write, instead
 >   of only telling you to do that yourself. Works for a background
