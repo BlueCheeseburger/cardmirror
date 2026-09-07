@@ -16,6 +16,13 @@ see `DETAILED_CHANGELOG.md`.
   every doc together in the same pane layout, instead of hunting
   down each file separately in Recent. Desktop only.
 
+### Fixed
+
+- **In three-pane workspace mode, a successful autosave no longer
+  saves silently.** The Save button now flashes its checkmark the
+  same way it does for a manual save or single-doc autosave — it
+  just never did that for autosave in three-pane mode before.
+
 ## 1.6.0-bcb.3.1 — 2026-09-04
 
 ### Added

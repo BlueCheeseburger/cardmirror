@@ -8378,7 +8378,7 @@ function flashSavedGlyph(el: HTMLElement): void {
  *  on). Both manual saves and autosaves call this. Reads via
  *  `autosaveStateForActive` so multi-pane's per-DocRecord flag is
  *  consulted in addition to the single-doc transient setting. */
-function flashSaveSuccess(): void {
+export function flashSaveSuccess(): void {
   flashSavedGlyph(exportBtn);
   if (autosaveBtn && autosaveStateForActive()) {
     flashSavedGlyph(autosaveBtn);

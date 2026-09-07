@@ -118,6 +118,7 @@ import {
   reportAutosaveFailure,
   reportAutosaveSuccess,
   refreshAutosaveBtn,
+  flashSaveSuccess,
   refreshWindowTitle,
   commentsColumn,
   getCommentsColumnEl,
@@ -337,6 +338,12 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
     await host.saveExisting(record.handle, bytes);
     commitClean();
     reportAutosaveSuccess();
+    // Same ✓ flash a manual Save click gets, on the shared per-window Save
+    // button — but only for the FOCUSED record's autosave: the button is a
+    // single window-wide element, so flashing it for a background pane's
+    // autosave would read as feedback for whatever the user is actually
+    // looking at (same isFocusedRecord gating as refreshAutosaveBtn below).
+    if (isFocusedRecord) flashSaveSuccess();
     // reportAutosaveSuccess() only refreshes the button on a failure→success
     // transition; a docx record that was previously PAUSED (live links since
     // removed) needs its own refresh so the button leaves the paused state.

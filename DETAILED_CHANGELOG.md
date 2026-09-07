@@ -74,6 +74,27 @@ docs land back in slots 1 and 2 in their original order. Also
 confirmed the graceful-failure path (ungranted / moved / deleted
 paths) toasts per-file and never crashes.
 
+### Fixed: three-pane autosave never flashed the Save button (`multi-pane-shell.ts`, `index.ts`)
+
+Single-doc mode's `runAutosaveAttempt` has always called
+`flashSaveSuccess()` (the same ✓-flash-the-Save-button helper a manual
+save uses) right after its write is confirmed. Three-pane mode's
+equivalent, `MultiPaneShell.runAutosaveForRecord`, never did — it
+called `reportAutosaveSuccess()` (updates the autosave toggle's own
+state) but nothing that touched the main Save button, so a successful
+autosave in a three-pane window was invisible unless you were watching
+the autosave toggle specifically.
+
+- Exported `flashSaveSuccess` from `index.ts` (was module-private) and
+  imported it into `multi-pane-shell.ts` alongside the
+  already-imported `refreshAutosaveBtn`.
+- Call it in `runAutosaveForRecord` right after the write settles
+  (`await host.saveExisting(...)`), gated on `isFocusedRecord` — same
+  gating `refreshAutosaveBtn` already uses a few lines down, since the
+  Save button is one shared per-window element and flashing it for a
+  background pane's autosave would read as feedback for whatever the
+  user is actually looking at.
+
 ## 1.6.0-bcb.3.1 — 2026-09-04
 
 ### Added: Ctrl/Cmd+K hyperlink toggle (`link-context-menu-plugin.ts`, `ribbon-commands.ts`, `text-prompt.ts`)
