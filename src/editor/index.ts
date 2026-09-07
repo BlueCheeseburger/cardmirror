@@ -313,7 +313,7 @@ import {
 import { openWordCount } from './word-count-ui.js';
 import { wireColorPanel } from './color-panel.js';
 import { AI_DISABLED_MESSAGE } from './ai/llm.js';
-import { postNotice, wireStatusNotices } from './status-notices.js';
+import { postNotice, wireStatusNotices, type NoticeAction } from './status-notices.js';
 import {
   countReadAloudWords,
   countReadAloudSplit,
@@ -8378,7 +8378,7 @@ function flashSavedGlyph(el: HTMLElement): void {
  *  on). Both manual saves and autosaves call this. Reads via
  *  `autosaveStateForActive` so multi-pane's per-DocRecord flag is
  *  consulted in addition to the single-doc transient setting. */
-function flashSaveSuccess(): void {
+export function flashSaveSuccess(): void {
   flashSavedGlyph(exportBtn);
   if (autosaveBtn && autosaveStateForActive()) {
     flashSavedGlyph(autosaveBtn);
@@ -8435,6 +8435,7 @@ export function notifyEditForAutosave(): void {
       .catch((err) =>
         reportAutosaveFailure(currentDocFilename ?? 'Untitled', err, {
           promptConflict: () => void runSaveFlow(),
+          saveAs: () => void runSaveAsFlow(),
         }),
       );
   }, AUTOSAVE_DELAY_MS);
@@ -8584,6 +8585,7 @@ async function runAutosaveAttempt(): Promise<void> {
   } catch (err) {
     reportAutosaveFailure(file.filename ?? 'Untitled', err, {
       promptConflict: () => void runSaveFlow(),
+      saveAs: () => void runSaveAsFlow(),
     });
   }
 }
@@ -8611,6 +8613,13 @@ export function reportAutosaveFailure(
      *  shared disk-conflict decision immediately — the divergence
      *  only widens while it waits (audit §3C). */
     promptConflict?: () => void;
+    /** Runs Save As targeting the SPECIFIC doc that failed (not
+     *  necessarily whatever's currently focused — a multi-pane caller's
+     *  version brings its own record's pane into focus first). Attached
+     *  to the notice's "Save As…" button on the two failure kinds whose
+     *  message already tells the user to do exactly that, so they don't
+     *  have to go find the right doc and the Save As command by hand. */
+    saveAs?: () => void;
   },
 ): void {
   console.warn('Autosave failed:', err);
@@ -8623,6 +8632,11 @@ export function reportAutosaveFailure(
     // cancel leaves autosave paused with the notice below standing.
     opts.promptConflict();
   }
+  // Save As is only offered where the message already tells the user to
+  // use it: file-gone and write-blocked. "Changed on disk" already pops
+  // promptConflict above; the generic fallback's cause is unclear enough
+  // that Save As isn't necessarily the right fix.
+  const offerSaveAs = isFileGoneError(err) || isWriteBlockedError(err);
   postAutosaveNotice(
     isFileGoneError(err)
       ? `Autosave failed — "${filename}" no longer exists at its saved location. Use Save As to pick a new one.`
@@ -8631,13 +8645,14 @@ export function reportAutosaveFailure(
         : isWriteBlockedError(err)
           ? `Autosave failed — "${filename}"'s folder refused the write (cloud-synced folder?). Use Save As to move it to a local folder like My Files/Downloads.`
           : `Autosave failed for "${filename}" — your latest changes are not saved.`,
+    offerSaveAs && opts?.saveAs ? { label: 'Save As…', onClick: opts.saveAs } : undefined,
   );
 }
 
 /** Autosave failures are data-loss-adjacent: toast for immediacy plus
  *  a durable chip entry (coalesced per file) the user can re-read. */
-function postAutosaveNotice(body: string): void {
-  postNotice({ severity: 'error', title: 'Autosave problem', body, key: 'autosave' });
+function postAutosaveNotice(body: string, action?: NoticeAction): void {
+  postNotice({ severity: 'error', title: 'Autosave problem', body, key: 'autosave', action });
 }
 
 /** Any successful save (manual, Save As, or autosave, either layout)

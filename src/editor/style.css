@@ -4986,7 +4986,8 @@ body.pmd-nav-resize-active {
 .pmd-recovery-sidebar-row-btn-open,
 .pmd-save-as-btn-primary,
 .pmd-qc-add-btn-primary,
-.pmd-qc-manage-primary {
+.pmd-qc-manage-primary,
+.pmd-notice-action-primary {
   background: var(--pmd-c-accent);
   color: var(--pmd-c-text-on-accent);
   border-color: var(--pmd-c-accent);
@@ -15946,6 +15947,7 @@ body.pmd-multi-doc #collab-chip {
   display: flex;
   gap: 0.4rem;
 }
+.pmd-notice-action-primary:hover { background: var(--pmd-c-accent-hover); }
 
 /* ---- Reading view (paginated columns) ----
  * The ProseMirror element becomes a height-capped multicolumn strip

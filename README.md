@@ -8,10 +8,21 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **The autosave-failure notice offers a "Save As…" button** when
+>   the file has gone missing or its folder refused the write, instead
+>   of only telling you to do that yourself. Works for a background
+>   pane in three-pane mode too — it brings that doc into view first.
+>   (open PR)
+> - **Autosave is on by default**, instead of off until turned on per
+>   file — turn it off per file from the ribbon toggle same as before.
+>   (open PR)
+> - **Three-pane workspace autosave now flashes the Save button on a
+>   successful save**, matching single-doc mode and manual saves — it
+>   used to save silently there. (open PR)
 > - **Home screen suggests reopening a whole three-pane workspace**,
 >   not just individual files — closing a multi-pane window with 2+
 >   saved docs open remembers that set, so one click puts all of them
->   back in the same pane layout. Desktop only. (open PR)
+>   back in the same pane layout. Desktop only. (main)
 > - **Ctrl/Cmd+K adds or removes a hyperlink** — select text and press
 >   it for a small dialog (display text + URL); press it again on an
 >   existing link to remove it. (main)

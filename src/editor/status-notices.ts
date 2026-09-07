@@ -22,6 +22,11 @@ import { writeClipboardText } from './clipboard-write.js';
 
 export type NoticeSeverity = 'error' | 'warning' | 'info';
 
+export interface NoticeAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface NoticeInput {
   severity: NoticeSeverity;
   title: string;
@@ -30,6 +35,13 @@ export interface NoticeInput {
   key?: string;
   /** Companion toast (default true; repeats never toast). */
   toast?: boolean;
+  /** Optional extra button rendered before Copy/Dismiss — a direct fix
+   *  for whatever the notice describes (e.g. "Save As…" on a stale-path
+   *  autosave failure), not just an explanation of one. On a coalesced
+   *  repeat, replaces the existing notice's action so it always targets
+   *  whatever failed most recently, not a stale closure from the first
+   *  occurrence. */
+  action?: NoticeAction;
 }
 
 interface Notice {
@@ -40,6 +52,7 @@ interface Notice {
   body: string;
   count: number;
   lastAt: number;
+  action: NoticeAction | null;
 }
 
 const MAX_NOTICES = 50;
@@ -59,6 +72,7 @@ export function postNotice(input: NoticeInput): void {
     existing.lastAt = Date.now();
     existing.body = input.body;
     existing.severity = input.severity;
+    existing.action = input.action ?? null;
     notices = [existing, ...notices.filter((n) => n !== existing)];
     // A repeat never toasts — this is what turns the save-heal
     // heartbeat into a counter instead of a once-a-minute nag.
@@ -71,6 +85,7 @@ export function postNotice(input: NoticeInput): void {
       body: input.body,
       count: 1,
       lastAt: Date.now(),
+      action: input.action ?? null,
     });
     if (notices.length > MAX_NOTICES) notices.length = MAX_NOTICES;
     if (input.toast !== false) showToast(input.body);
@@ -217,6 +232,14 @@ function renderPanel(): void {
 
     const actions = document.createElement('div');
     actions.className = 'pmd-notice-actions';
+    if (n.action) {
+      const actionBtn = document.createElement('button');
+      actionBtn.type = 'button';
+      actionBtn.className = 'pmd-settings-btn pmd-notice-action-primary';
+      actionBtn.textContent = n.action.label;
+      actionBtn.addEventListener('click', () => n.action?.onClick());
+      actions.appendChild(actionBtn);
+    }
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
     copyBtn.className = 'pmd-settings-btn';

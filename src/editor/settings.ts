@@ -1730,10 +1730,12 @@ const DEFAULTS: Settings = {
   voiceAutoSleepSeconds: 60,
   voiceDashStyle: 'em',
   voiceDictationModel: 'standard',
-  // Default OFF — autosave is meaningful only once the user has saved
-  // at least once (so we have a handle). We let the user opt in via
-  // the ribbon toggle rather than silently saving in the background.
-  autosaveEnabled: false,
+  // Default ON (2026-09-07). Purely a placeholder for the ribbon
+  // toggle's visual state before any doc has loaded — autosave itself
+  // is a no-op until the doc has a handle (been saved at least once),
+  // and the real per-file default lives in `autosave-prefs-store.ts`'s
+  // isAutosaveOnForPath (also on by default now, opt-out per file).
+  autosaveEnabled: true,
   readMode: false,
   hideEmphasisBordersInReadMode: false,
   readModeParagraphIntegrity: false,

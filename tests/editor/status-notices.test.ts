@@ -104,6 +104,56 @@ describe('status notices', () => {
     expect(chip().hidden).toBe(true);
   });
 
+  it('an action button renders and fires its callback', () => {
+    const onClick = vi.fn();
+    postNotice({
+      severity: 'error',
+      title: 'Autosave problem',
+      body: 'Gone.',
+      action: { label: 'Save As…', onClick },
+    });
+    chip().click();
+    expect(btn('Save As…')).toBeDefined();
+    btn('Save As…')!.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('a coalesced repeat replaces the action with the new one, not the first', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    postNotice({
+      severity: 'error',
+      title: 'Autosave problem',
+      body: 'Gone.',
+      key: 'autosave',
+      action: { label: 'Save As…', onClick: first },
+    });
+    postNotice({
+      severity: 'error',
+      title: 'Autosave problem',
+      body: 'Gone again.',
+      key: 'autosave',
+      action: { label: 'Save As…', onClick: second },
+    });
+    chip().click();
+    btn('Save As…')!.click();
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it('a coalesced repeat with no action clears a previously-set one', () => {
+    postNotice({
+      severity: 'error',
+      title: 'Autosave problem',
+      body: 'Gone.',
+      key: 'autosave',
+      action: { label: 'Save As…', onClick: vi.fn() },
+    });
+    postNotice({ severity: 'error', title: 'Autosave problem', body: 'Different issue now.', key: 'autosave' });
+    chip().click();
+    expect(btn('Save As…')).toBeUndefined();
+  });
+
   it('long bodies clamp behind Show more', () => {
     const long = 'word '.repeat(120).trim();
     postNotice({ severity: 'error', title: 'Long', body: long, toast: false });
