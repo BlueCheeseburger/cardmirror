@@ -20,6 +20,20 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **Ctrl/Cmd+K now recognizes a selected URL and fills in the "Link
+  to" field for you.** Select a pasted link (with `https://`, a
+  `www.` prefix, or a recognized domain like `.com`/`.org`) and press
+  Ctrl/Cmd+K — the hyperlink dialog's destination field is pre-filled
+  instead of empty, so you don't have to retype or re-paste the same
+  URL a second time.
+- **Closing a window with unsaved changes in more than one pane now
+  shows a separate, named prompt for each document, all at once** —
+  "Chapter One.docx" and "Chapter Two.docx" each get their own dialog
+  stacked together, instead of one generic "You have unsaved
+  changes" dialog repeated one at a time with no way to tell which
+  document it was actually asking about. A document whose saved file
+  can no longer be found (moved, renamed, or deleted) gets a "Bind
+  new filepath…" button in place of plain Save.
 - **The home screen can now suggest reopening a whole three-pane
   workspace, not just individual recent files.** When a multi-pane
   window with 2+ saved documents open closes, CardMirror remembers
@@ -48,6 +62,17 @@ see `DETAILED_CHANGELOG.md`.
   saves silently.** The Save button now flashes its checkmark the
   same way it does for a manual save or single-doc autosave — it
   just never did that for autosave in three-pane mode before.
+- **macOS: "Open With → Always Open With CardMirror" for `.docx` now
+  actually sticks.** It could silently reset itself (back to Word,
+  Pages, or whatever else claims `.docx`) whenever macOS rebuilt its
+  Launch Services database — after an app update, an OS update, or on
+  its own. CardMirror now declares its `.docx` support in a way macOS
+  can bind to durably.
+- **Windows: a recent build had quietly gone back to installing
+  CardMirror as the *default* app for `.docx`** on every install —
+  the exact bug an earlier fix removed, because it made Word's right-click
+  "New > Microsoft Word Document" disappear from Explorer. Reverted;
+  CardMirror is Open-With-only for `.docx` on Windows again, as intended.
 
 ## 1.6.0-bcb.3.1 — 2026-09-04
 

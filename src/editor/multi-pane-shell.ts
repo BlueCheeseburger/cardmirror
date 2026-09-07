@@ -112,6 +112,9 @@ import {
   setActiveNavPanelResolver,
   attachClickBelowToEnd,
   confirmCloseUnsaved,
+  confirmCloseUnsavedBatch,
+  type CloseDialogChoice,
+  isHandlePathMissing,
   resolveCoEditedClose,
   runSaveFlow,
   runSaveAsFlow,
@@ -1060,7 +1063,9 @@ class Slot {
     // Unsaved-file prompt (save / save-as / discard / cancel). Returns false to
     // abort the close.
     const runDirtyPrompt = async (): Promise<boolean> => {
-      const choice = await confirmCloseUnsaved();
+      const choice = await confirmCloseUnsaved(closing.filename, {
+        pathMissing: await isHandlePathMissing(closing.handle),
+      });
       if (choice === 'cancel') return false;
       if (choice === 'save') return runSaveFlow();
       if (choice === 'saveAs') return runSaveAsFlow();
@@ -1146,28 +1151,6 @@ class Slot {
     return true;
   }
 
-  /** App-quit path: prompt to save each DIRTY doc in this slot's stack, WITHOUT
-   *  closing anything (the window is about to close, and sessions persist on
-   *  quit, so no session dialog). Returns false if the user cancels a prompt or
-   *  a save fails — the quit aborts and the workspace is left intact. Discard
-   *  drops that doc's recovery journal so it doesn't resurface next launch. */
-  async promptSaveDirtyForQuit(): Promise<boolean> {
-    for (const rec of [...this.stack]) {
-      if (!rec.dirty) continue;
-      this.showRecord(rec); // surface it so the prompt has context
-      this.shell.focusSlot(this); // save commands route via the focused doc
-      const choice = await confirmCloseUnsaved();
-      if (choice === 'cancel') return false;
-      if (choice === 'save') {
-        if (!(await runSaveFlow())) return false;
-      } else if (choice === 'saveAs') {
-        if (!(await runSaveAsFlow())) return false;
-      } else if (choice === 'discard') {
-        void clearJournalForRecord(rec);
-      }
-    }
-    return true;
-  }
 
   /** Detach the currently-mounted record's DOM (without destroying
    *  its view — the view stays live for fast swap-back). */
@@ -2195,11 +2178,53 @@ class MultiPaneShell {
   }
 
   /** App-quit path (Cmd+Q / OS close in three-pane): prompt to save every
-   *  unsaved doc across all panes, without closing them. Returns false if the
-   *  user cancels — the caller aborts the quit and the workspace is untouched. */
+   *  unsaved doc across all panes, without closing them. Gathers every dirty
+   *  record up front and prompts for all of them AT ONCE — stacked, each
+   *  card naming its own doc — rather than one blocking dialog per doc in
+   *  sequence, since a lone unnamed "You have unsaved changes" dialog gave
+   *  no clue which of several dirty panes it was even about. A single dirty
+   *  doc still gets the plain single-card dialog (no group "Cancel" bar,
+   *  same visual shape as any other close prompt). Returns false if the
+   *  user cancels the batch, or if any per-doc save fails — the caller
+   *  aborts the quit and the workspace is left untouched. */
   async promptSaveAllForQuit(): Promise<boolean> {
+    const pending: { record: DocRecord; slot: Slot }[] = [];
     for (const id of SLOT_IDS) {
-      if (!(await this.slots[id].promptSaveDirtyForQuit())) return false;
+      const slot = this.slots[id];
+      for (const rec of slot.stack) {
+        if (rec.dirty) pending.push({ record: rec, slot });
+      }
+    }
+    if (pending.length === 0) return true;
+
+    const docs = await Promise.all(
+      pending.map(async ({ record }) => ({
+        uid: record.uid,
+        name: record.filename,
+        pathMissing: await isHandlePathMissing(record.handle),
+      })),
+    );
+    let results: Map<string, CloseDialogChoice> | null;
+    if (docs.length === 1) {
+      const choice = await confirmCloseUnsaved(docs[0]!.name, { pathMissing: docs[0]!.pathMissing });
+      results = choice === 'cancel' ? null : new Map([[docs[0]!.uid, choice]]);
+    } else {
+      results = await confirmCloseUnsavedBatch(docs);
+    }
+    if (!results) return false;
+
+    for (const { record, slot } of pending) {
+      const choice = results.get(record.uid);
+      if (!choice) continue;
+      slot.showRecord(record); // surface it so the save prompt/dialogs have context
+      this.focusSlot(slot); // save commands route via the focused doc
+      if (choice === 'save') {
+        if (!(await runSaveFlow())) return false;
+      } else if (choice === 'saveAs') {
+        if (!(await runSaveAsFlow())) return false;
+      } else if (choice === 'discard') {
+        void clearJournalForRecord(record);
+      }
     }
     return true;
   }
