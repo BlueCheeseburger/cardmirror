@@ -16,6 +16,20 @@ see `DETAILED_CHANGELOG.md`.
   every doc together in the same pane layout, instead of hunting
   down each file separately in Recent. Desktop only.
 
+### Fixed
+
+- **macOS: "Open With → Always Open With CardMirror" for `.docx` now
+  actually sticks.** It could silently reset itself (back to Word,
+  Pages, or whatever else claims `.docx`) whenever macOS rebuilt its
+  Launch Services database — after an app update, an OS update, or on
+  its own. CardMirror now declares its `.docx` support in a way macOS
+  can bind to durably.
+- **Windows: a recent build had quietly gone back to installing
+  CardMirror as the *default* app for `.docx`** on every install —
+  the exact bug an earlier fix removed, because it made Word's right-click
+  "New > Microsoft Word Document" disappear from Explorer. Reverted;
+  CardMirror is Open-With-only for `.docx` on Windows again, as intended.
+
 ## 1.6.0-bcb.3.1 — 2026-09-04
 
 ### Added
