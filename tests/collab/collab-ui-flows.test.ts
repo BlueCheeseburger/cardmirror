@@ -403,6 +403,241 @@ describe('collab UI flows through the editor seams', () => {
     viewB.destroy();
   }, 20_000);
 
+  it('a prolonged disconnect posts a keyed notice; reconnecting clears it (2026-09-01 review, PH-A9)', async () => {
+    // Offline showed only as chip text — 5 seconds and 40 minutes read
+    // identically, and the chip is easy to miss.
+    const { noticeCount, __resetNoticesForTests } = await import('../../src/editor/status-notices.js');
+    __resetNoticesForTests();
+    collabUi.__setOfflineNoticeMsForTests(250);
+    const view = mkIndexStyleView('doc-OFF');
+    const deps = {
+      getView: () => view,
+      getOwnerUid: () => 'doc-OFF',
+      refreshPlugins: () =>
+        view.updateState(view.state.reconfigure({ plugins: buildMiniPlugins('doc-OFF') })),
+      newSessionDoc: () => true,
+    };
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: () => Promise.resolve() },
+    });
+    await startSession(deps);
+    await sleep(150);
+    try {
+      const base = noticeCount();
+      mock.pause();
+      collabUi.activeSession()!.restart(); // drop the stream so the session reads disconnected
+      typeAfter(view, 'shared prep doc', ' offline edit'); // a failing post confirms it
+      await sleep(900); // well past the 250ms test threshold
+      expect(noticeCount(), 'offline notice posted').toBeGreaterThan(base);
+      mock.resume();
+      await sleep(900); // reconnect → notice cleared
+      expect(noticeCount(), 'reconnect clears it').toBe(base);
+    } finally {
+      mock.resume();
+      collabUi.__setOfflineNoticeMsForTests(null);
+      const endP = collabUi.endSessionFlow(deps);
+      await settle();
+      clickPromptButton('End Session');
+      await endP;
+      view.destroy();
+    }
+  }, 20_000);
+
+  it('typing does not storm copresence repaints when the status is unchanged', async () => {
+    // emitStatus fires from flush() and from every successful post —
+    // several times a second while typing — and onStatus notified every
+    // slot footer (each calling into the wasm presence store) and
+    // rebuilt the presence dots on EVERY one, even when {connected,
+    // queuedUpdates} was byte-identical (2026-09-01 review, PH-A11).
+    const view = mkIndexStyleView('doc-ST');
+    const deps = {
+      getView: () => view,
+      getOwnerUid: () => 'doc-ST',
+      refreshPlugins: () =>
+        view.updateState(view.state.reconfigure({ plugins: buildMiniPlugins('doc-ST') })),
+      newSessionDoc: () => true,
+    };
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: () => Promise.resolve() },
+    });
+    await startSession(deps);
+    await sleep(200); // settle into a steady connected state
+    let notifications = 0;
+    const off = onCollabCopresenceChange(() => notifications++);
+    try {
+      for (let i = 0; i < 12; i++) {
+        typeAfter(view, 'shared prep doc', ` t${i}`);
+        await sleep(30);
+      }
+      await sleep(400);
+      // ~360ms of typing → a handful of coalesced windows, not one repaint
+      // per status flip (10+ before).
+      expect(notifications, 'repaints are coalesced while typing').toBeLessThanOrEqual(4);
+    } finally {
+      off();
+      const endP = collabUi.endSessionFlow(deps);
+      await settle();
+      clickPromptButton('End Session');
+      await endP;
+      view.destroy();
+    }
+  }, 20_000);
+
+  it('the mode-switch/quit handoff flushes session HISTORY, not just the record', async () => {
+    // The handoff provider flushed persist (with the reason written down:
+    // pagehide can be cut off mid-write) but not history, whose only
+    // reload hook was that same pagehide — a mode switch or quit dropped
+    // up to 20-60s of Recover-Previous-Version history on exactly the
+    // events that precede "let me recover" (2026-09-01 review, PH-A5).
+    const view = mkIndexStyleView('doc-HO');
+    const deps = {
+      getView: () => view,
+      getOwnerUid: () => 'doc-HO',
+      refreshPlugins: () =>
+        view.updateState(view.state.reconfigure({ plugins: buildMiniPlugins('doc-HO') })),
+      newSessionDoc: () => true,
+    };
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: () => Promise.resolve() },
+    });
+    await startSession(deps);
+    const roomId = collabUi.activeSession()!.roomId;
+    const { historyHandleFor } = await import('../../src/editor/collab/collab-history.js');
+    const handle = historyHandleFor(roomId)!;
+    expect(handle).toBeTruthy();
+    const flushSpy = vi.spyOn(handle, 'flush');
+    try {
+      await collabCaptureSessionHandoff();
+      expect(flushSpy, 'history flushed by the handoff').toHaveBeenCalled();
+    } finally {
+      flushSpy.mockRestore();
+      const endP = collabUi.endSessionFlow(deps);
+      await settle();
+      clickPromptButton('End Session');
+      await endP;
+      view.destroy();
+    }
+  }, 20_000);
+
+  it('two concurrent joins of the same code create ONE session, not two writers on one room', async () => {
+    // startSessionFlow had an in-flight guard; join/resume did not. A
+    // double-click (or an invite pill + Sessions row) raced: the second
+    // call passed the "already installed?" check before the first had
+    // installed anything, and two ActiveSessions (two persist writers on
+    // one IndexedDB key, two history writers where liveHandles.set
+    // silently clobbered the first) ran on one room (2026-09-01 review,
+    // PH-A6).
+    const client = new RoomsClient({ baseUrl: () => mock.url, token: () => mock.token });
+    const { session: rawHost, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('double join'),
+      client,
+      flushMs: 25,
+      minBackoffMs: 20,
+      maxBackoffMs: 60,
+    });
+    const hostView = mkView(rawHost.plugins());
+    await settle();
+    rawHost.start();
+    await sleep(80);
+    const viewJ = mkIndexStyleView('doc-DJ');
+    const depsJ = {
+      getView: () => viewJ,
+      getOwnerUid: () => 'doc-DJ',
+      getViewForUid: (u: string): EditorView | null => (u === 'doc-DJ' ? viewJ : null),
+      refreshPlugins: () =>
+        viewJ.updateState(viewJ.state.reconfigure({ plugins: buildMiniPlugins('doc-DJ') })),
+      newSessionDoc: () => true,
+    };
+    const joinSpy = vi.spyOn(CollabSession, 'join');
+    try {
+      const [r1, r2] = await Promise.all([
+        collabUi.joinSessionWithCode(depsJ, shareCode),
+        collabUi.joinSessionWithCode(depsJ, shareCode),
+      ]);
+      expect(r1 || r2).toBe(true);
+      expect(joinSpy, 'one session created').toHaveBeenCalledTimes(1);
+      expect(collabPluginSourceFor('doc-DJ')).not.toBeNull();
+    } finally {
+      joinSpy.mockRestore();
+      const endP = collabUi.endSessionFlow(depsJ);
+      await settle();
+      clickPromptButton('Leave Session');
+      await endP;
+      await rawHost.stop();
+      hostView.destroy();
+      viewJ.destroy();
+    }
+  }, 20_000);
+
+  it('room-full on join tears the session down COMPLETELY (stops the session, not just the UI)', async () => {
+    // onFull disposed cursors/comments/persist/history but never called
+    // session.stop(): the orphaned CollabSession kept its flush /
+    // catch-up / audit timers for the window's life, fetching a room this
+    // window was no longer in (2026-09-01 review, PH-A2).
+    //
+    // The room is hosted OUTSIDE the UI (a raw session writes no persist
+    // record) — a UI-hosted room in this same window would make the join
+    // resolve to "already active here" via the record instead of joining.
+    const client = new RoomsClient({ baseUrl: () => mock.url, token: () => mock.token });
+    const { session: rawHost, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('full room contents'),
+      client,
+      flushMs: 25,
+      minBackoffMs: 20,
+      maxBackoffMs: 60,
+    });
+    const hostView = mkView(rawHost.plugins());
+    await settle();
+    rawHost.start();
+    await sleep(80);
+    const decoded = decodeShareCode(shareCode)!;
+    // Fill the room: the host holds one stream; nine raw ones reach the cap.
+    const raws: AbortController[] = [];
+    for (let i = 0; i < 9; i++) {
+      const ac = new AbortController();
+      raws.push(ac);
+      void fetch(`${mock.url}/rooms/${decoded.roomId}/stream?sid=raw${i}`, {
+        headers: { Authorization: `Bearer ${mock.token}` },
+        signal: ac.signal,
+      }).catch(() => {});
+    }
+    await sleep(150);
+    expect(mock.streamCount(decoded.roomId)).toBe(10);
+
+    const viewJ = mkIndexStyleView('doc-J');
+    const depsJ = {
+      getView: () => viewJ,
+      getOwnerUid: () => 'doc-J',
+      getViewForUid: (u: string): EditorView | null => (u === 'doc-J' ? viewJ : null),
+      refreshPlugins: () =>
+        viewJ.updateState(viewJ.state.reconfigure({ plugins: buildMiniPlugins('doc-J') })),
+      newSessionDoc: () => true,
+    };
+    const stopSpy = vi.spyOn(CollabSession.prototype, 'stop');
+    try {
+      const joined = await collabUi.joinSessionWithCode(depsJ, shareCode);
+      expect(joined).toBe(true); // the REST half succeeds; the stream 409s
+      await sleep(400);
+      expect(collabPluginSourceFor('doc-J'), 'UI side torn down').toBeNull();
+      // `contexts` = the `this` of each call; the raw host is not stopped
+      // here, so any stop() on this room is the orphaned joiner's.
+      const joinerStopped = stopSpy.mock.contexts.some(
+        (s) => (s as unknown as CollabSession).roomId === decoded.roomId,
+      );
+      expect(joinerStopped, 'the orphaned session must be stopped, not leaked').toBe(true);
+    } finally {
+      // Clean up even on failure — leftover live sessions poison later tests.
+      stopSpy.mockRestore();
+      for (const ac of raws) ac.abort();
+      await rawHost.stop();
+      hostView.destroy();
+      viewJ.destroy();
+    }
+  }, 20_000);
+
   it('exposes per-doc copresence for the shell footer, isolated per session', async () => {
     const viewA = mkIndexStyleView('cp-A');
     const viewB = mkIndexStyleView('cp-B');

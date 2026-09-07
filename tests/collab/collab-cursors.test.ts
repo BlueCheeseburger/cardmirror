@@ -171,6 +171,135 @@ describe('M4 presence cursors', () => {
   });
 });
 
+describe('presence departure + reconnect re-broadcast (2026-09-01 review, PH-A10)', () => {
+  it('farewell() removes this peer from partners immediately instead of after the 45s expiry', async () => {
+    const { session: a, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('farewell doc'),
+      client,
+      flushMs: 40,
+      minBackoffMs: 30,
+      maxBackoffMs: 60,
+    });
+    const bPresence: Uint8Array[] = [];
+    const b = await CollabSession.join({
+      ...decodeShareCode(shareCode)!,
+      client,
+      flushMs: 40,
+      minBackoffMs: 30,
+      maxBackoffMs: 60,
+      callbacks: { onPresence: (bytes) => bPresence.push(bytes) },
+    });
+    const aCursors = installCursorPresence(a, () => aView);
+    const bCursors = installCursorPresence(b, () => bView);
+    const aView = mkView([...a.plugins(), ...aCursors.plugins()]);
+    const bView = mkView([...b.plugins(), ...bCursors.plugins()]);
+    await settle();
+    a.start();
+    b.start();
+    await sleep(300);
+    (aView as unknown as { hasFocus: () => boolean }).hasFocus = () => true;
+    const pump = async (): Promise<void> => {
+      for (const f of bPresence.splice(0)) bCursors.applyRemote(f);
+      await sleep(250);
+    };
+    aView.dispatch(aView.state.tr.setSelection(TextSelection.create(aView.state.doc, 2, 6)));
+    await sleep(400);
+    await pump();
+    expect(bCursors.visiblePeers()).toContain(a.loroDoc.peerIdStr);
+
+    // A leaves: a departure frame goes out synchronously, before the
+    // stream is stopped and the handle disposed.
+    aCursors.farewell();
+    await sleep(400);
+    await pump();
+    expect(bCursors.visiblePeers(), 'gone at once, not in 45s').not.toContain(a.loroDoc.peerIdStr);
+
+    // ABORTED departure (host End failed to tombstone / keep-resumable
+    // flush failed → session.start() → reconnect → rebroadcast): the
+    // farewell was a store delete of our own entry, so with nothing
+    // stashed there was nothing to re-announce until the next editor
+    // transaction (knock-on audit 2026-09-02).
+    aCursors.rebroadcast();
+    await sleep(400);
+    await pump();
+    expect(bCursors.visiblePeers(), 'the parting state is re-announced').toContain(a.loroDoc.peerIdStr);
+
+    aCursors.dispose();
+    bCursors.dispose();
+    await a.stop();
+    await b.stop();
+    aView.destroy();
+    bView.destroy();
+  }, 20_000);
+});
+
+describe('remote caret widgets are stable across rebuilds (2026-09-01 review, PH-A3)', () => {
+  it('a presence rebuild reuses the same caret element when the peer is unchanged', async () => {
+    // The stock createCursor built a fresh <span>+<div> per peer per
+    // rebuild, so WidgetType.eq failed and ProseMirror re-inserted every
+    // remote caret on every remote transaction — layout churn on big
+    // docs. Same peer, same name/color → same element.
+    const { session: a, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('widget identity doc'),
+      client,
+      flushMs: 40,
+      minBackoffMs: 30,
+      maxBackoffMs: 60,
+    });
+    const bPresence: Uint8Array[] = [];
+    const b = await CollabSession.join({
+      ...decodeShareCode(shareCode)!,
+      client,
+      flushMs: 40,
+      minBackoffMs: 30,
+      maxBackoffMs: 60,
+      callbacks: { onPresence: (bytes) => bPresence.push(bytes) },
+    });
+    const aCursors = installCursorPresence(a, () => aView);
+    const bCursors = installCursorPresence(b, () => bView);
+    const aView = mkView([...a.plugins(), ...aCursors.plugins()]);
+    const bView = mkView([...b.plugins(), ...bCursors.plugins()]);
+    await settle();
+    a.start();
+    b.start();
+    await sleep(300);
+    (aView as unknown as { hasFocus: () => boolean }).hasFocus = () => true;
+
+    const caretNodes = (): Node[] => {
+      const plugin = bView.state.plugins.find((p) =>
+        String((p as unknown as { key: string }).key).startsWith('loro-ephemeral-cursor'),
+      )!;
+      const set = plugin.getState(bView.state) as { find: () => Array<{ type: { toDOM?: Node } }> };
+      return set.find().map((d) => d.type.toDOM).filter((n): n is Node => !!n);
+    };
+    const pumpFrames = async (): Promise<void> => {
+      for (const f of bPresence.splice(0)) bCursors.applyRemote(f);
+      await sleep(250); // past the receive drain
+    };
+
+    aView.dispatch(aView.state.tr.setSelection(TextSelection.create(aView.state.doc, 2, 6)));
+    await sleep(400);
+    await pumpFrames();
+    const first = caretNodes();
+    expect(first.length, 'A\u2019s caret renders in B').toBeGreaterThan(0);
+
+    // A moves its cursor → new frame → B rebuilds decorations.
+    aView.dispatch(aView.state.tr.setSelection(TextSelection.create(aView.state.doc, 8, 12)));
+    await sleep(400);
+    await pumpFrames();
+    const second = caretNodes();
+    expect(second.length).toBe(first.length);
+    expect(second[0], 'same peer, same name/color → the SAME element').toBe(first[0]);
+
+    aCursors.dispose();
+    bCursors.dispose();
+    await a.stop();
+    await b.stop();
+    aView.destroy();
+    bView.destroy();
+  }, 20_000);
+});
+
 describe('receive-side cursor coalescing (perf fix 2026-08-06)', () => {
   it('a burst of remote cursor frames drains as ONE dispatch, not one each', async () => {
     // Sender side: real stores encode valid ephemeral payloads.

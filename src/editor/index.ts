@@ -50,6 +50,7 @@ import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
 import { maybeDecryptForOpen, OpenCancelledError, UnsupportedEncryptionError } from './open-encrypted.js';
 import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
+import { buildCutInPlacePlugin, installCutInPlaceContext } from './cut-in-place.js';
 import { suppressGuiSelectAll } from './editable-target.js';
 import { openSelectSpeechDocModal } from './select-speech-doc-ui.js';
 import { dropzoneStore, deriveDropzoneLabel } from './dropzone-store.js';
@@ -58,6 +59,7 @@ import { mountPairingPills, initPairingWiring } from './pairing/pairing-wiring.j
 import {
   setReceivedInsertNavHook, insertMostRecentReceived, RECEIVE_NEEDS_DOC_MESSAGE } from './pairing/inbox-insert.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
+import { sendViewToRecipient } from './pairing/send-to-recipient.js';
 import { installExternalConsent } from './external-consent-ui.js';
 import { maybeSnapshotVersion } from './version-history.js';
 import { awaitWithSaveWatchdog, warnIfSlow } from './save-watchdog.js';
@@ -280,6 +282,18 @@ import {
   clearRecoveredDraftMark,
   autosaveBlockedForRecoveredDraft,
 } from './journal-staleness.js';
+import {
+  installDiskBadge,
+  refreshDiskBadge,
+  noteDocRegistered,
+  noteDiskChanged,
+  noteSavedInPlace,
+  noteKeptCopy,
+  noteReloaded,
+  noteDocReleased,
+  conflictedCopyUserName,
+} from './disk-conflict.js';
+import type { DiskBase } from './host/types.js';
 import { makeBlankDoc } from './blank-doc.js';
 import { opensAsBlank, blankDocumentBytes } from './empty-open.js';
 import { indentParagraph, outdentParagraph } from './indent-keymap.js';
@@ -1031,6 +1045,7 @@ let multiDocSendToSpeechAtCursor: (() => void) | null = null;
 let multiDocSendToSpeechAtEnd: (() => void) | null = null;
 let multiDocSendToDropzone: (() => void) | null = null;
 let multiDocSendToStarred: (() => void) | null = null;
+let multiDocSendToRecipient: (() => void) | null = null;
 /** Filename plumbing for Save-As. In single-doc mode the module's
  *  `currentDocFilename` is the source of truth; in multi-doc each
  *  pane owns its own filename, so the shell installs these hooks
@@ -1070,6 +1085,7 @@ let multiDocGetFocusedFile:
       format: 'cmir' | 'docx' | null;
       docId: string | null;
       uid: string;
+      dirty?: boolean;
     } | null)
   | null = null;
 let multiDocSetFocusedFile:
@@ -1165,6 +1181,7 @@ export function enableMultiDocMode(opts: {
   sendToSpeechAtEnd?: () => void;
   sendToDropzone?: () => void;
   sendToStarred?: () => void;
+  sendToRecipient?: () => void;
   getFocusedFilename?: () => string | null;
   setFocusedFilename?: (name: string) => void;
   getFocusedFile?: () => {
@@ -1173,6 +1190,8 @@ export function enableMultiDocMode(opts: {
     format: 'cmir' | 'docx' | null;
     docId: string | null;
     uid: string;
+    /** Unsaved edits in the focused doc (the cloud pill's Reload wording). */
+    dirty?: boolean;
   } | null;
   setFocusedFile?: (file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null }) => void;
   /** Live view / linked-copy counts in the focused pane's doc — see
@@ -1241,6 +1260,7 @@ export function enableMultiDocMode(opts: {
   multiDocSendToSpeechAtEnd = opts.sendToSpeechAtEnd ?? null;
   multiDocSendToDropzone = opts.sendToDropzone ?? null;
   multiDocSendToStarred = opts.sendToStarred ?? null;
+  multiDocSendToRecipient = opts.sendToRecipient ?? null;
   multiDocGetFocusedFilename = opts.getFocusedFilename ?? null;
   multiDocSetFocusedFilename = opts.setFocusedFilename ?? null;
   multiDocGetFocusedFile = opts.getFocusedFile ?? null;
@@ -2078,6 +2098,13 @@ const ribbonContext: RibbonContext = {
       return;
     }
     if (view) void sendViewToStarred(view);
+  },
+  sendToRecipient: () => {
+    if (multiDocSendToRecipient) {
+      multiDocSendToRecipient();
+      return;
+    }
+    if (view) void sendViewToRecipient(view);
   },
   insertReceivedAtCursor: () => {
     // The home screen covers the destination doc — same interdiction as
@@ -3850,6 +3877,7 @@ let lastKeyboardMacros = settings.get('keyboardMacros');
 let lastReadMode = settings.get('readMode');
 let lastReadModeBorders = settings.get('hideEmphasisBordersInReadMode');
 let lastReadModeParaIntegrity = settings.get('readModeParagraphIntegrity');
+let lastReadModeKeepCite = settings.get('readModeKeepEntireCite');
 let lastMarkUnread = settings.get('markUnreadAfterMarker');
 let lastNumberingDisplay = numberingDisplaySig();
 
@@ -3909,15 +3937,20 @@ settings.subscribe((s) => {
   // decorations while the pane element keeps `pmd-read-mode`, i.e. read
   // mode showing every word of every card. The shell's own subscriber
   // re-stamps these classes per pane instead.
+  refreshDiskBadge(); // read mode on/off freezes / releases it
   if (
     !multiDocActive &&
     (s.readMode !== lastReadMode ||
       s.hideEmphasisBordersInReadMode !== lastReadModeBorders ||
-      s.readModeParagraphIntegrity !== lastReadModeParaIntegrity)
+      s.readModeParagraphIntegrity !== lastReadModeParaIntegrity ||
+      s.readModeKeepEntireCite !== lastReadModeKeepCite)
   ) {
     lastReadMode = s.readMode;
     lastReadModeBorders = s.hideEmphasisBordersInReadMode;
     lastReadModeParaIntegrity = s.readModeParagraphIntegrity;
+    lastReadModeKeepCite = s.readModeKeepEntireCite;
+    // (applyReadMode re-sends the toggle, which rebuilds the plugin's
+    // decoration set — how a keep-entire-cite flip reaches the text.)
     applyReadMode(s.readMode);
   }
   // Nudge the mark-unread plugin to rebuild when its toggle flips (diff-gated
@@ -5449,12 +5482,29 @@ function makeNewDocBody(): PMNode {
 // session-owning doc; every other pane (and the null/omitted case) stays
 // independent, so opening a second doc during a session can't fuse it onto the
 // session's shared LoroDoc. See CollabPluginSource.ownerUid.
+// Cut in place (shared documents): whole units cut in a session are
+// marked, not deleted; the paste moves them. Resolves the session and the
+// document identity lazily through the speech-doc registry.
+installCutInPlaceContext({
+  isSessionDoc: (view) => collabPluginSourceFor(getSpeechDocResolver().uidForView(view)) != null,
+  docKey: (view) => getSpeechDocResolver().uidForView(view),
+  viewForDocKey: (key) => getSpeechDocResolver().viewForUid(key),
+  hasSeenNotice: () => settings.get('hasSeenCutInPlaceNotice'),
+  markNoticeSeen: () => settings.set('hasSeenCutInPlaceNotice', true),
+  writeClipboard: writeClipboardHtml,
+  clipboardBusyMessage: CLIPBOARD_BUSY_MESSAGE,
+});
+
 export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
   const plugins: Plugin[] = [
     // First so its `editable` / read-mode tap-marker props win on the
     // mobile shell; a no-op everywhere else (the active flag is set
     // once at boot, before any view mounts).
     mobilePlugin,
+    // Cut in place — ahead of the undo keymap (Cmd-Z while a cut is
+    // pending clears the mark, not the last edit) and of the paste
+    // plugin (our own payload pasted in the same document is a MOVE).
+    buildCutInPlacePlugin(),
     // A live collaboration session owns undo: the CRDT undo manager
     // reverts only this peer's edits, which prosemirror-history cannot
     // guarantee once remote transactions interleave. Outside a session,
@@ -6060,6 +6110,45 @@ function scheduleHeavyUpdate(): void {
   }, HEAVY_UPDATE_DELAY_MS);
 }
 
+/** Journal-carried on-disk baselines for docs about to mount from a
+ *  journal (recovery sidebar, startup recovery, mode-switch respawn),
+ *  keyed by path. The path registration that follows the mount hands
+ *  them to main, which adopts one only when the file still matches it
+ *  (see apps/desktop/src/doc-writes.ts `claimBaseline`) — so a
+ *  recovered document is not "unknown" and its first save does not
+ *  needlessly keep both. */
+const pendingJournaledBases = new Map<string, DiskBase>();
+export function rememberJournaledBase(handle: unknown, base: DiskBase | undefined): void {
+  if (typeof handle === 'string' && handle && base) pendingJournaledBases.set(handle, base);
+}
+function takeJournaledBase(handle: string): DiskBase | null {
+  const b = pendingJournaledBases.get(handle) ?? null;
+  pendingJournaledBases.delete(handle);
+  return b;
+}
+
+/** Register `handle` with main — cross-window ownership AND the
+ *  changed-on-disk baseline — and reflect how the baseline was obtained
+ *  (plus the cloud provider) in the badge. Shared by both layouts;
+ *  always re-claims, so a Reload from disk re-registers to adopt the
+ *  fresh read. */
+export async function registerDocPath(handle: string): Promise<void> {
+  const electron = getElectronHost();
+  if (!electron) return;
+  try {
+    const res = await electron.openPathRegister(handle, { journaledBase: takeJournaledBase(handle) });
+    if (res) noteDocRegistered(handle, res.claim, res.provider);
+  } catch (err) {
+    console.warn('Path registration failed:', err);
+  }
+}
+export function releaseDocPath(handle: string): void {
+  const electron = getElectronHost();
+  if (!electron) return;
+  void electron.openPathRelease(handle);
+  noteDocReleased(handle);
+}
+
 /** Remembers the file the user imported, so Save As can default to
  *  its name. Set on import, updated on Save / Save-As. */
 let currentDocFilename: string | null = null;
@@ -6080,14 +6169,8 @@ function setCurrentDocHandle(next: unknown | null): void {
   // Keep the transclusion refresh resolver's view→docPath map current.
   if (view) setViewDocPath(view, typeof next === 'string' ? next : null);
   if (prev === next) return;
-  const electron = getElectronHost();
-  if (!electron) return;
-  if (typeof prev === 'string' && prev) {
-    void electron.openPathRelease(prev);
-  }
-  if (typeof next === 'string' && next) {
-    void electron.openPathRegister(next);
-  }
+  if (typeof prev === 'string' && prev) releaseDocPath(prev);
+  if (typeof next === 'string' && next) void registerDocPath(next);
 }
 /** On-disk format of the current single-doc file. Drives whether
  *  "Save" routes through `toDocx` or `serializeNative`. `null` for
@@ -7544,6 +7627,9 @@ function updateWindowTitle(): void {
     chip.setAttribute('title', focused.filename ?? '');
     chip.toggleAttribute('hidden', !focused.filename);
   }
+  // The cloud badge follows the active document (one per window).
+  ensureDiskBadge();
+  refreshDiskBadge();
 }
 
 /** 1–2 letter initials from a display name, for a baked-in comment's
@@ -8097,17 +8183,161 @@ export async function runSaveFlow(): Promise<boolean> {
  *  autosave conflict path. A compact promptForChoice rather than the
  *  route-style dialog: this is a small pick-one, not a Save/Don't
  *  Save-family confirmation (user call, 2026-08-17). */
-function promptDiskConflict(filename: string | null): Promise<'overwrite' | 'saveAs' | null> {
-  return promptForChoice<'overwrite' | 'saveAs'>({
-    message:
-      `"${filename ?? 'This document'}" has changed on disk since it was ` +
-      `opened — it may have been edited by another program, on another ` +
-      `device, or through a sync service. Replace the on-disk version?`,
-    choices: [
-      { value: 'overwrite', label: 'Overwrite', primary: true },
-      { value: 'saveAs', label: 'Save As…' },
-    ],
+// ─── Disk conflicts: keep both, badge, reload ───────────────────────
+// (Design brief 2026-09-06.) A save refused because the file changed on
+// disk — or because this window holds no baseline for it — never
+// destroys the on-disk version: the in-memory document is written as a
+// conflicted copy beside the original, the window switches to the copy,
+// and the status-bar chip says so. No dialog at save time; the badge's
+// click is where the user decides anything.
+
+/** Write `bytes` as a conflicted copy beside `file.handle`, switch the
+ *  active document to the copy, announce it. False when the copy could
+ *  not be written (then the caller reports a failed save). */
+async function keepBothForActiveFile(
+  file: { handle: string; filename: string | null; format: 'cmir' | 'docx' },
+  bytes: Uint8Array,
+): Promise<boolean> {
+  const electron = getElectronHost();
+  if (!electron) return false;
+  try {
+    const copy = await electron.saveConflictedCopy(file.handle, bytes, conflictedCopyUserName());
+    // Mark the copy BEFORE the identity switch registers it, so the
+    // registration keeps the kept-copy state.
+    noteKeptCopy(copy.handle, file.handle);
+    commitSaveResult(copy.name, copy.handle, file.format);
+    // No chip or toast: the pill's "Conflicted copy" state is the announcement.
+    return true;
+  } catch (err) {
+    console.error('Conflicted-copy save failed:', err);
+    void alertDialog(`Couldn't save a conflicted copy: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
+}
+
+/** Serialize the active document the way Save does. */
+async function serializeActiveForSave(format: 'cmir' | 'docx', docId: string | null): Promise<Uint8Array> {
+  return serializeForSave(
+    format,
+    { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false },
+    docId ?? undefined,
+  );
+}
+
+/** Badge action: "Keep mine as a copy" without a prior refused save. */
+async function saveActiveAsConflictedCopy(): Promise<void> {
+  const file = activeFile();
+  if (typeof file.handle !== 'string' || !file.handle || !file.format) return;
+  const docId = ensureActiveDocId();
+  const commitClean = captureActiveDocCleanToken();
+  const bytes = await serializeActiveForSave(file.format, docId);
+  if (!(await keepBothForActiveFile({ handle: file.handle, filename: file.filename, format: file.format }, bytes))) return;
+  commitClean();
+  flashSaveSuccess();
+  reportAutosaveSuccess();
+}
+
+/** Badge action: the double-confirmed Overwrite. */
+async function saveActiveForcingDisk(): Promise<void> {
+  const file = activeFile();
+  if (typeof file.handle !== 'string' || !file.handle || !file.format) return;
+  const docId = ensureActiveDocId();
+  const commitClean = captureActiveDocCleanToken();
+  const bytes = await serializeActiveForSave(file.format, docId);
+  try {
+    await awaitWithSaveWatchdog(getHost().saveExisting(file.handle, bytes, { force: true }), file.filename, {
+      escalate: true,
+    });
+  } catch (err) {
+    void alertDialog(`Save failed: ${fileLockedMessage(err) ?? (err instanceof Error ? err.message : String(err))}`);
+    return;
+  }
+  noteSavedInPlace(file.handle);
+  commitClean();
+  flashSaveSuccess();
+  reportAutosaveSuccess();
+}
+
+/** Pill action "Keep their changes": replace the in-memory document
+ *  with the file on disk, discarding unsaved edits (the option's own
+ *  caption says so; no separate confirmation — design call). */
+let multiDocReloadFromDisk: ((handle: string) => Promise<void>) | null = null;
+export function setMultiDocReloadFromDisk(fn: ((handle: string) => Promise<void>) | null): void {
+  multiDocReloadFromDisk = fn;
+}
+async function reloadActiveFromDisk(handle: string): Promise<void> {
+  if (multiDocActive) {
+    await multiDocReloadFromDisk?.(handle);
+    return;
+  }
+  const electron = getElectronHost();
+  if (!electron) return;
+  const file = await electron.readFileAtPath(handle);
+  if (!file) {
+    showToast('Couldn\'t reload — the file is no longer readable at its location.');
+    return;
+  }
+  try {
+    const openBytes = await maybeDecryptForOpen(file.bytes, file.name);
+    let docNode: PMNode;
+    let docThreads: Thread[] | undefined;
+    let docId: string | null;
+    if (!bytesLookLikeDocx(openBytes)) {
+      const parsed = parseNative(openBytes);
+      docNode = parsed.doc;
+      docThreads = parsed.threads.length > 0 ? parsed.threads : undefined;
+      docId = parsed.docId;
+    } else {
+      const result = await fromDocxFull(openBytes);
+      docNode = result.doc;
+      docThreads = result.threads;
+      docId = result.docId;
+    }
+    mountOpenedSingleDoc({
+      docNode,
+      docThreads,
+      docId,
+      name: file.name,
+      handle: file.handle,
+      format: file.format,
+      dirty: false,
+      recordAsRecent: false,
+    });
+    // Same handle as before, so the mount did not re-register: claim the
+    // fresh read as the baseline explicitly.
+    await registerDocPath(file.handle);
+    noteReloaded(file.handle);
+  } catch (err) {
+    if (err instanceof OpenCancelledError) return;
+    void alertDialog(`Reload failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+let diskBadgeInstalled = false;
+/** Create the cloud pill (bottom-right tray, the mirror of the Send /
+ *  Receive tray) and wire main's disk-changed pushes. Idempotent. Waits
+ *  for the left tray to exist: it is created at boot for every layout
+ *  except mobile, which has no pills at all. */
+function ensureDiskBadge(): void {
+  if (diskBadgeInstalled) return;
+  if (!document.querySelector('.pmd-pill-tray')) return;
+  diskBadgeInstalled = true;
+  installDiskBadge({
+    getActive: () => {
+      const f = activeFile();
+      return { handle: typeof f.handle === 'string' ? f.handle : null, name: f.filename };
+    },
+    isSuppressed: () => readModeStateForActive() || getTimerStateNow().poppedOut,
+    isDirty: () => (multiDocActive ? (multiDocGetFocusedFile?.()?.dirty ?? false) : currentDocDirty),
+    isSessionHost: () => collabCopresenceFor(activeDocIdentity().sessionUid)?.role === 'host',
+    reveal: (handle) => void getElectronHost()?.showItemInFolder?.(handle),
+    reloadFromDisk: reloadActiveFromDisk,
+    keepMineAsCopy: () => saveActiveAsConflictedCopy(),
+    overwrite: () => saveActiveForcingDisk(),
+    openOriginal: (original) => openFileByPath(original, original.split(/[\\/]/u).pop() ?? original),
   });
+  getElectronHost()?.onDiskChanged(({ path }) => noteDiskChanged(path));
+  subscribeTimer(() => refreshDiskBadge());
 }
 
 async function runSaveFlowInner(): Promise<boolean> {
@@ -8186,34 +8416,31 @@ async function runSaveFlowInner(): Promise<boolean> {
       ) {
         return runSaveAsFlow();
       }
+      noteSavedInPlace(typeof file.handle === 'string' ? file.handle : '');
     } catch (err) {
-      // The file changed on disk since we last read/wrote it — another
+      // The file changed on disk since this window's baseline — another
       // program, device, or sync service (Dropbox syncing down another
       // machine's edit is the field case) wrote the path while this doc
-      // was open. Blindly writing would destroy that version WITHOUT
-      // even producing a Dropbox conflicted copy, so ask first.
-      if (!isFileChangedOnDiskError(err)) throw err;
-      const choice = await promptDiskConflict(file.filename);
-      if (choice === 'saveAs') return runSaveAsFlow();
-      if (choice !== 'overwrite') return false;
-      if (
-        (await awaitWithSaveWatchdog(
-          getHost().saveExisting(file.handle, bytes, { force: true }),
-          file.filename,
-          { escalate: true },
-        )) === 'saveAs'
-      ) {
-        return runSaveAsFlow();
+      // was open — or this window holds no baseline for it. Blindly
+      // writing would destroy that version WITHOUT even producing a
+      // Dropbox conflicted copy, so keep both: the in-memory document
+      // becomes a conflicted copy beside the original and this window
+      // switches to the copy. No dialog; the chip + badge say so.
+      if (!isFileChangedOnDiskError(err) || typeof file.handle !== 'string') throw err;
+      if (!(await keepBothForActiveFile({ handle: file.handle, filename: file.filename, format: file.format }, bytes))) {
+        return false;
       }
     }
     // Written to its file — no longer a stale-recovery-overwrite candidate.
     clearRecoveredDraftMark(activeUid);
     if (docId) {
+      // The active file may now be the conflicted copy — register that.
+      const saved = activeFile();
       learnStore.registerDoc({
         docId,
-        path: typeof file.handle === 'string' ? file.handle : null,
-        name: file.filename ?? 'Untitled',
-        format: file.format,
+        path: typeof saved.handle === 'string' ? saved.handle : null,
+        name: saved.filename ?? 'Untitled',
+        format: saved.format ?? file.format,
       });
     }
     flashSaveSuccess();
@@ -8530,9 +8757,20 @@ async function runAutosaveAttempt(): Promise<void> {
     maybeSnapshotVersion(activeSavedDocId(), bytes, 'auto');
     // Watchdog without the dialog — never a modal mid-typing; the
     // 10s warning chip still converts a hung autosave into feedback.
-    await awaitWithSaveWatchdog(getHost().saveExisting(file.handle, bytes), file.filename, {
-      escalate: false,
-    });
+    try {
+      await awaitWithSaveWatchdog(getHost().saveExisting(file.handle, bytes), file.filename, {
+        escalate: false,
+      });
+      noteSavedInPlace(typeof file.handle === 'string' ? file.handle : '');
+    } catch (err) {
+      // Changed on disk under us: keep both, same as a manual save — the
+      // write is non-destructive now, and a paused autosave would leave
+      // edits unsaved for as long as the user failed to notice.
+      if (!isFileChangedOnDiskError(err) || typeof file.handle !== 'string') throw err;
+      if (!(await keepBothForActiveFile({ handle: file.handle, filename: file.filename, format: 'cmir' }, bytes))) {
+        throw err;
+      }
+    }
     flashSaveSuccess();
     commitClean();
     reportAutosaveSuccess();
@@ -9628,11 +9866,52 @@ function positionDropzone(): void {
   // as the left (it's left-anchored, so without this it grows toward
   // the window edge).
   root.style.maxWidth = `${Math.max(160, Math.round(r.width - 16))}px`;
+  positionRightTray();
   // The scroll runway (so the last content clears the tray) is pure CSS: a
   // `padding-bottom` on the editable, gated on the pill-hidden class. Single-doc
   // pads `#editor .ProseMirror`; multi-pane pads only the anchored pane's editor
   // (tagged `.pmd-pane-pill-anchored` above) — no measurement needed here.
 }
+/** The cloud pill's tray (bottom-RIGHT, disk-conflict.ts) — anchored to
+ *  the editor's bottom-right the way `positionDropzone` anchors the left
+ *  tray, but measured against the SCROLLER's client box so the pill
+ *  clears the vertical scrollbar at whatever width the OS draws it
+ *  (field report 2026-09-06: the pill sat on top of the scrollbar). A
+ *  fixed `right` from the window edge can't know that width. Overlay
+ *  scrollbars (macOS default) report zero, so a 16px inset leaves room
+ *  for the transient thumb. Single-doc: the scroller enclosing #editor;
+ *  multi-pane: the rightmost visible pane's body. */
+function positionRightTray(): void {
+  const tray = document.querySelector<HTMLElement>('.pmd-pill-tray-right');
+  if (!tray) return;
+  let scroller: HTMLElement | null = null;
+  if (document.body.classList.contains('pmd-multi-doc')) {
+    const bodies = document.querySelectorAll<HTMLElement>('.pmd-pane:not([hidden]) .pmd-pane-body');
+    scroller = bodies[bodies.length - 1] ?? null;
+  } else {
+    let el: HTMLElement | null = document.getElementById('editor');
+    while (el && el !== document.body) {
+      const oy = getComputedStyle(el).overflowY;
+      if (oy === 'auto' || oy === 'scroll') {
+        scroller = el;
+        break;
+      }
+      el = el.parentElement;
+    }
+    scroller ??= document.getElementById('app');
+  }
+  const r = scroller?.getBoundingClientRect();
+  if (!scroller || !r || r.width === 0 || r.height === 0) {
+    tray.style.removeProperty('right');
+    tray.style.removeProperty('bottom');
+    return;
+  }
+  const scrollbar = Math.max(0, Math.round(r.width - scroller.clientWidth));
+  const inset = scrollbar > 0 ? scrollbar + 8 : 16;
+  tray.style.right = `${Math.max(4, Math.round(window.innerWidth - r.right + inset))}px`;
+  tray.style.bottom = `${Math.max(4, Math.round(window.innerHeight - r.bottom + 8))}px`;
+}
+
 // Load the per-user Learn annotation store (flashcards / schedules /
 // anchors) so review counts + the comments column have it available.
 void loadLearnStore();
@@ -9955,6 +10234,7 @@ async function mountFromSpawnPayload(
     }
     mountView(docNode, docThreads);
     currentDocFilename = payload.filename;
+    rememberJournaledBase(payload.handle, (payload as { diskBase?: DiskBase }).diskBase);
     setCurrentDocHandle(payload.handle);
     currentDocFormat = format;
     currentDocUid = payload.uid ?? newSessionDocUid();
@@ -10302,6 +10582,7 @@ async function runStartupRecoveryInner(): Promise<void> {
       // recovered-from provenance when it has one — a draft recovered, edited,
       // and re-crashed keeps its original timestamp.
       markRecoveredDraft(entry.uid, journalStalenessBaseline(entry));
+      rememberJournaledBase(entry.handle, entry.diskBase);
       // Multi-doc opens into a slot; single-doc replaces the
       // current view.
       if (multiDocActive && multiDocOnRecoveredDoc) {
@@ -10414,7 +10695,24 @@ async function saveRecoveryEntry(entry: JournalEntry): Promise<boolean> {
     if (inPlace) {
       try {
         const bytes = await reserializeJournalAs(entry, entry.format);
-        await host.saveExisting(entry.handle, bytes);
+        // Nothing has this file mounted, so this window holds no
+        // baseline for it: claim the journal's (main adopts it only if
+        // the file still matches), save, release.
+        const electron = getElectronHost();
+        if (electron) {
+          await electron.openPathRegister(entry.handle, { journaledBase: entry.diskBase ?? null }).catch(() => null);
+        }
+        try {
+          await host.saveExisting(entry.handle, bytes);
+        } catch (err) {
+          if (!isFileChangedOnDiskError(err) || !electron) throw err;
+          // The file moved since the journal: keep both. Nothing is mounted
+          // here, so no pill can show it — a plain toast names the copy.
+          const copy = await electron.saveConflictedCopy(entry.handle, bytes, conflictedCopyUserName());
+          showToast(`"${entry.filename}" changed on disk since that draft — saved it as "${copy.name}" beside it.`);
+        } finally {
+          if (electron) void electron.openPathRelease(entry.handle);
+        }
         await host.deleteJournal(entry.uid).catch(() => {
           /* best-effort */
         });
@@ -10536,6 +10834,7 @@ async function autoRecoverAll(
         if (entry.recoveredFromSavedAt) {
           markRecoveredDraft(entry.uid, entry.recoveredFromSavedAt);
         }
+        rememberJournaledBase(entry.handle, entry.diskBase);
         const parsed = parseNative(entry.bytes);
         await multiDocOnRecoveredDoc({
           uid: entry.uid,
@@ -10597,6 +10896,7 @@ async function autoRecoverAll(
         ...(entry.recoveredFromSavedAt
           ? { recoveredFromSavedAt: entry.recoveredFromSavedAt }
           : {}),
+        ...(entry.diskBase ? { diskBase: entry.diskBase } : {}),
       });
       await dropIfClean(entry.uid);
       console.log(`[cardmirror] modeswitch: spawned a window for "${entry.filename}"`);
@@ -10626,6 +10926,9 @@ async function applyRecovery(
   }
   mountView(parsed.doc, parsed.threads.length > 0 ? parsed.threads : undefined);
   currentDocFilename = entry.filename;
+  // The journal's on-disk baseline rides into the path registration so
+  // main can tell whether the file moved while the app was down.
+  rememberJournaledBase(entry.handle, entry.diskBase);
   setCurrentDocHandle(entry.handle);
   currentDocFormat = entry.format;
   // Reuse the original uid so a re-crash overwrites the same

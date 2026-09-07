@@ -123,6 +123,46 @@ describe('collab comment-thread sync', () => {
     b.destroy();
   });
 
+  it('a resolve toggle that LOSES a concurrent race still renders the room value (no stale pane)', async () => {
+    const [a, b] = await commentPeers();
+    // B creates the thread, so A's pane got it through a PULL (a peer never
+    // pulls its own writes) — the pulled signature is the unresolved state.
+    b.view.dispatch(b.view.state.tr.setMeta(commentsKey, addThreadMeta(thread('9', 'race me'))));
+    await settle();
+    await syncAll([a, b]);
+    await settle();
+    // The thread has been resolved and reopened before (an EXPLICIT
+    // resolved:false in the room, which A has pulled) — a fresh thread's
+    // comment carries no resolved key at all, so its signature can never
+    // match a later explicit false.
+    b.view.dispatch(b.view.state.tr.setMeta(commentsKey, setResolvedMeta('9', true)));
+    b.view.dispatch(b.view.state.tr.setMeta(commentsKey, setResolvedMeta('9', false)));
+    await settle();
+    await syncAll([a, b]);
+    await settle();
+    expect(threadsOf(a).get('9')?.comments[0]?.resolved).toBe(false);
+    // A resolves; B, concurrently, toggles resolved back and forth several
+    // times, ending on "false" — the extra writes run B's Lamport clock
+    // ahead, so B's LAST write wins the last-write-wins race, and nothing
+    // else about the thread changes. The room settles on "false": exactly
+    // the state A pulled before its own write.
+    a.view.dispatch(a.view.state.tr.setMeta(commentsKey, setResolvedMeta('9', true)));
+    for (let i = 0; i < 3; i++) {
+      b.view.dispatch(b.view.state.tr.setMeta(commentsKey, setResolvedMeta('9', true)));
+      b.view.dispatch(b.view.state.tr.setMeta(commentsKey, setResolvedMeta('9', false)));
+    }
+    await settle();
+    await syncAll([a, b]);
+    await settle();
+    const roomValue = (a.ldoc.getMap('comments').toJSON() as Record<string, Record<string, { resolved?: boolean }>>)['9']!['9']!.resolved === true;
+    expect(roomValue, "B's last write won").toBe(false);
+    for (const peer of [a, b]) {
+      expect(threadsOf(peer).get('9')?.comments[0]?.resolved === true, 'pane shows the room value').toBe(roomValue);
+    }
+    a.destroy();
+    b.destroy();
+  });
+
   it('resolve propagates to the partner and back', async () => {
     const [a, b] = await commentPeers();
     a.view.dispatch(a.view.state.tr.setMeta(commentsKey, addThreadMeta(thread('4', 'check me'))));
@@ -187,6 +227,36 @@ describe('collab comment-thread sync', () => {
 
     expect(threadsOf(a).has('5')).toBe(false);
     expect(threadsOf(b).has('5')).toBe(false);
+    a.destroy();
+    b.destroy();
+  });
+
+  it('a remote comments event that changes nothing does not dispatch into the editor (2026-09-01 review, PH-A12)', async () => {
+    // pull() rebuilt every thread and dispatched a PM transaction on
+    // EVERY remote comments event — one partner toggling "resolved"
+    // materialized the whole thread set and fired a transaction on
+    // everyone, even when the derived threads were identical.
+    const [a, b] = await commentPeers();
+    a.view.dispatch(a.view.state.tr.setMeta(commentsKey, addThreadMeta(thread('20', 'steady'))));
+    await settle();
+    await syncAll([a, b]);
+    // First set lands the value (a real change → one dispatch, not counted).
+    a.view.dispatch(a.view.state.tr.setMeta(commentsKey, setResolvedMeta('20', false)));
+    await settle();
+    await syncAll([a, b]);
+    let syncDispatches = 0;
+    const inner = b.view.dispatch.bind(b.view);
+    (b.view as { dispatch: (tr: unknown) => void }).dispatch = (tr) => {
+      const t = tr as { getMeta: (k: unknown) => unknown };
+      if (t.getMeta(commentsKey)) syncDispatches++;
+      inner(tr as never);
+    };
+    // A re-sets the SAME value: the map changes bytes (LWW rewrite) but
+    // the derived threads on B are identical.
+    a.view.dispatch(a.view.state.tr.setMeta(commentsKey, setResolvedMeta('20', false)));
+    await settle();
+    await syncAll([a, b]);
+    expect(syncDispatches, 'no-change events must not dispatch').toBe(0);
     a.destroy();
     b.destroy();
   });

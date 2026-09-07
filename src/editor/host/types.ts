@@ -19,6 +19,8 @@
  * file handles for in-place saves); they're not assumed to be pure.
  */
 
+import type { LearnOp } from '../learn-store.js';
+
 /** File-type filter for native open/save dialogs. Mirrors Electron's
  *  `dialog.FileFilter` shape so the ElectronHost can pass it
  *  through verbatim; BrowserHost uses it to build the `<input
@@ -102,7 +104,20 @@ export interface SaveAsOptions {
  *  serialization — lossless and cheap to (de)serialize. The doc's
  *  *intended* on-disk format and handle are tracked separately so a
  *  recovered `.docx` doc can keep targeting Word on its next save. */
+/** On-disk identity of a document's file — the changed-on-disk guard's
+ *  baseline (see apps/desktop/src/doc-writes.ts). */
+export interface DiskBase {
+  mtimeMs: number;
+  size: number;
+  contentHash?: string;
+}
+
+export type CloudProvider = 'dropbox' | 'onedrive' | 'gdrive' | 'icloud' | 'other';
+
 export interface JournalEntry {
+  /** Journal-carried baseline of the doc's file (desktop fills it on
+   *  write); passed back when the recovered doc registers its path. */
+  diskBase?: DiskBase;
   /** Stable identifier for the doc across the session — multi-doc
    *  uses its DocRecord uid; single-doc tracks one at module level.
    *  Recovery reuses the same uid so a recovered doc that crashes
@@ -274,8 +289,15 @@ export interface Host {
    *  decks — the local annotation layer). `null` when none saved yet. */
   readLearnStore(): Promise<string | null>;
 
-  /** Persist the Learn store blob (whole-blob write; caller debounces). */
-  writeLearnStore(json: string): Promise<void>;
+  /** Apply one Learn store mutation at the single OWNER of the canonical
+   *  copy (desktop: the main process; web: this tab, under a Web Lock)
+   *  and return the resulting blob. Windows never write the blob
+   *  themselves — see learn-store-host.ts. */
+  applyLearnOp(op: LearnOp): Promise<string>;
+
+  /** Follow canonical Learn store changes made through ANY window or
+   *  tab. Returns an unsubscribe. */
+  onLearnStoreChanged(handler: (json: string) => void): () => void;
 
   /** Whether journaling actually persists across sessions on this
    *  host. Set to false by hosts that can't (e.g. a hypothetical
@@ -314,6 +336,8 @@ export interface Host {
  *  renderer to mount the doc without re-prompting via the file
  *  picker. */
 export interface SpawnWindowPayload {
+  /** Journal-carried baseline of a recovered doc being respawned. */
+  diskBase?: DiskBase;
   filename: string;
   bytes: Uint8Array;
   handle: string | null;
