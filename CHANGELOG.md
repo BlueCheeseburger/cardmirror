@@ -74,6 +74,229 @@ see `DETAILED_CHANGELOG.md`.
   "New > Microsoft Word Document" disappear from Explorer. Reverted;
   CardMirror is Open-With-only for `.docx` on Windows again, as intended.
 
+## 1.8.0 — 2026-09-06
+
+### Added
+
+- **Cloud pill and conflicted copies for shared folders.** A document
+  in a Dropbox, OneDrive, Google Drive or iCloud folder now shows a
+  cloud pill in the bottom-right corner of the editor, the mirror of
+  the Send and Receive pills. When the file changes on disk under you,
+  because a teammate saved it on another machine, the pill turns amber
+  with the time, quietly, with no pop-up. Saving then never
+  overwrites their version: your document is written beside it as a
+  conflicted copy, named the way Dropbox names its own, and the window
+  switches to the copy, with the pill reading "Conflicted copy". Click
+  the pill to keep their changes, keep yours, or keep both. Autosave keeps both too instead of
+  pausing.
+
+### Fixed
+
+- **Space no longer stacks the "Nothing due right now" panel.** With no
+  flashcards due, pressing Space after Review all due opened another
+  copy of the panel on every press, because the button behind it kept
+  the keyboard. The session now takes the keyboard when it opens, Space
+  or Enter on that panel means Done, and a second session cannot open
+  over a first.
+- **Saving over a teammate's edits in a shared folder.** Opening the
+  quick-card palette, a second window, or a speech document that pulled
+  from a file could quietly convince CardMirror that the file's newer
+  version was its own, so the next save replaced a teammate's work
+  without a warning, and without a Dropbox conflicted copy. The check
+  now belongs to the window editing the document and cannot be reset by
+  anything else, it is re-checked right before the file is replaced, and
+  a document recovered after a crash keeps its check too.
+- **Flashcards no longer vanish when two windows are open.** Each window
+  used to save the whole flashcard store, so a window opened before you
+  created cards could overwrite them the next time it opened a file.
+  One owner now applies every change and every window sees it at once,
+  on desktop and on the web. A daily backup of the store is kept for two
+  weeks in the app's data folder, and a store that cannot be read is set
+  aside rather than overwritten.
+
+## 1.7.0 — 2026-09-05
+
+### Added
+
+- **Choose which machine to unlink.** Linking a third machine to a
+  membership now lists the machines already linked (name, link date,
+  last active) and asks which one to unlink, instead of silently
+  unlinking the oldest one — which was often the machine you use most.
+
+- **Send to Recipient.** A keyboard sibling of Send to Starred: the
+  same card or selection, but you pick the contact or group from a
+  list (type to filter). Unbound by default — run it from the command
+  bar or bind a key.
+
+- **Card count in Word Count.** The Word Count window now shows how
+  many cards are in the full document, or how many cards intersect the
+  current selection. Thanks to Shreeram (@shreerammodi)!
+
+- **Convert Cards to Read Mode.** A command (also answers to *zap
+  card*) that permanently reduces the selected cards, or the card at
+  the cursor, to what read mode shows: the tag, the cite, an undertag's
+  read words, and the highlighted or underlined text, with paragraphs
+  flowed together or kept on their own lines to match the "Read mode:
+  preserve paragraph integrity" setting. Undo restores the cards. Thanks
+  to Shreeram (@shreerammodi)!
+
+- **Co-editing: cut moves a card instead of copying it.** In a shared
+  document, cutting a whole card (or a section) no longer removes it:
+  the card stays where it is, dimmed and labelled, and pasting it in
+  the same document moves it, with everything a partner typed into it
+  in the meantime. Cut-then-paste used to be a delete and a fresh copy,
+  which could drop a partner's concurrent typing or leave the card
+  twice. Esc cancels the cut, Delete removes the card, and pasting
+  anything else ends it. Pasting into another document copies the card
+  there and removes it from the original when that document is open.
+  Text cuts and solo documents are unchanged.
+
+- **Ctrl/Cmd-triple-click adds a whole paragraph.** Adding to a
+  selection with Ctrl/Cmd now follows the same ladder as plain
+  clicking: a click adds a word, a triple-click adds the paragraph, and
+  a drag snaps to whole words after a double-click and whole paragraphs
+  after a triple-click. Ctrl/Cmd-triple-click used to add just the word
+  under the pointer.
+
+- **Read mode: keep entire cite.** A new setting (General, next to
+  "Read mode: preserve paragraph integrity", off by default) makes read
+  mode show the whole of any cite that has read-aloud text in it,
+  qualifications and all, instead of only its cite-marked and
+  highlighted words. Convert Cards to Read Mode follows it.
+
+### Fixed
+
+- **Empty pockets kept their height in read mode.** An empty pocket
+  (or hat, block or tag) shrank to a thin box in read mode; it is now
+  the same height as when editing.
+- **Co-editing: undo can no longer delete a partner's typing.** Undoing
+  an Enter-in-tag, a card insert, or a card paste while a partner had
+  already typed into the new card used to remove the card and their
+  text with it, silently. Such an undo is now reversed on the spot with
+  a note; undoing your own untouched edits works as before.
+- **Co-editing: moves and splits keep cards' identities.** When a card
+  was moved or split while a partner edited it, the sync layer could
+  rebuild the card, orphaning the partner's edit (lost text) or leaving
+  two copies. Cards now keep their identity through those merges.
+- **Co-editing: a duplicated heading id born from a merge is repaired.**
+  Pasted cards get fresh ids, but an older client's paste, or an edge
+  case in a merge, could leave two cards sharing one id, and nothing
+  looked at remote edits to fix it. The session's repair pass now does,
+  on the leader, and every peer converges on unique ids.
+- **Co-editing: typed text no longer tears under a partner's concurrent
+  split or delete.** When a word you typed began or ended with the same
+  letters as its neighbour, the sync layer treated part of the
+  neighbour as your new text; a partner splitting or deleting that
+  neighbour at the same moment then took a piece of your word with it
+  ("«tk16» «tk3»" came out as "16» «tk"). Local edits now sync as
+  exactly the characters you typed or deleted.
+- **Splitting a numbered tag keeps the number on the first half.** Enter
+  in the middle of a numbered tag or heading built the new unit with
+  default numbering and put it first, so the number followed the text
+  after the cursor. The half before the cursor keeps the original
+  numbering; the half after it starts fresh.
+- **Co-editing: sessions no longer wedge on a dead connection.** A
+  request that never answered (a laptop lid closed mid-send, a network
+  that changed underneath) could leave a session stuck on "queued N"
+  with no retry, and a silently dead live stream was never noticed by a
+  peer who was only reading. Every request now has a deadline, the
+  stream restarts after 70 seconds of silence, and a wake-up no longer
+  cancels the reconnect it just started. Large catch-up pages get the
+  long deadline, not the short one, so big rooms on slow links still
+  join.
+- **Co-editing: relay restarts and outages recover cleanly.** Reconnect
+  backoff only resets once a connection has survived a while, retries
+  spread out instead of stampeding, joining retries a relay that is
+  briefly unavailable instead of failing or opening a stale copy, and a
+  page loop that stops advancing ends instead of hammering the relay.
+  A machine whose web login has expired stops sending empty
+  credentials all night.
+- **Co-editing: offline edits no longer land as hundreds of updates.**
+  Ten minutes offline used to arrive as one relay row per half-second
+  tick, for everyone to fetch and decrypt. Queued edits now coalesce
+  into one update before sending; catch-up skips rows the live stream
+  already delivered and decrypts the rest in parallel; the half-hourly
+  history audit runs behind a fresh catch-up instead of re-fetching a
+  stale window.
+- **Co-editing: the room log stops growing without bound.** A flag that
+  blocks snapshot compaction while updates are missing could latch on
+  and never clear, so the room's history grew for the life of the
+  session: slower joins for every peer. It is now derived from what is
+  actually still missing. Corrupt frames no longer cause a permanent
+  gap in catch-up either.
+- **Co-editing: big documents stay responsive.** Repair passes after
+  each remote update walk only the changed region instead of the whole
+  document; the causal heal no longer decodes the full history during
+  the join freeze; remote carets are reused instead of rebuilt on every
+  keystroke; presence dots and footers repaint once per burst; crash
+  recovery writes slow down for very large documents and share one
+  snapshot with version history; switching back to a big co-edited tab
+  no longer freezes the window.
+- **Co-editing: problems are told, not swallowed.** A send that keeps
+  failing, three minutes disconnected (with the count of edits waiting),
+  a session that cannot save its recovery copy, and being crowded out of
+  a full room each show a notice now. Relay errors carry the relay's
+  own explanation ("update too large" vs "room storage cap reached").
+- **Co-editing: leaving a session removes your caret at once** instead
+  of up to 45 seconds later, and presence is re-announced after a
+  reconnect or an aborted departure.
+- **Co-editing: join, resume and teardown races closed.** Double-clicking
+  Join or Resume could run two sessions on one room; a room-full or
+  failed join left a ghost session polling for the life of the window;
+  ending a session could leave a retry timer and a late send behind;
+  the "working…" veil could stick forever; a failed cleanup showed a
+  generic error over "Session ended". Switching to three-pane or
+  quitting now flushes version history as well as the recovery copy,
+  and hiding the tab flushes unsent edits immediately.
+- **Co-editing: the caret's paragraph stays known to the sync layer
+  after an undo or a partner's edit.** Every render from the shared
+  document rebuilt the card and paragraph around the change as new
+  objects without telling the sync layer, so cursor sharing and undo
+  bookkeeping under the caret failed quietly, once per keystroke, until
+  the next local edit in that paragraph. Loudest after undo; on the web,
+  and in the console, as "Cannot find the loroNode". A remote batch that
+  changed nothing visible left the same staleness behind; it no longer
+  does. The same message also fired, harmlessly, for selections made
+  before the sync layer had bound a freshly opened document or
+  mid-batch; it no longer does.
+- **Co-editing: a resolved/reopened comment no longer shows stale on the
+  peer that lost the race.** If two people toggled a comment's resolved
+  state at the same moment, the loser's own screen kept its value while
+  everyone else showed the winner's, until the next comment change.
+- **Co-editing: comments and Recover Previous Version do less work.** A
+  partner resolving a comment no longer re-renders every thread on
+  every peer; a comment edit the room silently dropped is now counted;
+  the session-history dialog imports its source once per open instead
+  of once per preview click.
+- **Web account renewals are single-flight** with a deadline, run on
+  wake and tab focus, and no longer unlink the account when a captive
+  portal answers with an HTML error.
+- **The AI persona's Customize dialog takes typing again.** Opened from
+  Settings, its fields ignored every keystroke: the Settings dialog kept
+  ownership of the keyboard because the dialog on top never registered
+  as one. It does now, and Escape closes only the dialog on top.
+- **Web: switching back to the tab no longer reconnects the session.**
+  Returning to the tab restarted the live stream every time, which cost
+  a reconnect, a catch-up and a presence flicker on every partner. It
+  now reconnects only if the stream has actually gone quiet.
+- **Web: closing the tab says goodbye and pushes your last edits.**
+  A tab close used to drop the departure notice (partners saw your
+  caret for 45 more seconds) and could cancel the final send. Both now
+  go out as requests the browser finishes after the tab is gone; the
+  crash-recovery record still re-sends anything that did not make it.
+- **The Send pill scrolls while you drag.** Long recipient lists were
+  unreachable past the first screenful during a drag; holding the
+  dragged card near the top or bottom of the list now scrolls it.
+- **Regenerating your pairing code releases its seat.** The old code's
+  seat stayed held on the relay, so the regenerated machine's re-link
+  could push out a machine you still use.
+- **Refused account renewals back off** instead of retrying every few
+  minutes.
+- **A lapsed membership that re-subscribes reconnects on its own.**
+  Linked machines used to need re-linking after a lapse; the relay now
+  hears about membership changes directly (live since 2026-09-04,
+  independent of this build).
+
 ## 1.6.0-bcb.3.1 — 2026-09-04
 
 ### Added

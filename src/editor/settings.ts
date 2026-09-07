@@ -423,6 +423,9 @@ export interface Settings {
   /** UI tour (coach marks) shown/acknowledged. Auto-set on any run;
    *  no settings row — reruns go through the `startUiTour` command. */
   hasSeenUiTour: boolean;
+  /** First cut-in-place notice (shared documents) shown. Auto-set; no
+   *  settings row. See cut-in-place.ts. */
+  hasSeenCutInPlaceNotice: boolean;
   /** Desktop-only. When set, "New Speech Document" saves into this
    *  directory by default (instead of leaving the doc unsaved until
    *  the user picks a location). Empty string means no default — the
@@ -903,6 +906,12 @@ export interface Settings {
    *  one only changes what read mode draws. Off by default: the single
    *  continuous flow is what most people want at the podium. */
   readModeParagraphIntegrity: boolean;
+  /** When true, read mode shows the WHOLE of any cite paragraph that has
+   *  read-aloud text in it — qualifications, source, date and all —
+   *  instead of only its cite-marked and highlighted runs. Display-only;
+   *  Convert Cards to Read Mode follows it. Off by default: the marked
+   *  runs are what most people read at the podium. */
+  readModeKeepEntireCite: boolean;
   /** When true, tint every run of card body text that falls AFTER a
    *  reading-position marker red, a visual record of what you didn't reach
    *  in a round. Bounded per-card; display-only (a decoration, never a doc
@@ -1639,6 +1648,7 @@ const DEFAULTS: Settings = {
   copyPreviousCiteNearestOnly: true,
   showOnboardingStarter: true,
   hasSeenUiTour: false,
+  hasSeenCutInPlaceNotice: false,
   defaultSpeechDocFolder: '',
   defaultSpeechDocFormat: 'docx',
   speechDocFilenameTemplate: DEFAULT_SPEECH_FILENAME_TEMPLATE,
@@ -1739,6 +1749,7 @@ const DEFAULTS: Settings = {
   readMode: false,
   hideEmphasisBordersInReadMode: false,
   readModeParagraphIntegrity: false,
+  readModeKeepEntireCite: false,
   markUnreadAfterMarker: false,
   defaultZoomPct: 100,
   chromeScalePct: 100,
@@ -1889,7 +1900,7 @@ export const SETTINGS_DEFAULTS: Readonly<Settings> = DEFAULTS;
  *  presence-based — boot code persisting an all-defaults store must
  *  not disqualify a genuinely fresh profile. */
 export function hasCustomizedSettings(
-  ignore: readonly (keyof Settings)[] = ['hasSeenUiTour'],
+  ignore: readonly (keyof Settings)[] = ['hasSeenUiTour', 'hasSeenCutInPlaceNotice'],
 ): boolean {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Record<
@@ -2199,6 +2210,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Editor behavior',
     aliases: ['paragraph breaks', 'paragraph integrity', 'separate lines', 'read mode paragraphs'],
+  },
+  {
+    key: 'readModeKeepEntireCite',
+    label: 'Read mode: keep entire cite',
+    description:
+      'When on, read mode shows the whole of any cite that has read-aloud text in it — qualifications, source, date and all — instead of only its cite-marked and highlighted words. A cite with nothing marked stays hidden. Off by default. Display-only, like the rest of read mode; Convert Cards to Read Mode follows it too.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Editor behavior',
+    aliases: ['whole cite', 'full cite', 'entire cite', 'read mode cite', 'quals'],
   },
   // ─── General ────────────────────────────────────────────────────
   {
@@ -4220,6 +4241,7 @@ function sanitize(s: Settings): Settings {
     // from before this setting existed.
     showOnboardingStarter: s.showOnboardingStarter === false ? false : true,
     hasSeenUiTour: s.hasSeenUiTour === true,
+    hasSeenCutInPlaceNotice: s.hasSeenCutInPlaceNotice === true,
     defaultSpeechDocFolder:
       typeof s.defaultSpeechDocFolder === 'string'
         ? s.defaultSpeechDocFolder
@@ -4412,6 +4434,7 @@ function sanitize(s: Settings): Settings {
     readMode: !!s.readMode,
     hideEmphasisBordersInReadMode: !!s.hideEmphasisBordersInReadMode,
     readModeParagraphIntegrity: !!s.readModeParagraphIntegrity,
+    readModeKeepEntireCite: !!s.readModeKeepEntireCite,
     markUnreadAfterMarker: !!s.markUnreadAfterMarker,
     // A legacy persisted `zoomPct` is deliberately ignored — live body
     // zoom is transient; documents open at this default.

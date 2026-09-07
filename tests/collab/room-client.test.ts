@@ -56,6 +56,47 @@ describe('RoomsClient', () => {
     expect((err as RoomsError).status).toBe(410);
   });
 
+  it('carries the relay\u2019s error detail on non-2xx (413 texts differ and must reach the user)', async () => {
+    // The relay answers 413 for BOTH 'update too large' and 'room storage
+    // cap reached'; discarding the body left the field with a bare
+    // 'rooms request failed: 413' (2026-09-01 review, T9).
+    const { roomId } = await client.createRoom();
+    mock.setUpdateFailure({ status: 413, detail: 'room storage cap reached' });
+    try {
+      await expect(client.postUpdate(roomId, bytes('x'))).rejects.toMatchObject({
+        status: 413,
+        message: expect.stringContaining('room storage cap reached'),
+      });
+    } finally {
+      mock.setUpdateFailure(null);
+    }
+  });
+
+  it('keeps live transport counters (requests, failures by class, last error)', async () => {
+    const c = new RoomsClient({ baseUrl: () => mock.url, token: () => mock.token });
+    const { roomId } = await c.createRoom();
+    await c.postUpdate(roomId, bytes('ok'));
+    expect(c.stats.requests).toBe(2);
+    expect(c.stats.failures).toBe(0);
+    expect(c.stats.lastOkAt).toBeGreaterThan(0);
+    mock.setUpdateFailure({ status: 413, detail: 'update too large' });
+    try {
+      await c.postUpdate(roomId, bytes('big')).catch(() => {});
+    } finally {
+      mock.setUpdateFailure(null);
+    }
+    expect(c.stats.failures).toBe(1);
+    expect(c.stats.clientErrors).toBe(1);
+    expect(c.stats.lastError).toContain('update too large');
+    mock.pause();
+    try {
+      await c.postUpdate(roomId, bytes('x')).catch(() => {});
+    } finally {
+      mock.resume();
+    }
+    expect(c.stats.serverErrors).toBe(1);
+  });
+
   it('surfaces a clear RoomsError when an interceptor answers HTML instead of JSON', async () => {
     // A school content filter (Securly — field bug 2026-07-10), captive
     // portal, or misconfigured relay URL answers 200 + an HTML page; the
@@ -190,8 +231,11 @@ describe('RoomStream', () => {
       baseUrl: () => mock.url,
       token: () => 'expired-guest-pass',
       roomId,
-      minBackoffMs: 20,
-      maxBackoffMs: 40,
+      // Jitter is 30-100% of the backoff, so the first retry lands no
+      // sooner than 30ms here — the 15ms probe below sees exactly one
+      // attempt.
+      minBackoffMs: 100,
+      maxBackoffMs: 200,
       callbacks: {
         onHello: () => {},
         onUpdate: () => {},
@@ -207,7 +251,7 @@ describe('RoomStream', () => {
     stream.start();
     await sleep(15); // one attempt so far
     expect(authDead).toBe(0);
-    await sleep(120); // past the first backoff → second confirmed 401
+    await sleep(250); // past the first backoff → second confirmed 401
     expect(authDead).toBe(1);
     expect(stream.running).toBe(false);
   });
@@ -254,8 +298,12 @@ describe('RoomStream', () => {
       baseUrl: () => mock.url,
       token: () => (denyToken ? 'wrong' : mock.token),
       roomId,
-      minBackoffMs: 20,
-      maxBackoffMs: 40,
+      // Retries land at 30-100% of the backoff: 200ms keeps every
+      // scripted 30ms window below to exactly one attempt.
+      minBackoffMs: 200,
+      maxBackoffMs: 400,
+      restartDebounceMs: 0, // restart() here means "drop the connection now"
+
       callbacks: {
         onHello: () => {},
         onUpdate: () => {},
@@ -315,6 +363,228 @@ describe('RoomStream', () => {
   });
 });
 
+describe('RoomStream backoff policy (2026-09-01 review)', () => {
+  /** A fetch that answers every stream connect with `hello` and then
+   *  closes — the shape of a draining/flapping relay. */
+  const helloThenClose = (): Response =>
+    new Response(
+      new ReadableStream({
+        start(c) {
+          c.enqueue(new TextEncoder().encode('event: hello\ndata: {"lastSeq":0}\n\n'));
+          c.close();
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+    );
+  const noop = { onHello: () => {}, onUpdate: () => {}, onPresence: () => {}, onEnded: () => {}, onFull: () => {} };
+
+  it('retry delays never exceed maxBackoffMs (jitter is applied inside the cap)', async () => {
+    // The clamp ran BEFORE the ±30% jitter, so a 60s cap really meant 78s.
+    const stamps: number[] = [];
+    const stream = new RoomStream({
+      baseUrl: () => 'http://127.0.0.1:1', // refused
+      token: () => 'x',
+      roomId: 'r',
+      minBackoffMs: 20,
+      maxBackoffMs: 50,
+      fetchImpl: () => {
+        stamps.push(Date.now());
+        return Promise.reject(new Error('ECONNREFUSED'));
+      },
+      callbacks: noop,
+    });
+    stream.start();
+    await sleep(400);
+    stream.stop();
+    const gaps = stamps.slice(1).map((t, i) => t - stamps[i]!);
+    expect(gaps.length).toBeGreaterThan(4);
+    // Timer slop only (a few ms) — never the old cap×1.3 = 65.
+    for (const g of gaps) expect(g).toBeLessThanOrEqual(50 + 8);
+  });
+
+  it('backoff resets only after a connection SURVIVES, so a hello-then-close relay is not hammered', async () => {
+    let attempts = 0;
+    const stream = new RoomStream({
+      baseUrl: () => 'http://x',
+      token: () => 'x',
+      roomId: 'r',
+      minBackoffMs: 20,
+      maxBackoffMs: 160,
+      resetAfterMs: 5_000, // "survived" = stayed up this long; never happens here
+      fetchImpl: () => {
+        attempts++;
+        return Promise.resolve(helloThenClose());
+      },
+      callbacks: noop,
+    });
+    stream.start();
+    await sleep(450);
+    stream.stop();
+    // Naive reset-on-hello: ~1 attempt per 20ms ≈ 20+. Escalating: 20, 40,
+    // 80, 160, 160… ≈ 5-6 attempts in 450ms.
+    expect(attempts).toBeLessThanOrEqual(8);
+  });
+
+  it('a reconnect that keeps hitting 409 eventually reports crowded-out (and keeps retrying)', async () => {
+    let calls = 0;
+    let crowded = 0;
+    const stream = new RoomStream({
+      baseUrl: () => 'http://x',
+      token: () => 'x',
+      roomId: 'r',
+      minBackoffMs: 20,
+      maxBackoffMs: 40,
+      fetchImpl: () => {
+        calls++;
+        if (calls === 1) return Promise.resolve(helloThenClose()); // established once
+        return Promise.resolve(
+          new Response('{"detail":"room is full"}', {
+            status: 409,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      },
+      callbacks: { ...noop, onCrowdedOut: () => crowded++ },
+    });
+    stream.start();
+    await sleep(400);
+    expect(crowded, 'reported once after the ghost-reap window').toBe(1);
+    expect(stream.running, 'still retrying — a seat may open').toBe(true);
+    stream.stop();
+  });
+});
+
+describe('empty credential short-circuit (2026-09-01 review, T5)', () => {
+  it('an empty bearer never reaches the network: requests fail locally, the stream reports auth-dead at once', async () => {
+    // On web, an expired entitlement resolves to '' by design — and every
+    // request then went out as literal `Authorization: Bearer ` and 401'd,
+    // all night, with auth-dead only detected two backoff intervals later.
+    const { roomId } = await client.createRoom();
+    const before = mock.streamAttempts();
+    const c = new RoomsClient({ baseUrl: () => mock.url, token: () => '' });
+    await expect(c.postUpdate(roomId, bytes('x'))).rejects.toMatchObject({ status: 0 });
+    expect(c.stats.requests, 'no network request was made').toBe(0);
+    let authDead = 0;
+    const stream = new RoomStream({
+      baseUrl: () => mock.url,
+      token: () => '',
+      roomId,
+      minBackoffMs: 20,
+      maxBackoffMs: 40,
+      callbacks: {
+        onHello: () => {},
+        onUpdate: () => {},
+        onPresence: () => {},
+        onEnded: () => {},
+        onFull: () => {},
+        onAuthDead: () => authDead++,
+      },
+    });
+    stream.start();
+    await sleep(120);
+    stream.stop();
+    expect(mock.streamAttempts() - before, 'no stream connect attempts').toBe(0);
+    expect(authDead, 'auth-dead signaled immediately (the credential is unambiguously absent)').toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('RoomStream restart hygiene (2026-09-01 review, T11)', () => {
+  it('two restart() calls in quick succession (powerResumed + online) cost ONE reconnect', async () => {
+    const { roomId } = await client.createRoom();
+    const stream = new RoomStream({
+      baseUrl: () => mock.url,
+      token: () => mock.token,
+      roomId,
+      minBackoffMs: 20,
+      maxBackoffMs: 50,
+      callbacks: { onHello: () => {}, onUpdate: () => {}, onPresence: () => {}, onEnded: () => {}, onFull: () => {} },
+    });
+    stream.start();
+    await sleep(60); // helloed
+    const before = stream.stats.attempts;
+    mock.setHelloDelay(100); // a slow handshake, so the second restart can abort the first
+    try {
+      stream.restart(); // powerResumed
+      await sleep(30); // ...and 'online' a beat later, while the reconnect handshake is in flight
+      stream.restart();
+      await sleep(350);
+      expect(stream.stats.attempts - before, 'one reconnect, not an aborted handshake + another').toBe(1);
+      expect(stream.connected).toBe(true);
+    } finally {
+      mock.setHelloDelay(0);
+      stream.stop();
+    }
+  });
+});
+
+describe('request deadlines + stream stall watchdog (2026-09-01 review, SC3/T1/T2)', () => {
+  it('a hung update POST times out as a retryable RoomsError instead of pending forever', async () => {
+    const c = new RoomsClient({
+      baseUrl: () => mock.url,
+      token: () => mock.token,
+      postTimeoutMs: 100, // update posts carry the long deadline; shorten it here
+    });
+    const { roomId } = await c.createRoom();
+    mock.hangNextUpdates(1);
+    try {
+      const outcome = await Promise.race([
+        c.postUpdate(roomId, bytes('x')).then(
+          () => 'resolved' as const,
+          (e: RoomsError) => (e.status === 0 ? 'timed-out' : `err:${e.status}`),
+        ),
+        sleep(600).then(() => 'hung' as const),
+      ]);
+      expect(outcome).toBe('timed-out');
+    } finally {
+      mock.hangNextUpdates(0);
+    }
+  });
+
+  it('a slow catch-up page is not cut off by the control-call deadline', async () => {
+    // Pages run to 4MB (and the first one carries the room snapshot), so
+    // a slow link legitimately takes longer than a control call. Under the
+    // 15s control deadline a big room on a slow link re-fetched the same
+    // page into the same timeout forever (knock-on audit 2026-09-02);
+    // bulk GETs carry the long deadline.
+    const c = new RoomsClient({
+      baseUrl: () => mock.url,
+      token: () => mock.token,
+      requestTimeoutMs: 100,
+    });
+    const { roomId } = await c.createRoom();
+    await c.postUpdate(roomId, bytes('big page'));
+    mock.delayNextUpdatesFetch(300);
+    const page = await c.fetchUpdates(roomId, 0);
+    expect(page.updates.length, 'the page arrived instead of timing out').toBe(1);
+  });
+
+  it('a silently dead stream (heartbeats stop) is detected and restarted', async () => {
+    const { roomId } = await client.createRoom();
+    mock.setHeartbeat(40);
+    const stream = new RoomStream({
+      baseUrl: () => mock.url,
+      token: () => mock.token,
+      roomId,
+      minBackoffMs: 20,
+      maxBackoffMs: 50,
+      stallMs: 150,
+      callbacks: { onHello: () => {}, onUpdate: () => {}, onPresence: () => {}, onEnded: () => {}, onFull: () => {} },
+    });
+    stream.start();
+    try {
+      await sleep(150); // helloed + at least one heartbeat observed (arms the watchdog)
+      const before = stream.stats.attempts;
+      mock.freezeStreams(true); // socket open, nothing arrives
+      await sleep(500);
+      expect(stream.stats.attempts - before, 'the watchdog reconnected').toBeGreaterThanOrEqual(1);
+    } finally {
+      mock.freezeStreams(false);
+      mock.setHeartbeat(0);
+      stream.stop();
+    }
+  });
+});
+
 describe('egress protocol additions (2026-07-24)', () => {
   it('fetchUpdates: haveSnap suppresses an unchanged snapshot; a different tag ships it', async () => {
     const { roomId } = await client.createRoom();
@@ -371,5 +641,49 @@ describe('egress protocol additions (2026-07-24)', () => {
     expect(seen.a).not.toContain('from-a'); // the sender's bytes never came back
     sa.stop();
     sb.stop();
+  });
+});
+
+describe('RoomStream.restartIfStale — tab return (web audit 2026-09-04)', () => {
+  const cbs = { onHello: () => {}, onUpdate: () => {}, onPresence: () => {}, onEnded: () => {}, onFull: () => {} };
+
+  it('leaves a healthy, byte-fresh stream alone (a tab switch costs no reconnect)', async () => {
+    const { roomId } = await client.createRoom();
+    const stream = new RoomStream({ baseUrl: () => mock.url, token: () => mock.token, roomId, minBackoffMs: 20, maxBackoffMs: 50, restartDebounceMs: 0, callbacks: cbs });
+    stream.start();
+    await sleep(60); // helloed; the hello frame is the freshest byte
+    const before = stream.stats.attempts;
+    try {
+      for (let i = 0; i < 5; i++) {
+        stream.restartIfStale(); // five Cmd-Tabs back to the tab
+        await sleep(10);
+      }
+      expect(stream.stats.attempts - before, 'restart() here would have aborted the stream five times').toBe(0);
+      expect(stream.connected).toBe(true);
+    } finally {
+      stream.stop();
+    }
+  });
+
+  it('connects at once when the stream is sitting out a backoff wait', async () => {
+    const { roomId } = await client.createRoom();
+    // A long backoff: with the relay unreachable the first attempt fails
+    // and the stream sits on a retry timer far beyond the test window.
+    const stream = new RoomStream({ baseUrl: () => mock.url, token: () => mock.token, roomId, minBackoffMs: 5000, maxBackoffMs: 5000, restartDebounceMs: 0, callbacks: cbs });
+    mock.pause();
+    try {
+      stream.start();
+      await sleep(80); // refused (503) → waiting out the 5s backoff
+      expect(stream.connected).toBe(false);
+      mock.resume();
+      await sleep(80);
+      expect(stream.connected, 'still waiting: the backoff has 4.8s to go').toBe(false);
+      stream.restartIfStale(); // tab return: skip the remainder of the wait
+      await sleep(120);
+      expect(stream.connected, 'reconnected now, not after the backoff').toBe(true);
+    } finally {
+      mock.resume();
+      stream.stop();
+    }
   });
 });
