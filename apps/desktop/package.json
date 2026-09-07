@@ -73,6 +73,10 @@
       {
         "from": "build/docx.ico",
         "to": "docx.ico"
+      },
+      {
+        "from": "build/docx.icns",
+        "to": "docx.icns"
       }
     ],
     "fileAssociations": [
@@ -80,12 +84,6 @@
         "ext": "cmir",
         "name": "CardMirror Document",
         "description": "CardMirror native document",
-        "role": "Editor"
-      },
-      {
-        "ext": "docx",
-        "name": "Word Document",
-        "description": "Microsoft Word document",
         "role": "Editor"
       }
     ],
@@ -107,7 +105,21 @@
       ],
       "extendInfo": {
         "NSAppSleepDisabled": true,
-        "NSMicrophoneUsageDescription": "CardMirror uses the microphone for voice control and dictation."
+        "NSMicrophoneUsageDescription": "CardMirror uses the microphone for voice control and dictation.",
+        "CFBundleDocumentTypes": [
+          {
+            "CFBundleTypeName": "Word Document",
+            "CFBundleTypeExtensions": [
+              "docx"
+            ],
+            "LSItemContentTypes": [
+              "org.openxmlformats.wordprocessingml.document"
+            ],
+            "CFBundleTypeRole": "Editor",
+            "LSHandlerRank": "Default",
+            "CFBundleTypeIconFile": "docx.icns"
+          }
+        ]
       },
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
@@ -141,7 +153,15 @@
           ]
         }
       ],
-      "artifactName": "cardmirror-${version}.${ext}"
+      "artifactName": "cardmirror-${version}.${ext}",
+      "fileAssociations": [
+        {
+          "ext": "docx",
+          "name": "Word Document",
+          "description": "Microsoft Word document",
+          "role": "Editor"
+        }
+      ]
     },
     "pacman": {
       "depends": [
