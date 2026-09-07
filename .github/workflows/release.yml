@@ -25,6 +25,16 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    # Manual fallback for when the triggering actor can push commits/PRs
+    # but not create tag refs directly (e.g. a scoped bot credential) —
+    # gh release create below creates the tag itself, from the current
+    # default branch, using this workflow's own GITHUB_TOKEN.
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.8.0-bcb.1) — created from the current default branch if it does not already exist'
+        required: true
+        type: string
 
 jobs:
   prepare-release:
@@ -32,8 +42,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve the release tag
+        # Tag-push: GITHUB_REF_NAME is the pushed tag. workflow_dispatch:
+        # no tag ref exists yet — use the input; `gh release create`
+        # below mints it. Exposed as a job output so the `build` job
+        # (a separate job, its own env) can resolve the same value.
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Extract release notes from CHANGELOG.md
         # Two-step extraction:
@@ -55,7 +80,7 @@ jobs:
         #      headings, and blank lines as-is.
         id: notes
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${{ steps.resolve.outputs.tag }}"
           VERSION="${TAG#v}"
           if [ -f CHANGELOG.md ]; then
             awk -v ver="$VERSION" '
@@ -114,7 +139,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${{ steps.resolve.outputs.tag }}"
           # The tag is `vX.Y.Z[-prerelease]`; check for `-` after `v`.
           PRERELEASE_FLAG=""
           if [[ "${TAG#v}" == *-* ]]; then
@@ -269,6 +294,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
         run: |
           node apps/desktop/scripts/inject-lite-build.cjs 1
           PAIRING_TOKEN= node apps/desktop/scripts/inject-relay-token.cjs
@@ -300,4 +326,4 @@ jobs:
             exit 1
           fi
           echo "uploading: ${files[@]}"
-          gh release upload "${GITHUB_REF_NAME}" "${files[@]}" --clobber
+          gh release upload "${RELEASE_TAG}" "${files[@]}" --clobber
