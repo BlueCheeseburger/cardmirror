@@ -8,17 +8,24 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Save (ribbon button or Mod-S) only saves the current document
+>   again**, and in three-pane mode the Save and Autosave buttons move
+>   out of the ribbon into each pane's own title chip — each pane now
+>   has its own Save/Autosave controls acting only on that pane's doc,
+>   instead of one shared pair of ribbon buttons whose target depended
+>   on which pane happened to be focused. Undoes the "Save saves
+>   everything" change below. (open PR)
 > - **The autosave-failure notice offers a "Save As…" button** when
 >   the file has gone missing or its folder refused the write, instead
 >   of only telling you to do that yourself. Works for a background
 >   pane in three-pane mode too — it brings that doc into view first.
->   (open PR)
+>   (main)
 > - **Autosave is on by default**, instead of off until turned on per
->   file — turn it off per file from the ribbon toggle same as before.
->   (open PR)
+>   file — turn it off per file from the ribbon toggle (or per-pane
+>   chip in three-pane mode) same as before. (main)
 > - **Three-pane workspace autosave now flashes the Save button on a
 >   successful save**, matching single-doc mode and manual saves — it
->   used to save silently there. (open PR)
+>   used to save silently there. (main)
 > - **Home screen suggests reopening a whole three-pane workspace**,
 >   not just individual files — closing a multi-pane window with 2+
 >   saved docs open remembers that set, so one click puts all of them
@@ -26,9 +33,6 @@
 > - **Ctrl/Cmd+K adds or removes a hyperlink** — select text and press
 >   it for a small dialog (display text + URL); press it again on an
 >   existing link to remove it. (main)
-> - **Save (ribbon button or Mod-S) now saves everything, not just the
->   current pane** — every dirty document across every pane in the
->   current window, and every other open window too. (main)
 > - **Three-pane workspace toggle in the ribbon**, independently
 >   per window — no more Settings-dialog-only switch. Opening a
 >   document also now offers "New window" alongside the three

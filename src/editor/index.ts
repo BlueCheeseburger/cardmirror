@@ -1055,6 +1055,11 @@ let multiDocSetFilenameForUid: ((uid: string, name: string) => void) | null = nu
 /** App-quit path: the shell prompts to save every unsaved pane, returning false
  *  if the user cancels (abort the quit). null in single-doc mode. */
 let multiDocPromptSaveAllForQuit: (() => Promise<boolean>) | null = null;
+/** `flashSaveSuccess`'s multi-pane redirect: flash the FOCUSED pane's own
+ *  Save/Autosave chip buttons instead of the shared ribbon ones, which are
+ *  hidden in this mode (see body.pmd-multi-doc #export-btn in style.css).
+ *  null in single-doc mode. */
+let multiDocFlashFocusedChip: (() => void) | null = null;
 
 /** Full focused-file plumbing for the Save / Save-As flow — reads
  *  the filename plus the on-disk handle and on-disk format. */
@@ -1192,6 +1197,9 @@ export function enableMultiDocMode(opts: {
   /** App-quit path: prompt to save every unsaved doc across all panes (without
    *  closing them). Returns false if the user cancels — the quit aborts. */
   promptSaveAllForQuit?: () => Promise<boolean>;
+  /** Flash the focused pane's own Save/Autosave chip buttons instead of
+   *  the shared ribbon ones. */
+  flashFocusedChip?: () => void;
   /** Called from single-doc save flows RIGHT BEFORE serializing so a
    *  successful save can mark the focused DocRecord clean + drop its
    *  journal — but only if no edits landed while the write was in
@@ -1246,6 +1254,7 @@ export function enableMultiDocMode(opts: {
   multiDocCreateSessionDoc = opts.createSessionDoc ?? null;
   multiDocSetFilenameForUid = opts.setFilenameForUid ?? null;
   multiDocPromptSaveAllForQuit = opts.promptSaveAllForQuit ?? null;
+  multiDocFlashFocusedChip = opts.flashFocusedChip ?? null;
   multiDocCaptureFocusedCleanToken = opts.captureFocusedCleanToken ?? null;
   multiDocOnRecoveredDoc = opts.onRecoveredDoc ?? null;
   multiDocJournalAll = opts.journalAll ?? null;
@@ -8293,7 +8302,7 @@ const flashTimers = new WeakMap<HTMLElement, number>();
  *  `<span>`, not just text). */
 const flashOrigHtml = new WeakMap<HTMLElement, string>();
 
-function flashSavedGlyph(el: HTMLElement): void {
+export function flashSavedGlyph(el: HTMLElement): void {
   const existing = flashTimers.get(el);
   if (existing !== undefined) {
     window.clearTimeout(existing);
@@ -8318,10 +8327,16 @@ function flashSavedGlyph(el: HTMLElement): void {
 }
 
 /** Flash the save button (always) and the autosave button (when
- *  on). Both manual saves and autosaves call this. Reads via
- *  `autosaveStateForActive` so multi-pane's per-DocRecord flag is
- *  consulted in addition to the single-doc transient setting. */
+ *  on). Both manual saves and autosaves call this. In multi-pane mode
+ *  the shared ribbon buttons are hidden, so this redirects to whichever
+ *  pane is currently focused — every Save entry point in that mode
+ *  focuses its target pane before getting here, so "focused" reliably
+ *  means "the doc that was just saved." */
 export function flashSaveSuccess(): void {
+  if (multiDocActive && multiDocFlashFocusedChip) {
+    multiDocFlashFocusedChip();
+    return;
+  }
   flashSavedGlyph(exportBtn);
   if (autosaveBtn && autosaveStateForActive()) {
     flashSavedGlyph(autosaveBtn);

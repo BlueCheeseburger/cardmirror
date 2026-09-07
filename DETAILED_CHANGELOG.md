@@ -7,6 +7,69 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+### Changed: Save reverted to current-doc-only; Save/Autosave move into each pane's chip in three-pane mode (`index.ts`, `multi-pane-shell.ts`, `window-coordination.ts`, `apps/desktop/src/{main,preload}.ts`, `src/editor/host/electron-host.ts`)
+
+Field report: 1.6.0-bcb.3.1's "Save saves everywhere" change (see
+below) turned out to be more confusing than convenient once multiple
+panes and windows were actually in play — a single shared Save
+button/keybinding with no visual indication of *which* doc(s) it
+would touch. The user asked for Save to go back to acting only on the
+current doc, and — since a shared ribbon pair for Save/Autosave in
+three-pane mode has the exact same "which doc does this act on"
+ambiguity even scoped to one window — for Save and Autosave to move
+into each pane's own title chip so each pane's controls are visibly
+its own.
+
+- **Removed** the save-everywhere infrastructure entirely rather than
+  leaving it dead: `saveAllDirty()` (`MultiPaneShell`),
+  `saveAllInThisWindow()`/`runSaveAllFlow()` (`index.ts`),
+  `broadcastSaveAllToOtherWindows()` + the `'save-all'` `CoordMsg`
+  variant (`window-coordination.ts`), `saveAllOtherWindows()`/
+  `onSaveAllRequested()` (`ElectronHost` interface + impl,
+  `preload.ts`), and the `ipcMain.handle('host:save-all-windows', ...)`
+  handler (`main.ts`). The ribbon Save click and Mod-S both go back to
+  `runSaveFlow()` (current doc only). `promptSaveAllForQuit` — the
+  save-all-dirty-docs-before-quit confirmation — is unrelated and
+  untouched; it already only ever ran at quit time, not on every Save.
+- **New per-pane chip buttons** (`multi-pane-shell.ts`, `Slot`):
+  `chipSaveBtn`/`chipAutosaveBtn`, inserted between the slot-number
+  badge and the expand icon in each pane's title chip. Each focuses
+  its own slot (`shell.focusSlot(this)`) before acting, so clicking a
+  background pane's Save button saves *that* pane's doc, not whatever
+  was previously focused.
+- **`DocRecord` gains `autosaveError: boolean`** — moved off the
+  shared chip DOM (which would show a stale error from whatever
+  record last set it, once a slot's stack switches to a different
+  doc) and onto the per-record model, matching how every other
+  per-doc autosave state already worked.
+- **`Slot.refreshChipSaveState()`**: mirrors the single-doc ribbon's
+  autosave-label logic but reads only `this.visible` — always safe
+  regardless of which pane is focused. Sets `aria-pressed`,
+  `data-autosave-effective`, `data-autosave-error`, and hover titles
+  on both chip buttons.
+- **`runAutosaveForRecord`** dropped its old `isFocusedRecord`/
+  `isFocusedNow` focus-gating — that guard only existed because there
+  used to be one shared global indicator that had to avoid showing
+  the wrong doc's state. Each pane's chip now always reflects its own
+  record's state regardless of focus, so the guard is gone along with
+  the race conditions it existed to paper over.
+- **CSS**: `body.pmd-multi-doc #export-btn, #autosave-btn { display:
+  none; }` hides the now-redundant ribbon pair in three-pane mode;
+  new `.pmd-pane-chip-save`/`.pmd-pane-chip-autosave` styling reuses
+  the existing effective/error/pressed state classes from the ribbon
+  button. Needed the same focused-pane contrast override already used
+  for `.pmd-pane-chip-expand`/`.pmd-pane-chip-nav` (accent-blue text
+  on the focused pane's own accent-blue background is illegible) —
+  caught via a zoomed screenshot crop during live verification, not
+  code review.
+- Verified live in a real Electron build (Playwright/CDP under Xvfb):
+  two-pane workspace, each pane's Save button independently writes
+  its own doc to disk and flashes only that pane's icons; each pane's
+  autosave toggle is fully independent (toggling one pane's autosave
+  off/on has no effect on the other); confirmed the ribbon's Save/
+  Autosave buttons are still hidden only in three-pane mode and remain
+  visible and functional in ordinary single-doc mode.
+
 ### Added: Recent Workspaces — reopen a whole multi-pane window's docs together (`recent-workspaces-store.ts`, `multi-pane-shell.ts`, `home-screen.ts`, `index.ts`)
 
 Field report: a user had "AFF UQ" and "NEG UQ" open together in a
