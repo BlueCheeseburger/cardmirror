@@ -7,6 +7,98 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+### Added: Ctrl/Cmd+K auto-detects a selected URL (`link-context-menu-plugin.ts`)
+
+Field report: pasting a source URL, selecting it, and pressing Ctrl/Cmd+K
+to turn it into a clickable link left the "Link to" field empty — the
+user had to retype or re-paste the exact text they'd just selected as the
+display text.
+
+- New `detectLinkHref(text)`: three cases, in order — an explicit scheme
+  (`https://…`, `ftp://…`) is used as-is; a `www.`-prefixed domain gets
+  `https://` prepended; a bare domain with no prefix gets the same
+  treatment only when its TLD is in a small curated list (`com`, `org`,
+  `net`, `io`, …), to avoid false-positiving on ordinary text that
+  happens to contain a dot (`e.g.`, `Verbatim.docx`, `Dr. Smith` all
+  correctly return null).
+- `toggleOrCreateLink`'s non-empty-selection branch passes
+  `detectLinkHref(selectedText) ?? ''` as `promptForLink`'s
+  `initialHref` instead of always `''`. `initialText` (the display-text
+  field, prefilled from the selection either way) is untouched — this
+  only changes what the destination field starts with.
+- Unit-tested directly (`tests/editor/link-url-detect.test.ts`,
+  exporting `detectLinkHref`): scheme/`www.`/bare-domain positives,
+  whitespace trimming, and the filename/abbreviation/plain-text
+  negatives above.
+- Verified live in a real Electron build (Playwright/CDP under Xvfb):
+  selecting a full pasted URL and pressing Ctrl+K pre-filled both
+  fields with the same URL; a filename, a domain-looking bare word, and
+  plain text all left the destination field empty as before.
+
+### Added: Named, stacked close prompts for multiple unsaved docs; "Bind new filepath…" for a moved/deleted file (`index.ts`, `multi-pane-shell.ts`)
+
+Field report: quitting a three-pane window with unsaved changes in more
+than one pane popped the exact same unnamed "You have unsaved changes.
+Save before closing?" dialog once per dirty doc, in sequence — no way to
+tell which of several dirty documents a given prompt was even about, and
+no visibility into how many more were still coming.
+
+- **`confirmCloseUnsaved`** (`index.ts`) gains an optional `docName`
+  (named in the header: `"Chapter One.docx" has unsaved changes...`)
+  and a `CloseUnsavedOpts.pathMissing` flag. When `pathMissing` is set,
+  the plain "Save" button is omitted (it would just fail the same way
+  every time) and "Save As…" is relabeled "Bind new filepath…" with a
+  warning line explaining why. All three existing call sites (single-doc
+  window-close, single-doc "close and go home", multi-pane's per-pane ×)
+  now pass the doc's filename; the window-close and per-pane × sites also
+  pass `pathMissing` via the new `isHandlePathMissing` helper.
+- **New `isHandlePathMissing(handle)`** (`index.ts`, exported): stats an
+  Electron absolute-path handle via `getHost().statFile` and reports
+  whether it's gone; anything else (a web `FileSystemFileHandle`, or a
+  never-saved doc's null) reports "not missing" — there's no saved
+  location to have gone stale.
+- **New `confirmCloseUnsavedBatch(docs)`** (`index.ts`, exported): the
+  multi-doc version — one card per dirty doc, all rendered together in a
+  single overlay (`.pmd-multi-close-stack`) instead of one dialog at a
+  time, each card an independent `.pmd-route-dialog` naming its own doc
+  (and its own path-missing state, same button swap as above). A single
+  shared "Cancel" aborts the whole batch — matches the old sequential
+  prompts' all-or-nothing behavior, since save-some-quit-anyway was never
+  a choice on offer. Resolves once every card is answered, with a Map
+  from doc uid to choice.
+- **`MultiPaneShell.promptSaveAllForQuit`** rewritten: gathers every
+  dirty record across every slot up front (instead of prompting slot by
+  slot, doc by doc, sequentially), stats each for path-missing via
+  `Promise.all`, then shows ONE dialog — the plain single-doc
+  `confirmCloseUnsaved` for exactly one dirty doc (no group "Cancel" bar
+  needed), or `confirmCloseUnsavedBatch` for two or more — and processes
+  the results in slot order afterward (show + focus each record's slot,
+  then save/save-as/discard as chosen). Removed the now-unused
+  per-slot `promptSaveDirtyForQuit` this replaced.
+- **Bug caught during live verification, not code review**: the batch
+  dialog's "all cards answered" check compared `wrap.children.length`
+  against 0 — but the shared Cancel bar lives in the same `wrap`
+  container as the cards, so that count never reached 0 even after every
+  card was removed, and the promise hung forever (the quit never
+  completed, but never actually failed either — just silently stuck).
+  Fixed by counting resolved docs against `results.size === docs.length`
+  instead of reading it back off the DOM.
+- Verified live in a real Electron build (Playwright/CDP under Xvfb,
+  driving the actual native close path via the main process's Node
+  inspector rather than `window.close()` from the renderer — the latter
+  turned out not to trigger Electron's `BrowserWindow` `close` intercept
+  under a CDP-attached debugger the same way a real close does):
+  a single dirty doc still gets the plain named single-card dialog; two
+  dirty docs (one with its on-disk file deleted mid-session) show both
+  cards stacked together, the second correctly swapping in "Bind new
+  filepath…" and the warning line; discarding both completes the quit;
+  Cancel on the batch leaves both docs open, still dirty, window fully
+  interactive. Also confirmed the ordinary per-pane × close still shows
+  the correctly-named single dialog when clicked promptly on a doc that
+  is still actually dirty (autosave — on by default — clears the dirty
+  flag ~5s after the last edit, which produced a few false "no dialog"
+  reads during testing before that was accounted for).
+
 ### Added: Recent Workspaces — reopen a whole multi-pane window's docs together (`recent-workspaces-store.ts`, `multi-pane-shell.ts`, `home-screen.ts`, `index.ts`)
 
 Field report: a user had "AFF UQ" and "NEG UQ" open together in a

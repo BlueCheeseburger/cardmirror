@@ -263,6 +263,40 @@ function removeLink(view: EditorView, hit: LinkHit): void {
   view.dispatch(view.state.tr.removeMark(hit.from, hit.to, linkType));
 }
 
+/** Common TLDs used to recognize a bare domain (no `http(s)://` or
+ *  `www.` prefix) as a link — e.g. selecting `healthcare.digital` on
+ *  its own. Deliberately a curated list rather than "any two labels
+ *  joined by a dot": that would also match plenty of non-URLs
+ *  (`e.g.`, `Verbatim.docx`). Not exhaustive — the scheme- and
+ *  `www.`-prefixed cases below catch the large majority of real
+ *  pasted URLs regardless of TLD. */
+const COMMON_TLDS = new Set([
+  'com', 'org', 'net', 'edu', 'gov', 'mil', 'io', 'co', 'us', 'uk',
+  'info', 'biz', 'me', 'tv', 'app', 'dev', 'ai', 'ca', 'au', 'de',
+  'fr', 'jp', 'cn', 'ru', 'br', 'in', 'nl', 'se', 'ch', 'es', 'it',
+  'xyz', 'online', 'site', 'blog', 'news', 'edu.au', 'co.uk', 'org.uk',
+]);
+
+/** Recognizes selected text that's already a URL — pressing Ctrl/Cmd+K
+ *  on a pasted link shouldn't require retyping it into the "Link to"
+ *  field. Three cases, in order: an explicit scheme (`https://…`,
+ *  `ftp://…`) is used as-is; a `www.`-prefixed domain gets `https://`
+ *  prepended; a bare domain (no prefix) gets the same treatment only
+ *  when its TLD is in the curated list above, to avoid false-
+ *  positiving on ordinary text that happens to contain a dot. Returns
+ *  null (not a link) rather than a guess when unsure. */
+export function detectLinkHref(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed || /\s/.test(trimmed)) return null;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed;
+  if (/^www\.[^./]+\./i.test(trimmed)) return `https://${trimmed}`;
+  const domainMatch = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.([a-z.]{2,24})(\/\S*)?$/i.exec(trimmed);
+  if (domainMatch && COMMON_TLDS.has(domainMatch[1]!.toLowerCase())) {
+    return `https://${trimmed}`;
+  }
+  return null;
+}
+
 /** Ctrl/Cmd+K: toggle a hyperlink.
  *
  *   - Collapsed cursor inside an existing link → remove just that link's
@@ -319,7 +353,10 @@ export async function toggleOrCreateLink(view: EditorView): Promise<void> {
     showToast('Select some text to add a hyperlink.');
     return;
   }
-  const result = await promptForLink({ initialText: selectedText, initialHref: '' });
+  const result = await promptForLink({
+    initialText: selectedText,
+    initialHref: detectLinkHref(selectedText) ?? '',
+  });
   if (!result) return;
   const mark = linkType.create({ href: result.href });
   const tr =

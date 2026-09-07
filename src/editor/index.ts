@@ -7002,7 +7002,7 @@ async function handleCloseDocToHomeInner(): Promise<void> {
     finish();
     return;
   }
-  const choice = await confirmCloseUnsaved();
+  const choice = await confirmCloseUnsaved(currentDocFilename ?? undefined);
   switch (choice) {
     case 'save': {
       if (await runSaveFlow()) finish();
@@ -8934,7 +8934,9 @@ async function handleUserCloseRequestInner(
     await electronHost.closeSelf();
     return;
   }
-  const choice = await confirmCloseUnsaved();
+  const choice = await confirmCloseUnsaved(currentDocFilename ?? undefined, {
+    pathMissing: await isHandlePathMissing(currentDocHandle),
+  });
   switch (choice) {
     case 'save': {
       const ok = await runSaveFlow();
@@ -8968,12 +8970,38 @@ async function handleUserCloseRequestInner(
   }
 }
 
+/** Stats `handle` (an Electron absolute-path string; anything else — a web
+ *  `FileSystemFileHandle`, or a never-saved doc's null — resolves to "not
+ *  missing," since there's no saved location to have gone stale) and
+ *  reports whether it's gone. Shared by the single-doc and multi-pane
+ *  close/quit prompts so both can proactively point at Save As instead of
+ *  letting the user discover a moved/deleted file only after Save fails. */
+export async function isHandlePathMissing(handle: unknown): Promise<boolean> {
+  if (typeof handle !== 'string' || !handle) return false;
+  return (await getHost().statFile(handle)) === null;
+}
+
+/** Extra context for `confirmCloseUnsaved`/`confirmCloseUnsavedBatch` when
+ *  the doc's saved location no longer resolves (moved/renamed/deleted since
+ *  it was opened) — detected up front via a stat check so the dialog can
+ *  say so and point straight at Save As, instead of the user picking plain
+ *  Save and discovering the failure only after a round trip. */
+export interface CloseUnsavedOpts {
+  pathMissing?: boolean;
+}
+
 /** Four-button overlay for "user wants to close a dirty doc."
  *  Same DOM shape as `confirmNewDocOverwrite` but with separate
  *  Save and Save-As actions (in-place save vs pick-location) plus
  *  an explicit Discard. Esc / overlay-click cancel. Exported for
- *  multi-pane's per-pane close handler. */
-export function confirmCloseUnsaved(): Promise<'save' | 'saveAs' | 'discard' | 'cancel'> {
+ *  multi-pane's per-pane close handler.
+ *
+ *  `docName`, when given, is named in the header — removes ambiguity
+ *  about which document a save prompt refers to (multi-pane close). */
+export function confirmCloseUnsaved(
+  docName?: string,
+  opts?: CloseUnsavedOpts,
+): Promise<'save' | 'saveAs' | 'discard' | 'cancel'> {
   return new Promise((resolve) => {
     const overlayToken = pushOverlay();
     const overlay = document.createElement('div');
@@ -8981,10 +9009,22 @@ export function confirmCloseUnsaved(): Promise<'save' | 'saveAs' | 'discard' | '
     const dialog = document.createElement('div');
     dialog.className = 'pmd-route-dialog';
 
+    const headerText = docName
+      ? `"${docName}" has unsaved changes. Save before closing?`
+      : 'You have unsaved changes. Save before closing?';
     const header = document.createElement('div');
     header.className = 'pmd-route-header';
-    header.textContent = 'You have unsaved changes. Save before closing?';
+    header.textContent = headerText;
     dialog.appendChild(header);
+
+    if (opts?.pathMissing) {
+      const warn = document.createElement('div');
+      warn.className = 'pmd-route-warning';
+      warn.textContent =
+        "Its saved location can't be found — it may have been moved, renamed, or deleted. " +
+        'Bind it to a new file to save your changes.';
+      dialog.appendChild(warn);
+    }
 
     const buttons = document.createElement('div');
     buttons.className = 'pmd-route-buttons';
@@ -8996,22 +9036,25 @@ export function confirmCloseUnsaved(): Promise<'save' | 'saveAs' | 'discard' | '
       removeKeys();
     };
 
-    const saveBtn = document.createElement('button');
-    saveBtn.type = 'button';
-    saveBtn.className = 'pmd-route-btn';
-    saveBtn.innerHTML =
-      '<strong>Save</strong><br><span>Write to the existing file, then close.</span>';
-    saveBtn.addEventListener('click', () => {
-      cleanup();
-      resolve('save');
-    });
-    buttons.appendChild(saveBtn);
+    if (!opts?.pathMissing) {
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'pmd-route-btn';
+      saveBtn.innerHTML =
+        '<strong>Save</strong><br><span>Write to the existing file, then close.</span>';
+      saveBtn.addEventListener('click', () => {
+        cleanup();
+        resolve('save');
+      });
+      buttons.appendChild(saveBtn);
+    }
 
     const saveAsBtn = document.createElement('button');
     saveAsBtn.type = 'button';
     saveAsBtn.className = 'pmd-route-btn';
-    saveAsBtn.innerHTML =
-      '<strong>Save As…</strong><br><span>Pick a location, then close.</span>';
+    saveAsBtn.innerHTML = opts?.pathMissing
+      ? '<strong>Bind new filepath…</strong><br><span>Pick where this file lives now, then save and close.</span>'
+      : '<strong>Save As…</strong><br><span>Pick a location, then close.</span>';
     saveAsBtn.addEventListener('click', () => {
       cleanup();
       resolve('saveAs');
@@ -9060,22 +9103,24 @@ export function confirmCloseUnsaved(): Promise<'save' | 'saveAs' | 'discard' | '
         return true;
       }
       // Number keys mirror button order so the dialog is fully
-      // keyboard-navigable: 1=Save, 2=Save As, 3=Don't save.
+      // keyboard-navigable: 1=Save, 2=Save As, 3=Don't save — except
+      // when the Save button is omitted (pathMissing), where the
+      // remaining two buttons shift up to 1=Save As, 2=Don't save.
       // Esc still cancels. Skips when a modifier is held so we
       // don't intercept chords (e.g., Ctrl+1 stays available for
       // its slot-focus meaning, even if a save prompt is open).
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return false;
-      if (e.key === '1') {
+      if (!opts?.pathMissing && e.key === '1') {
         cleanup();
         resolve('save');
         return true;
       }
-      if (e.key === '2') {
+      if (e.key === (opts?.pathMissing ? '1' : '2')) {
         cleanup();
         resolve('saveAs');
         return true;
       }
-      if (e.key === '3') {
+      if (e.key === (opts?.pathMissing ? '2' : '3')) {
         cleanup();
         resolve('discard');
         return true;
@@ -9083,7 +9128,145 @@ export function confirmCloseUnsaved(): Promise<'save' | 'saveAs' | 'discard' | '
       return false;
     });
     document.body.appendChild(overlay);
-    armDialogFocus(dialog, 'alertdialog', 'You have unsaved changes. Save before closing?');
+    armDialogFocus(dialog, 'alertdialog', headerText);
+  });
+}
+
+/** One entry in `confirmCloseUnsavedBatch`'s doc list. */
+export interface PendingCloseDoc {
+  uid: string;
+  name: string;
+  pathMissing: boolean;
+}
+
+export type CloseDialogChoice = 'save' | 'saveAs' | 'discard';
+
+/** Multi-doc version of `confirmCloseUnsaved` for the app-quit path: one
+ *  card per dirty doc, all visible AT ONCE (stacked vertically in a single
+ *  overlay) instead of one blocking dialog after another. The old
+ *  sequential prompts gave no clue which of several dirty docs a lone
+ *  "You have unsaved changes" dialog was even about, since only one was
+ *  ever on screen; naming each card fixes that, and showing them together
+ *  means the user isn't stuck deciding on doc 1 before even seeing that
+ *  docs 2 and 3 also need an answer.
+ *
+ *  Resolves once EVERY card has been answered, with a Map from uid to that
+ *  doc's choice — or null if the user cancels the whole batch (a single
+ *  "Cancel" for the group, not per-card: this mirrors the old sequential
+ *  prompts' all-or-nothing abort, since a partial save-some/quit-anyway
+ *  isn't a choice the user asked for). */
+export function confirmCloseUnsavedBatch(
+  docs: PendingCloseDoc[],
+): Promise<Map<string, CloseDialogChoice> | null> {
+  return new Promise((resolve) => {
+    const overlayToken = pushOverlay();
+    const overlay = document.createElement('div');
+    overlay.className = 'pmd-route-overlay';
+    const wrap = document.createElement('div');
+    wrap.className = 'pmd-multi-close-stack';
+
+    const results = new Map<string, CloseDialogChoice>();
+    let settled = false;
+    let removeKeys = (): void => {};
+    const cleanup = (): void => {
+      if (settled) return;
+      settled = true;
+      popOverlay(overlayToken);
+      overlay.remove();
+      removeKeys();
+    };
+    const cancelAll = (): void => {
+      cleanup();
+      resolve(null);
+    };
+
+    for (const doc of docs) {
+      const card = document.createElement('div');
+      card.className = 'pmd-route-dialog pmd-multi-close-card';
+
+      const header = document.createElement('div');
+      header.className = 'pmd-route-header';
+      header.textContent = `"${doc.name}" has unsaved changes. Save before closing?`;
+      card.appendChild(header);
+
+      if (doc.pathMissing) {
+        const warn = document.createElement('div');
+        warn.className = 'pmd-route-warning';
+        warn.textContent =
+          "Its saved location can't be found — it may have been moved, renamed, or deleted. " +
+          'Bind it to a new file to save your changes.';
+        card.appendChild(warn);
+      }
+
+      const buttons = document.createElement('div');
+      buttons.className = 'pmd-route-buttons';
+
+      const settle = (choice: CloseDialogChoice): void => {
+        results.set(doc.uid, choice);
+        card.remove();
+        // Count against the doc list, not `wrap.children.length` — the
+        // cancel bar lives in `wrap` too, so the child count never
+        // reaches 0 even once every card is gone.
+        if (results.size === docs.length) {
+          settled = true;
+          popOverlay(overlayToken);
+          overlay.remove();
+          removeKeys();
+          resolve(results);
+        }
+      };
+
+      if (!doc.pathMissing) {
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'pmd-route-btn';
+        saveBtn.innerHTML = '<strong>Save</strong><br><span>Write to the existing file.</span>';
+        saveBtn.addEventListener('click', () => settle('save'));
+        buttons.appendChild(saveBtn);
+      }
+
+      const saveAsBtn = document.createElement('button');
+      saveAsBtn.type = 'button';
+      saveAsBtn.className = 'pmd-route-btn';
+      saveAsBtn.innerHTML = doc.pathMissing
+        ? '<strong>Bind new filepath…</strong><br><span>Pick where this file lives now, then save.</span>'
+        : '<strong>Save As…</strong><br><span>Pick a location, then save.</span>';
+      saveAsBtn.addEventListener('click', () => settle('saveAs'));
+      buttons.appendChild(saveAsBtn);
+
+      const discardBtn = document.createElement('button');
+      discardBtn.type = 'button';
+      discardBtn.className = 'pmd-route-btn';
+      discardBtn.innerHTML = "<strong>Don't save</strong><br><span>Discard its changes.</span>";
+      discardBtn.addEventListener('click', () => settle('discard'));
+      buttons.appendChild(discardBtn);
+
+      card.appendChild(buttons);
+      wrap.appendChild(card);
+    }
+
+    overlay.appendChild(wrap);
+
+    const cancelBar = document.createElement('div');
+    cancelBar.className = 'pmd-multi-close-cancel-bar';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'pmd-route-cancel';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', cancelAll);
+    cancelBar.appendChild(cancel);
+    wrap.appendChild(cancelBar);
+
+    removeKeys = installModalKeys(overlay, overlayToken, (e) => {
+      if (e.key === 'Escape') {
+        cancelAll();
+        return true;
+      }
+      return false;
+    });
+
+    document.body.appendChild(overlay);
+    armDialogFocus(overlay, 'alertdialog', `You have unsaved changes in ${docs.length} documents`);
   });
 }
 

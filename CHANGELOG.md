@@ -9,6 +9,20 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **Ctrl/Cmd+K now recognizes a selected URL and fills in the "Link
+  to" field for you.** Select a pasted link (with `https://`, a
+  `www.` prefix, or a recognized domain like `.com`/`.org`) and press
+  Ctrl/Cmd+K — the hyperlink dialog's destination field is pre-filled
+  instead of empty, so you don't have to retype or re-paste the same
+  URL a second time.
+- **Closing a window with unsaved changes in more than one pane now
+  shows a separate, named prompt for each document, all at once** —
+  "Chapter One.docx" and "Chapter Two.docx" each get their own dialog
+  stacked together, instead of one generic "You have unsaved
+  changes" dialog repeated one at a time with no way to tell which
+  document it was actually asking about. A document whose saved file
+  can no longer be found (moved, renamed, or deleted) gets a "Bind
+  new filepath…" button in place of plain Save.
 - **The home screen can now suggest reopening a whole three-pane
   workspace, not just individual recent files.** When a multi-pane
   window with 2+ saved documents open closes, CardMirror remembers
