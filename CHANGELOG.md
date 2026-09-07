@@ -5,7 +5,11 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 1.8.0-bcb.1 — 2026-09-07
+
+Synced with upstream through its 1.8.0 release (below) — brings in the
+disk-conflict guard rework and cloud pill for shared folders, the
+single-owner flashcard store fix, and every 1.7.0 co-editing fix.
 
 ### Changed
 
