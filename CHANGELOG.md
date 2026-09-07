@@ -16,6 +16,14 @@ see `DETAILED_CHANGELOG.md`.
   every doc together in the same pane layout, instead of hunting
   down each file separately in Recent. Desktop only.
 
+### Added
+
+- **The "Autosave problem" notice now offers a "Save As…" button**
+  when the saved file has gone missing or its folder refused the
+  write, instead of only telling you to do that yourself. In
+  three-pane mode this works even for a background pane — clicking it
+  brings that document into view before opening the dialog.
+
 ### Changed
 
 - **Autosave is now on by default** for every document, instead of

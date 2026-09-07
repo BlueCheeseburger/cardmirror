@@ -142,6 +142,49 @@ means autosave is running rather than that it's paused.
   store) autosaved and flashed the Save button with no manual toggle
   click needed.
 
+### Added: "Save As…" action button on the autosave-failure notice (`status-notices.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+Field report: the "Autosave failed — file no longer exists" notice
+already told the user to "Use Save As to pick a new one," but made
+them go find the doc and the command themselves. `status-notices.ts`
+had no concept of an actionable button — Copy and Dismiss were the
+only two, hardcoded.
+
+- **`status-notices.ts`**: new `NoticeAction { label, onClick }`,
+  optional on `NoticeInput` and stored per notice. Rendered as an
+  extra button before Copy/Dismiss, styled with the shared "primary
+  button" recipe (`.pmd-notice-action-primary`, joined into the
+  existing accent-background selector list in `style.css`). On a
+  coalesced repeat (same `key`), the action is replaced with the new
+  one (or cleared if the repeat has none) rather than keeping the
+  first occurrence's closure — a second failure targeting a different
+  doc must not fire the first doc's fix.
+- **`reportAutosaveFailure`** (`index.ts`) gains a `saveAs?: () => void`
+  opt, attached to the notice only on the two failure kinds whose
+  message already says "Use Save As" (file-gone, write-blocked) — not
+  the "changed on disk" case (already pops `promptConflict` immediately)
+  or the generic fallback (unclear cause, Save As isn't necessarily right).
+- Single-doc call sites (`notifyEditForAutosave`'s catch,
+  `runAutosaveAttempt`'s catch) pass `saveAs: () => void runSaveAsFlow()`
+  — unambiguous, there's only one doc in the window.
+- Multi-pane's `runAutosaveForRecord` catch passes a NEW
+  `MultiPaneShell.revealAndSaveAsRecord(record)` method: the record
+  that failed may not be the focused (or even visible) pane, and
+  `runSaveAsFlow` — like every other Save As caller — only ever acts
+  on the focused doc. `revealAndSaveAsRecord` finds the record's slot
+  via `findRecordForView`, calls `slot.showRecord` + `focusSlot` to
+  bring it into view first, then runs `runSaveAsFlow`. No-ops if the
+  record has since been closed.
+- Verified live in a real Electron build (Playwright/CDP under Xvfb):
+  restored two docs into slots 1+2, deleted pane B's file from disk,
+  edited pane B then refocused pane A before B's autosave debounce
+  fired. Confirmed: the notice named "Pane B.cmir" (not the focused
+  pane), showed the "Save As…" button, and — with pane A focused —
+  clicking it flipped focus to pane B (`pmd-pane-focused` moved from
+  pane 1 to pane 2) before the native Save As dialog opened, proving
+  the action targets the doc that actually failed rather than
+  whatever the user happens to be looking at.
+
 ## 1.6.0-bcb.3.1 — 2026-09-04
 
 ### Added: Ctrl/Cmd+K hyperlink toggle (`link-context-menu-plugin.ts`, `ribbon-commands.ts`, `text-prompt.ts`)

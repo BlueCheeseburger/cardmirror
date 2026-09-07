@@ -355,7 +355,10 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
     // removed) needs its own refresh so the button leaves the paused state.
     if (record.format === 'docx' && isFocusedNow) refreshAutosaveBtn();
   } catch (err) {
-    reportAutosaveFailure(record.filename, err);
+    reportAutosaveFailure(record.filename, err, {
+      // Not necessarily the focused pane — bring it into view first.
+      saveAs: () => shell?.revealAndSaveAsRecord(record),
+    });
   }
 }
 
@@ -1708,6 +1711,20 @@ class MultiPaneShell {
       }
     }
     return null;
+  }
+
+  /** Autosave failure notice's "Save As…" action for a specific record,
+   *  which may not be the currently focused pane (or even visible —
+   *  stacked behind another doc in its slot). Reveals + focuses it first
+   *  so `runSaveAsFlow` (focused-doc-only, like every other Save As
+   *  caller) targets the right doc, then runs it. No-op if the record
+   *  has since been closed — nothing left to rebind. */
+  revealAndSaveAsRecord(record: DocRecord): void {
+    const located = this.findRecordForView(record.view);
+    if (!located) return;
+    located.slot.showRecord(located.record);
+    this.focusSlot(located.slot);
+    void runSaveAsFlow();
   }
 
   /** Refresh the data-attribute count on the row, used by CSS to

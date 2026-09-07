@@ -8,6 +8,11 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **The autosave-failure notice offers a "Save As…" button** when
+>   the file has gone missing or its folder refused the write, instead
+>   of only telling you to do that yourself. Works for a background
+>   pane in three-pane mode too — it brings that doc into view first.
+>   (open PR)
 > - **Autosave is on by default**, instead of off until turned on per
 >   file — turn it off per file from the ribbon toggle same as before.
 >   (open PR)
