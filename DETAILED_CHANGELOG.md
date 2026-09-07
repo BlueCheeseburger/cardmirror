@@ -5,7 +5,13 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 1.8.0-bcb.1 — 2026-09-07
+
+Synced with upstream through its 1.8.0 release (below) — see
+`README.md`'s fork-changes section and PR #16 for the merge itself
+(conflict resolution, the stale-patch test failure found and fixed
+along the way). Everything else in this entry is this fork's own work
+since 1.6.0-bcb.3.1.
 
 ### Changed: Save reverted to current-doc-only; Save/Autosave move into each pane's chip in three-pane mode (`index.ts`, `multi-pane-shell.ts`, `window-coordination.ts`, `apps/desktop/src/{main,preload}.ts`, `src/editor/host/electron-host.ts`)
 
