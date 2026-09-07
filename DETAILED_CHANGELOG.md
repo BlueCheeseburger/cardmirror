@@ -142,6 +142,117 @@ Services database rebuilds (app/OS updates, periodic re-registration).
   database rebuild — since that requires a real macOS machine running
   `lsregister`, unavailable here.
 
+### Fixed: three-pane autosave never flashed the Save button (`multi-pane-shell.ts`, `index.ts`)
+
+Single-doc mode's `runAutosaveAttempt` has always called
+`flashSaveSuccess()` (the same ✓-flash-the-Save-button helper a manual
+save uses) right after its write is confirmed. Three-pane mode's
+equivalent, `MultiPaneShell.runAutosaveForRecord`, never did — it
+called `reportAutosaveSuccess()` (updates the autosave toggle's own
+state) but nothing that touched the main Save button, so a successful
+autosave in a three-pane window was invisible unless you were watching
+the autosave toggle specifically.
+
+- Exported `flashSaveSuccess` from `index.ts` (was module-private) and
+  imported it into `multi-pane-shell.ts` alongside the
+  already-imported `refreshAutosaveBtn`.
+- Call it in `runAutosaveForRecord` right after the write settles
+  (`await host.saveExisting(...)`), gated on focus — same gating
+  `refreshAutosaveBtn` already uses a few lines down, since the Save
+  button is one shared per-window element and flashing it for a
+  background pane's autosave would read as feedback for whatever the
+  user is actually looking at.
+- Caught during review (not by `tsc` or the test suite — both passed
+  before this fix too): the original `isFocusedRecord` was captured at
+  the TOP of the function, before the async serialize + write. A large
+  `.docx` write can take long enough for the user to switch panes in
+  that window, so the flash (and the pre-existing `refreshAutosaveBtn`
+  call next to it) could fire based on stale focus. Fixed by
+  re-checking `shell?.getFocusedFile()?.uid === record.uid` fresh right
+  before both calls, after the write settles, instead of reusing the
+  value captured before it started.
+- Verified live in a real Electron build (Playwright/CDP under Xvfb,
+  two real `.cmir` files pre-granted in the read-scope journal,
+  restored into slots 1+2 via the recent-workspaces flow): typing in
+  the focused pane flashes the Save button after the 5s debounce, and
+  writes the edit to disk; typing in the background pane and refocusing
+  the first pane before its debounce fires saves the background pane's
+  edit to disk too but does NOT flash the button — confirming the
+  focus re-check reflects focus at completion time, not schedule time.
+
+### Changed: autosave is on by default (`autosave-prefs-store.ts`, `settings.ts`, `multi-pane-shell.ts`)
+
+Previously every file defaulted to autosave OFF; `autosave-prefs-store.ts`
+stored the set of paths the user had explicitly turned it ON for (a path
+absent from the set meant off). Flipped the default to on, so silence
+means autosave is running rather than that it's paused.
+
+- Store semantics inverted: it now records paths explicitly turned
+  OFF (`isAutosaveOnForPath` returns true unless the path is in that
+  set). Given a new key (`pmd-autosave-paths-off`, was
+  `pmd-autosave-paths`) rather than reinterpreting the old one — the
+  old store never recorded an explicit "off" choice as distinct from
+  "never touched" (off was already the default, so turning it off just
+  removed the entry), so there was no way to migrate old data forward
+  without silently reverting every user's past explicit "off" picks
+  back to "on" under the new default. A fresh empty OFF-set means
+  everyone's autosave defaults to on now (the point of the change) and
+  nothing that was already explicitly ON stops being on. The
+  unavoidable tradeoff: a file someone had explicitly turned off under
+  the old model — indistinguishable from a never-touched file in that
+  model — reverts to on too, since that distinction was never recorded.
+- `settings.ts`'s `autosaveEnabled` default flipped `false` → `true`
+  (only matters as the ribbon toggle's pre-doc-load visual state; real
+  per-file behavior was already driven by `isAutosaveOnForPath` at
+  every doc-open call site in both single-doc and multi-pane mode).
+- Verified live alongside the flash-button fix above: a freshly
+  restored doc with no prior autosave record (never touched by either
+  store) autosaved and flashed the Save button with no manual toggle
+  click needed.
+
+### Added: "Save As…" action button on the autosave-failure notice (`status-notices.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+Field report: the "Autosave failed — file no longer exists" notice
+already told the user to "Use Save As to pick a new one," but made
+them go find the doc and the command themselves. `status-notices.ts`
+had no concept of an actionable button — Copy and Dismiss were the
+only two, hardcoded.
+
+- **`status-notices.ts`**: new `NoticeAction { label, onClick }`,
+  optional on `NoticeInput` and stored per notice. Rendered as an
+  extra button before Copy/Dismiss, styled with the shared "primary
+  button" recipe (`.pmd-notice-action-primary`, joined into the
+  existing accent-background selector list in `style.css`). On a
+  coalesced repeat (same `key`), the action is replaced with the new
+  one (or cleared if the repeat has none) rather than keeping the
+  first occurrence's closure — a second failure targeting a different
+  doc must not fire the first doc's fix.
+- **`reportAutosaveFailure`** (`index.ts`) gains a `saveAs?: () => void`
+  opt, attached to the notice only on the two failure kinds whose
+  message already says "Use Save As" (file-gone, write-blocked) — not
+  the "changed on disk" case (already pops `promptConflict` immediately)
+  or the generic fallback (unclear cause, Save As isn't necessarily right).
+- Single-doc call sites (`notifyEditForAutosave`'s catch,
+  `runAutosaveAttempt`'s catch) pass `saveAs: () => void runSaveAsFlow()`
+  — unambiguous, there's only one doc in the window.
+- Multi-pane's `runAutosaveForRecord` catch passes a NEW
+  `MultiPaneShell.revealAndSaveAsRecord(record)` method: the record
+  that failed may not be the focused (or even visible) pane, and
+  `runSaveAsFlow` — like every other Save As caller — only ever acts
+  on the focused doc. `revealAndSaveAsRecord` finds the record's slot
+  via `findRecordForView`, calls `slot.showRecord` + `focusSlot` to
+  bring it into view first, then runs `runSaveAsFlow`. No-ops if the
+  record has since been closed.
+- Verified live in a real Electron build (Playwright/CDP under Xvfb):
+  restored two docs into slots 1+2, deleted pane B's file from disk,
+  edited pane B then refocused pane A before B's autosave debounce
+  fired. Confirmed: the notice named "Pane B.cmir" (not the focused
+  pane), showed the "Save As…" button, and — with pane A focused —
+  clicking it flipped focus to pane B (`pmd-pane-focused` moved from
+  pane 1 to pane 2) before the native Save As dialog opened, proving
+  the action targets the doc that actually failed rather than
+  whatever the user happens to be looking at.
+
 ## 1.6.0-bcb.3.1 — 2026-09-04
 
 ### Added: Ctrl/Cmd+K hyperlink toggle (`link-context-menu-plugin.ts`, `ribbon-commands.ts`, `text-prompt.ts`)
