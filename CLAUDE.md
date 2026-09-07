@@ -1,5 +1,24 @@
 # Notes for Claude Code sessions working on this repo
 
+## This fork does not release CardMirror Lite — don't re-add the build step
+
+The user asked (2026-09-07) to stop shipping the Lite variant (the
+no-AI / no-internet build, `src/editor/lite.ts`) in this fork's
+releases. `.github/workflows/release.yml`'s "Build and upload
+CardMirror Lite installer" step (the `build` job's last step,
+previously running after the main `electron-builder` publish) was
+removed entirely — every release from here on is the standard app
+only. Caught mid-release: `v1.8.0-bcb.1`'s first build had already
+started uploading Lite assets for Windows before the run was
+cancelled and re-dispatched clean; check a release's asset list
+before publishing if this comes up again.
+
+The `pack:lite`/`dist:lite` npm scripts in `apps/desktop/package.json`
+(and `scripts/inject-lite-build.cjs` they call) are untouched — they're
+local dev-only convenience scripts, not part of the automated release
+pipeline, so leaving them doesn't reintroduce Lite into releases. Don't
+add the upload step back to `release.yml` without the user asking again.
+
 ## Never re-add `docx` to `apps/desktop/package.json`'s top-level `fileAssociations`
 
 `16a3060` ("Windows: .docx becomes Open-With-only; heal machines we
