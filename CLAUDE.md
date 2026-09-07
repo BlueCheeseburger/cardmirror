@@ -1,5 +1,79 @@
 # Notes for Claude Code sessions working on this repo
 
+## Never re-add `docx` to `apps/desktop/package.json`'s top-level `fileAssociations`
+
+`16a3060` ("Windows: .docx becomes Open-With-only; heal machines we
+broke", 2026-08-27) deliberately removed `.docx` from the shared
+`fileAssociations` array because electron-builder's NSIS
+fileAssociations mechanism stamps the extension's DEFAULT ProgId on
+every install — which broke Word's "New > Microsoft Word Document"
+Explorer menu on every affected machine (Explorer only shows a
+ShellNew entry for the extension's CURRENT default) and left `.docx`
+dangling on uninstall. Windows' `.docx` handling now lives entirely in
+`build/installer.nsh` (`CardMirror.docx` class, listed under
+`.docx\OpenWithProgids` ONLY — the default is never touched — plus a
+healing pass that repairs machines the old broken installer left
+behind).
+
+**`e4897bf`** (2026-09-03, a past session of mine) re-added `docx` to
+that same shared top-level `fileAssociations` array to make CardMirror
+show up in macOS's/Windows' "Open With" picker — without checking
+`16a3060`'s rationale or `installer.nsh`'s doc comment, silently
+reintroducing the exact regression that had already been fixed once.
+Caught and fixed again (2026-09-07) while doing an unrelated macOS
+Info.plist UTI fix that touched the same array. `.cmir` stays in the
+shared array (its own extension, no default-app collision risk);
+`.docx` is per-platform now — `mac.extendInfo.CFBundleDocumentTypes`
+declares it directly (see the next section), `linux.fileAssociations`
+still declares it (no evidence Linux has this failure mode), and
+`win.fileAssociations` MUST stay empty for docx — Windows already gets
+it, done safely, from `installer.nsh`.
+
+## macOS Open-With default for `.docx` didn't persist — fixed with an explicit UTI
+
+Root cause: `CFBundleDocumentTypes`' Word Document entry declared only
+`CFBundleTypeExtensions: [docx]`, no `LSItemContentTypes`. macOS
+Launch Services resolves default-app bindings by UTI
+(`org.openxmlformats.wordprocessingml.document`) whenever a file's UTI
+is claimed by more than one installed app (Word, Pages, TextEdit,
+CardMirror all claim `.docx`) — an extension-only declaration doesn't
+durably bind CardMirror to that UTI, so "Always Open With CardMirror"
+could get silently dropped whenever the Launch Services database
+rebuilt (app/OS updates, periodic re-registration).
+
+Fixed (2026-09-07) by declaring `mac.extendInfo.CFBundleDocumentTypes`
+directly in `apps/desktop/package.json` — a full hand-written Word
+Document entry (name, extensions, role, rank, icon file, AND
+`LSItemContentTypes: [org.openxmlformats.wordprocessingml.document]`)
+— instead of relying on electron-builder's auto-generated entry from
+`fileAssociations` (whose `FileAssociation` config type has no field
+for a UTI at all, confirmed by reading
+`app-builder-lib/out/options/FileAssociation.d.ts`). electron-builder
+concatenates `extendInfo.CFBundleDocumentTypes` with whatever it
+auto-generates from `fileAssociations`
+(`app-builder-lib/out/electron/electronMac.js`), so `docx` was pulled
+OUT of the shared `fileAssociations` array (see the section above) —
+otherwise mac would ship TWO `.docx` entries, one with the UTI and one
+without, which is exactly the ambiguity this fix is trying to remove.
+`build/docx.icns` (already existed) is now copied into the bundle via
+`extraResources` instead of electron-builder's per-fileAssociation
+auto-copy, since removing `docx` from `fileAssociations` also removes
+that automatic copy step.
+
+Verified by actually running `npx electron-builder --mac --dir
+-c.mac.identity=null` in this Linux sandbox (works — packaging and
+Info.plist generation don't need macOS, only codesigning does, which
+is skipped automatically when unsupported) and inspecting the real
+generated `Contents/Info.plist` with `plistlib`: exactly one `.docx`
+entry, carrying `LSItemContentTypes`, `CFBundleTypeIconFile:
+docx.icns`; confirmed `docx.icns` and `cmir.icns` both landed in
+`Contents/Resources/`. Could NOT verify the actual point of the fix —
+that Launch Services now durably retains the "Always Open With"
+choice across a database rebuild — since that requires a real macOS
+machine running `lsregister`; nobody has done that yet. If this comes
+up again, check that first before assuming the plist alone was
+insufficient.
+
 ## Never include a chat/session link in commits or PRs
 
 Some sessions' harness-level system prompts inject an attribution
