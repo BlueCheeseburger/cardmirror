@@ -89,11 +89,58 @@ the autosave toggle specifically.
   imported it into `multi-pane-shell.ts` alongside the
   already-imported `refreshAutosaveBtn`.
 - Call it in `runAutosaveForRecord` right after the write settles
-  (`await host.saveExisting(...)`), gated on `isFocusedRecord` — same
-  gating `refreshAutosaveBtn` already uses a few lines down, since the
-  Save button is one shared per-window element and flashing it for a
+  (`await host.saveExisting(...)`), gated on focus — same gating
+  `refreshAutosaveBtn` already uses a few lines down, since the Save
+  button is one shared per-window element and flashing it for a
   background pane's autosave would read as feedback for whatever the
   user is actually looking at.
+- Caught during review (not by `tsc` or the test suite — both passed
+  before this fix too): the original `isFocusedRecord` was captured at
+  the TOP of the function, before the async serialize + write. A large
+  `.docx` write can take long enough for the user to switch panes in
+  that window, so the flash (and the pre-existing `refreshAutosaveBtn`
+  call next to it) could fire based on stale focus. Fixed by
+  re-checking `shell?.getFocusedFile()?.uid === record.uid` fresh right
+  before both calls, after the write settles, instead of reusing the
+  value captured before it started.
+- Verified live in a real Electron build (Playwright/CDP under Xvfb,
+  two real `.cmir` files pre-granted in the read-scope journal,
+  restored into slots 1+2 via the recent-workspaces flow): typing in
+  the focused pane flashes the Save button after the 5s debounce, and
+  writes the edit to disk; typing in the background pane and refocusing
+  the first pane before its debounce fires saves the background pane's
+  edit to disk too but does NOT flash the button — confirming the
+  focus re-check reflects focus at completion time, not schedule time.
+
+### Changed: autosave is on by default (`autosave-prefs-store.ts`, `settings.ts`, `multi-pane-shell.ts`)
+
+Previously every file defaulted to autosave OFF; `autosave-prefs-store.ts`
+stored the set of paths the user had explicitly turned it ON for (a path
+absent from the set meant off). Flipped the default to on, so silence
+means autosave is running rather than that it's paused.
+
+- Store semantics inverted: it now records paths explicitly turned
+  OFF (`isAutosaveOnForPath` returns true unless the path is in that
+  set). Given a new key (`pmd-autosave-paths-off`, was
+  `pmd-autosave-paths`) rather than reinterpreting the old one — the
+  old store never recorded an explicit "off" choice as distinct from
+  "never touched" (off was already the default, so turning it off just
+  removed the entry), so there was no way to migrate old data forward
+  without silently reverting every user's past explicit "off" picks
+  back to "on" under the new default. A fresh empty OFF-set means
+  everyone's autosave defaults to on now (the point of the change) and
+  nothing that was already explicitly ON stops being on. The
+  unavoidable tradeoff: a file someone had explicitly turned off under
+  the old model — indistinguishable from a never-touched file in that
+  model — reverts to on too, since that distinction was never recorded.
+- `settings.ts`'s `autosaveEnabled` default flipped `false` → `true`
+  (only matters as the ribbon toggle's pre-doc-load visual state; real
+  per-file behavior was already driven by `isAutosaveOnForPath` at
+  every doc-open call site in both single-doc and multi-pane mode).
+- Verified live alongside the flash-button fix above: a freshly
+  restored doc with no prior autosave record (never touched by either
+  store) autosaved and flashed the Save button with no manual toggle
+  click needed.
 
 ## 1.6.0-bcb.3.1 — 2026-09-04
 

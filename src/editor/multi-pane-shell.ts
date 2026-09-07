@@ -338,16 +338,22 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
     await host.saveExisting(record.handle, bytes);
     commitClean();
     reportAutosaveSuccess();
+    // Re-check focus rather than reuse `isFocusedRecord` from above: the
+    // serialize + write just awaited can take long enough (a large .docx
+    // especially) for the user to have switched panes in the meantime, and
+    // both the flash and the refresh below should reflect whatever's
+    // focused NOW, not what was focused when this save started.
+    const isFocusedNow = shell?.getFocusedFile()?.uid === record.uid;
     // Same ✓ flash a manual Save click gets, on the shared per-window Save
     // button — but only for the FOCUSED record's autosave: the button is a
     // single window-wide element, so flashing it for a background pane's
     // autosave would read as feedback for whatever the user is actually
-    // looking at (same isFocusedRecord gating as refreshAutosaveBtn below).
-    if (isFocusedRecord) flashSaveSuccess();
+    // looking at.
+    if (isFocusedNow) flashSaveSuccess();
     // reportAutosaveSuccess() only refreshes the button on a failure→success
     // transition; a docx record that was previously PAUSED (live links since
     // removed) needs its own refresh so the button leaves the paused state.
-    if (record.format === 'docx' && isFocusedRecord) refreshAutosaveBtn();
+    if (record.format === 'docx' && isFocusedNow) refreshAutosaveBtn();
   } catch (err) {
     reportAutosaveFailure(record.filename, err);
   }
@@ -3518,8 +3524,9 @@ function buildDocRecord(
     readerView: false,
     zoomPct: settings.get('defaultZoomPct'),
     // Autosave is per-pane in multi-doc — same intent as read mode.
-    // Off by default, but a file the user previously turned autosave
-    // ON for restores that choice across close + reopen (keyed by path).
+    // On by default (2026-09-07); a file the user previously turned
+    // autosave OFF for restores that choice across close + reopen
+    // (keyed by path — see autosave-prefs-store.ts).
     autosaveEnabled: isAutosaveOnForPath(opts.handle),
     autosaveTimer: null,
     docId: opts.docId ?? null,

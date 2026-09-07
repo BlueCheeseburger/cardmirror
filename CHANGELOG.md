@@ -16,6 +16,13 @@ see `DETAILED_CHANGELOG.md`.
   every doc together in the same pane layout, instead of hunting
   down each file separately in Recent. Desktop only.
 
+### Changed
+
+- **Autosave is now on by default** for every document, instead of
+  off until you turned it on per file. Turn it off per file from the
+  ribbon toggle the same way as before — that choice is still
+  remembered across closing and reopening the file.
+
 ### Fixed
 
 - **In three-pane workspace mode, a successful autosave no longer
