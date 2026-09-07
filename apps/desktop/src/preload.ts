@@ -29,6 +29,8 @@ interface JournalEntry {
    *  draft. Passed through opaquely. */
   recoveredFromSavedAt?: string;
   bytes: Uint8Array;
+  /** Journal-carried on-disk baseline (main fills it on write). */
+  diskBase?: { mtimeMs: number; size: number; contentHash?: string };
 }
 
 interface QuickCardIpc {
@@ -51,6 +53,8 @@ interface PairingAccountStatusIpc {
   email: string;
 }
 interface PairingConnectResultIpc {
+  /** Seat picker list (relay ≥ 2026-09-02); absent on older relays. */
+  candidates?: Array<{ routingCode: string; boundAt: string; lastSeenAt?: string; label?: string }>;
   ok: boolean;
   error?: string;
   expiresAt?: number;
@@ -385,10 +389,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pickHistoryFile: () =>
     ipcRenderer.invoke('host:pick-history-file') as Promise<string | null>,
 
-  /** Learn store (local annotation layer) — whole-blob KV under
-   *  `app.getPath('userData')/learn-store.json`. */
-  readLearnStore: () => ipcRenderer.invoke('host:read-learn-store') as Promise<string | null>,
-  writeLearnStore: (json: string) => ipcRenderer.invoke('host:write-learn-store', json),
+  /** Learn store (local annotation layer) — main owns the canonical
+   *  copy under `app.getPath('userData')/learn-store.json`; windows send
+   *  operations and receive the resulting blob (their own reply, or a
+   *  broadcast for another window's change). */
+  readLearnStore: () => ipcRenderer.invoke('host:read-learn-store') as Promise<string>,
+  applyLearnOp: (op: unknown) => ipcRenderer.invoke('host:learn-op', op) as Promise<string>,
+  onLearnStoreChanged: (handler: (json: string) => void): (() => void) => {
+    const listener = (_evt: unknown, json: string): void => handler(json);
+    ipcRenderer.on('host:learn-store-changed', listener);
+    return () => ipcRenderer.removeListener('host:learn-store-changed', listener);
+  },
 
   /** Report this window's workspace mode to main at boot (and on the
    *  reload a mode toggle triggers) so the OS "Open with…" path knows
@@ -471,8 +482,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('host:open-path-check', path) as Promise<{
       takenByOther: boolean;
     }>,
-  openPathRegister: (path: string) =>
-    ipcRenderer.invoke('host:open-path-register', path),
+  /** Cloud-sync provider for a path (null = local folder). */
+  cloudProvider: (path: string) =>
+    ipcRenderer.invoke('host:cloud-provider', path) as Promise<
+      'dropbox' | 'onedrive' | 'gdrive' | 'icloud' | 'other' | null
+    >,
+  /** Main's poller saw the owning window's file change on disk. */
+  onDiskChanged: (handler: (payload: { path: string; mtimeMs: number; size: number }) => void): (() => void) => {
+    const listener = (_evt: unknown, payload: { path: string; mtimeMs: number; size: number }): void => handler(payload);
+    ipcRenderer.on('host:disk-changed', listener);
+    return () => ipcRenderer.removeListener('host:disk-changed', listener);
+  },
+  /** Keep both: write bytes as a conflicted copy beside `handle`. */
+  saveConflictedCopy: (handle: string, bytes: Uint8Array, userName: string | null) =>
+    ipcRenderer.invoke('host:save-conflicted-copy', handle, bytes, userName) as Promise<{
+      name: string;
+      handle: string;
+    }>,
+  openPathRegister: (path: string, opts?: { journaledBase?: { mtimeMs: number; size: number; contentHash?: string } | null }) =>
+    ipcRenderer.invoke('host:open-path-register', path, opts) as Promise<{
+      claim: 'fresh' | 'journaled' | 'changed' | 'unknown';
+      provider: 'dropbox' | 'onedrive' | 'gdrive' | 'icloud' | 'other' | null;
+    } | null>,
   openPathRelease: (path: string) =>
     ipcRenderer.invoke('host:open-path-release', path),
   /** "Show in context": if another window already has `path` open, focus
@@ -730,7 +761,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('pairing:unauthorized', listener);
   },
   /** Blog-account entitlement (gates nothing until relay-side enforcement). */
-  pairingConnectAccount: (payload: { connectCode: string; confirmEvict?: boolean }) =>
+  pairingConnectAccount: (payload: { connectCode: string; confirmEvict?: boolean; evict?: string }) =>
     ipcRenderer.invoke('host:pairing-connect-account', payload) as Promise<PairingConnectResultIpc>,
   pairingAccountStatus: () =>
     ipcRenderer.invoke('host:pairing-account-status') as Promise<PairingAccountStatusIpc>,

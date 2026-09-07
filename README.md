@@ -8,13 +8,20 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Synced with upstream through its 1.8.0 release** — pulls in the
+>   disk-conflict guard rework and cloud pill (Dropbox/OneDrive/Google
+>   Drive/iCloud folders show sync status, and a save that would
+>   overwrite a teammate's edit writes a conflicted copy instead of
+>   silently clobbering it), the single-owner flashcard store (fixes
+>   cards vanishing with two windows open), and every 1.7.0 co-editing
+>   fix. This fork's own multi-pane autosave now uses the same
+>   conflicted-copy path on a changed-on-disk write. (main)
 > - **Save (ribbon button or Mod-S) only saves the current document
 >   again**, and in three-pane mode the Save and Autosave buttons move
 >   out of the ribbon into each pane's own title chip — each pane now
 >   has its own Save/Autosave controls acting only on that pane's doc,
 >   instead of one shared pair of ribbon buttons whose target depended
->   on which pane happened to be focused. Undoes the "Save saves
->   everything" change below. (open PR)
+>   on which pane happened to be focused. (main)
 > - **Ctrl/Cmd+K auto-fills the "Link to" field** when the selected text
 >   already looks like a URL (has a scheme, a `www.` prefix, or a
 >   recognized domain ending) — no more retyping a pasted link into the

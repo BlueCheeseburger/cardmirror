@@ -155,6 +155,131 @@ describe('M3 session persistence', () => {
     resumedView.destroy();
   }, 20_000);
 
+  it('verifiedFlush: true when the stored record covers the session, false when the write could not land', async () => {
+    // The keep-resumable close path drops the crash journal ONLY when this
+    // returns true — the record is about to become the doc's only copy. It
+    // had no test at all (2026-09-01 review).
+    const { session, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('verify me'),
+      client,
+      flushMs: 40,
+    });
+    const view = mkView(session.plugins());
+    await settle();
+    session.start();
+    const handle = attachSessionPersistence(session, shareCode, () => 'Verify Doc');
+    expect(await handle.verifiedFlush()).toBe(true);
+
+    // Advance the doc, then make the write impossible to land (dispose stops
+    // writing but leaves the stale record in place — the same observable
+    // state as a storage failure that writeInner swallowed).
+    typeAfter(view, 'verify', ' AGAIN');
+    await sleep(80);
+    handle.dispose();
+    expect(await handle.verifiedFlush()).toBe(false);
+
+    await deleteSessionRecord(session.roomId);
+    await session.stop();
+    view.destroy();
+  }, 20_000);
+
+  it('visibilitychange: persists when the tab HIDES, never when it comes back', async () => {
+    const { session, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('vis me'),
+      client,
+      flushMs: 40,
+    });
+    const view = mkView(session.plugins());
+    await settle();
+    session.start();
+    const handle = attachSessionPersistence(session, shareCode, () => 'Vis Doc');
+    await handle.flush();
+    const before = (await loadSessionRecord(session.roomId))!;
+    typeAfter(view, 'vis', ' MORE');
+    await sleep(80);
+    const setVisibility = (state: 'visible' | 'hidden'): void => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
+    setVisibility('visible');
+    await sleep(80);
+    const afterVisible = (await loadSessionRecord(session.roomId))!;
+    expect(afterVisible.updatedAt, 'tab-in must not write').toBe(before.updatedAt);
+    setVisibility('hidden');
+    await sleep(80);
+    const afterHidden = (await loadSessionRecord(session.roomId))!;
+    expect(afterHidden.updatedAt, 'tab-out writes').toBeGreaterThan(before.updatedAt);
+    await handle.clear();
+    await session.stop();
+    view.destroy();
+  }, 20_000);
+
+  it('persist cadence slows for big snapshots (and stays quick for small ones)', async () => {
+    const mk = async (label: string, cadence: Parameters<typeof attachSessionPersistence>[4]) => {
+      const { session, shareCode } = await CollabSession.host({
+        pmDoc: simpleDoc(label),
+        client,
+        flushMs: 40,
+      });
+      const view = mkView(session.plugins());
+      await settle();
+      session.start();
+      const handle = attachSessionPersistence(session, shareCode, () => label, () => null, cadence);
+      await handle.flush();
+      const seen = new Set<number>();
+      const t0 = Date.now();
+      let n = 0;
+      while (Date.now() - t0 < 700) {
+        typeAfter(view, label, ` x${n++}`);
+        await sleep(60);
+        const r = await loadSessionRecord(session.roomId);
+        if (r) seen.add(r.updatedAt);
+      }
+      await handle.clear();
+      await session.stop();
+      view.destroy();
+      return seen.size;
+    };
+    // Small snapshot: the fast cadence — many writes in 700ms.
+    const fast = await mk('quick', { persistMs: 50, slowPersistMs: 400, bigSnapshotBytes: 1 << 30 });
+    expect(fast, 'small doc persists on the fast cadence').toBeGreaterThanOrEqual(5);
+    // "Big" snapshot (threshold 1 byte): the slow cadence — a handful at most.
+    const slow = await mk('bulky', { persistMs: 50, slowPersistMs: 400, bigSnapshotBytes: 1 });
+    expect(slow, 'big doc persists on the slow cadence').toBeLessThanOrEqual(3);
+  }, 20_000);
+
+  it('clear() serializes behind an in-flight write so the record cannot be resurrected', async () => {
+    // The race the promise tail guards: a write already past its `disposed`
+    // check when clear() runs would otherwise re-save the record right
+    // after the delete. Never reproduced by a test before — the existing
+    // tests await a flush first, so the overlap never happened.
+    const { session, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('race me'),
+      client,
+      flushMs: 40,
+    });
+    const view = mkView(session.plugins());
+    await settle();
+    session.start();
+    const handle = attachSessionPersistence(session, shareCode, () => 'Race Doc');
+    await handle.flush();
+    expect(await loadSessionRecord(session.roomId)).not.toBeNull();
+
+    // Kick a write (NOT awaited) and clear immediately behind it.
+    typeAfter(view, 'race', ' MORE');
+    await sleep(60);
+    const inflight = handle.flush();
+    await handle.clear();
+    await inflight;
+    // Let any stray microtask/IDB callback settle, then the record must be gone.
+    await sleep(50);
+    expect(await loadSessionRecord(session.roomId)).toBeNull();
+    expect((await listSessionRecords()).some((r) => r.roomId === session.roomId)).toBe(false);
+
+    await session.stop();
+    view.destroy();
+  }, 20_000);
+
   it('stamps the doc\u2019s persistent id into the record once known, and keeps it sticky', async () => {
     // The open-from-disk rejoin gate matches a file to its session by
     // this docId; it appears on the record after the doc's first save

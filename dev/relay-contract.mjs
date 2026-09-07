@@ -23,6 +23,24 @@ function check(name, ok, extra = '') {
   const r = await fetch(`${BASE}/health`);
   check('health 200', r.status === 200);
 }
+// 1b. readiness probes the database (2026-09-01 review, R14)
+{
+  const r = await fetch(`${BASE}/readyz`);
+  check('readyz 200 (DB reachable)', r.status === 200, String(r.status));
+}
+// 1c. an oversized Content-Length is refused before the body is read (R5)
+{
+  const http = await import('node:http');
+  const u = new URL(`${BASE}/messages`);
+  const status = await new Promise((resolve) => {
+    const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST',
+      headers: { ...AUTH, 'Content-Type': 'application/json', 'Content-Length': '999999999' } }, (res) => resolve(res.statusCode));
+    req.on('error', () => resolve(0));
+    req.write('{}');
+    req.end();
+  });
+  check('oversized Content-Length → 413 before reading', status === 413, String(status));
+}
 // 2. auth required
 {
   const r1 = await fetch(`${BASE}/messages?recipient=x`);
@@ -130,7 +148,9 @@ if (process.env.HB === '1') {
   });
   check('connect rejected while dormant (4xx, not 5xx/2xx)', c.status >= 400 && c.status < 500, String(c.status));
   const w = await fetch(`${BASE}/ghost-webhook`, { method: 'POST', body: '{}' });
-  check('webhook 404 while dormant', w.status === 404, String(w.status));
+  // Dormant (no GHOST_WEBHOOK_SECRET) → 404; armed → an unsigned post is 401.
+  const armed = !!process.env.WEBHOOK_SECRET;
+  check(armed ? 'webhook 401 for an unsigned post while armed' : 'webhook 404 while dormant', w.status === (armed ? 401 : 404), String(w.status));
 }
 // ── Rooms (collaboration sessions) ──────────────────────────────────
 if (process.env.ROOMS !== '0') {
@@ -320,6 +340,182 @@ if (process.env.ROOMS !== '0') {
   check('rooms: tombstone 410 (ended ≠ never existed)', g410.status === 410, String(g410.status));
   const s410 = await fetch(`${BASE}/rooms/${roomId}/stream`, { headers: AUTH });
   check('rooms: tombstoned stream 410', s410.status === 410, String(s410.status));
+}
+
+// 14b. pages are byte-bounded, not just row-bounded (2026-09-01 review, R4)
+{
+  const mk = await fetch(`${BASE}/rooms`, { method: 'POST', headers: AUTH });
+  const { roomId } = await mk.json();
+  const big = Buffer.alloc(2_200_000, 7); // ~2.9 MB of base64 each; three exceed a 4 MB page budget
+  for (let i = 0; i < 3; i++) {
+    const r = await fetch(`${BASE}/rooms/${roomId}/updates`, { method: 'POST', headers: { ...AUTH, 'Content-Type': 'application/octet-stream' }, body: big });
+    check(`rooms: big update ${i} 202`, r.status === 202, String(r.status));
+  }
+  const p1 = await (await fetch(`${BASE}/rooms/${roomId}/updates?after=0`, { headers: AUTH })).json();
+  check('rooms: byte budget splits a 3-row page (more:true, <3 rows)', p1.more === true && p1.updates.length >= 1 && p1.updates.length < 3, JSON.stringify({ n: p1.updates?.length, more: p1.more }));
+  let total = p1.updates.length, pages = 1, after = p1.lastSeq, more = p1.more;
+  while (more && pages < 6) {
+    const pg = await (await fetch(`${BASE}/rooms/${roomId}/updates?after=${after}`, { headers: AUTH })).json();
+    total += pg.updates.length; pages++; after = pg.lastSeq; more = pg.more;
+  }
+  check('rooms: paging to more:false delivers all 3 rows', total === 3 && more === false && pages >= 2, JSON.stringify({ total, pages, more }));
+  await fetch(`${BASE}/rooms/${roomId}`, { method: 'DELETE', headers: AUTH });
+}
+// 14c. admin metrics exists but is admin-gated (404 without the admin token) (R13)
+{
+  const r = await fetch(`${BASE}/admin/metrics`, { headers: AUTH });
+  check('admin metrics gated (404 without admin token)', r.status === 404, String(r.status));
+}
+
+// 15. participant cap: a reconnect with the SAME sid replaces its own ghost
+// instead of counting against the cap (2026-09-01 review, R7)
+{
+  const mk = await fetch(`${BASE}/rooms`, { method: 'POST', headers: AUTH });
+  const { roomId } = await mk.json();
+  const ctls = [];
+  const open = async (sid) => {
+    const ctl = new AbortController();
+    const res = await fetch(`${BASE}/rooms/${roomId}/stream?sid=${sid}`, { headers: AUTH, signal: ctl.signal });
+    ctls.push(ctl);
+    return res.status;
+  };
+  const statuses = [];
+  for (let i = 0; i < 10; i++) statuses.push(await open(`sid${i}`));
+  check('rooms: 10 streams open', statuses.every((st) => st === 200), statuses.join(','));
+  const eleventh = await open('sid-new');
+  check('rooms: 11th distinct sid → 409', eleventh === 409, String(eleventh));
+  // Drop sid0 abruptly (no server-side reap yet) and reconnect AS sid0.
+  ctls[0].abort();
+  await new Promise((r2) => setTimeout(r2, 50));
+  const again = await open('sid0');
+  check('rooms: same-sid reconnect replaces its ghost (200, not 409)', again === 200, String(again));
+  for (const c of ctls) c.abort();
+  await fetch(`${BASE}/rooms/${roomId}`, { method: 'DELETE', headers: AUTH });
+}
+
+// 16. seats: pick-a-machine eviction (2026-09-02). Needs the relay booted
+// with RELAY_DEV_FAKE_SESSION=1 (the local recipe) so /connect-code mints
+// codes for a fake member; against a dormant relay the section is skipped.
+{
+  const member = `seat-test-${Date.now()}`;
+  const mint = async () => {
+    const r = await fetch(`${BASE}/connect-code`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionJwt: member }),
+    });
+    return r.status === 200 ? (await r.json()).code : null;
+  };
+  const connect = async (body, bearer) => {
+    const r = await fetch(`${BASE}/connect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) },
+      body: JSON.stringify(body),
+    });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  };
+  const code0 = await mint();
+  if (!code0) {
+    console.log('  --  seats: /connect-code unavailable (relay not in dev fake-session mode) — section skipped');
+  } else {
+    const t = Date.now();
+    const A = `seatA-${t}`, B = `seatB-${t}`, C = `seatC-${t}`, D = `seatD-${t}`;
+    const a = await connect({ connectCode: code0, routingCode: A, deviceLabel: 'Laptop A' });
+    check('seats: A links (200)', a.status === 200, String(a.status));
+    const b = await connect({ connectCode: await mint(), routingCode: B, deviceLabel: 'Desktop B' });
+    check('seats: B links (200)', b.status === 200, String(b.status));
+    const c1 = await connect({ connectCode: await mint(), routingCode: C, deviceLabel: 'Phone C' });
+    check('seats: a third machine → 409 seatLimit', c1.status === 409 && c1.body?.detail?.error === 'seatLimit', String(c1.status));
+    const cands = c1.body?.detail?.candidates ?? [];
+    check('seats: 409 lists both seats, oldest first, with labels',
+      cands.length === 2 && cands[0]?.routingCode === A && cands[0]?.label === 'Laptop A' && cands[1]?.routingCode === B && cands[1]?.label === 'Desktop B',
+      JSON.stringify(cands).slice(0, 200));
+    check('seats: 409 keeps the legacy wouldEvict (oldest)', c1.body?.detail?.wouldEvict?.routingCode === A.slice(0, 8));
+    const bogus = await connect({ connectCode: c1.body?.detail?.retryCode, routingCode: C, confirmEvict: true, evict: 'no-such-machine' });
+    check('seats: unknown evict target → 409 again (evictUnknown) with a fresh retryCode',
+      bogus.status === 409 && bogus.body?.detail?.reason === 'evictUnknown' && typeof bogus.body?.detail?.retryCode === 'string', String(bogus.status));
+    const c2 = await connect({ connectCode: bogus.body?.detail?.retryCode, routingCode: C, confirmEvict: true, evict: B });
+    check('seats: evict=B → C links (200)', c2.status === 200, String(c2.status));
+    const bRenew = await connect({ connectCode: '', routingCode: B }, b.body?.entitlement);
+    check('seats: the picked machine (B) is evicted — its renewal says youWereEvicted', bRenew.status === 409 && bRenew.body?.detail?.error === 'youWereEvicted', String(bRenew.status));
+    const aRenew = await connect({ connectCode: '', routingCode: A, deviceLabel: 'Laptop A (renamed)' }, a.body?.entitlement);
+    check('seats: the kept machine (A) still renews (200)', aRenew.status === 200, String(aRenew.status));
+    // Pre-picker client at the limit: confirmEvict alone still evicts the OLDEST (A).
+    const d1 = await connect({ connectCode: await mint(), routingCode: D });
+    const dc = d1.body?.detail?.candidates ?? [];
+    check('seats: renewal refreshed A\'s label and lastSeenAt', dc[0]?.routingCode === A && dc[0]?.label === 'Laptop A (renamed)' && dc[0]?.lastSeenAt > dc[0]?.boundAt, JSON.stringify(dc[0]).slice(0, 160));
+    const d2 = await connect({ connectCode: d1.body?.detail?.retryCode, routingCode: D, confirmEvict: true });
+    check('seats: legacy confirmEvict evicts the oldest (A) and links D (200)', d2.status === 200, String(d2.status));
+    const aRenew2 = await connect({ connectCode: '', routingCode: A }, aRenew.body?.entitlement);
+    check('seats: A is now the evicted one', aRenew2.status === 409 && aRenew2.body?.detail?.error === 'youWereEvicted', String(aRenew2.status));
+  }
+}
+
+// 17. Ghost webhook: signed deliveries flip lapsed⇄active but NEVER touch
+// evicted seats (2026-09-02). Needs the relay booted with
+// GHOST_WEBHOOK_SECRET and the same value in WEBHOOK_SECRET here, plus dev
+// fake-session mode for /connect-code; skipped otherwise.
+{
+  const secret = process.env.WEBHOOK_SECRET || '';
+  const mint = async (member) => {
+    const r = await fetch(`${BASE}/connect-code`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionJwt: member }),
+    });
+    return r.status === 200 ? (await r.json()).code : null;
+  };
+  const connect = async (body, bearer) => {
+    const r = await fetch(`${BASE}/connect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) },
+      body: JSON.stringify(body),
+    });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  };
+  const member = `hook-member-${Date.now()}`;
+  const code0 = secret ? await mint(member) : null;
+  if (!secret || !code0) {
+    console.log('  --  webhook: WEBHOOK_SECRET unset or /connect-code unavailable — section skipped');
+  } else {
+    const { createHmac } = await import('node:crypto');
+    const deliver = async (payload, sig) => {
+      const body = JSON.stringify(payload);
+      const ts = String(Date.now());
+      const mac = createHmac('sha256', secret).update(body + ts).digest('hex');
+      const r = await fetch(`${BASE}/ghost-webhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Ghost-Signature': sig ?? `sha256=${mac}, t=${ts}` },
+        body,
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    };
+    const t = Date.now();
+    const X = `hookX-${t}`, Y = `hookY-${t}`, Z = `hookZ-${t}`;
+    const x = await connect({ connectCode: code0, routingCode: X, deviceLabel: 'X' });
+    const y = await connect({ connectCode: await mint(member), routingCode: Y, deviceLabel: 'Y' });
+    const z1 = await connect({ connectCode: await mint(member), routingCode: Z, deviceLabel: 'Z' });
+    const z = await connect({ connectCode: z1.body?.detail?.retryCode, routingCode: Z, confirmEvict: true, evict: X });
+    check('webhook: fixture — X evicted, Y + Z active', x.status === 200 && y.status === 200 && z.status === 200, `${x.status}/${y.status}/${z.status}`);
+    const bad = await deliver({ member: { current: { uuid: member, status: 'free' } } }, 'sha256=deadbeef, t=1');
+    check('webhook: bad signature → 401', bad.status === 401, String(bad.status));
+    const lapse = await deliver({ member: { current: { uuid: member, status: 'free', email: 'm@example.com' }, previous: { status: 'paid' } } });
+    check('webhook: member → free lapses the 2 ACTIVE seats only (updated=2)', lapse.status === 200 && lapse.body?.updated === 2, JSON.stringify(lapse.body));
+    const yLapsed = await connect({ connectCode: '', routingCode: Y }, y.body?.entitlement);
+    check('webhook: lapsed Y renews inside grace (200, grace:true)', yLapsed.status === 200 && yLapsed.body?.grace === true, `${yLapsed.status} ${JSON.stringify(yLapsed.body).slice(0, 80)}`);
+    const xEv1 = await connect({ connectCode: '', routingCode: X }, x.body?.entitlement);
+    check('webhook: evicted X stays evicted after the lapse', xEv1.status === 409 && xEv1.body?.detail?.error === 'youWereEvicted', String(xEv1.status));
+    const back = await deliver({ member: { current: { uuid: member, status: 'paid', email: 'm@example.com' }, previous: { status: 'free' } } });
+    check('webhook: member → paid reactivates the 2 LAPSED seats only (updated=2)', back.status === 200 && back.body?.updated === 2, JSON.stringify(back.body));
+    const yBack = await connect({ connectCode: '', routingCode: Y }, yLapsed.body?.entitlement);
+    check('webhook: Y renews normally again (200, no grace) — unblocked without re-linking', yBack.status === 200 && !yBack.body?.grace, `${yBack.status} ${JSON.stringify(yBack.body).slice(0, 80)}`);
+    const xEv2 = await connect({ connectCode: '', routingCode: X }, x.body?.entitlement);
+    check('webhook: evicted X is NOT resurrected by the reactivation', xEv2.status === 409 && xEv2.body?.detail?.error === 'youWereEvicted', String(xEv2.status));
+    const idem = await deliver({ member: { current: { uuid: member, status: 'paid' } } });
+    check('webhook: repeat "paid" delivery is a no-op (updated=0)', idem.status === 200 && idem.body?.updated === 0, JSON.stringify(idem.body));
+    const gone = await deliver({ member: { previous: { uuid: member, status: 'paid' } } });
+    check('webhook: member.deleted (previous only) lapses the active seats (updated=2)', gone.status === 200 && gone.body?.updated === 2, JSON.stringify(gone.body));
+    const unknown = await deliver({ member: { current: { uuid: 'nobody-here', status: 'paid' } } });
+    check('webhook: unknown member → 200, updated=0', unknown.status === 200 && unknown.body?.updated === 0, JSON.stringify(unknown.body));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

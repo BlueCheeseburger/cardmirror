@@ -408,6 +408,724 @@ only two, hardcoded.
   the action targets the doc that actually failed rather than
   whatever the user happens to be looking at.
 
+## 1.8.0 — 2026-09-06
+
+### Added + Fixed: disk-conflict guard rework and the cloud badge
+
+Users on shared Dropbox folders overwrote each other's `.cmir` edits
+silently. Dropbox creates no conflicted copy when the winning version
+has already synced down before the losing write, so nothing warned
+anyone. The changed-on-disk guard existed, but its baseline was a
+single main-process map keyed by path that EVERY read refreshed: the
+quick-card warm pass (every window boot and every palette open reads
+every pinned file, and every open file is pinned through recents),
+transclusion resolution, the docId stamp, a second window's open. Any
+of those, after a teammate's version had synced down, made that
+version the baseline, and the next save passed the guard. The prompt
+that did fire had Overwrite as the primary button.
+
+The baseline now belongs to the window that owns the document. Reads
+record only a candidate; a window promotes the candidate when it
+registers the path after mounting (the same registration the
+cross-window duplicate-open guard already required), and its own
+writes refresh it. A save by a window that holds no baseline for the
+path is refused the same way as a changed file: unknown is no longer a
+bypass. Crash journals carry the owner's baseline, so a recovered
+document registers with it; main adopts it when the file still
+matches and otherwise reports the file as changed, so the first save
+keeps both instead of overwriting whatever landed while the app was
+down. Just before the rename that replaces the file, the writer stats
+it a second time, which shrinks the check-then-write gap to the rename
+itself.
+
+Cloud detection classifies the resolved path against Dropbox's
+info.json roots, the legacy `~/Dropbox`, macOS File Provider mounts
+under `~/Library/CloudStorage`, iCloud Drive, the OneDrive environment
+roots and Google Drive's letter mounts. For those documents one
+main-process timer stats every open file every four seconds and pushes
+a change to the owning window. It never reads bytes: a byte read of an
+online-only placeholder on Windows forces hydration, the stall from the
+August support case. A sync client touching a timestamp therefore shows
+as a change; the save-time byte comparison corrects it.
+
+The badge is a pill in its own fixed tray at the editor's bottom-right
+corner, the mirror of the Send / Receive / Dropzone tray at the
+bottom-left and styled as the same family (it started beside the
+filename chip in the ribbon, which is opt-in and off by default, so it
+floated beside nothing and was easy to miss; moved on review). One per
+window, showing the active document's state (three-pane switches it
+with focus). Cloud glyph plus the provider's name when synced, amber
+with a relative time when changed, a "Conflicted copy" label when the
+window is editing one. No toast,
+modal or animation on a transition; the badge is frozen while read
+mode or the timer pop-out is active and catches up afterwards. Clicking
+the amber badge opens the route-style decision, in this order: Keep
+their changes (load from disk; withheld while hosting a co-editing
+session, with a note to end the session first; its caption says
+whether unsaved changes are discarded), Keep my changes (overwrite),
+Keep both (a conflicted copy in the same folder). No secondary
+confirmations, by design call on live review. A refused save, manual or autosave, writes the in-memory
+document beside the original as `<name> (<user>'s conflicted copy
+<date>).<ext>` with a numeric suffix on collision, and switches the
+window to the copy so a second save cannot mint a second copy. The
+pill's "Conflicted copy" state is the only announcement (a status-bar
+notice was tried and dropped on review as redundant); the recovery
+sidebar's Save, which mounts nothing, toasts the copy's name instead.
+A copy of a conflicted copy, when someone changes the copy under the
+window, is named as the next numbered copy of the original rather than
+a nested name. The user name is the co-editing display name, else
+the comment author name, else the computer account username, never
+anything from the Debate Decoded account. Tests cover the owner-keyed
+guard, the journaled baseline, the pre-rename recheck, copy naming, the
+cloud classifier, the poller and the badge state machine. The web build
+is out of scope: it has no equivalent guard and cannot poll a folder.
+
+### Fixed: Space stacked the "Nothing due right now" review panel
+
+The review session's capture-phase key handler swallowed propagation
+but, in the finished state, never called preventDefault, and the
+session never moved keyboard focus off the button that opened it. So
+with nothing due, a Space keydown reached the still-focused Review
+button as an activation, which opened another session, each with its
+own overlay and its own darker backdrop, on every press until a click
+moved focus. Three changes: the session panel takes focus on open (a
+focusable dialog surface) and hands it back to the opener on close;
+Space and Enter in the finished state act as the Done button with the
+default prevented; and a second session cannot open while one is up
+whatever path asks for it. A jsdom test emulates the button's Space
+activation and asserts one overlay, then none.
+
+### Fixed: the cloud pill cleared the editor's scrollbar
+
+The bottom-right tray was pinned a fixed distance from the window
+edge, so on a machine that draws a persistent scrollbar the pill sat
+on top of it. The tray is now positioned by the same pass that anchors
+the left tray, measured against the editor's scroll container: its
+client width excludes the vertical scrollbar at whatever width the OS
+draws it, so the pill clears the bar by 8px, and overlay scrollbars
+(which report no width) get a 16px inset for the transient thumb.
+Three-pane measures the rightmost visible pane.
+
+### Fixed: flashcards lost between windows (single-owner learn store)
+
+The flashcard store (cards, schedules, anchors, notes, AI threads,
+decks, the document registry) was one JSON blob that every window
+loaded once at launch and rewrote in full on any change. Nothing told
+other windows. Because merely opening a file registers it in the store,
+a window that had loaded before another window created cards overwrote
+those cards the next time it opened or saved a file; the first window
+kept showing them until it restarted, so the loss surfaced at the next
+launch, which is often an update. A read that failed for any reason
+other than a missing file also started the app with an empty store and
+let the next change overwrite the file with it.
+
+Windows no longer write the store. A mutation on the window's copy is
+applied locally, so callers can read back synchronously as before, and
+the same call is sent as an operation (method name plus arguments) to
+the single owner of the canonical copy. On desktop the owner is the
+main process: it applies the operation, writes the file (debounced,
+serialized, temp-and-rename), and broadcasts the resulting blob to
+every window; a quit is held until a pending write lands. On the web
+the owner is whichever tab holds a Web Lock for the write; the others
+follow through the storage event. A window adopts a canonical blob only
+while none of its own operations are in flight, so a reply that
+predates a later local change never rolls that change back. The owner
+keeps one backup per local day for two weeks, and a file it cannot read
+or parse is set aside under an `.unreadable-` name before the first
+write instead of being overwritten. The owner is bundled with esbuild
+like the file-index service because it imports the shared store from
+the editor tree, outside the desktop tsconfig's root. A test guards
+that every store method which persists is in the operation list.
+
+## 1.7.0 — 2026-09-05
+
+### Added: choose which machine to unlink (seat picker)
+
+A membership carries two machine seats. Linking a third used to evict
+the least-recently-renewed seat with a yes/no confirm — which, for a
+member who set up a laptop, a desktop and then a school machine, was
+usually the machine they use most. The relay's seat-limit refusal now
+carries the machines already linked (a device label the client reports
+at link and refreshes on every renewal, the link date, and last
+activity), and the client's Settings → Collaboration flow shows them as
+a route-style list: pick the one to unlink, or cancel. The retry names
+the chosen seat; if that seat vanished in between (unlinked from its
+own machine, or evicted by a parallel link), the relay refuses again
+with a fresh list rather than guessing. The web client offers the same
+pick. Older clients keep working against the new relay — the legacy
+"would evict" field is still sent, and a retry without a named target
+still evicts the oldest. The relay side of this went live on 2026-09-04
+ahead of the client.
+
+Two adjacent seat fixes ride along. Regenerating a pairing code now
+releases the old code's seat first (its identity row was left held, so
+a regenerated machine's re-link counted as a THIRD machine and pushed
+out one you still use). And a machine whose renewal the relay refuses
+backs off — the client used to retry every few minutes for the life of
+the process, which showed up in relay logs as a steady stream of 403s
+from lapsed or unlinked machines.
+
+Server-side, and independent of the client build: a membership that
+lapses and later re-subscribes recovers its linked machines without
+re-linking. Ghost now notifies the relay on member edits and deletions
+(the relay's seat-eviction state is left alone by those notifications;
+an earlier handler would have resurrected evicted seats), so the next
+renewal after re-subscribing succeeds on its own.
+
+### Added: Send to Recipient
+
+Send to Starred sends the focused card or selection to the starred
+contact. Send to Recipient is its keyboard sibling for everyone else:
+it lists contacts and groups (type to filter), then sends the same
+payload through the same path. Unbound by default; run it from the
+command bar or bind a key in Keyboard settings.
+
+### Fixed: the Send pill scrolls during a drag
+
+Dragging a card onto the Send pill opens the recipient list, but a
+native drag never fires scroll events, so any recipient past the first
+screenful was unreachable. Holding the drag near the top or bottom
+edge now scrolls the list on a frame loop and re-dispatches the hit
+test as it moves, so the highlighted target follows the pointer.
+
+### Fixed: co-editing — undo can no longer delete a partner's typing
+
+Undo in a shared session is per-author, but a container is not: undo
+your Enter-in-tag, card insert or card paste after a partner had
+already typed into the card it created, and the card went away with
+their text inside it, silently, on every peer. Undo/redo now run
+through a guard that keeps a ledger of containers a partner has touched
+(from the sync layer's import events; your own later edits clear a
+mark). After each undo it checks which heading ids left the document;
+if any of them is partner-touched, it reverses the undo on the spot and
+shows a note. Undoing your own untouched edits is unchanged, and the
+check is a microtask, not a keystroke cost. The chaos rig described
+below drove this: the mechanism is deterministic, not a race.
+
+### Fixed: co-editing — moves and splits keep cards' identities
+
+When a card was moved or split while a partner was editing it, the sync
+layer could fail to recognise the moved card as the same container and
+rebuild it from scratch: a delete plus a fresh insert. The partner's
+concurrent edit was addressed to the deleted container and vanished, or
+their copy of the card survived alongside the rebuilt one. The binding
+now reconciles a rebuilt container against the existing one in tiers —
+equality, then a unique heading id, then text similarity, then
+positional pairing of the same type — and reuses the existing
+identity, so a move stays a move and a split keeps the first half.
+
+### Fixed: co-editing — typed text no longer tears under a concurrent split or delete
+
+The root cause behind most of the "lost a few characters" reports from
+shared sessions. The sync layer turned every local edit into CRDT
+operations by diffing the paragraph's before and after strings: common
+prefix, common suffix, replace the middle. When the text you typed
+began or ended with the same letters as its neighbour, the diff reused
+part of the neighbour as "your" text and inserted a different slice as
+new — visually identical, but the character identities were shuffled.
+A partner splitting or deleting that neighbour at the same moment then
+took a piece of your word with it, and the merge converged on the
+damage. Deterministic reproduction: insert "«tk16» " before "«tk3»"
+while a partner splits before "«tk3»" and you get "16» «tk" in one
+paragraph and "«tk3» end" in the other. In prose that is any word
+sharing its first or last letters with the next or previous one.
+
+The ProseMirror transaction already says what changed, so the binding
+now records each inline replace and each split per final paragraph and
+applies them as exact delete/insert operations. A replace is first
+trimmed to its changed middle WITHIN its own range — a command that
+rewrites a whole tag head to drop the first word is a prefix delete,
+and treating it literally would re-mint the kept tail on every peer
+that runs it — and that bounded trim is the only place existing
+identity is reused; it can never borrow from outside the step. Block
+steps in the same batch (card inserts, moves, attribute changes) stay
+with the container diff. Anything else (marks, joins, plugin repairs)
+sends the whole batch to the old diff, and every exact result is
+replayed against the ProseMirror text before it is written, falling
+back on mismatch.
+
+Verification: a new opt-in chaos rig runs real clients against a local
+copy of the production relay through a fault-injecting proxy
+(disconnects, reconnects, delayed deliveries, concurrent moves, splits,
+duplicate pastes and undo), and an in-memory pairwise-sync fuzz runs
+alongside it. Across the campaign nothing diverged, no heading id
+duplicated and no schema-invalid document appeared; every loss traced
+to the two mechanisms fixed above. One residual is documented rather
+than hidden: two peers splitting the SAME paragraph before syncing each
+copy its tail into their own new paragraph (a split is delete-plus-copy
+in the CRDT, not a text move), so the overlap shows twice — visible,
+and a one-keystroke fix for the user, unlike a loss.
+
+### Fixed: Enter mid-tag keeps the number on the first half
+
+Splitting a numbered tag or heading with Enter built the NEW container
+with default attributes and inserted it before the original, so the
+number rode the post-cursor half (field report 2026-09-02). The
+pre-cursor half now inherits the original's attributes (numRole,
+numRestart, and a block's numRestart) and the original — now the
+second, new unit — resets to the type defaults. Same rule in
+enterMidTag (cards, analytics) and enterInHeading (blocks, pockets,
+hats).
+
+### Fixed: co-editing liveness — deadlines, stall watchdog, restart debounce
+
+Three wedge classes from the 2026-09-01 collaboration review, each
+pinned by a reproduction that failed before the fix. No rooms request
+had a deadline, and the send mutex and the correctness catch-up's
+running flag clear only in `finally`, so a fetch that never settled
+(half-open TCP after a lid close or a NAT rebind) wedged sending or
+catch-up permanently: chip stuck on "queued N", no retry. Every request
+now composes an abort timeout — 15 s for reads and small posts, 120 s
+for the multi-megabyte update and snapshot posts, and (a knock-on found
+in the audit that followed) the same long deadline for update PAGES,
+which run to 4 MB and carry the room snapshot on the first one; under
+the short deadline a big room on a slow link re-fetched the same page
+into the same timeout forever. A deadline surfaces as the same
+retryable error shape as a dropped connection. Second, the live stream
+had no stall detection: heartbeats were dropped unnoted and the
+self-echo watchdog arms only after WE post, so a reader-only peer never
+noticed a dead socket. A silence watchdog (70 s, about 2.8 relay
+heartbeats) restarts the stream, arming only after the first byte
+following hello so a heartbeat-less relay degrades to the old behavior
+rather than restart-looping. Third, restart() was undebounced: a wake
+fires the power-resume and online events a beat apart and the second
+aborted the handshake the first had just started; a 2 s window makes
+the in-flight reconnect the restart, and tab-visible joined the wake
+sources (a throttled background tab is where sockets go stale).
+
+### Fixed: co-editing reconnect policy — backoff on survival, jitter inside the cap, crowded-out signal
+
+Backoff reset on every hello meant a draining relay (accept, hello,
+close — a Railway deploy) turned every client into a 1 Hz reconnect
+plus catch-up loop, and the ghost streams that rate leaves behind
+(reaped only per heartbeat) filled the room. The reset now waits for
+the connection to survive 15 s; connections that die sooner keep
+escalating. Jitter was applied after the clamp (a 60 s cap became 78 s)
+and its ±30 % band put a whole fleet's first retry inside roughly
+600 ms after a relay restart; it is now 30–100 % of the capped delay.
+A reconnect refused as "room full" retried forever with the room-full
+callback unreachable after the first hello, so a peer shut out of an
+established session saw only a bare offline chip; after four
+consecutive refusals a crowded-out notice fires once while retrying
+continues. Joining gained the same resilience: the one strict initial
+catch-up now retries up to three times with jittered backoff on
+connection failures and 5xx only (a relay deploy's 502/503 used to fail
+the join outright or, with a prefetched seed, silently open a possibly
+stale offline copy); 401/403/404/409/410 stay terminal. All four
+update-paging loops (catch-up, full resync, audit scan, invite
+prefetch) now stop, with one warning, when a page says "more" without
+advancing the cursor — a proxy-mangled body or a half-deployed relay
+used to be an unbounded, undelayed fetch loop pinning the relay. On
+web, an expired entitlement resolves to an empty credential by design,
+but every request then went out as a literal empty bearer token and
+401'd all night; an empty credential now fails locally and the stream
+signals auth-dead immediately, keeping the backoff so a renewal or
+re-link reconnects.
+
+### Fixed: co-editing egress — coalesced sends, smarter catch-up, bucketed audit ledger
+
+The outbound path pushed one queue entry per 500 ms tick and drained
+them strictly one at a time, so ten offline minutes became ~1200
+sequential posts, 1200 relay rows, and 1200 rows for every other peer
+to fetch and decrypt. Every entry carries its starting version, so a
+run now collapses into one export from the head's version (remote ops
+imported since ride along; idempotent), with ack bookkeeping and
+oversized-result chunking unchanged. Coalescing runs once per drain,
+before the loop — per-iteration it re-merged the chunks it had just
+split, forever. Catch-up used to re-fetch, re-decrypt and re-import
+every row the stream had already pushed since its cursor, one awaited
+decrypt at a time (up to 200 per page on the join path); frames the
+stream delivered are now remembered by sequence and skipped, and the
+rest decrypt in parallel. The half-hourly history audit had its own
+timer, unaligned with catch-up, so its opening probe fetched every row
+since a cursor that was minutes stale; it now runs behind a fresh
+catch-up. The audit's tail ledger kept one entry per relay row with a
+4000-entry cap, past which a busy five-typist room (about ten rows a
+second, under ten minutes to the cap) forced the audit into a download
+of the whole room — a partial return of the egress problem the
+incremental audit was built to kill; rows now fold into buckets of 64,
+pruned only once the verified snapshot covers them. Two unbounded
+synchronous imports were bounded at 8 MB: the inbound micro-batch
+buffer (a reconnect repost or the audit's full-history chunks landed as
+one import of everything a 120 ms window collected) and the full-resync
+escalation (which buffered every decrypted blob of the whole room and
+then blocked the main thread on one giant import). Hiding the tab now
+flushes unsent edits at once instead of waiting for the next tick, and
+an oversized queue entry exports only up to its own version rather than
+the live one.
+
+### Fixed: the room log grew without bound (pending-imports latch)
+
+The flag that blocks snapshot compaction while updates are still
+missing was set on any import with parked ops but cleared in exactly
+one place, inside the full-resync escalation. The common heal — a shed
+frame's dependencies fetched by the ordinary catch-up — never reached
+that block, so the flag stayed latched for the session and snapshot
+upload returned early forever: the room log grew without bound, giving
+slower joins, more egress and longer catch-ups for every peer, and a
+likely contributor to the August volume incident. The session now keeps
+the parked spans per peer, folds every import's status into that
+ledger, prunes a span once the document's version vector covers its
+end, and derives the flag from the ledger; the compaction guard itself
+is unchanged. Two related holes: a catch-up requested while one was
+running was discarded outright, including the "expect missing
+dependencies" signal that forces a full resync, so recovery waited for
+the five-minute timer — a concurrent request is now latched and re-run
+once; and the catch-up skip list was populated BEFORE the import ran,
+so a batch that failed on one corrupt frame had every row in it skipped
+by every later catch-up, a permanent gap — sequences are recorded only
+after the import succeeds.
+
+### Fixed: co-editing performance on big documents
+
+The repair plugin runs on every remote binding batch (up to ~8 per
+second at the default receive window) and each pass walked the ENTIRE
+document three to five times on a tournament master: exclusive-mark
+sweep, table normalization, heal-sentinel canonicalization, the
+leader's first-child sweep, and the sentinel notice scan — whose
+"cooldown gate" was not a gate, because its timestamp was stamped only
+after a heal was found. Every sweep is now bounded to the batch's
+changed ranges (the soundness argument fixTables' bounded path already
+rests on: a violation a merge creates lies inside that merge's changed
+region), with import and open keeping the full scan as the backstop.
+The causal heal's first pass decoded the full op log inside the ~10 s
+join freeze because the binding's init transaction has the whole
+document as its changed range; that transaction is skipped (verdicts
+are a pure function of op history and the fail-safe direction is
+keep), the history index is built at idle after mount, and per-pass
+costs that grew with session length are now flat. The vendored cursor
+plugin decoded every peer's anchor and focus in wasm several times per
+rebuild and built a fresh caret element per peer per rebuild, so
+ProseMirror re-inserted every remote caret on every remote keystroke;
+the store now memoizes until the next mutation and the same caret
+element is returned while a peer's name and color are unchanged.
+Status notifications while typing rebuilt every slot footer and the
+chip's presence dots on every keystroke; copresence notifications
+coalesce leading plus trailing per 150 ms, byte-identical statuses are
+skipped, and the dot roster is signature-compared before touching the
+DOM. Crash-recovery persistence wrote on a flat 2.5 s interval
+regardless of size, structured-cloning a multi-megabyte record and
+rebasing onto a full snapshot export every 40th write (0.3–0.8 s of
+synchronous wasm on a 20 MB master); it now slows to 10 s past 4 MB and
+shares one memoized snapshot export with version history. Both durable
+writers treated tab-in as "flush now" as well as tab-out, so
+alt-tabbing back to a big co-edited document froze the renderer; they
+fire on hide only. Base64 decoding of compaction snapshots uses the
+platform's native codec when present. Credentials are resolved once per
+request instead of three times (at cursor-presence rates on the typing
+thread), with no memo, so a settings write still reaches the very next
+request. Comments no longer dispatch a transaction on every peer when a
+remote event derives an identical thread set, and the session-history
+dialog imports its source snapshot once per open instead of once per
+preview click.
+
+### Fixed: co-editing problems are reported, not swallowed
+
+A send that kept failing retried the same queue head forever while the
+queue grew behind it and nothing told the user; the session now counts
+consecutive failures and, past a threshold of about a minute, the UI
+posts a keyed "Edits aren't reaching the session" notice that clears
+when a later send succeeds. Offline showed only as chip text (five
+seconds and forty minutes read identically), so after three minutes
+disconnected a notice names the duration and the queued edit count.
+Both durable writers swallowed storage errors by design, so a full disk
+or a denied IndexedDB quota silently disabled crash recovery and
+Recover Previous Version for the whole session; three consecutive
+failures now post an "isn't being saved" notice. Relay errors carry the
+relay's own detail (a 413 alone covers "update too large" and "room
+storage cap reached"; pool exhaustion is a distinct 503), and the
+stream's early-return branches cancel the response body instead of
+holding a pool connection until garbage collection, one per retry, for
+hours during an outage. The transport and stream keep live counters
+(requests, failures by class, last error, last success) folded into the
+debug state, and the failure paths that used to be bare catches warn on
+first occurrence and every fifth after. A comment edit the room silently
+dropped (its thread container gone) now warns and is counted.
+
+### Fixed: co-editing presence and lifecycle races
+
+Leaving a session sent no departure: the ephemeral store's 45 s expiry
+was the only thing that removed a departed peer's caret and "who's
+here" dot, during exactly the "did they leave?" moment. A farewell
+frame is pushed synchronously before the stream comes down, on every
+terminal path, and presence is re-announced on the disconnected-to-
+connected edge (nothing re-announced until the 15 s keepalive before).
+A farewell that aborted — a host End that failed to tombstone, a
+keep-resumable close whose flush failed — used to leave nothing to
+re-announce; the parting state is now stashed and restored. Join and
+resume had no in-flight guard, so a double-click (or an invite pill
+plus a Sessions row) ran two sessions on one room, with two persist
+writers on one key and a history writer silently overwritten but still
+writing; both flows are now per-room single-flight and an existing live
+history writer is kept. The room-full and join-failure paths tore down
+the UI without stopping the session, leaving an orphan polling a room
+this window was no longer in, every five minutes, for the life of the
+window. stop() called a drain that returned at once whenever a post
+was in flight and never set a stopping flag, so that request's failure
+re-armed a retry timer after stop() had cleared it; it now awaits the
+live drain under a stopping flag. The mode-switch and quit handoff
+flushed the recovery record but not version history, dropping up to a
+minute of history on exactly the events that precede "let me recover".
+A start already in flight now toasts instead of returning silently; the
+session-preparation veil has a 120 s failsafe; a history writer's
+dispose no longer leaves one stray timer; and the seven call sites that
+discarded a teardown rejection now route it through the error surface
+with a subsystem name, instead of a generic "Something went wrong" chip
+on top of "Session ended".
+
+### Fixed: web account renewals — single-flight, deadline, wake triggers, portal-safe unlink
+
+Four gaps in the web entitlement renewal path, each with a shipped
+counter-example elsewhere in the repo: no in-flight guard (a forced
+renewal racing the 30-minute tick posted twice and the loser could
+overwrite the newer entitlement, and a 401/403/409 on either arm
+dropped a live credential); no timeout on the renewal fetch; only the
+timer drove it, so a laptop asleep past the 12-hour margin woke to up
+to 30 minutes of 401s; and a captive portal's HTML 401 unlinked the
+account. Renewals are single-flight, carry a 10 s deadline, run on
+online and tab-visible (margin-gated), and unlink only when the body is
+relay-shaped JSON.
+
+### Added: cut in place — a whole-card cut in a shared document is a move
+
+A nav-pane drag has always been safe in a session: it is one
+transaction, delete plus insert, which the binding turns into a real
+move that keeps the card's container identity. Cut then paste was not:
+the container died on the cut and a fresh copy (fresh ids — the paste
+path stamps them) appeared on the paste. Racing a partner, the chaos rig
+showed the three shapes of that: their concurrent typing into the card
+vanished with the delete, a delete of theirs was resurrected by the
+paste, and against their move of the same card the merge kept both the
+moved original and the pasted copy.
+
+So in a document bound to a live session, a cut whose every operating
+range is exactly a whole card, analytic unit or outline subtree deletes
+nothing. It marks the units (dimmed, dashed, "Cut — paste to move"),
+writes them to the clipboard with a marker (an opaque document key and
+a nonce) and waits. A paste in the same document that carries the
+marker resolves the units by their head ids in the current document,
+so partner edits and moves since the cut are honored, and moves them in
+one transaction, the drag transaction, to the nearest outline slot for
+the caret. Ids stay continuous, so live views and linked copies never
+see a dangling window.
+
+The rules that keep a cut that no longer deletes legible: Esc, or Cmd-Z
+while a mark is pending, clears the mark (a reflexive "undo the cut"
+must not undo the last real edit); Delete removes the marked unit as
+always, and a drag of it is already the move and clears the mark; a
+paste of anything else clears it (the paste event is the observation
+point, so an external copy the app cannot see costs nothing); our own
+payload pasted after the mark cleared inserts a copy, as before. A
+partner deleting the marked unit makes the paste refuse with a note
+rather than quietly re-inserting what someone removed; pasting again
+inserts a copy on purpose. Cross-document paste is Word-like: a fresh
+copy lands there, and the unit is removed from the source when that
+document is open in the window; a closed source, or one in another
+window, keeps it and the note says so. Marks are transient editor state
+and deliberately survive the session ending: a paste in the now-solo
+document still moves the unit, which beats clearing the mark and
+pasting a copy. A first-time notice explains the mode once.
+
+### Added: Ctrl/Cmd-triple-click adds a whole paragraph to a discontinuous selection
+
+Adding to a selection with Ctrl/Cmd (the discontinuous "add to
+selection" gesture) ignored the click count: the modifier branch in the
+mouse-selection plugin ran before the double- and triple-click checks,
+so every Ctrl/Cmd-click added the word under the pointer and a
+Ctrl/Cmd-triple-click added the same word three times, which the shadow
+merge collapsed to nothing new. Selecting several separate paragraphs
+therefore meant dragging each one out by hand.
+
+The gesture now follows the same ladder as plain clicking. A single
+decision, `discontinuousRangeFor`, takes the pointer-down position, the
+release position and the click count and returns the range to add: a
+click or double-click adds the word (with its trailing space, as
+before), a triple-click adds the containing paragraph, and a drag adds
+the dragged range snapped outward to whole words after a double-click
+or whole paragraphs after a triple-click. The drag preview is snapped
+the same way, so what is outlined while dragging is exactly what the
+release adds. The second and third clicks of a sequence each add their
+own range and the existing overlap merge folds the earlier words into
+the paragraph, so nothing needed to change in the shadow-selection
+plugin. Tests drive the decision directly with document positions
+(`tests/editor/discontinuous-click-ladder.test.ts`); the manual's
+mouse-selection section now documents the gesture, which it had not
+mentioned before.
+
+### Added: "Read mode: keep entire cite"
+
+Read mode keeps, of a cite paragraph, only the runs carrying the cite
+mark or a highlight; the qualifications, source and date between them
+collapse. Some readers want the whole citation on screen at the podium.
+A new General setting next to "Read mode: preserve paragraph
+integrity", off by default, keeps every text node of a cite paragraph
+that has at least one read-aloud run. A cite with nothing marked still
+collapses, the same principle as a body paragraph with nothing
+highlighted under paragraph integrity, so an unmarked cite never shows
+as a stray line.
+
+The rule lives in one place in the read-mode plugin
+(`keepsWholeParagraph`) and is consulted by the decoration builder, the
+two read-mode scroll-anchor searches, and `isReadModeKeptText`, which
+Convert Cards to Read Mode uses, so the destructive conversion cannot
+drift from the display. The setting is read when decorations are
+built: the single-document path already re-sends the read-mode toggle
+whenever a read-mode display setting changes, which rebuilds the set,
+and the multi-pane shell now does the same for every pane currently in
+read mode when this setting flips, diff-gated like its mark-unread
+nudge because the rebuild is O(doc). Tests cover the whole-cite keep,
+the unmarked-cite collapse, the rebuild on a flip and the anchor search,
+plus the conversion command.
+
+### Fixed: empty pockets shrank in read mode
+
+Read mode hides ProseMirror's trailing line break (the `<br>` it places
+in every empty textblock so the caret has somewhere to sit) so that
+empty body and cite paragraphs flow away instead of each costing a
+line. The rule was unscoped and so also hit heading blocks, where an
+empty pocket, hat, block or tag has nothing else to set its height: the
+box collapsed to its padding in read mode while a pocket with text kept
+its full line. The trailing break is now left alone inside heading
+blocks (`display: revert`), so an empty pocket is the same height in
+both modes. Headings never flow inline, so nothing else changes.
+
+### Fixed: merge-born duplicate heading ids are repaired in a session
+
+The heading-id guard heals local transactions only, deliberately: it
+must not fight an older client edit for edit. Pasted cards get fresh
+ids, so a duplicate id normally cannot arise, but an older client's
+paste or a merge edge case could leave two cards sharing one id, and
+nothing looked at remote edits to repair it. The session repair pass
+now keeps a heading-id count index in its plugin state, maintained from
+each transaction's step ranges (a body keystroke visits no heading, so
+the hot path is untouched; one full walk at install). After a binding
+batch the leader checks the merged region's bearers against the index
+and re-mints every bearer after the first in document order, the
+guard's own fallback rule and identical on every peer once documents
+converge, so followers agree with the fix that arrives.
+
+### Fixed: the binding's mapping went stale under the caret after every bounded render
+
+The loro-prosemirror binding builds a fresh ProseMirror tree from the
+CRDT on every incoming batch and maps each Loro container to the node
+objects it just built. Upstream then replaced the whole document with
+that tree, so those objects became the document and the mapping held.
+A CardMirror patch from August replaced the whole-document replace with
+a bounded one, splicing only the changed span in so plugin positions
+survive remote batches (the "card moved — cut not applied" fix). The
+cost nobody saw: ProseMirror rebuilds the ancestors around the splice
+boundary as new node objects, typically the card and the paragraph
+being edited, and the mapping kept pointing at objects that never
+entered the document. Every cursor conversion under the caret then
+failed, one "Cannot find the loroNode" per transaction, until a local
+edit happened to re-map that paragraph; the undo path renders this way
+every time, so the undo guard's extra dispatches made it loud in the
+1.7.0 test build. The render now walks the built tree and the document
+in parallel and points the mapping at the document's own objects
+wherever they differ; identical subtrees are skipped, so the walk is
+bounded to the splice's ancestors. Pinned by a test that undoes an edit
+and checks every container is mapped and no error is logged.
+
+Two more sources of the same message turned out to be noise rather than
+staleness, and are silenced by construction: the binding's own init
+runs on a timer after the view is built, so a selection dispatched in
+that window met an empty mapping; and a selection-only transaction
+appended after another plugin's document change in the same batch was
+converted against a document the sync had not yet seen. The selection
+stash now runs only against a document the binding has synced, and so
+does the undo plugin's per-transaction selection capture, which had the
+same exposure whenever a plugin ahead of the sync appended a document
+change (the app's own numbering, heading-id and autocorrect plugins all
+do). One real case of staleness remained beyond the bounded render: a
+remote batch that produced exactly what this peer already showed (both
+peers moved the same card the same way) rebuilt the touched containers'
+mapping entries as fresh objects and then, having nothing to render,
+never re-pointed them; the re-map now runs after every render, visible
+change or not.
+
+The chaos rig gained a silent-failure battery from this: a
+console-error oracle, a per-round check that every container in every
+live document is in the binding's mapping, schema validity per round, a
+guard that the session repair pass never full-scans, a check that no
+peer ends with pending imports latched, and an end-of-seed comparison
+between each peer's live document and a fresh render of its own CRDT
+state; selection-only transactions and undo/redo are now in the default
+op mix, and a last-position plugin on every rig peer records the first
+batch that leaves a container unmapped, so a future stale mapping
+arrives with its own attribution. Every "Cannot find the loroNode" the
+rig had been printing — 65 per undo sweep, unread — resolved to the
+causes above.
+
+### Fixed: a comments pane could keep a lost resolved toggle on screen
+
+The comment sync's pull skips its editor dispatch when the room's thread
+set has the same signature as the last one it pulled, so a same-value
+last-write-wins rewrite on a partner's side does not re-render every
+thread on every peer. A local write, though, moves the pane past that
+last pull without touching the signature. When this peer's "resolved"
+toggle lost a last-write-wins race with a partner's toggle of the same
+thread, the room settled back to exactly the state this peer had pulled
+before its write; the next pull matched the old signature and skipped,
+and the pane kept the losing value while every peer's map agreed on the
+other (the chaos rig's comments oracle, 2026-09-05; never a CRDT
+divergence, and any later comment change or a reload cleared it). Every
+local write now resets the pulled signature, so the next pull renders.
+
+### Added: community PRs — card count in Word Count; Convert Cards to Read Mode
+
+Two contributions from Shreeram. The Word Count window's scope line now
+ends with the number of cards in the document, or intersecting the
+selection (cards only — analytics are not cards); a nested card inside a
+pocket or block counts. And a new command, Convert Cards to Read Mode
+(aliases: zap card), is the destructive counterpart of read mode, in the
+spirit of the ZapCard macro: the selected cards, or the card at the
+cursor, are reduced in one undoable transaction to what read mode
+displays. Every rule is read mode's own — which text is audible comes
+from the read-mode plugin's kept-text function (highlights, cites, the
+reading-marker color, whatever the settings say), the paragraph shape
+follows the "Read mode: preserve paragraph integrity" setting (off, a
+card's body paragraphs flow together; on, each paragraph with audible
+text keeps its line and empty ones collapse), undertags and cites keep
+their own node with only their audible text, tables fold their cell
+text in, and inline images go the way read mode hides them. Analytics
+are skipped; heading ids and numbering attributes survive, so live
+views and a co-editing partner's container pairing are unaffected.
+
+### Fixed: web tab return and tab close (web-build audit)
+
+The web build and the desktop build are one bundle; the differences are
+runtime branches, and an audit of those branches against this release's
+co-editing changes found two. First, the visibility wake hook added
+with the liveness work called restart on every return to the tab, and
+restart aborts the live stream unconditionally outside its two-second
+debounce. Electron only flips visibility on minimize or occlusion, so
+desktop testing barely exercised it; in a browser it is every tab
+switch: a reconnect, a catch-up fetch, a presence rebroadcast, a chip
+flicker for the user and their partners, and a ghost stream the relay
+reaps a heartbeat later. The hook now asks the stream to restart only
+if it is stale: sitting out a backoff wait (connect now), or helloed but
+silent past the stall threshold, which is the dead-socket case the hook
+exists for. A healthy, byte-fresh stream is left alone; an in-flight
+handshake too. Sleep and network-return keep their unconditional
+restart, since those sockets are dead in practice.
+
+Second, a web tab close had no unload path at all. Desktop's close flow
+says goodbye and drains the queue before the window goes; on the web,
+the hidden-tab flush started an ordinary fetch that the browser cancels
+at unload, and no departure frame went out, so partners kept the ghost
+caret for 45 seconds. A pagehide hook now sends the departure frame and
+re-posts the queue head as keepalive requests, which the browser
+finishes after the page is gone. The handler cannot wait on WebCrypto,
+so only a blob the drain has already encrypted can go out from the
+handler itself; the drain therefore keeps each entry's encryption, and
+while the document is hidden it posts with keepalive in the first
+place, so the send started by the hide-time flush survives the close.
+Browsers cap keepalive bodies at about 64 KB, so larger blobs stay on
+the ordinary path. Everything here is idempotent for the CRDT and
+best-effort by nature: the crash-recovery record still re-sends
+whatever did not make it on the next resume, and partners still expire
+a silent caret.
+
 ## 1.6.0-bcb.3.1 — 2026-09-04
 
 ### Added: Ctrl/Cmd+K hyperlink toggle (`link-context-menu-plugin.ts`, `ribbon-commands.ts`, `text-prompt.ts`)

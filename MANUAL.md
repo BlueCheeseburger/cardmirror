@@ -740,6 +740,39 @@ Mouse selection mirrors Word too:
 - **Shift-click** extends the current selection to where you click, using
   whatever unit you last selected by: Shift-click after a double-click
   extends by word, after a triple-click by paragraph.
+- **Ctrl/Cmd-click** adds to the selection without dropping what you
+  already have, so you can select several separate stretches at once and
+  then format, copy or cut them together. The same ladder applies:
+  Ctrl/Cmd-click adds a word, Ctrl/Cmd-triple-click adds a whole
+  paragraph, and Ctrl/Cmd-drag adds exactly what you drag over (snapped to
+  whole words after a double-click, whole paragraphs after a triple-click).
+
+### Files in Dropbox and other shared folders
+
+A document that lives in a Dropbox, OneDrive, Google Drive or iCloud
+folder shows a **cloud pill** in the bottom-right corner of the editor,
+the mirror of the Send and Receive pills on the left, labelled with the
+service's name. It means CardMirror is watching the file on disk, as of
+the last sync. If the file changes underneath you, because a teammate
+saved it on another machine, the pill turns amber and says how long
+ago. Nothing pops up, so a conflict never interrupts a speech; the pill
+waits until read mode and the timer pop-out are off.
+
+Saving then never destroys the other version. Your document is written
+beside it as a conflicted copy, named the way Dropbox names its own
+(`Aff (Anthony's conflicted copy 2026-09-06).cmir`), the window switches
+to the copy, and the pill reads "Conflicted copy". The two files sit
+side by side in the folder, and the copy syncs to your teammate like
+any other file, so reconciling is a matter of opening both. If someone
+then changes the copy under you, the pill turns amber again and a save
+keeps both again, as the next numbered copy of the original.
+Autosave does the same. Click the amber pill to choose instead:
+**Keep their changes** loads their version from disk (discarding any
+unsaved changes of yours, as the option says), **Keep my changes**
+overwrites their version with yours, and **Keep both** does what a save
+would. There are no second confirmations. Keeping their changes is
+unavailable while you host a co-editing session; end the session
+first.
 
 ### Converting blocks
 
@@ -1006,9 +1039,21 @@ Click the **eye** in the ribbon (or bind a key to *Toggle Read Mode*) to
 enter read mode — CardMirror's version of Verbatim's invisibility, with
 two improvements:
 
+**Convert Cards to Read Mode** (command bar; also *zap card*) makes that
+view permanent for the selected cards, or the card at the cursor: the
+tag, the cite, an undertag's read words, and the highlighted or
+underlined text stay; everything else is removed. Paragraphs flow
+together or keep their own lines to match the paragraph-integrity
+setting above, and cites keep all their text when *Read mode: keep
+entire cite* is on. Undo restores the cards.
+
 - It hides everything that isn't read aloud: only **Tags, Cites,
   Analytics, and highlighted text** stay visible. Loose paragraphs,
-  undertags, and un-highlighted body text disappear.
+  undertags, and un-highlighted body text disappear. Of a cite, only
+  its cite-marked and highlighted words show unless you turn on
+  *Read mode: keep entire cite* (Settings → General), which shows the
+  whole citation.
+
 - It **locks the keyboard**, so a stray key or trackpad twitch at the
   podium can't edit your file.
 
@@ -1277,7 +1322,8 @@ edition's mobile layout has neither.
 [debate-decoded.ghost.io/cardmirror-connect](https://debate-decoded.ghost.io/cardmirror-connect/)),
 sign in, and paste the code the page shows into the settings row. Codes are
 single-use and expire after ten minutes. A membership covers **two
-machines**; linking a third asks before it unlinks the oldest.
+machines**; linking a third shows your linked machines and asks which one to
+unlink (older relays unlink the oldest automatically).
 **Disconnect** unlinks this machine; regenerating your pairing code also
 unlinks it.
 
@@ -1289,7 +1335,9 @@ drop on a row to send. Dragging a **multi-selection** (from the nav pane)
 sends everything as **one bundle**: the recipient sees a single item and
 takes the whole set at once. **Send to Starred** sends the card under the
 cursor (or the current selection) to your starred target without opening
-the pill.
+the pill; **Send to Recipient** (unbound by default — run it from the
+command bar or give it a key) does the same but asks which contact or
+group to send to first.
 
 The pill's bottom row does more than send. **Clicking** the pill opens it
 with two buttons there: **Add contact** (paste a pairing code, name them,
@@ -1380,6 +1428,15 @@ keeps their current copy. Closing a co-edited document asks whether to keep
 the session (rejoin later from the Sessions list) or end/leave it now. The
 ✕ on a home-screen Sessions row: as host, asks whether to end for everyone
 or just forget your copy; as guest, forgets your copy.
+
+**Cutting cards in a shared document.** Cut (Cmd/Ctrl-X, or Cut in the
+nav pane's menu) on a whole card or section does not remove it: the card
+stays, dimmed and labelled *Cut — paste to move*, until you paste. Pasting
+in the same document moves it, together with anything a partner typed
+into it in the meantime. Delete removes it, Esc cancels, and copying or
+pasting anything else ends the cut. Pasting into another document inserts
+a copy there and removes the original when that document is open in the
+same window. Cutting text inside a card works as usual.
 
 ### Collaboration on the web
 
@@ -1588,7 +1645,12 @@ you can study your files.
 
 The cards live **only on your machine** and never travel with a shared
 file — your study material stays yours. (The design and the research
-behind it are written up in the project's ARCHITECTURE doc.)
+behind it are written up in the project's ARCHITECTURE doc.) On the
+desktop they are one file, `learn-store.json`, in CardMirror's data
+folder, shared by every window you have open; CardMirror keeps a backup
+of it once a day for two weeks in a `learn-store-backups` folder beside
+it, so a lost card can be recovered from yesterday's copy. In the
+browser they live in the site's local storage.
 
 ### Making a card
 
@@ -2225,6 +2287,11 @@ headers shown inside each tab.
   lines. Off by default. Display-only, like the rest of read mode — the
   document isn't touched (that's what
   [Condense](#condense-pilcrows-and-case) does).
+- **Read mode: keep entire cite** — when on, read mode shows the whole of
+  any cite that has read-aloud text in it — qualifications, source, date
+  and all — instead of only its cite-marked and highlighted words. A cite
+  with nothing marked stays hidden. Off by default. Display-only, and
+  Convert Cards to Read Mode follows it too.
 
 **Word counts**
 

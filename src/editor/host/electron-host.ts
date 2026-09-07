@@ -8,6 +8,9 @@
  * across IPC, no serialization tricks needed.
  */
 
+import type { LearnOp } from '../learn-store.js';
+import type { DiskBase, CloudProvider } from './types.js';
+export type ClaimResult = 'fresh' | 'journaled' | 'changed' | 'unknown';
 import type {
   FileFilter,
   HistoryEnvelope,
@@ -63,6 +66,8 @@ export interface PairingConnectResultIpc {
   email?: string;
   limit?: number;
   wouldEvict?: { routingCode: string; boundAt: string };
+  /** Seat picker list (relay ≥ 2026-09-02); absent on older relays. */
+  candidates?: Array<{ routingCode: string; boundAt: string; lastSeenAt?: string; label?: string }>;
   retryCode?: string;
 }
 
@@ -282,7 +287,8 @@ interface ElectronAPI {
   deleteHistory(roomId: string): Promise<void>;
   pickHistoryFile(): Promise<string | null>;
   readLearnStore(): Promise<string | null>;
-  writeLearnStore(json: string): Promise<void>;
+  applyLearnOp(op: LearnOp): Promise<string>;
+  onLearnStoreChanged(handler: (json: string) => void): () => void;
   spawnWindow(payload: SpawnWindowPayload | null): Promise<void>;
   getInitialDoc(): Promise<SpawnWindowPayload | null>;
   isFirstWindow(): Promise<boolean>;
@@ -370,6 +376,8 @@ interface ElectronAPI {
   pairingConnectAccount?(payload: {
     connectCode: string;
     confirmEvict?: boolean;
+    /** Routing code of the seat to unlink (from `candidates`). */
+    evict?: string;
   }): Promise<PairingConnectResultIpc>;
   pairingAccountStatus?(): Promise<PairingAccountStatusIpc>;
   pairingDisconnectAccount?(): Promise<PairingAccountStatusIpc>;
@@ -391,8 +399,14 @@ interface ElectronAPI {
     }>
   >;
   openPathCheck(path: string): Promise<{ takenByOther: boolean }>;
-  openPathRegister(path: string): Promise<void>;
+  openPathRegister(
+    path: string,
+    opts?: { journaledBase?: DiskBase | null },
+  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null } | null>;
   openPathRelease(path: string): Promise<void>;
+  cloudProvider(path: string): Promise<CloudProvider | null>;
+  onDiskChanged(handler: (payload: { path: string; mtimeMs: number; size: number }) => void): () => void;
+  saveConflictedCopy(handle: string, bytes: Uint8Array, userName: string | null): Promise<{ name: string; handle: string }>;
   /** "Show in context": if another window owns `path`, focus it and send
    *  it the anchor to scroll to. `delivered: false` ⇒ spawn a window. */
   focusAnchorInWindow(
@@ -933,8 +947,12 @@ export class ElectronHost implements Host {
     return api().readLearnStore();
   }
 
-  async writeLearnStore(json: string): Promise<void> {
-    await api().writeLearnStore(json);
+  applyLearnOp(op: LearnOp): Promise<string> {
+    return api().applyLearnOp(op);
+  }
+
+  onLearnStoreChanged(handler: (json: string) => void): () => void {
+    return api().onLearnStoreChanged(handler);
   }
 
   async spawnWindow(payload: SpawnWindowPayload | null): Promise<void> {
@@ -1121,6 +1139,7 @@ export class ElectronHost implements Host {
   async pairingConnectAccount(payload: {
     connectCode: string;
     confirmEvict?: boolean;
+    evict?: string;
   }): Promise<PairingConnectResultIpc> {
     return (
       (await api().pairingConnectAccount?.(payload)) ?? { ok: false, error: 'disabled' }
@@ -1180,8 +1199,30 @@ export class ElectronHost implements Host {
     return await api().openPathCheck(path);
   }
 
-  async openPathRegister(path: string): Promise<void> {
-    await api().openPathRegister(path);
+  async openPathRegister(
+    path: string,
+    opts?: { journaledBase?: DiskBase | null },
+  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null } | null> {
+    const fn = api().openPathRegister;
+    return (await fn(path, opts)) ?? null;
+  }
+
+  /** Cloud-sync provider for a path (null = local). Older mains without
+   *  the handler resolve null. */
+  async cloudProvider(path: string): Promise<CloudProvider | null> {
+    const fn = api().cloudProvider;
+    return typeof fn === 'function' ? await fn(path) : null;
+  }
+
+  /** Main's stat-only poller saw this window's file change on disk. */
+  onDiskChanged(handler: (payload: { path: string; mtimeMs: number; size: number }) => void): () => void {
+    const fn = api().onDiskChanged;
+    return typeof fn === 'function' ? fn(handler) : () => {};
+  }
+
+  /** Keep both: write bytes as a conflicted copy beside `handle`. */
+  saveConflictedCopy(handle: string, bytes: Uint8Array, userName: string | null): Promise<{ name: string; handle: string }> {
+    return api().saveConflictedCopy(handle, bytes, userName);
   }
 
   async openPathRelease(path: string): Promise<void> {

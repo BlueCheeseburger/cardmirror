@@ -27,6 +27,13 @@
  */
 
 import { EditorState, Selection, TextSelection } from 'prosemirror-state';
+import { isFileChangedOnDiskError } from './error-surface.js';
+import {
+  noteSavedInPlace,
+  noteKeptCopy,
+  noteReloaded,
+  conflictedCopyUserName,
+} from './disk-conflict.js';
 import { EditorView } from 'prosemirror-view';
 import { setViewDocPath } from './transclusion-doc-path.js';
 import { Node as PMNode } from 'prosemirror-model';
@@ -36,6 +43,7 @@ import { isSelfRef, flattenSelfRefs } from './self-transclusion.js';
 import { isTransclusionNode } from './transclusion.js';
 import { settings } from './settings.js';
 import { MARK_UNREAD_TOGGLE } from './mark-unread-plugin.js';
+import { PMD_READ_MODE_TOGGLE } from './read-mode-plugin.js';
 import { NUMBERING_REFRESH, numberingDisplaySig } from './numbering-plugin.js';
 import { getHost, getElectronHost, isSameOpenHandle, type OpenedFile } from './host/index.js';
 import { isFileOpenInAnotherWindow } from './window-coordination.js';
@@ -118,6 +126,9 @@ import {
   resolveCoEditedClose,
   runSaveFlow,
   runSaveAsFlow,
+  registerDocPath,
+  releaseDocPath,
+  setMultiDocReloadFromDisk,
   reportAutosaveFailure,
   reportAutosaveSuccess,
   flashSavedGlyph,
@@ -128,6 +139,7 @@ import {
   sendViewToDropzone,
 } from './index.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
+import { sendViewToRecipient } from './pairing/send-to-recipient.js';
 import { isSyncOrigin } from './sync-origin.js';
 import { editorNodeViews } from './image-resize-nodeview.js';
 import { coordinatorBlocks, flashLockedLeases } from './ai/edit-coordinator.js';
@@ -158,10 +170,26 @@ function newDocUid(): string {
  *  missed release won't permanently block re-opening. */
 function syncDocPathClaim(prev: unknown, next: unknown): void {
   if (prev === next) return;
-  const electron = getElectronHost();
-  if (!electron) return;
-  if (typeof prev === 'string' && prev) void electron.openPathRelease(prev);
-  if (typeof next === 'string' && next) void electron.openPathRegister(next);
+  if (!getElectronHost()) return;
+  if (typeof prev === 'string' && prev) releaseDocPath(prev);
+  if (typeof next === 'string' && next) void registerDocPath(next);
+}
+
+/** Point `record` at a different on-disk file (a Save As, or the
+ *  conflicted copy a keep-both save wrote) — the per-record half of
+ *  `setFocusedFile`, usable for a record that is not focused (autosave). */
+function adoptFileForRecord(
+  record: DocRecord,
+  file: { filename: string; handle: unknown | null; format: DocFormat | null },
+): void {
+  record.filename = file.filename;
+  syncDocPathClaim(record.handle, file.handle);
+  record.handle = file.handle;
+  setViewDocPath(record.view, typeof file.handle === 'string' ? file.handle : null);
+  record.format = file.format;
+  record.owner.refreshChipFilename();
+  pushPaneDocInfo(record.uid, record.filename);
+  refreshWindowTitle();
 }
 
 /** Push a pane's current filename to main so the Select-Speech-Doc
@@ -335,7 +363,21 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
             ...(threads.length ? { threads } : {}),
             ...(record.docId ? { docId: record.docId } : {}),
           });
-    await host.saveExisting(record.handle, bytes);
+    try {
+      await host.saveExisting(record.handle, bytes);
+      if (typeof record.handle === 'string') noteSavedInPlace(record.handle);
+    } catch (err) {
+      // Changed on disk under us (or no baseline for this window): keep
+      // both — a conflicted copy beside the original, this record now
+      // editing the copy, the chip saying so. Never a pause or a dialog.
+      const electron = getElectronHost();
+      if (!isFileChangedOnDiskError(err) || !electron || typeof record.handle !== 'string') throw err;
+      const original = record.handle;
+      const copy = await electron.saveConflictedCopy(original, bytes, conflictedCopyUserName());
+      noteKeptCopy(copy.handle, original);
+      adoptFileForRecord(record, { filename: copy.name, handle: copy.handle, format: record.format ?? 'cmir' });
+      // No chip or toast: the pill's "Conflicted copy" state is the announcement.
+    }
     commitClean();
     reportAutosaveSuccess();
     record.autosaveError = false;
@@ -1501,6 +1543,7 @@ function closeOpenStackDropdown(): void {
 /** Last-applied value of the global `markUnreadAfterMarker` toggle, so the
  *  shell only rebuilds pane decorations when it actually flips. */
 let shellLastMarkUnread = settings.get('markUnreadAfterMarker');
+let shellLastKeepEntireCite = settings.get('readModeKeepEntireCite');
 let shellLastNumberingSig = numberingDisplaySig();
 
 class MultiPaneShell {
@@ -1648,6 +1691,19 @@ class MultiPaneShell {
         for (const id of SLOT_IDS) {
           for (const rec of this.slots[id].stack) {
             rec.view.dispatch(rec.view.state.tr.setMeta(MARK_UNREAD_TOGGLE, true));
+          }
+        }
+      }
+      // "Keep entire cite" changes WHICH text read mode keeps, not just
+      // how it's laid out, so every pane currently in read mode rebuilds
+      // its decoration set (re-sending the on-toggle is the rebuild; the
+      // single-doc path does the same through applyReadMode). Diff-gated
+      // like the mark-unread nudge: the rebuild is O(doc).
+      if (s.readModeKeepEntireCite !== shellLastKeepEntireCite) {
+        shellLastKeepEntireCite = s.readModeKeepEntireCite;
+        for (const id of SLOT_IDS) {
+          for (const rec of this.slots[id].stack) {
+            if (rec.readMode) rec.view.dispatch(rec.view.state.tr.setMeta(PMD_READ_MODE_TOGGLE, true));
           }
         }
       }
@@ -2455,10 +2511,11 @@ class MultiPaneShell {
     format: DocFormat | null;
     docId: string | null;
     uid: string;
+    dirty: boolean;
   } | null {
     const rec = this.focusedSlot?.visible;
     if (!rec) return null;
-    return { filename: rec.filename, handle: rec.handle, format: rec.format, docId: rec.docId, uid: rec.uid };
+    return { filename: rec.filename, handle: rec.handle, format: rec.format, docId: rec.docId, uid: rec.uid, dirty: rec.dirty };
   }
 
   /** Live view / linked-copy counts in the focused pane's doc — backs the
@@ -2668,6 +2725,53 @@ class MultiPaneShell {
    *  recovered doc into the focused (or first) slot. Reuses the
    *  journal's uid so the recovered doc continues to crash-recover
    *  under the same slot. */
+  private findRecordByHandle(handle: string): { slot: Slot; record: DocRecord } | null {
+    for (const id of SLOT_IDS) {
+      const slot = this.slots[id];
+      const record = slot.stack.find((r) => r.handle === handle);
+      if (record) return { slot, record };
+    }
+    return null;
+  }
+
+  /** Pill action "Keep their changes" for the pane holding `handle`:
+   *  replace the record with a fresh read of the file, discarding unsaved
+   *  edits (the option's caption says so; no separate confirmation). The
+   *  old record is closed clean (releasing its path claim); the new one
+   *  registers the path and so adopts the fresh read as its baseline. */
+  async reloadFromDisk(handle: string): Promise<void> {
+    const found = this.findRecordByHandle(handle);
+    if (!found) return;
+    const { slot, record } = found;
+    const electron = getElectronHost();
+    if (!electron) return;
+    const file = await electron.readFileAtPath(handle);
+    if (!file) {
+      showToast("Couldn't reload — the file is no longer readable at its location.");
+      return;
+    }
+    let parsed: { doc: PMNode; threads: import('./comments-plugin.js').Thread[]; docId: string | null };
+    try {
+      const bytes = await maybeDecryptForOpen(file.bytes, file.name);
+      parsed = file.format === 'docx' ? await fromDocxFull(bytes) : parseNative(bytes);
+    } catch (err) {
+      if (err instanceof OpenCancelledError) return;
+      showToast(`Reload failed: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+    record.dirty = false; // discarding is the option's stated effect: close without prompting
+    await slot.closeRecord(record);
+    const fresh = buildDocRecord(file.name, parsed.doc, slot, {
+      handle: file.handle,
+      format: file.format,
+      docId: parsed.docId,
+      threads: parsed.threads,
+    });
+    slot.push(fresh);
+    this.focusSlot(slot);
+    noteReloaded(file.handle);
+  }
+
   async onRecoveredDoc(entry: {
     uid: string;
     filename: string;
@@ -3269,6 +3373,14 @@ class MultiPaneShell {
     void sendViewToStarred(sourceRec.view);
   }
 
+  /** Send to Recipient for the focused pane (picker, then the same
+   *  source as sendToStarred). */
+  sendToRecipient(): void {
+    const sourceRec = this.focusedSlot?.visible;
+    if (!sourceRec) return;
+    void sendViewToRecipient(sourceRec.view);
+  }
+
   /** Send the focused pane's selection (or its enclosing heading-
    *  and-content range if the selection is empty) into the speech
    *  doc. `atEnd` controls the insertion point — true → after the
@@ -3724,6 +3836,7 @@ function buildDocRecord(
 export function mountMultiPaneShell(): void {
   if (shell) return;
   shell = new MultiPaneShell();
+  setMultiDocReloadFromDisk((handle) => shell!.reloadFromDisk(handle));
   enableMultiDocMode({
     onFileOpen: (file) => shell!.onFileOpen(file),
     showInContext: (req) => shell!.showInContext(req),
@@ -3740,6 +3853,7 @@ export function mountMultiPaneShell(): void {
     sendToSpeechAtEnd: () => shell!.sendToSpeech(true),
     sendToDropzone: () => shell!.sendToDropzone(),
     sendToStarred: () => shell!.sendToStarred(),
+    sendToRecipient: () => shell!.sendToRecipient(),
     getFocusedFilename: () => shell!.getFocusedFilename(),
     setFocusedFilename: (name) => shell!.setFocusedFilename(name),
     getFocusedFile: () => shell!.getFocusedFile(),

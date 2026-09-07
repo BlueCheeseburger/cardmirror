@@ -236,12 +236,14 @@ describe('collab session end-to-end', () => {
     const decoded = decodeShareCode(shareCode)!;
     // Slow reconnect backoff keeps the joiner stream-blind while the
     // host publishes, so the catch-up runs INSIDE the blind window.
+    // (Retries land at 30-100% of the backoff: 15s keeps the earliest
+    // possible reconnect, 4.5s, past the ~2-3s typing loop below.)
     const joiner = await CollabSession.join({
       ...decoded,
       client,
       flushMs: 25,
-      minBackoffMs: 4000,
-      maxBackoffMs: 4000,
+      minBackoffMs: 15_000,
+      maxBackoffMs: 15_000,
       catchUpMs: 600_000,
       backlogNoticeMinBlindMs: 30,
       callbacks: { onBacklogMerged: (n) => merged.push(n) },
@@ -252,16 +254,19 @@ describe('collab session end-to-end', () => {
     await sleep(200);
 
     // Sever the joiner's stream while the relay is down; it stays down
-    // for the 4s backoff even after the relay comes back.
+    // for the backoff even after the relay comes back.
     mock.pause();
     joiner.restart();
     await sleep(80); // connect fails → onDown → blind window opens
     mock.resume();
 
     // The host (stream alive, posts retrying) publishes ≥25 frames the
-    // joiner cannot see.
+    // joiner cannot see — one relay ROW per edit: the outbound queue
+    // coalesces adjacent ticks, so wait for each edit to land before
+    // the next (the notice threshold counts rows).
     for (let i = 0; i < 30; i++) {
       typeAfter(hostView, 'riverbank', ` b${i}`);
+      for (let w = 0; w < 40 && host.debugState().queued > 0; w++) await sleep(10);
       await sleep(30);
     }
     await sleep(300);
@@ -332,6 +337,561 @@ describe('collab session end-to-end', () => {
     hostView.destroy();
     jView.destroy();
   });
+});
+
+describe('send-path liveness (a hung POST must not wedge the queue forever)', () => {
+  it('the send queue recovers after a half-open request times out', async () => {
+    // drainQueue's `sending` mutex clears only in finally; a fetch that
+    // never settles (lid-close, NAT rebind) left every later flush()
+    // returning at the first line with the chip stuck on "queued N"
+    // (2026-09-01 review, SC3).
+    const tClient = new RoomsClient({
+      baseUrl: () => mock.url,
+      token: () => mock.token,
+      postTimeoutMs: 120,
+    });
+    const { session: host, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('liveness'),
+      client: tClient,
+      ...FAST,
+    });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    const joiner = await CollabSession.join({ ...decodeShareCode(shareCode)!, client, ...FAST });
+    const joinView = mkView(joiner.plugins());
+    await settle();
+    joiner.start();
+    await sleep(80);
+    try {
+      mock.hangNextUpdates(1); // the NEXT post is swallowed by a half-open socket
+      typeAfter(hostView, 'liveness', ' ONE');
+      await sleep(200); // that POST is now pending forever inside drainQueue
+      typeAfter(hostView, 'liveness ONE', ' TWO');
+      await sleep(900); // deadline → retry → both edits land
+      expect(docText(joinView.state.doc)).toContain('liveness ONE TWO');
+      expect(host.debugState().queued).toBe(0);
+    } finally {
+      mock.hangNextUpdates(0);
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('catch-up re-entry (a concurrent request must not be dropped)', () => {
+  it('catchUp(expectMissingDeps) arriving while a catch-up runs is re-run, escalation intact', async () => {
+    // The `catchUpRunning` guard discarded a concurrent call outright —
+    // including the expectMissingDeps=true signal that forces the full
+    // resync when nothing new arrives. Recovery then waited for the
+    // 5-minute timer (2026-09-01 review, SC8).
+    const { host, hostView, joiner, joinView } = await hostAndJoin(simpleDoc('reentry'));
+    try {
+      const before = mock.updateFetches();
+      const first = joiner.catchUp(); // in flight at its first await
+      void joiner.catchUp(true); // shed-frame healer asks for a resync
+      await first;
+      await sleep(300);
+      // First pass = 1 tail fetch. The re-run must do its own tail fetch
+      // AND the from-zero resync (expectMissingDeps with nothing new).
+      expect(mock.updateFetches() - before, 'tail + re-run tail + resync').toBeGreaterThanOrEqual(3);
+    } finally {
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('stop() is a real final drain', () => {
+  it('stop() waits for an in-flight send and nothing posts after it resolves', async () => {
+    // drainQueue() returned at once when `sending` was already true, so
+    // stop()'s "final flush attempt" was a no-op whenever a POST was in
+    // flight; stop() also never set a stopping flag, so the in-flight
+    // failure re-armed sendRetryTimer AFTER stop() cleared the old one —
+    // a timer (and a POST) outliving the session (2026-09-01 review, SC10).
+    const tClient = new RoomsClient({
+      baseUrl: () => mock.url,
+      token: () => mock.token,
+      postTimeoutMs: 150,
+    });
+    const { session: host, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('final drain'),
+      client: tClient,
+      ...FAST,
+    });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    const roomId = decodeShareCode(shareCode)!.roomId;
+    await sleep(60);
+    try {
+      mock.hangNextUpdates(1); // the next POST is swallowed by a half-open socket
+      typeAfter(hostView, 'final drain', ' EDIT');
+      await sleep(80); // now in flight inside drainQueue
+      const t0 = Date.now();
+      await host.stop();
+      const took = Date.now() - t0;
+      expect(took, 'stop() awaited the in-flight send (bounded by its deadline)').toBeGreaterThanOrEqual(50);
+      const posted = mock.updateCount(roomId);
+      await sleep(1500); // the old retry timer would have fired inside this window
+      expect(mock.updateCount(roomId), 'no POST after stop()').toBe(posted);
+      expect(host.debugState().sending).toBe(false);
+    } finally {
+      mock.hangNextUpdates(0);
+      await host.stop();
+      hostView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('offline queue coalescing', () => {
+  it('a run of offline flush ticks drains as ONE update, not one POST per tick', async () => {
+    // flush() pushed one queue entry per 500ms tick and drainQueue posted
+    // them strictly one at a time: ten offline minutes ≈ 1200 sequential
+    // POSTs, 1200 relay rows, 1200 rows for every peer to fetch and
+    // decrypt (2026-09-01 review, SC2).
+    const { host, hostView, joiner, joinView } = await hostAndJoin(simpleDoc('coalesce'));
+    const roomId = host.roomId;
+    try {
+      mock.pause();
+      for (let i = 0; i < 6; i++) {
+        typeAfter(hostView, 'coalesce', ` e${i}`);
+        await sleep(FAST.flushMs * 2); // each edit lands in its own flush tick
+      }
+      await sleep(FAST.flushMs * 2);
+      // (Coalescing runs on every drain attempt, so the queue may already
+      // hold a single merged entry here — the POST count below is the
+      // real assertion.)
+      expect(host.debugState().queued).toBeGreaterThanOrEqual(1);
+      const before = mock.updateCount(roomId);
+      mock.resume();
+      // The stream never dropped (the mock's pause only 503s requests), so
+      // the next flush is what re-triggers the drain — one more edit.
+      typeAfter(hostView, 'coalesce', ' e6');
+      await sleep(600);
+      expect(host.debugState().queued).toBe(0);
+      expect(mock.updateCount(roomId) - before, 'the whole run went as one update').toBeLessThanOrEqual(1);
+      for (const e of ['e0', 'e5', 'e6']) expect(docText(joinView.state.doc)).toContain(e);
+    } finally {
+      mock.resume();
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('pendingImports must clear once the parked ops integrate', () => {
+  it('a shed frame healed by the ordinary catch-up does not disable host compaction forever', async () => {
+    // pendingImports was set true on any batch with parked ops but only
+    // ever set false inside the full-resync escalation block — the common
+    // heal (ordinary catch-up fetches the missing deps) left it latched,
+    // and uploadSnapshot early-returned for the rest of the session: the
+    // room log grew without bound (2026-09-01 review, SC1).
+    const { session: host, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('compact me'),
+      client,
+      ...FAST,
+      snapshotEvery: 2, // compaction after every 2nd host post
+    });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    const decoded = decodeShareCode(shareCode)!;
+    const joiner = await CollabSession.join({ ...decoded, client, ...FAST });
+    const joinView = mkView(joiner.plugins());
+    await settle();
+    joiner.start();
+    await sleep(80);
+    try {
+      // Frame A is shed from the host's stream; frame B (depending on A)
+      // arrives → parked → catch-up fetches A → both integrate.
+      mock.mutePush(true);
+      typeAfter(joinView, 'compact me', ' A');
+      await sleep(FAST.flushMs * 3);
+      mock.mutePush(false);
+      typeAfter(joinView, 'compact me A', ' B');
+      await sleep(500);
+      expect(docText(hostView.state.doc)).toContain('compact me A B');
+      expect(host.debugState().pendingImports, 'healed → nothing pending').toBe(false);
+      // The host now posts twice → a snapshot must reach the room.
+      typeAfter(hostView, 'compact me A B', ' h1');
+      await sleep(FAST.flushMs * 3);
+      typeAfter(hostView, 'compact me A B h1', ' h2');
+      await sleep(FAST.flushMs * 3);
+      typeAfter(hostView, 'compact me A B h1 h2', ' h3');
+      await sleep(400);
+      const page = await client.fetchUpdates(host.roomId, 0);
+      expect(page.snapshot, 'host compaction resumed').not.toBeNull();
+    } finally {
+      mock.mutePush(false);
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('audit runs behind a fresh catch-up', () => {
+  it('the audit probe sees a CURRENT cursor (no stale-window re-download)', async () => {
+    // The 30-minute audit had its own timer, unaligned with the catch-up
+    // timer, so its "~100B probe" fetched (and decrypted) every row since
+    // a cursor that was ~2.5 minutes stale on average (2026-09-01
+    // review, T7). Now every audit is preceded by a catch-up.
+    const { session: host, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('audit me'),
+      client,
+      ...FAST,
+      catchUpMs: 600_000, // no periodic catch-up: only the audit can advance the cursor
+      auditDelayMs: 600, // after the scripted edits below, before the final check
+    });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    const decoded = decodeShareCode(shareCode)!;
+    const joiner = await CollabSession.join({ ...decoded, client, ...FAST });
+    const joinView = mkView(joiner.plugins());
+    await settle();
+    joiner.start();
+    await sleep(60);
+    try {
+      mock.mutePush(true); // the host's stream delivers nothing → its cursor goes stale
+      for (let i = 0; i < 3; i++) {
+        typeAfter(joinView, 'audit me', ` j${i}`);
+        await sleep(FAST.flushMs * 3);
+      }
+      const roomMax = (await client.fetchUpdates(host.roomId, 0)).lastSeq;
+      expect(host.debugState().lastSeq, 'sanity: stale before the audit').toBeLessThan(roomMax);
+      await sleep(800); // the audit kickoff (600ms after start) fires inside this window
+      expect(host.debugState().lastSeq, 'audit ran behind a catch-up').toBeGreaterThanOrEqual(roomMax);
+    } finally {
+      mock.mutePush(false);
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('catch-up skips rows the stream already delivered', () => {
+  it('stream-delivered frames are not decrypted and imported a second time by catch-up', async () => {
+    // The cursor deliberately advances only in catch-up, so the periodic
+    // catch-up re-fetched, re-decrypted (one await each) and re-imported
+    // every row the stream had pushed since — hundreds of no-op imports
+    // per cycle in a busy room (2026-09-01 review, T8). The row is still
+    // FETCHED (the cursor invariant is untouched); the work is skipped.
+    const { host, hostView, joiner, joinView } = await hostAndJoin(simpleDoc('skip me'));
+    try {
+      for (let i = 0; i < 5; i++) {
+        typeAfter(hostView, 'skip me', ` s${i}`);
+        await sleep(FAST.flushMs * 3);
+      }
+      await sleep(200);
+      expect(docText(joinView.state.doc)).toContain('s4');
+      const before = joiner.debugState().catchUpRowsSkipped;
+      await joiner.catchUp();
+      expect(joiner.debugState().catchUpRowsSkipped - before, 'the 5 pushed rows were skipped').toBeGreaterThanOrEqual(5);
+      expect(joiner.debugState().lastSeq, 'the cursor still advanced past them').toBeGreaterThan(0);
+    } finally {
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('a failed inbound import batch is not on the catch-up skip list', () => {
+  it('rows from a batch importBatch rejected are re-fetched and imported by catch-up', async () => {
+    // The skip list (T8) records stream-delivered seqs so catch-up does
+    // not re-import them. Recording them BEFORE the import meant a batch
+    // that failed (one corrupt frame fails the whole importBatch) had
+    // every row in it skipped by every later catch-up — a permanent gap
+    // (knock-on audit 2026-09-02). Now the seqs are recorded only after a
+    // successful import.
+    const { host, hostView, joiner, joinView } = await hostAndJoin(simpleDoc('seed'));
+    try {
+      const ldoc = (joiner as unknown as { loroDoc: { importBatch: (b: Uint8Array[]) => unknown } }).loroDoc;
+      const orig = ldoc.importBatch.bind(ldoc);
+      let failures = 0;
+      ldoc.importBatch = (b: Uint8Array[]) => {
+        if (failures === 0) {
+          failures++;
+          throw new Error('simulated corrupt frame');
+        }
+        return orig(b);
+      };
+      typeAfter(hostView, 'seed', ' AFTER');
+      await sleep(400);
+      expect(failures, 'the stream batch was rejected').toBe(1);
+      expect(docText(joinView.state.doc)).not.toContain('AFTER');
+      const skippedBefore = joiner.debugState().catchUpRowsSkipped;
+      await joiner.catchUp();
+      await sleep(200);
+      expect(docText(joinView.state.doc), 'catch-up re-fetched the row').toContain('AFTER');
+      expect(joiner.debugState().catchUpRowsSkipped, 'the failed batch was not skipped').toBe(skippedBefore);
+    } finally {
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('snapshot export memo', () => {
+  it('two exports at the same version share one buffer; an edit invalidates it', async () => {
+    const { session, shareCode } = await CollabSession.host({ pmDoc: simpleDoc('memo'), client, ...FAST });
+    void shareCode;
+    const view = mkView(session.plugins());
+    await settle();
+    try {
+      const a = session.exportSnapshot();
+      const b = session.exportSnapshot();
+      expect(b, 'same version → memoized buffer (persist + history share one export)').toBe(a);
+      typeAfter(view, 'memo', ' changed');
+      await settle();
+      const c = session.exportSnapshot();
+      expect(c).not.toBe(a);
+    } finally {
+      await session.stop();
+      view.destroy();
+    }
+  });
+});
+
+describe('import batches are byte-bounded (2026-09-01 review, SC13/SC12)', () => {
+  it('a push burst over the inbound byte cap drains in more than one batch', async () => {
+    const { session: host, shareCode } = await CollabSession.host({ pmDoc: simpleDoc('burst'), client, ...FAST });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    const joiner = await CollabSession.join({
+      ...decodeShareCode(shareCode)!,
+      client,
+      ...FAST,
+      receiveBatchMs: 400, // one wide window collects the whole burst
+      inboundBatchBytes: 1500, // ~1KB frames → several batches
+    });
+    const joinView = mkView(joiner.plugins());
+    await settle();
+    joiner.start();
+    await sleep(80);
+    try {
+      const big = 'x'.repeat(1000);
+      for (let i = 0; i < 6; i++) {
+        typeAfter(hostView, 'burst', ` ${big}${i}`);
+        await sleep(FAST.flushMs * 2);
+      }
+      await sleep(900);
+      expect(docText(joinView.state.doc)).toContain(`${big}5`);
+      expect(joiner.debugState().inboundDrains, 'sliced, not one giant import').toBeGreaterThanOrEqual(2);
+    } finally {
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
+
+  it('a full resync over the slice cap imports in slices, not one buffered batch', async () => {
+    const { session: host, shareCode } = await CollabSession.host({ pmDoc: simpleDoc('resync'), client, ...FAST });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    const big = 'y'.repeat(1000);
+    for (let i = 0; i < 6; i++) {
+      typeAfter(hostView, 'resync', ` ${big}${i}`);
+      await sleep(FAST.flushMs * 2);
+    }
+    await sleep(100);
+    const joiner = await CollabSession.join({
+      ...decodeShareCode(shareCode)!,
+      client,
+      ...FAST,
+      resyncSliceBytes: 1500,
+    });
+    const joinView = mkView(joiner.plugins());
+    await settle();
+    joiner.start();
+    await sleep(80);
+    try {
+      await joiner.catchUp(true); // "deps missing" with nothing new → full resync from zero
+      expect(joiner.debugState().resyncSlices, 'several slices').toBeGreaterThanOrEqual(2);
+      expect(docText(joinView.state.doc)).toContain(`${big}5`);
+    } finally {
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('a send that keeps failing is reported, not retried in silence (2026-09-01 review, SC14)', () => {
+  it('after N consecutive failures the session signals onSendStuck once; success clears it', async () => {
+    const stuck: number[] = [];
+    const { session: host, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('stuck'),
+      client,
+      ...FAST,
+      sendStuckAfter: 2,
+      callbacks: { onSendStuck: (n) => stuck.push(n) },
+    });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    void shareCode;
+    await sleep(60);
+    try {
+      mock.setUpdateFailure({ status: 500, detail: 'poisoned' });
+      typeAfter(hostView, 'stuck', ' edit');
+      await sleep(2200); // failure #1 at once, #2 after the ~1s retry
+      expect(stuck.filter((n) => n > 0).length, 'signaled once').toBe(1);
+      mock.setUpdateFailure(null);
+      typeAfter(hostView, 'stuck edit', ' more');
+      await sleep(2500); // retry succeeds → cleared
+      expect(stuck[stuck.length - 1], 'cleared on success').toBe(0);
+      expect(host.debugState().queued).toBe(0);
+    } finally {
+      mock.setUpdateFailure(null);
+      await host.stop();
+      hostView.destroy();
+    }
+  }, 15_000);
+});
+
+describe('holdings ledger buckets rows (2026-09-01 review, SC9)', () => {
+  it('many rows fold into few buckets, so the ledger does not overflow into whole-room audit downloads', async () => {
+    const { session: host, shareCode } = await CollabSession.host({ pmDoc: simpleDoc('ledger'), client, ...FAST });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    const joiner = await CollabSession.join({
+      ...decodeShareCode(shareCode)!,
+      client,
+      ...FAST,
+      tailBucketRows: 4,
+      tailMetasCap: 10, // per-row ledgering would overflow at 10 rows
+    });
+    const joinView = mkView(joiner.plugins());
+    await settle();
+    joiner.start();
+    await sleep(80);
+    try {
+      for (let i = 0; i < 15; i++) {
+        typeAfter(hostView, 'ledger', ` r${i}`);
+        for (let w = 0; w < 40 && host.debugState().queued > 0; w++) await sleep(10);
+      }
+      await sleep(300);
+      expect(docText(joinView.state.doc)).toContain('r14');
+      const d = joiner.debugState();
+      expect(d.tailBuckets, '15 rows → ≤4 buckets of 4').toBeLessThanOrEqual(4);
+      expect(d.tailOverflow, 'no overflow → no whole-room re-download at audit time').toBe(false);
+    } finally {
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('outbound flush on tab-hide (2026-09-01 review, SC15)', () => {
+  it('hiding the tab flushes queued local edits at once instead of waiting for the tick', async () => {
+    const { session: host, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('hide me'),
+      client,
+      ...FAST,
+      flushMs: 5000, // a slow tick makes the hide-flush observable
+    });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    const roomId = decodeShareCode(shareCode)!.roomId;
+    await sleep(60);
+    try {
+      const before = mock.updateCount(roomId);
+      typeAfter(hostView, 'hide me', ' now');
+      await sleep(100);
+      expect(mock.updateCount(roomId), 'nothing posted before the tick').toBe(before);
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await sleep(250);
+      expect(mock.updateCount(roomId), 'tab-hide flushed the edit').toBe(before + 1);
+    } finally {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+      await host.stop();
+      hostView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('join resilience', () => {
+  it('a relay blip (5xx / connection refused) during join is retried, not treated as offline', async () => {
+    // The steady-state stream backs off and retries; the JOIN's strict
+    // initial catch-up did not — a deploy's 502/503 either failed the join
+    // outright or silently chose a stale prefetched seed (2026-09-01
+    // review, PH-A13).
+    const { session: host, shareCode } = await CollabSession.host({
+      pmDoc: simpleDoc('join through a blip'),
+      client,
+      ...FAST,
+    });
+    const hostView = mkView(host.plugins());
+    await settle();
+    host.start();
+    const decoded = decodeShareCode(shareCode)!;
+    mock.pause();
+    // The blip clears while the join is still retrying (FAST base 20ms →
+    // retries at ~20/40/80ms, jittered; the pause lifts inside that window).
+    setTimeout(() => mock.resume(), 60);
+    let joiner: CollabSession | null = null;
+    try {
+      joiner = await CollabSession.join({ ...decoded, client, ...FAST });
+      const joinView = mkView(joiner.plugins());
+      await settle();
+      expect(docText(joinView.state.doc)).toContain('join through a blip');
+      joinView.destroy();
+    } finally {
+      mock.resume();
+      await joiner?.stop();
+      await host.stop();
+      hostView.destroy();
+    }
+  }, 10_000);
+});
+
+describe('paging loops never trust the server to make progress', () => {
+  it('a page that says `more` but does not advance the cursor terminates the loop', async () => {
+    // A proxy-mangled body or half-deployed relay answering {more:true,
+    // lastSeq:<same>} forever turned catch-up into an unbounded, un-delayed
+    // fetch loop pinning the relay (2026-09-01 review, T4).
+    const { host, hostView, joiner, joinView } = await hostAndJoin(simpleDoc('paging'));
+    mock.setStuckPaging(true);
+    try {
+      const before = mock.updateFetches();
+      const settled = await Promise.race([
+        joiner.catchUp().then(() => 'settled' as const),
+        sleep(1500).then(() => 'hung' as const),
+      ]);
+      expect(settled, 'catch-up must terminate on a non-advancing page').toBe('settled');
+      expect(mock.updateFetches() - before, 'and must not hammer the relay').toBeLessThan(10);
+    } finally {
+      mock.setStuckPaging(false);
+      await host.stop();
+      await joiner.stop();
+      hostView.destroy();
+      joinView.destroy();
+    }
+  }, 10_000);
 });
 
 describe('room-history integrity (compaction-loss self-heal)', () => {

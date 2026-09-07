@@ -48,6 +48,8 @@ import {
   webAccountDisconnect,
   webAccountUnlink,
   __resetWebAccountForTests,
+  scheduleWebRenewal,
+  webDeviceLabel,
 } from '../../src/editor/collab/web-account.js';
 
 function b64urlToBytes(s: string): Uint8Array {
@@ -136,6 +138,21 @@ describe('web account linking', () => {
     expect(webRoutingCodeSync()).toBe(String(lastBody['routingCode']));
   });
 
+  it('connect carries the picked seat + a device label; renewal refreshes the label (2026-09-02)', async () => {
+    await webAccountConnect(BASE, 'code-1', { confirmEvict: true, evict: 'wk1.other-machine' });
+    expect(lastBody['confirmEvict']).toBe(true);
+    expect(lastBody['evict']).toBe('wk1.other-machine');
+    expect(typeof lastBody['deviceLabel']).toBe('string');
+    expect(String(lastBody['deviceLabel']).length).toBeGreaterThan(0);
+    expect(webDeviceLabel()).toBe(lastBody['deviceLabel']);
+    // No pick → no `evict` key at all (older relays never see it).
+    await webAccountConnect(BASE, 'code-2');
+    expect('evict' in lastBody).toBe(false);
+    await webAccountRenew(BASE, true);
+    expect(lastBody['connectCode']).toBe('');
+    expect(lastBody['deviceLabel']).toBe(webDeviceLabel());
+  });
+
   it('an expired entitlement stops being served', async () => {
     await webAccountConnect(BASE, 'abc');
     window.localStorage.setItem('pmd-web-entitlement-exp', String(Date.now() - 1000));
@@ -163,6 +180,57 @@ describe('web account linking', () => {
     await webAccountRenew(BASE, true);
     expect(webAccountStatus().connected).toBe(false);
     expect(webRoutingCodeSync()).toBe(rc); // the key's identity survives
+  });
+
+  it('renewal hardening (2026-09-01 review, T6): single-flight, portal 401s are transient, wake triggers renew', async () => {
+    await webAccountConnect(BASE, 'abc');
+    fetchMock.mockClear();
+    // (a) Two forced renewals racing → ONE /connect (desktop's renewing
+    // guard, mirrored). Both settle; the loser must not clobber.
+    await Promise.all([webAccountRenew(BASE, true), webAccountRenew(BASE, true)]);
+    expect(fetchMock, 'single-flight renewal').toHaveBeenCalledTimes(1);
+    expect(webAccountStatus().connected).toBe(true);
+
+    // (b) A captive portal's HTML 401 is NOT the relay speaking — keep the link.
+    fetchMock.mockImplementationOnce(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => {
+        throw new Error('not json');
+      },
+    }));
+    await webAccountRenew(BASE, true);
+    expect(webAccountStatus().connected, 'portal 401 keeps the credential').toBe(true);
+
+    // (c) Waking up (online / tab visible) triggers a renewal check when
+    // the entitlement is inside the margin — the 30-minute timer alone
+    // left a laptop asleep past the margin burning 401s. This file's
+    // window/document stubs have no event machinery; lend them one.
+    const et = new EventTarget();
+    const g = globalThis as unknown as { window: Record<string, unknown>; document?: Record<string, unknown> };
+    Object.assign(g.window, {
+      addEventListener: et.addEventListener.bind(et),
+      removeEventListener: et.removeEventListener.bind(et),
+      dispatchEvent: et.dispatchEvent.bind(et),
+    });
+    g.document = Object.assign(g.document ?? {}, {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      visibilityState: 'visible',
+    });
+    fetchMock.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({ entitlement: 'ent-short', expiresAt: Date.now() + 60 * 60 * 1000 }),
+    }));
+    await webAccountRenew(BASE, true); // now 1h left < 12h margin
+    fetchMock.mockClear();
+    scheduleWebRenewal(BASE);
+    await new Promise((r) => setTimeout(r, 0));
+    fetchMock.mockClear(); // the schedule's own immediate check
+    window.dispatchEvent(new Event('online'));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fetchMock, 'online → renewal attempted').toHaveBeenCalled();
+    __resetWebAccountForTests();
   });
 
   it('disconnect clears the credential, not the identity', async () => {
