@@ -13,6 +13,14 @@ Synced with upstream through its 1.8.0 release (below) — see
 along the way). Everything else in this entry is this fork's own work
 since 1.6.0-bcb.3.1.
 
+### From upstream
+
+See `CHANGELOG.md`'s "From upstream" section (under this same
+`1.8.0-bcb.1` entry) for the user-facing summary of what this sync
+brought in, and the `## 1.8.0` / `## 1.7.0` sections further down this
+file for upstream's own full rationale and implementation detail —
+nothing was re-typed here since upstream's entries already cover it.
+
 ### Changed: Save reverted to current-doc-only; Save/Autosave move into each pane's chip in three-pane mode (`index.ts`, `multi-pane-shell.ts`, `window-coordination.ts`, `apps/desktop/src/{main,preload}.ts`, `src/editor/host/electron-host.ts`)
 
 Field report: 1.6.0-bcb.3.1's "Save saves everywhere" change (see

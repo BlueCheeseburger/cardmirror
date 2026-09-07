@@ -11,6 +11,27 @@ Synced with upstream through its 1.8.0 release (below) — brings in the
 disk-conflict guard rework and cloud pill for shared folders, the
 single-owner flashcard store fix, and every 1.7.0 co-editing fix.
 
+### From upstream
+
+- **Cloud pill and conflicted copies for shared folders.** A document
+  in a Dropbox, OneDrive, Google Drive or iCloud folder now shows sync
+  status live, and an edit from another machine is saved beside yours
+  as a conflicted copy instead of being silently overwritten.
+- **Flashcards no longer vanish when two windows are open.** One owner
+  now applies every change to the flashcard store, instead of each
+  window's save overwriting whatever the others had written.
+- **A long list of co-editing reliability fixes from 1.7.0.** Cut now
+  moves a card instead of copying it, undo can no longer delete a
+  partner's typing, sessions recover cleanly from dropped connections
+  and relay outages, and syncing large documents or catching up after
+  time offline is much faster.
+- **Smaller additions from 1.7.0**: choosing which machine to unlink,
+  Send to Recipient, a card count in Word Count, Convert Cards to Read
+  Mode, and a "keep entire cite" read-mode setting.
+
+See the `## 1.8.0` and `## 1.7.0` sections below for upstream's own
+complete release notes.
+
 ### Changed
 
 - **Save (ribbon button or Mod-S) once again saves only the current

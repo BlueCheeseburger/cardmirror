@@ -1,5 +1,31 @@
 # Notes for Claude Code sessions working on this repo
 
+## When a release syncs in upstream changes, give it a separate "From upstream" section
+
+The user asked (2026-09-07) that any release whose CHANGELOG entry
+brings in upstream commits (an upstream-sync release, like
+`1.8.0-bcb.1` merging upstream through its `1.8.0`) get a distinct
+`### From upstream` section in `CHANGELOG.md`'s entry for that
+release, separate from the fork's own `### Added`/`### Changed`/
+`### Fixed` bullets — so someone reading just the GitHub release
+notes (which only extract the one `## X.Y.Z-bcb.N` section, not the
+whole file) can tell at a glance what came from upstream vs. what's
+fork-specific, without having to dig through `DETAILED_CHANGELOG.md`
+or PR history. Keep it a short bullet summary of the user-facing
+highlights, not a full re-copy of upstream's own notes — point to the
+upstream version's own `## X.Y.Z` section further down the same file
+(already present from past syncs) for the complete list.
+
+Mirror this with a `### From upstream` note in
+`DETAILED_CHANGELOG.md`'s entry too, but there it's fine for it to
+just point at `CHANGELOG.md`'s summary and upstream's own detailed
+sections lower in the same file — no need to re-type rationale
+upstream already wrote up.
+
+Don't skip this on a release that isn't a sync (a fork-only release
+between syncs doesn't need the section at all) — only add it when the
+release actually pulls in upstream commits.
+
 ## This fork does not release CardMirror Lite — don't re-add the build step
 
 The user asked (2026-09-07) to stop shipping the Lite variant (the
