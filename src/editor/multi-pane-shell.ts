@@ -120,8 +120,7 @@ import {
   runSaveAsFlow,
   reportAutosaveFailure,
   reportAutosaveSuccess,
-  refreshAutosaveBtn,
-  flashSaveSuccess,
+  flashSavedGlyph,
   refreshWindowTitle,
   commentsColumn,
   getCommentsColumnEl,
@@ -295,14 +294,12 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
   const host = getHost();
   if (!host.supportsInPlaceSave) return;
   const state = record.view.state;
-  // Only the FOCUSED pane's autosave state is reflected by the ribbon
-  // button — a background pane's cycle running here shouldn't repaint it.
-  const isFocusedRecord = shell?.getFocusedFile()?.uid === record.uid;
   if (record.format === 'docx' && docLiveLinkCount(state.doc) > 0) {
-    // The button may still be showing "effective" from before these
+    // The chip may still be showing "effective" from before these
     // landed — refresh now so it flips to "paused" instead of staying
-    // stale until the next successful save.
-    if (isFocusedRecord) refreshAutosaveBtn();
+    // stale until the next successful save. Every pane's chip always
+    // reflects its own doc, regardless of which pane is focused.
+    record.owner.refreshChipSaveState();
     return;
   }
   // A recovered draft may only be written by a MANUAL save until its first
@@ -341,23 +338,16 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
     await host.saveExisting(record.handle, bytes);
     commitClean();
     reportAutosaveSuccess();
-    // Re-check focus rather than reuse `isFocusedRecord` from above: the
-    // serialize + write just awaited can take long enough (a large .docx
-    // especially) for the user to have switched panes in the meantime, and
-    // both the flash and the refresh below should reflect whatever's
-    // focused NOW, not what was focused when this save started.
-    const isFocusedNow = shell?.getFocusedFile()?.uid === record.uid;
-    // Same ✓ flash a manual Save click gets, on the shared per-window Save
-    // button — but only for the FOCUSED record's autosave: the button is a
-    // single window-wide element, so flashing it for a background pane's
-    // autosave would read as feedback for whatever the user is actually
-    // looking at.
-    if (isFocusedNow) flashSaveSuccess();
-    // reportAutosaveSuccess() only refreshes the button on a failure→success
-    // transition; a docx record that was previously PAUSED (live links since
-    // removed) needs its own refresh so the button leaves the paused state.
-    if (record.format === 'docx' && isFocusedNow) refreshAutosaveBtn();
+    record.autosaveError = false;
+    // This record's OWN chip — not the focused pane's, not the shared
+    // ribbon button (hidden in multi-pane mode). Each pane always shows
+    // its own doc's true state, so there's no focus check needed here
+    // the way single-doc's shared indicator required one.
+    record.owner.refreshChipSaveState();
+    record.owner.flashChipSaveSuccess(record);
   } catch (err) {
+    record.autosaveError = true;
+    record.owner.refreshChipSaveState();
     reportAutosaveFailure(record.filename, err, {
       // Not necessarily the focused pane — bring it into view first.
       saveAs: () => shell?.revealAndSaveAsRecord(record),
@@ -462,6 +452,12 @@ interface DocRecord {
   autosaveEnabled: boolean;
   /** Debounce timer for the per-record autosave write. */
   autosaveTimer: number | null;
+  /** Whether this record's LAST autosave attempt failed — read into its
+   *  chip's tooltip by `Slot.refreshChipSaveState`. Per-record (not
+   *  per-slot) so switching a slot's stack to a different doc shows
+   *  THAT doc's own error state, not whatever the previously-visible
+   *  doc left behind. Cleared by the next successful save. */
+  autosaveError: boolean;
   /** Stable per-document id for the Learn annotation layer (SPEC §3.1).
    *  Read from the file on open; minted on first save (`ensureActiveDocId`
    *  in index.ts, via `setFocusedDocId`); null for a never-saved doc (its
@@ -617,6 +613,14 @@ class Slot {
   private chipNameEl: HTMLElement;
   /** Title chip stack dropdown trigger (shown when stack has 2+). */
   private chipStackBtn: HTMLButtonElement;
+  /** Title chip Save button — saves THIS slot's visible doc specifically
+   *  (focuses this slot first, then runs the ordinary save flow), so it's
+   *  unambiguous which document a click actually saves — unlike the
+   *  shared ribbon Save button, which is hidden in multi-pane mode. */
+  private chipSaveBtn: HTMLButtonElement;
+  /** Title chip autosave toggle — same per-pane-unambiguous rationale as
+   *  chipSaveBtn, for THIS slot's visible doc's `autosaveEnabled`. */
+  private chipAutosaveBtn: HTMLButtonElement;
   /** Title chip expand / restore toggle — fills this pane to the
    *  full editor + nav-rail surface while the others stay loaded
    *  but hidden, and back. */
@@ -704,6 +708,35 @@ class Slot {
     slotBadge.textContent = id.replace('slot', '');
     slotBadge.title = `Slot ${id.replace('slot', '')}`;
     chip.appendChild(slotBadge);
+    // Save — saves THIS slot's visible doc, unambiguously (the shared
+    // ribbon Save button is hidden while in multi-pane mode; see
+    // body.pmd-multi-doc #export-btn in style.css).
+    this.chipSaveBtn = document.createElement('button');
+    this.chipSaveBtn.type = 'button';
+    this.chipSaveBtn.className = 'pmd-pane-chip-save';
+    setIcon(this.chipSaveBtn, 'save');
+    this.chipSaveBtn.addEventListener('mousedown', (e) => e.preventDefault());
+    this.chipSaveBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.shell.focusSlot(this);
+      void runSaveFlow();
+    });
+    chip.appendChild(this.chipSaveBtn);
+    // Autosave toggle — flips `autosaveEnabled` for THIS slot's visible
+    // doc specifically. Focusing first (same as Save above) makes
+    // `toggleFocusedAutosave` act on the doc the user actually clicked.
+    this.chipAutosaveBtn = document.createElement('button');
+    this.chipAutosaveBtn.type = 'button';
+    this.chipAutosaveBtn.className = 'pmd-pane-chip-autosave';
+    setIcon(this.chipAutosaveBtn, 'autosave');
+    this.chipAutosaveBtn.setAttribute('aria-pressed', 'false');
+    this.chipAutosaveBtn.addEventListener('mousedown', (e) => e.preventDefault());
+    this.chipAutosaveBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.shell.focusSlot(this);
+      this.shell.toggleFocusedAutosave();
+    });
+    chip.appendChild(this.chipAutosaveBtn);
     this.chipExpandBtn = document.createElement('button');
     this.chipExpandBtn.type = 'button';
     this.chipExpandBtn.className = 'pmd-pane-chip-expand';
@@ -1152,6 +1185,7 @@ class Slot {
     this.navBodyEl.appendChild(rec.navEl);
     this.chipNameEl.textContent = rec.filename;
     this.refreshChip();
+    this.refreshChipSaveState();
     this.refreshWordCount();
     this.refreshCopresence();
     // Speech-chip class lives on the pane element and reflects
@@ -1183,6 +1217,70 @@ class Slot {
     const rec = this.visible;
     if (!rec) return;
     this.chipNameEl.textContent = rec.filename;
+  }
+
+  /** Recompute this slot's Save/Autosave chip buttons from its VISIBLE
+   *  record — pressed state, effective/paused, and a short tooltip.
+   *  Always reads `this.visible` fresh, so it's safe to call regardless
+   *  of which pane is currently focused: unlike the single-doc ribbon's
+   *  one shared button, each pane's chip always reflects its OWN doc's
+   *  true state, not whichever pane happens to be focused. The
+   *  `data-autosave-error` attribute isn't touched here — it's set /
+   *  cleared directly by the autosave attempt itself (see
+   *  runAutosaveForRecord) and just read back into the label. */
+  refreshChipSaveState(): void {
+    const rec = this.visible;
+    if (!rec) return;
+    const on = rec.autosaveEnabled;
+    this.chipAutosaveBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    let label: string;
+    if (!on) {
+      label = 'Autosave is off — click to turn on';
+      this.chipAutosaveBtn.dataset['autosaveEffective'] = 'false';
+    } else {
+      const liveLinks =
+        rec.format === 'docx' ? docLiveLinkCounts(rec.view.state.doc) : { views: 0, copies: 0 };
+      const liveLinkTotal = liveLinks.views + liveLinks.copies;
+      const effective =
+        (rec.format === 'cmir' && !!rec.handle) ||
+        (rec.format === 'docx' && !!rec.handle && liveLinkTotal === 0);
+      this.chipAutosaveBtn.dataset['autosaveEffective'] = effective ? 'true' : 'false';
+      if (rec.format === 'cmir' && effective) {
+        label = 'Autosave is on — saves to .cmir every few seconds after edits';
+      } else if (rec.format === 'docx' && effective) {
+        label = 'Autosave is on — saves to .docx every few seconds after edits.';
+      } else if (rec.format === 'docx' && !!rec.handle && liveLinkTotal > 0) {
+        const parts: string[] = [];
+        if (liveLinks.views > 0) parts.push(liveLinks.views === 1 ? 'a live view' : `${liveLinks.views} live views`);
+        if (liveLinks.copies > 0)
+          parts.push(liveLinks.copies === 1 ? 'a linked copy' : `${liveLinks.copies} linked copies`);
+        const what = parts.join(' and ');
+        const them = liveLinkTotal === 1 ? 'it' : 'them';
+        label =
+          `Autosave is paused — this document has ${what}, and Word (.docx) can't hold ${them}. ` +
+          `Save manually, or remove ${them}, to resume autosave.`;
+      } else {
+        label = 'Autosave is on, but this doc has not been saved yet. Save once to enable.';
+      }
+    }
+    this.chipAutosaveBtn.toggleAttribute('data-autosave-error', rec.autosaveError);
+    if (rec.autosaveError) {
+      label += ' LAST AUTOSAVE FAILED — the latest changes are not on disk.';
+    }
+    this.chipAutosaveBtn.title = label;
+    this.chipSaveBtn.title = `Save "${rec.filename}"`;
+  }
+
+  /** Same ✓ flash a manual Save gets, scoped to THIS slot's chip
+   *  buttons — called after `forRecord`'s autosave write is confirmed.
+   *  Guarded on `this.visible === forRecord`: if the user has since
+   *  switched this slot's stack to a different doc, the completing
+   *  save belongs to a record that's no longer shown here, so there's
+   *  no chip left to flash for it. */
+  flashChipSaveSuccess(forRecord: DocRecord): void {
+    if (this.visible !== forRecord) return;
+    flashSavedGlyph(this.chipSaveBtn);
+    if (forRecord.autosaveEnabled) flashSavedGlyph(this.chipAutosaveBtn);
   }
 
   /** Paint this slot footer's co-editing indicator from its VISIBLE record's
@@ -1710,6 +1808,19 @@ class MultiPaneShell {
     void runSaveAsFlow();
   }
 
+  /** `flashSaveSuccess`'s (index.ts) multi-pane redirect: a manual Save
+   *  always focuses its target pane first (see the chip Save button and
+   *  every other Save entry point), so by the time the shared save flow
+   *  gets around to flashing success, "the focused pane" IS the doc that
+   *  was actually saved. Delegates to that pane's own chip flash instead
+   *  of the ribbon Save/autosave buttons, which are hidden in this mode. */
+  flashFocusedChip(): void {
+    const slot = this.focusedSlot;
+    const rec = slot?.visible;
+    if (!slot || !rec) return;
+    slot.flashChipSaveSuccess(rec);
+  }
+
   /** Refresh the data-attribute count on the row, used by CSS to
    *  size each pane based on how many slots are active. */
   refreshLayout(): void {
@@ -2118,32 +2229,6 @@ class MultiPaneShell {
     return true;
   }
 
-  /** The top-level Save action's multi-pane fan-out: save every DIRTY doc
-   *  across every pane's stack, not just the focused one. Unlike the quit
-   *  path (promptSaveAllForQuit), this doesn't ask save-or-discard per doc —
-   *  Save All just saves — and it keeps going past an individual doc's
-   *  declined/failed save (e.g. the user cancels a docx live-link-flatten
-   *  confirm) rather than treating it as a reason to stop, since this isn't
-   *  gating some other action the way the quit prompt is. Shows + focuses
-   *  each dirty doc in turn before saving it, same as the quit path, because
-   *  runSaveFlow operates on whichever doc is currently focused rather than
-   *  taking an explicit target — then restores whatever was focused before
-   *  the sweep, since that's an implementation detail, not a real focus
-   *  change from the user's perspective. */
-  async saveAllDirty(): Promise<void> {
-    const priorFocus = this.focusedSlot;
-    for (const id of SLOT_IDS) {
-      const slot = this.slots[id];
-      for (const rec of [...slot.stack]) {
-        if (!rec.dirty) continue;
-        slot.showRecord(rec);
-        this.focusSlot(slot);
-        await runSaveFlow();
-      }
-    }
-    if (priorFocus && !priorFocus.paneEl.hidden) this.focusSlot(priorFocus);
-  }
-
   /** Mark `slot` as focused. The shared ribbon / chrome will route
    *  through its visible doc's EditorView. In wide-scroll layout
    *  with three active panes, also scroll the focused pane into
@@ -2316,11 +2401,14 @@ class MultiPaneShell {
 
   /** Flip the autosave state of the focused pane's visible doc.
    *  Per-pane just like read mode — toggling on one pane leaves
-   *  other open docs untouched. Routes through `setActiveView` so
-   *  the ribbon's autosave button re-reads the resolver. */
+   *  other open docs untouched. Refreshes that pane's own chip
+   *  directly (every entry point — the chip button, a keybinding,
+   *  the ribbon command — lands here, so this is the one place that
+   *  needs to keep the chip in sync). */
   toggleFocusedAutosave(): void {
-    const rec = this.focusedSlot?.visible;
-    if (!rec) return;
+    const slot = this.focusedSlot;
+    const rec = slot?.visible;
+    if (!slot || !rec) return;
     rec.autosaveEnabled = !rec.autosaveEnabled;
     // Remember the choice per-file so it survives close + reopen.
     setAutosaveForPath(rec.handle, rec.autosaveEnabled);
@@ -2329,6 +2417,7 @@ class MultiPaneShell {
       rec.autosaveTimer = null;
     }
     setActiveView(rec.view);
+    slot.refreshChipSaveState();
   }
 
   /** Clean token for the focused pane — captured by the single-doc
@@ -2542,6 +2631,9 @@ class MultiPaneShell {
     setViewDocPath(rec.view, typeof file.handle === 'string' ? file.handle : null);
     rec.format = file.format;
     slot.refreshChipFilename();
+    // Save-As may have minted a handle for a brand-new doc, or changed
+    // format — either flips the autosave-effective state this chip shows.
+    slot.refreshChipSaveState();
     pushPaneDocInfo(rec.uid, rec.filename);
   }
 
@@ -3571,6 +3663,7 @@ function buildDocRecord(
     // (keyed by path — see autosave-prefs-store.ts).
     autosaveEnabled: isAutosaveOnForPath(opts.handle),
     autosaveTimer: null,
+    autosaveError: false,
     docId: opts.docId ?? null,
     // Fresh doc: clean. Flipped on first doc-changing transaction;
     // cleared on a successful save (per-record autosave OR the
@@ -3660,7 +3753,7 @@ export function mountMultiPaneShell(): void {
     createSessionDoc: () => shell!.createSessionDocIntoSlot(),
     setFilenameForUid: (uid, name) => shell!.setFilenameForUid(uid, name),
     promptSaveAllForQuit: () => shell!.promptSaveAllForQuit(),
-    saveAllDirty: () => shell!.saveAllDirty(),
+    flashFocusedChip: () => shell!.flashFocusedChip(),
     onRecoveredDoc: (entry) => shell!.onRecoveredDoc(entry),
     journalAll: () => shell!.journalAll(),
     reduceToFocusedForModeSwitch: () => shell!.reduceToFocusedForModeSwitch(),

@@ -7,6 +7,17 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Changed
+
+- **Save (ribbon button or Mod-S) once again saves only the current
+  document**, undoing 1.6.0-bcb.3.1's "save everything" change — it
+  was more confusing than convenient once multiple panes and windows
+  were in play. In three-pane mode, Save and Autosave also move out
+  of the ribbon into each pane's own title chip, so each pane has
+  its own Save/Autosave controls that unambiguously act on that
+  pane's document, instead of a shared ribbon pair whose target
+  depended on whichever pane was focused.
+
 ### Added
 
 - **Ctrl/Cmd+K now recognizes a selected URL and fills in the "Link

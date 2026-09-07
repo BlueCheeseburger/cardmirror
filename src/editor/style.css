@@ -1621,6 +1621,12 @@ body.pmd-multi-doc #speech-doc-banner { display: none; }
      "inert" to "effective", so hide it. */
 body.pmd-host-electron #plain-paste-toggle-btn { display: none; }
 body:not(.pmd-inplace-save) #autosave-btn { display: none; }
+/* Multi-pane mode: Save and Autosave move into each pane's own chip
+   (.pmd-pane-chip-save / .pmd-pane-chip-autosave) — the shared ribbon
+   versions would otherwise act on "whichever pane is focused" with no
+   visual cue as to which document that is. */
+body.pmd-multi-doc #export-btn,
+body.pmd-multi-doc #autosave-btn { display: none; }
 /* `mark active as speech` is a toggle — when this button is the
    active doc's speech designation, it stays pressed-down so the
    user can see at a glance which slot holds the speech doc. */
@@ -11412,6 +11418,25 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
 .pmd-pane-focused .pmd-pane-chip-expand:hover {
   color: var(--pmd-c-on-accent-hover);
 }
+.pmd-pane-focused .pmd-pane-chip-save,
+.pmd-pane-focused .pmd-pane-chip-autosave {
+  color: var(--pmd-c-text-on-accent);
+}
+.pmd-pane-focused .pmd-pane-chip-save:hover,
+.pmd-pane-focused .pmd-pane-chip-autosave:hover {
+  color: var(--pmd-c-on-accent-hover);
+}
+/* Same "too-similar-to-the-blue-fill" problem as the expand/nav toggles
+   above — the effective/off accent and warning colors both read as
+   near-invisible on the focused chip's own accent fill, so fall back to
+   the same on-accent + subtle box treatment. Not applied to the error
+   state: a failed autosave should stay loud even here, so it keeps its
+   red regardless of focus. */
+.pmd-pane-focused .pmd-pane-chip-autosave[aria-pressed="true"]:not([data-autosave-error]) {
+  color: var(--pmd-c-text-on-accent);
+  background: var(--pmd-c-on-accent-overlay);
+  border-radius: 3px;
+}
 
 /* Title chip — fixed height so the strip stays the same regardless
  * of content. Some name decorations (the 🎤 speech-doc prefix,
@@ -11564,6 +11589,47 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   line-height: 1;
 }
 .pmd-pane-chip-close:hover { color: var(--pmd-c-danger); }
+
+/* Per-pane Save / Autosave — the multi-pane counterpart to the ribbon's
+   #export-btn / #autosave-btn (hidden in this mode, see body.pmd-multi-doc
+   rules below): each pane's chip carries its own pair so it's unambiguous
+   which document a click acts on. Same 18px square rhythm as the other
+   chip icon buttons. */
+.pmd-pane-chip-save,
+.pmd-pane-chip-autosave {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--pmd-c-text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.pmd-pane-chip-save:hover,
+.pmd-pane-chip-autosave:hover { color: var(--pmd-c-text-strong); }
+/* Same three states as the ribbon autosave button, just re-scoped to a
+   chip-sized target: a solid outline reads as noise at 18px, so state
+   is color + a soft fill instead. */
+.pmd-pane-chip-autosave[aria-pressed="true"][data-autosave-effective="true"] {
+  color: var(--pmd-c-accent);
+  background: var(--pmd-c-accent-soft);
+}
+.pmd-pane-chip-autosave[aria-pressed="true"][data-autosave-effective="false"] {
+  color: var(--pmd-c-warning);
+}
+.pmd-pane-chip-autosave[aria-pressed="true"][data-autosave-error] {
+  color: var(--pmd-c-error);
+  background: var(--pmd-c-error-bg);
+}
+/* Same beige-on-speech-pane exception as the expand/nav toggles above. */
+.pmd-pane-speech:not(.pmd-pane-focused) .pmd-pane-chip-autosave[aria-pressed="true"][data-autosave-effective="true"],
+.pmd-pane-speech:not(.pmd-pane-focused) .pmd-pane-chip-autosave[aria-pressed="true"][data-autosave-error] {
+  background: var(--pmd-c-speech-border);
+}
 
 /* Expand mode — exactly one pane is visible at a time. The hidden
  * panes / nav-sections already collapse via [hidden]; the row's
