@@ -45,6 +45,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -278,3 +280,21 @@ jobs:
           # uploads to it instead of racing to create a new draft.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm --prefix apps/desktop run release
+
+  publish-release:
+    name: Publish release live
+    needs: [prepare-release, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Un-draft the release
+        # Standing preference: once every platform's build/upload succeeds,
+        # publish straight to live rather than leaving a draft sitting around
+        # for a human to click "Publish" — nobody but the fork owner watches
+        # this repo, so there's no review-gate value in the draft stage past
+        # this point. Runs after `build` (a matrix — `needs` waits for every
+        # leg) so this never fires if any platform's build failed.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ needs.prepare-release.outputs.tag }}" --draft=false --repo "${{ github.repository }}"
