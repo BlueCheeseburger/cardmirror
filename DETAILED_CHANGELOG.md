@@ -5,7 +5,7 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 1.8.0-bcb.2 — 2026-09-08
 
 ### Added: New Document and external file-open both prompt for a destination in multi-pane mode (`index.ts`, `multi-pane-shell.ts`, `apps/desktop/src/main.ts`)
 
