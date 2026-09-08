@@ -5,6 +5,23 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Added
+
+- **New Document (ribbon or Mod-N) now asks which pane, or a new
+  window** when a three-pane workspace is open, the same picker Open
+  already shows — instead of always opening a whole new window. An
+  empty pane stays hidden until something's loaded into it, so
+  previously the only visible "new doc" button was whichever pane you
+  already had open, and clicking it added to THAT pane's stack rather
+  than using an empty one.
+- **Opening a file from Finder/Explorer/Dock now asks which window**
+  when more than one three-pane workspace window is open, instead of
+  always routing to whichever window was last focused — so a file
+  meant for a different, unfocused window no longer lands in the wrong
+  one's slot picker.
+
 ## 1.8.0-bcb.1 — 2026-09-07
 
 Synced with upstream through its 1.8.0 release (below) — brings in the

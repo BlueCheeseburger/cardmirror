@@ -8,6 +8,11 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **New Document and opening a file from Finder/Dock now ask which
+>   pane or window** in a three-pane workspace, instead of guessing
+>   (New always spawned a whole window even with an empty pane sitting
+>   right there; external-open always went to the last-focused window
+>   even when a different one had the room). (main)
 > - **Synced with upstream through its 1.8.0 release** — pulls in the
 >   disk-conflict guard rework and cloud pill (Dropbox/OneDrive/Google
 >   Drive/iCloud folders show sync status, and a save that would

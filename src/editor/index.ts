@@ -989,12 +989,20 @@ let multiDocShowInContext: ((req: ShowInContextRequest) => Promise<void> | void)
 /** When the multi-pane shell is active, this delegates the home
  *  screen's "New" tile to the shell — adds a blank doc to the first
  *  empty slot of THIS workspace (the home screen only shows when the
- *  workspace is empty, so there's no picker to run). The ribbon/keyboard
- *  New command is different: it spawns a whole new three-pane window
- *  (see `onNewDocClicked`), since clicking New while already working in
- *  a workspace more plausibly means "give me a fresh one" than "add a
- *  doc here". */
+ *  workspace is empty, so there's no picker to run). */
 let multiDocOnNewDocDefaultSlot: (() => Promise<void> | void) | null = null;
+/** Ribbon/keyboard New command's multi-pane handler — shows the same
+ *  slot-or-new-window picker as Open (`onFileOpen`), instead of always
+ *  spawning a new window. A prior version of this always spawned,
+ *  reasoning that clicking New while already in a workspace more
+ *  plausibly meant "give me a fresh one" than "add a doc here" — but
+ *  that assumption doesn't hold when the current workspace has an
+ *  empty pane sitting right there: the user then has no ribbon/keyboard
+ *  path to fill it and has to know about a pane's own "+ New" button
+ *  (which stacks into THAT pane specifically, not necessarily an empty
+ *  one) or the Home screen's tile instead. Asking mirrors Open's
+ *  existing UX rather than guessing either way. See `onNewDocClicked`. */
+let multiDocNewDocWithPicker: (() => Promise<void> | void) | null = null;
 /** When the multi-pane shell is active, this delegates the
  *  read-mode ribbon button to the shell's per-pane toggle. */
 let multiDocToggleReadMode: (() => void) | null = null;
@@ -1168,6 +1176,7 @@ export function enableMultiDocMode(opts: {
   onFileOpen: (opened: OpenedFile) => Promise<void> | void;
   showInContext?: (req: ShowInContextRequest) => Promise<void> | void;
   onNewDocDefaultSlot?: () => Promise<void> | void;
+  onNewDocWithPicker?: () => Promise<void> | void;
   toggleReadMode?: () => void;
   toggleReaderView?: () => void;
   toggleAutosave?: () => void;
@@ -1249,6 +1258,7 @@ export function enableMultiDocMode(opts: {
   multiDocOnFileOpen = opts.onFileOpen;
   multiDocShowInContext = opts.showInContext ?? null;
   multiDocOnNewDocDefaultSlot = opts.onNewDocDefaultSlot ?? null;
+  multiDocNewDocWithPicker = opts.onNewDocWithPicker ?? null;
   multiDocToggleReadMode = opts.toggleReadMode ?? null;
   multiDocToggleReaderView = opts.toggleReaderView ?? null;
   multiDocToggleAutosave = opts.toggleAutosave ?? null;
@@ -2342,11 +2352,14 @@ if (homeBtn) {
  */
 async function onNewDocClicked(): Promise<void> {
   const host = getHost();
-  // Multi-pane: New always spawns a new three-pane window rather than
-  // adding to this workspace — there's no in-place fallback (a tab can't
-  // "replace" a workspace), so this runs even where a single-doc window
-  // wouldn't spawn one (a plain, uninstalled browser tab).
+  // Multi-pane: ask which slot (or a new window), the same picker Open
+  // already shows — see `multiDocNewDocWithPicker`'s doc comment for why
+  // this replaced always-spawn-a-window.
   if (multiDocActive) {
+    if (multiDocNewDocWithPicker) {
+      await multiDocNewDocWithPicker();
+      return;
+    }
     try {
       await host.spawnWindow(null);
     } catch (err) {
