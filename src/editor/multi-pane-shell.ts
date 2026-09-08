@@ -3230,6 +3230,30 @@ class MultiPaneShell {
     await this.newDocIntoSlot(target);
   }
 
+  /** Ribbon/keyboard New command's handler: shows the same "which
+   *  slot, or a new window?" picker as Open (`onFileOpen`) instead of
+   *  silently guessing. An empty pane is hidden from view until
+   *  something's loaded into it (`applyExpandedState`'s `stack.length
+   *  > 0` visibility rule), so without this picker the only "new doc"
+   *  affordances a user can actually see are a pane's own "+ New"
+   *  footer button — which stacks into THAT pane specifically, not an
+   *  empty one — or spawning a whole separate window; there was no way
+   *  to reach an empty pane that's merely hidden, not absent. */
+  async newDocWithPicker(): Promise<void> {
+    const choice = await this.promptForSlot('Untitled', { allowNewWindow: true });
+    if (!choice) return;
+    if (choice === 'new-window') {
+      try {
+        await getHost().spawnWindow(null);
+      } catch (err) {
+        console.error('Spawn window failed:', err);
+        showToast(`Failed to open a new window: ${err instanceof Error ? err.message : err}`);
+      }
+      return;
+    }
+    await this.newDocIntoSlot(choice);
+  }
+
   /** Create a fresh unsaved doc to hold a joining/resuming co-editing
    *  session: slot picker first, record after. Returns the new record's
    *  uid, or null when the user cancels the picker. The caller registers

@@ -278,19 +278,46 @@ function pickFileFromArgv(argv: readonly string[]): string | null {
  *  windows are absent, so they keep the spawn-a-new-window path. */
 const multiPaneWindows = new Set<number>();
 
-/** A multi-pane window to hand an externally-opened file to — the
- *  focused one when it's multi-pane, else any multi-pane window.
- *  Null when none exist (single-pane session, or cold launch). */
-function pickMultiPaneTarget(): BrowserWindow | null {
-  if (multiPaneWindows.size === 0) return null;
-  const focused = BrowserWindow.getFocusedWindow();
-  if (focused && !focused.isDestroyed() && multiPaneWindows.has(focused.id)) {
-    return focused;
-  }
-  for (const w of BrowserWindow.getAllWindows()) {
-    if (!w.isDestroyed() && multiPaneWindows.has(w.id)) return w;
-  }
-  return null;
+/** Every live multi-pane window, candidates for receiving an
+ *  externally-opened file. */
+function liveMultiPaneWindows(): BrowserWindow[] {
+  return BrowserWindow.getAllWindows().filter(
+    (w) => !w.isDestroyed() && multiPaneWindows.has(w.id),
+  );
+}
+
+/** Label a multi-pane window for the "which window?" chooser below.
+ *  Its title already lists every open doc's filename (see
+ *  `updateWindowTitle` in the renderer, e.g. "Markets CP · Untitled —
+ *  CardMirror") — strip the app-name suffix, which would just be
+ *  noise repeated on every button. */
+function labelForChooser(win: BrowserWindow): string {
+  return win.getTitle().replace(/ — CardMirror$/, '') || 'Untitled';
+}
+
+/** Which multi-pane window should receive an externally-opened file.
+ *  With exactly one candidate, use it — no need to ask. With 2+,
+ *  always ask: picking the focused window (the old behavior) meant a
+ *  Finder/Dock open always landed wherever you were last looking, even
+ *  when a DIFFERENT window had the room and was the one actually
+ *  meant — there's no way to infer intent from focus alone once
+ *  multiple multi-pane windows are in play. Returns null for "New
+ *  Window" or a dismissed dialog — both fall through to the caller's
+ *  existing spawn-a-new-window path, same as the zero-candidate case. */
+async function pickMultiPaneTarget(filePath: string): Promise<BrowserWindow | null> {
+  const candidates = liveMultiPaneWindows();
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0]!;
+  const labels = candidates.map(labelForChooser);
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    message: `Open "${path.basename(filePath)}" in:`,
+    buttons: [...labels, 'New Window'],
+    defaultId: 0,
+    cancelId: labels.length,
+    noLink: true,
+  });
+  return response < candidates.length ? candidates[response]! : null;
 }
 
 const CLOUD_WAIT_TIMEOUT_MS = 20_000;
@@ -352,10 +379,11 @@ async function isEmptyOnDisk(filePath: string, bytes: Buffer): Promise<boolean> 
 
 /** Open a file the OS handed us (macOS `open-file`, Windows / Linux
  *  argv at launch or second-instance — e.g. "Open with… CardMirror").
- *  Multi-pane reuses an open window and routes the file through its
- *  slot picker (no blank new window); single-pane / cold launch spawns
- *  a fresh window with the file as its initial doc (VS Code / Word-like,
- *  and the single-pane behavior is unchanged). */
+ *  Multi-pane reuses an open window (asking which one first if more
+ *  than one is open — see `pickMultiPaneTarget`) and routes the file
+ *  through its slot picker; single-pane / cold launch spawns a fresh
+ *  window with the file as its initial doc (VS Code / Word-like, and
+ *  the single-pane behavior is unchanged). */
 async function openExternalFile(filePath: string): Promise<void> {
   const ext = path.extname(filePath).toLowerCase();
   const format: 'cmir' | 'docx' | null =
@@ -368,7 +396,7 @@ async function openExternalFile(filePath: string): Promise<void> {
   // already open in another window opens a second, conflicting copy
   // (whichever copy closes first then releases the shared claim).
   if (focusExistingOwner(filePath)) return;
-  const target = pickMultiPaneTarget();
+  const target = await pickMultiPaneTarget(filePath);
   if (target) {
     // Hand off to the existing workspace — it reads the path and shows
     // its slot picker. Bring it forward so the picker is visible.

@@ -5,6 +5,51 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Added: New Document and external file-open both prompt for a destination in multi-pane mode (`index.ts`, `multi-pane-shell.ts`, `apps/desktop/src/main.ts`)
+
+Field report: with a three-pane workspace holding one doc, "New
+Document" always spawned a whole new window (a deliberate 2026-09
+decision — "clicking New while already working in a workspace more
+plausibly means give me a fresh one than add a doc here"). That
+reasoning didn't hold once the workspace had an empty pane sitting
+right there: an empty pane's `paneEl` stays `hidden` until something's
+loaded into it (`applyExpandedState`'s `stack.length > 0` visibility
+rule), so the only "new doc" affordance actually visible was the
+occupied pane's own "+ New" footer button — which stacks a second doc
+into THAT pane specifically (`newDocIntoSlot(this.id)`, by design, for
+building a stack on purpose) rather than reaching an empty one. The
+user had no ribbon/keyboard path to the empty pane at all.
+
+- **`multi-pane-shell.ts`**: new `newDocWithPicker()` shows the same
+  inline `promptForSlot(..., { allowNewWindow: true })` dialog Open
+  already uses — lists every slot (with "(empty)" for the free ones)
+  plus "New Window" — then routes to `newDocIntoSlot(choice)` or spawns
+  a window, matching `onFileOpen`'s existing pattern exactly.
+- **`index.ts`**: `enableMultiDocMode` gained an `onNewDocWithPicker`
+  hook (`multiDocNewDocWithPicker`); `onNewDocClicked`'s multi-pane
+  branch calls it instead of unconditionally calling
+  `host.spawnWindow(null)`. The home screen's "New" tile is unaffected
+  — it still calls `newDocIntoFirstEmptySlot()` directly (no picker,
+  since the workspace being empty there means nothing's ambiguous).
+
+Second report, same investigation: opening a file from Finder/Dock
+with two three-pane windows open always routed to whichever window was
+last focused (`pickMultiPaneTarget` in `apps/desktop/src/main.ts`),
+even when a DIFFERENT window had a free slot and was the one actually
+meant — focus alone can't disambiguate once 2+ multi-pane windows
+exist.
+
+- **`apps/desktop/src/main.ts`**: `pickMultiPaneTarget` is now async
+  and, with 2+ live multi-pane windows, shows a native
+  `dialog.showMessageBox` ("Open \"file\" in:") listing each window by
+  its title (already a `·`-joined list of its open docs' filenames —
+  see `updateWindowTitle` in the renderer) plus "New Window", instead
+  of silently preferring the focused one. Exactly one candidate still
+  skips the dialog (unchanged fast path); zero candidates still falls
+  through to spawning a fresh window (unchanged).
+
 ## 1.8.0-bcb.1 — 2026-09-07
 
 Synced with upstream through its 1.8.0 release (below) — see
