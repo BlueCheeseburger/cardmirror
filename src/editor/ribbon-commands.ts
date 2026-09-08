@@ -6823,6 +6823,14 @@ export function ribbonCommandForKey(
   return null;
 }
 
+/** True when running on macOS (renderer-side — `navigator.platform`
+ *  is what's actually available here). Shared by the display
+ *  formatter below and the macOS-reserved-key check in
+ *  `keybindings-editor.ts`. */
+export function isMacPlatform(): boolean {
+  return typeof navigator !== 'undefined' && /mac/i.test(navigator.platform ?? '');
+}
+
 /**
  * Format a ProseMirror-keymap key string for display in a tooltip.
  * Substitutes the platform's modifier for "Mod-" and pretty-prints
@@ -6830,12 +6838,43 @@ export function ribbonCommandForKey(
  */
 export function formatKeyForDisplay(key: string): string {
   if (!key) return '';
-  const isMac =
-    typeof navigator !== 'undefined' &&
-    /mac/i.test(navigator.platform ?? '');
+  const isMac = isMacPlatform();
   return key
     .replace(/Mod-/g, isMac ? '⌘' : 'Ctrl+')
     .replace(/Shift-/g, isMac ? '⇧' : 'Shift+')
     .replace(/Alt-/g, isMac ? '⌥' : 'Alt+')
     .replace(/-/g, '+');
+}
+
+/** Well-known macOS system shortcuts, in this app's own key-string
+ *  convention (`ribbonKeyStringFor` folds real Ctrl and Cmd into one
+ *  "Mod" — a physical Ctrl-only chord and a Cmd-only chord captured
+ *  here are textually indistinguishable, so a two-modifier system
+ *  shortcut like Control-Command-F for Full Screen isn't listed: it'd
+ *  falsely flag a plain Cmd-F a user actually wants for something
+ *  else). None of these are things CardMirror itself binds — they're
+ *  not in `RIBBON_COMMAND_IDS`, so `findConflict` never sees them —
+ *  binding over one means the keystroke may be consumed by macOS (or
+ *  routed to Quit/Hide/etc.) before it ever reaches CardMirror.
+ *  Best-effort, not exhaustive: covers the ones most likely to
+ *  actually get hit, not every system shortcut that exists. */
+const MACOS_RESERVED_KEYS: Record<string, string> = {
+  'Mod-q': 'macOS: Quit',
+  'Mod-h': 'macOS: Hide',
+  'Mod-Alt-h': 'macOS: Hide Others',
+  'Mod-Shift-q': 'macOS: Log Out',
+  'Mod-Shift-3': 'macOS: Screenshot (whole screen)',
+  'Mod-Shift-4': 'macOS: Screenshot (selection)',
+  'Mod-Shift-5': 'macOS: Screenshot & Recording toolbar',
+};
+
+/** Check `key` against `MACOS_RESERVED_KEYS` (folded, so case doesn't
+ *  matter). Returns the matched system shortcut's description, or
+ *  `null` when there's no known overlap — including when not running
+ *  on macOS, where none of this applies. Doesn't refuse the binding:
+ *  some of these ARE user-remappable in System Settings, so this is a
+ *  heads-up, not a hard block — the caller decides what to do with it. */
+export function macOSReservedKeyWarning(key: string): string | null {
+  if (!isMacPlatform()) return null;
+  return MACOS_RESERVED_KEYS[foldKeyString(key)] ?? null;
 }

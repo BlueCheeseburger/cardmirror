@@ -50,6 +50,58 @@ exist.
   skips the dialog (unchanged fast path); zero candidates still falls
   through to spawning a fresh window (unchanged).
 
+### Fixed: Send to Speech no-op'd silently when the source and speech doc were the same view (`speech-doc-send.ts`)
+
+Field report, exact repro: window 1 already had a doc marked as the
+speech doc. In window 2 — a single-doc three-pane window — the user
+marked that window's own (only) doc as the speech doc via the menu bar
+(Speech → Mark/Unmark Current Doc as Active Speech Doc), then tried
+Send to Speech. Nothing happened, in either window. The cross-window
+registry (`speech-doc-registry.ts` / main's `speechRegistration`) was
+never actually the problem — it's a single value in the main process,
+broadcast to every window on every change, and correctly moved from
+window 1's doc to window 2's doc when the user marked it. The real
+issue: `sendToSpeech`'s same-window branch (`speech-doc-send.ts:387`)
+already had a guard for `sourceView === localView` — sending FROM the
+speech doc TO itself, which Verbatim handles by inserting a `~ Marked
+HH:MM ~` bookmark card (not implemented here) — and that guard was a
+bare `return`. With only one doc open in window 2, marked as speech,
+EVERY send attempt hits this exact case, since there's no other doc to
+send from. Fixed by surfacing a toast (`'This is already the speech
+doc — nothing to send.'`) instead of silently no-opping — doesn't
+implement the Verbatim marker-card behavior, just stops the command
+from looking broken. `showToast` added to the module's imports.
+
+### Added: macOS system-shortcut warning in the keybindings editor (`ribbon-commands.ts`, `keybindings-editor.ts`)
+
+The user asked for keybinding-conflict detection to also cover macOS's
+own reserved shortcuts, not just in-app collisions (already handled by
+`findConflict`/`removeKeyFromCommand` in `keybindings-editor.ts`).
+
+- **`ribbon-commands.ts`**: new `MACOS_RESERVED_KEYS` — a small,
+  explicitly non-exhaustive table of well-known macOS system shortcuts
+  (Quit, Hide, Hide Others, Log Out, the three screenshot commands),
+  keyed in this app's OWN key-string convention. Two-modifier system
+  shortcuts that mix a real Ctrl with Cmd (Mission Control's app
+  Ctrl-arrows, Control-Command-F for Full Screen) are deliberately
+  NOT listed: `ribbonKeyStringFor` folds `e.ctrlKey || e.metaKey` into
+  a single `'Mod'` segment — a physical Ctrl-only chord and a Cmd-only
+  chord are textually indistinguishable once captured — so a two-
+  modifier entry would false-positive on an unrelated plain Cmd chord
+  a user actually wants (e.g. flagging `Mod-f` for Control-Command-F
+  Full Screen would also flag every ordinary Cmd-F). `isMacPlatform()`
+  extracted from `formatKeyForDisplay`'s inline `navigator.platform`
+  check so both share one definition. `macOSReservedKeyWarning(key)`
+  returns the matched description or `null` (always `null` off
+  macOS — none of this applies elsewhere).
+- **`keybindings-editor.ts`**: the capture flow's `onKey` handler
+  checks `macOSReservedKeyWarning` alongside the existing `findConflict`
+  dislodge, and flashes a combined or standalone "Heads up: macOS: X —
+  it may not reach CardMirror" note via the existing `flashConflict`
+  note element. Non-blocking by design — some of these shortcuts are
+  user-remappable in System Settings, so this is a warning, not a
+  refusal; the binding still commits either way.
+
 ## 1.8.0-bcb.1 — 2026-09-07
 
 Synced with upstream through its 1.8.0 release (below) — see

@@ -8,6 +8,11 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Rebinding a shortcut on macOS warns when it overlaps a system
+>   shortcut** (Quit, Hide, Log Out, the screenshot keys), and Send to
+>   Speech now tells you why it did nothing instead of silently
+>   no-opping when the speech doc is the only document open and you
+>   try to send from it to itself. (main)
 > - **New Document and opening a file from Finder/Dock now ask which
 >   pane or window** in a three-pane workspace, instead of guessing
 >   (New always spawned a whole window even with an empty pane sitting

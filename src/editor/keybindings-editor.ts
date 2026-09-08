@@ -34,6 +34,7 @@ import {
   commandLabelFor,
   effectivePluginDefaultKeys,
   foldKeyString,
+  macOSReservedKeyWarning,
   type AnyCommandId,
 } from './ribbon-commands.js';
 import { pluginCommandIds } from './plugin-registry.js';
@@ -283,9 +284,28 @@ export function buildKeybindingsEditor(): HTMLElement {
       const conflict = findConflict(key, id);
       if (conflict) {
         removeKeyFromCommand(conflict, key);
+      }
+      // Not an in-app conflict (or in addition to one) — check
+      // whether macOS itself already claims this combo, so the user
+      // isn't left guessing why a shortcut that "looks bound" never
+      // fires. Doesn't block the binding: some of these are
+      // user-remappable in System Settings, so it's a heads-up, not
+      // a refusal.
+      const macWarning = macOSReservedKeyWarning(key);
+      if (conflict && macWarning) {
+        flashConflict(
+          row,
+          `Removed ${formatKeyForDisplay(key)} from "${commandLabelFor(conflict)}". Heads up: ${macWarning} on macOS — it may not reach CardMirror.`,
+        );
+      } else if (conflict) {
         flashConflict(
           row,
           `Removed ${formatKeyForDisplay(key)} from "${commandLabelFor(conflict)}".`,
+        );
+      } else if (macWarning) {
+        flashConflict(
+          row,
+          `Heads up: ${macWarning} on macOS — this shortcut may not reach CardMirror.`,
         );
       }
       const next = [...resolvedKeys(id)];

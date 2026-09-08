@@ -25,6 +25,7 @@ import { normalizeSelectionForSend } from './send-normalize.js';
 import { getSpeechDocResolver } from './speech-doc-registry.js';
 import { getElectronHost } from './host/index.js';
 import { alertDialog } from './text-prompt.js';
+import { showToast } from './toast.js';
 import { sectionEndFromHeading } from './headings.js';
 import { checkedSliceFromJSON } from '../schema/slice-check.js';
 
@@ -381,10 +382,17 @@ export function sendToSpeech(
 
   const localView = resolver.viewForUid(speechUid);
   if (localView) {
-    // Same-window path. No-op if the user is sending FROM the speech
-    // doc itself — Verbatim inserts a `~ Marked HH:MM ~` card-marker
-    // there; not implemented here.
-    if (sourceView === localView) return;
+    // Same-window path. Sending FROM the speech doc TO itself has
+    // nowhere to go. Verbatim inserts a `~ Marked HH:MM ~` card-marker
+    // there instead; not implemented here — but a silent `return` reads
+    // as the whole command doing nothing (field report, 2026-09-08: a
+    // single-doc window with that doc marked as speech has no OTHER
+    // pane to send from, so every attempt hits this case with zero
+    // feedback). Surface why instead of silently no-opping.
+    if (sourceView === localView) {
+      showToast('This is already the speech doc — nothing to send.');
+      return;
+    }
     insertSpeechSlice(localView, slice, atEnd, afterInsert);
     return;
   }

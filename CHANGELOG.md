@@ -21,6 +21,17 @@ see `DETAILED_CHANGELOG.md`.
   always routing to whichever window was last focused — so a file
   meant for a different, unfocused window no longer lands in the wrong
   one's slot picker.
+- **Rebinding a shortcut on macOS now warns when it overlaps a macOS
+  system shortcut** (Quit, Hide, Log Out, the screenshot keys) —
+  binding one used to silently do nothing when you pressed it, with no
+  indication why.
+
+### Fixed
+
+- **Send to Speech silently did nothing when the speech doc was the
+  only document open and you tried to send from it to itself** — it
+  now tells you why instead of looking like the button (or shortcut)
+  is just broken.
 
 ## 1.8.0-bcb.1 — 2026-09-07
 
