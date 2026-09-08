@@ -32,6 +32,7 @@ import {
 } from './recent-workspaces-store.js';
 import { learnStore, localToday } from './learn-store-host.js';
 import { getElectronHost } from './host/index.js';
+import { displayFilename } from './platform.js';
 import { openLearnSession } from './learn-session-ui.js';
 import { openLearnManage } from './learn-manage-ui.js';
 import type { Scope } from './learn-store.js';
@@ -463,7 +464,7 @@ class HomeScreen {
     const row = document.createElement('button');
     row.type = 'button';
     row.className = 'pmd-home-workspace-open';
-    const names = ws.docs.map((d) => stripKnownExt(d.filename));
+    const names = ws.docs.map((d) => stripKnownExt(displayFilename(d.filename)));
     row.title = names.join(' + ');
 
     const count = document.createElement('span');
@@ -727,7 +728,7 @@ class HomeScreen {
       row.disabled = true;
       row.title = 'This file was opened in the browser edition and can\'t be reopened from here.';
     } else {
-      row.title = recent.handle ?? recent.filename;
+      row.title = recent.handle ?? displayFilename(recent.filename);
     }
 
     const fmt = document.createElement('span');
@@ -739,8 +740,8 @@ class HomeScreen {
     name.className = 'pmd-home-recent-name';
     // The format chip already shows .cmir / .docx, so drop the
     // extension from the displayed name to reduce redundancy.
-    name.textContent = stripKnownExt(recent.filename);
-    name.title = recent.filename;
+    name.textContent = stripKnownExt(displayFilename(recent.filename));
+    name.title = displayFilename(recent.filename);
     row.appendChild(name);
 
     const path = document.createElement('span');

@@ -105,6 +105,75 @@ misconfigured into redundancy.
   secondary). All 12 pre-existing tests pass unchanged, confirming the
   single-trigger path truly didn't change.
 
+### Fixed: amber speech-doc tint hidden by the focused-pane blue fill (`style.css`)
+
+Two rounds of field reports about "two active speech docs at once" and
+"marking one un-marks the other unexpectedly" turned out to describe
+CORRECT behavior once traced end to end (the cross-window registry is
+genuinely a single value, broadcast to every window — confirmed
+architecturally sound, twice). The actual, real gap: `.pmd-pane-speech
+.pmd-pane-chip`'s amber tint was guarded `:not(.pmd-pane-focused)` — by
+design, so the amber wouldn't clash with the focused pane's own blue
+fill — meaning a pane you were ACTIVELY working in never showed the
+amber "this is the speech doc" tint at all, only the 🎤 emoji (which
+has no such guard). The user read "blue, no amber" as "got un-marked,"
+when it was actually "marked AND focused," a state the UI never
+visually distinguished from "focused, not marked."
+
+Fixed the other way the user actually asked for: amber now wins over
+blue instead of losing to it. `.pmd-pane-speech .pmd-pane-chip` /
+`.pmd-pane-chip-name` had their `:not(.pmd-pane-focused)` guards
+dropped — they tie in specificity with the blue-focused rules
+(`.pmd-pane-focused .pmd-pane-chip` at line ~1390, `.pmd-pane-chip-name`
+at ~11499) and win on source order (later in the file), the same
+technique the ORIGINAL guarded rule's own comment already documented
+for the reverse case. Every OTHER blue-focused rule that colors a chip
+BUTTON (close/stack/nav/expand/save/autosave — resting, hover, AND
+pressed-state variants, ~10 rules total) needed the opposite treatment:
+`:not(.pmd-pane-speech)` added so they stop applying once amber wins,
+letting each button fall back to its plain default coloring — already
+proven readable against the amber background, since it's the exact
+same coloring an unfocused speech pane's buttons have always used.
+Also un-guarded the two existing "beige pressed-box instead of the
+generic grey one" amber overrides (expand/nav pressed, autosave
+pressed) so they apply consistently regardless of focus too.
+
+### Fixed: Send to Speech silently did nothing on a non-sendable cursor position (`speech-doc-send.ts`)
+
+`sendToSpeech`'s `const slice = takeSendSlice(sourceView); if (!slice)
+return;` — a bare, feedback-free return whenever the cursor isn't
+inside anything `resolveSendRange` considers sendable (a card, a
+heading, or an explicit selection): an empty line, or between
+structural units. Same silent-no-op shape as the self-send guard fixed
+earlier this session, in the same function. Field report: "I can't
+send to the active speech doc, it just doesn't do anything." Added a
+`showToast` explaining why, matching the self-send fix's precedent.
+
+### Fixed: filenames with a Finder-typed "/" showed the raw on-disk ":" (`platform.ts`, `index.ts`, `multi-pane-shell.ts`, `home-screen.ts`)
+
+Field report with screenshots: a file Finder displays as
+"1nc-9/8.docx" appeared in CardMirror's per-pane chip as
+"1nc-9:8.docx". Root cause is a genuine macOS Finder quirk, not a
+CardMirror bug per se: classic Mac OS used ":" as its path separator,
+and macOS still stores a filename that way on disk whenever a user
+types a literal "/" into it in Finder (APFS/HFS+'s own separator) —
+Finder translates ":" back to "/" for DISPLAY only; the raw filename
+read off disk (as every open/recent/chip label in this app is) still
+has the colon.
+
+New `displayFilename(name)` in `platform.ts` (`isMacPlatform() ?
+name.replace(/:/g, '/') : name` — no-op off macOS, where the quirk
+doesn't exist) applied at every place a bare filename string is shown
+to the user: the multi-pane chip name (both `mountVisible` and
+`refreshChipFilename`), the stack-switcher dropdown's row names, the
+single-doc chip + OS window title (`updateWindowTitle`, both the
+single-doc and multi-pane-title-join branches), and the home screen's
+Recents rows + Recent-Workspaces rows (including their tooltips).
+Deliberately NOT applied to any actual path/handle used for file I/O
+(e.g. `recent.handle`, which legitimately uses "/" as a real path
+separator and must keep the true on-disk colon-containing name for
+reads/writes/comparisons) — display-only, everywhere.
+
 ## 1.8.0-bcb.2 — 2026-09-08
 
 ### Added: New Document and external file-open both prompt for a destination in multi-pane mode (`index.ts`, `multi-pane-shell.ts`, `apps/desktop/src/main.ts`)

@@ -11499,14 +11499,21 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
 .pmd-pane-focused .pmd-pane-chip-name {
   color: var(--pmd-c-text-on-accent);
 }
-.pmd-pane-focused .pmd-pane-chip-close,
-.pmd-pane-focused .pmd-pane-chip-stack,
-.pmd-pane-focused .pmd-pane-chip-nav,
-.pmd-pane-focused .pmd-pane-chip-expand {
+/* `:not(.pmd-pane-speech)` on every rule below: once the amber speech
+   tint wins over the blue focused fill (see the speech rules above),
+   these on-accent-white treatments — sized for a dark blue background
+   — must stand down too, or the buttons go white-on-light-amber.
+   Falling through to each button's plain default coloring is already
+   proven readable against amber: it's the same coloring an unfocused
+   speech pane's buttons have always used. */
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-close,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-stack,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-nav,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-expand {
   color: var(--pmd-c-text-on-accent);
 }
-.pmd-pane-focused .pmd-pane-chip-expand[aria-pressed="true"],
-.pmd-pane-focused .pmd-pane-chip-nav[aria-pressed="true"] {
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-expand[aria-pressed="true"],
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-nav[aria-pressed="true"] {
   /* Active-state accent reads as too-similar to the focused-pane
    * blue background; switch to white + a subtle box to flag the
    * pressed state instead. */
@@ -11518,7 +11525,7 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
  * hover would swallow the white count/chevron on the accent-filled
  * chip — brighten with the on-accent overlay instead, matching the
  * pressed-state treatment above. */
-.pmd-pane-focused .pmd-pane-chip-stack:hover {
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-stack:hover {
   background: var(--pmd-c-on-accent-overlay);
 }
 /* Hover on the FOCUSED chip's outline/expand buttons: the generic
@@ -11526,16 +11533,16 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
  * identical to the resting on-accent glyph, so nothing visibly changed.
  * The chip's accent fill is theme-invariant, so its hover glyph is too:
  * the light-mode black, pinned via --pmd-c-on-accent-hover. */
-.pmd-pane-focused .pmd-pane-chip-nav:hover,
-.pmd-pane-focused .pmd-pane-chip-expand:hover {
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-nav:hover,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-expand:hover {
   color: var(--pmd-c-on-accent-hover);
 }
-.pmd-pane-focused .pmd-pane-chip-save,
-.pmd-pane-focused .pmd-pane-chip-autosave {
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-save,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-autosave {
   color: var(--pmd-c-text-on-accent);
 }
-.pmd-pane-focused .pmd-pane-chip-save:hover,
-.pmd-pane-focused .pmd-pane-chip-autosave:hover {
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-save:hover,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-autosave:hover {
   color: var(--pmd-c-on-accent-hover);
 }
 /* Same "too-similar-to-the-blue-fill" problem as the expand/nav toggles
@@ -11544,7 +11551,7 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
    the same on-accent + subtle box treatment. Not applied to the error
    state: a failed autosave should stay loud even here, so it keeps its
    red regardless of focus. */
-.pmd-pane-focused .pmd-pane-chip-autosave[aria-pressed="true"]:not([data-autosave-error]) {
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-autosave[aria-pressed="true"]:not([data-autosave-error]) {
   color: var(--pmd-c-text-on-accent);
   background: var(--pmd-c-on-accent-overlay);
   border-radius: 3px;
@@ -11617,18 +11624,24 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   content: '\1F3A4 ';
   margin-right: 0.3em;
 }
-/* Speech-doc tint when the slot is NOT focused. Matches the
-   multi-window speech-doc banner so the "this is the speech doc"
-   affordance reads the same across window topologies. When
-   focused, the `.pmd-pane-focused .pmd-pane-chip` rule takes over
-   (dark blue bg + white text) — without the `:not()` guard the
-   speech rule wins on source order and leaves white text on a
-   light-yellow chip, which is unreadable. */
-.pmd-pane-speech:not(.pmd-pane-focused) .pmd-pane-chip {
+/* Speech-doc tint — wins over the focused-pane blue fill (user call,
+   2026-09-09: the speech marking should stay visible even on the pane
+   you're actively working in, not just on the OTHER panes). Relies on
+   the two rules below tying `.pmd-pane-focused .pmd-pane-chip` /
+   `.pmd-pane-chip-name` (line ~1390 / ~11499) on specificity and
+   winning on source order (later in the file) — deliberately NOT
+   `!important`, so a future higher-specificity rule can still contest
+   it if needed. The various chip BUTTONS (close/stack/nav/expand/
+   save/autosave) each carry their own `:not(.pmd-pane-speech)` guard
+   on their blue-focused color rules below, so once amber wins here
+   they fall back to their plain default coloring instead of staying
+   white-on-light-amber (already proven readable — it's the same
+   coloring an unfocused speech pane's buttons have always used). */
+.pmd-pane-speech .pmd-pane-chip {
   background: var(--pmd-c-speech-bg);
   border-bottom-color: var(--pmd-c-speech-border);
 }
-.pmd-pane-speech:not(.pmd-pane-focused) .pmd-pane-chip-name {
+.pmd-pane-speech .pmd-pane-chip-name {
   color: var(--pmd-c-speech-text);
 }
 .pmd-pane-chip-stack {
@@ -11680,12 +11693,13 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   background: var(--pmd-c-hover-strong);
   border-radius: 3px;
 }
-/* On an unfocused speech-doc pane the chip is beige (--pmd-c-speech-bg), so the
-   generic grey pressed-box above clashes with the banner tint. Use the beige
-   border tone instead, so the pressed outline toggle reads as part of the
+/* On a speech-doc pane the chip is beige (--pmd-c-speech-bg) — focused or
+   not, now that the speech tint wins over the focused blue fill — so the
+   generic grey pressed-box above clashes with it. Use the beige border
+   tone instead, so the pressed outline toggle reads as part of the
    speech coloring rather than a stray grey block. */
-.pmd-pane-speech:not(.pmd-pane-focused) .pmd-pane-chip-expand[aria-pressed="true"],
-.pmd-pane-speech:not(.pmd-pane-focused) .pmd-pane-chip-nav[aria-pressed="true"] {
+.pmd-pane-speech .pmd-pane-chip-expand[aria-pressed="true"],
+.pmd-pane-speech .pmd-pane-chip-nav[aria-pressed="true"] {
   background: var(--pmd-c-speech-border);
 }
 .pmd-pane-chip-close {
@@ -11738,8 +11752,8 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   background: var(--pmd-c-error-bg);
 }
 /* Same beige-on-speech-pane exception as the expand/nav toggles above. */
-.pmd-pane-speech:not(.pmd-pane-focused) .pmd-pane-chip-autosave[aria-pressed="true"][data-autosave-effective="true"],
-.pmd-pane-speech:not(.pmd-pane-focused) .pmd-pane-chip-autosave[aria-pressed="true"][data-autosave-error] {
+.pmd-pane-speech .pmd-pane-chip-autosave[aria-pressed="true"][data-autosave-effective="true"],
+.pmd-pane-speech .pmd-pane-chip-autosave[aria-pressed="true"][data-autosave-error] {
   background: var(--pmd-c-speech-border);
 }
 

@@ -23,3 +23,19 @@ export function isMacPlatform(): boolean {
 export function ctrlOrCmdWord(): 'Ctrl' | 'Cmd' {
   return isMacPlatform() ? 'Cmd' : 'Ctrl';
 }
+
+/** Finder cosmetic quirk, display-only: classic Mac OS used ":" as its
+ *  path separator, and macOS still stores a filename that way on disk
+ *  whenever a user types a literal "/" into it in Finder (APFS/HFS+'s
+ *  own separator) — Finder translates ":" back to "/" for display, but
+ *  a raw filename read off disk (as every open/recent/chip label in
+ *  this app is) still has the colon. Field report, 2026-09-09: a file
+ *  Finder shows as "1nc-9/8.docx" appeared in CardMirror's chip as
+ *  "1nc-9:8.docx". Apply the same translation wherever a filename is
+ *  shown to the user, so it reads the same as Finder — NEVER to an
+ *  actual path/handle used for file I/O, which must keep the real
+ *  on-disk (colon) form. No-op off macOS, where this quirk doesn't
+ *  exist. */
+export function displayFilename(name: string): string {
+  return isMacPlatform() ? name.replace(/:/g, '/') : name;
+}

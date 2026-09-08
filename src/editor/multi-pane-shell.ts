@@ -89,7 +89,7 @@ import { homeScreen } from './home-screen.js';
 import { captureCleanToken } from './save-clean-token.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
 import { getSpeechDocResolver } from './speech-doc-registry.js';
-import { ctrlOrCmdWord } from './platform.js';
+import { ctrlOrCmdWord, displayFilename } from './platform.js';
 import { sendToSpeech as runSendToSpeech } from './speech-doc-send.js';
 import { selfRefSelectionPos } from './self-transclusion-commands.js';
 import { transclusionDivergenceKey } from './transclusion-divergence-plugin.js';
@@ -1226,7 +1226,7 @@ class Slot {
     // browser clamps against.
     this.bodyEl.scrollTop = rec.savedScrollTop;
     this.navBodyEl.appendChild(rec.navEl);
-    this.chipNameEl.textContent = rec.filename;
+    this.chipNameEl.textContent = displayFilename(rec.filename);
     this.refreshChip();
     this.refreshChipSaveState();
     this.refreshWordCount();
@@ -1259,7 +1259,7 @@ class Slot {
   refreshChipFilename(): void {
     const rec = this.visible;
     if (!rec) return;
-    this.chipNameEl.textContent = rec.filename;
+    this.chipNameEl.textContent = displayFilename(rec.filename);
   }
 
   /** Recompute this slot's Save/Autosave chip buttons from its VISIBLE
@@ -1429,7 +1429,7 @@ class Slot {
       if (rec === this.visible) row.classList.add('pmd-active');
       const name = document.createElement('span');
       name.className = 'pmd-pane-chip-dropdown-name';
-      name.textContent = rec.filename;
+      name.textContent = displayFilename(rec.filename);
       name.addEventListener('click', () => {
         closeOpenStackDropdown();
         this.showRecord(rec);
