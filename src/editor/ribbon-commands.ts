@@ -89,6 +89,7 @@ import { classifyChar, isWordChar } from './word-break.js';
 import { moveContainerUp, moveContainerDown } from './move-container.js';
 import { toggleNumberRole, toggleSubRole, toggleNumRestart } from './numbering-commands.js';
 import { settings } from './settings.js';
+import { isMacPlatform } from './platform.js';
 import { matchAcronymPattern } from './acronym-patterns.js';
 import { toggleOrCreateLink } from './link-context-menu-plugin.js';
 import {
@@ -6823,13 +6824,11 @@ export function ribbonCommandForKey(
   return null;
 }
 
-/** True when running on macOS (renderer-side — `navigator.platform`
- *  is what's actually available here). Shared by the display
- *  formatter below and the macOS-reserved-key check in
- *  `keybindings-editor.ts`. */
-export function isMacPlatform(): boolean {
-  return typeof navigator !== 'undefined' && /mac/i.test(navigator.platform ?? '');
-}
+// isMacPlatform / ctrlOrCmdWord moved to `platform.ts` (re-exported
+// below for existing importers) — that module has zero dependencies
+// of its own, so files this module itself imports (e.g. `settings.ts`)
+// can use them without a circular import back through here.
+export { isMacPlatform, ctrlOrCmdWord } from './platform.js';
 
 /**
  * Format a ProseMirror-keymap key string for display in a tooltip.

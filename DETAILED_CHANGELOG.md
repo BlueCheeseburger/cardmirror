@@ -119,6 +119,62 @@ listed precisely.
   user-remappable in System Settings, so this is a warning, not a
   refusal; the binding still commits either way.
 
+### Fixed: user-facing text hardcoded "Ctrl" for the app's cross-platform modifier key (`platform.ts` new, `settings.ts`, `index.ts`, `find-replace-ui.ts`, `multi-pane-shell.ts`, `repair-paragraph-ui.ts`, `keybindings-editor.ts`)
+
+The user asked to replace literal "Ctrl" mentions with "Cmd" on
+macOS, wherever the underlying shortcut is actually the app's own
+cross-platform "Mod" key (bound `Cmd-X` on Mac, `Ctrl-X` elsewhere) —
+NOT a blanket text replace, and specifically not touching any actual
+keybinding logic (confirmed scope with the user via AskUserQuestion
+before starting: text only, no functional rebinds).
+
+Went file by file checking each hit's ACTUAL underlying binding before
+touching it, since "Ctrl" in this codebase means at least three
+different things:
+- The app's own `Mod` alias (`ribbonKeyStringFor` folds `ctrlKey ||
+  metaKey`) — genuinely wrong to call "Ctrl" on Mac. Fixed: Find
+  (`Mod-f`) / Find & Replace (`Mod-h`) mentions in
+  `findRememberLastQuery`/`findCategoryOrder`'s settings descriptions
+  and `find-replace-ui.ts`'s sort-mode tooltip; zoom buttons (`Mod-=`/
+  `Mod--`) in `gestureZoom`/`defaultZoomPct`'s descriptions; voice
+  session mic (`Mod-Shift-V`) in `voiceInputDeviceId`'s description;
+  Uncondense (`Mod-Alt-Shift-F3`) in `usePilcrows`'s description;
+  expand-pane (`Mod-Shift-f`) in `multi-pane-shell.ts`'s chip tooltip;
+  plain-paste's native browser Cmd/Ctrl+V hint in `index.ts`; the
+  keybindings editor's own "must include Ctrl/Cmd/Alt" validation
+  message (simplified to name only the platform's actual modifier,
+  though technically either still satisfies the check).
+- A LITERAL Ctrl-key check unrelated to the Mod alias, where "Ctrl" is
+  accurate on every platform including macOS and was deliberately left
+  alone: the pinch/scroll-to-zoom gesture (`gestureZoom` setting) reads
+  the wheel event's raw `ctrlKey` flag specifically — the same flag a
+  trackpad pinch gesture synthesizes on every platform, mirroring the
+  browser's own pinch-to-zoom convention, not this app's Mod system.
+  Only the SAME description string's zoom-BUTTON chord mention
+  (`Mod-=`/`Mod--`) got the Cmd swap; the "Ctrl + mouse-wheel" /
+  "Ctrl-scroll" gesture mentions right next to it did not.
+- A "Ctrl-Enter" repair-paragraph hint (`repair-paragraph-ui.ts`) that
+  checks `e.ctrlKey || e.metaKey` directly (both already work, on any
+  platform) — not wrong exactly, but only names the modifier a given
+  platform's user would actually reach for, so switched to
+  `ctrlOrCmdWord()` too.
+- `morph-mode.ts`'s "Effect Ctrl" / "Ctrl option" legends are NOT
+  keyboard-modifier text at all — they're keycap labels on a physical
+  video-editing keyboard overlay this panel mimics ("Effect Ctrl" =
+  the Effect Controls panel button, standard NLE terminology). Left
+  untouched.
+
+New `platform.ts` holds `isMacPlatform()` (moved out of
+`ribbon-commands.ts`, which re-exports it for existing importers) and
+a new `ctrlOrCmdWord(): 'Ctrl' | 'Cmd'` — deliberately a standalone,
+zero-dependency module rather than adding `ctrlOrCmdWord` directly to
+`ribbon-commands.ts`: `ribbon-commands.ts` imports `settings.ts`, and
+several of the fixed strings live IN `settings.ts`, so importing the
+helper from `ribbon-commands.ts` there would have been a circular
+import. Each fixed string is now a template literal calling
+`ctrlOrCmdWord()`, evaluated once at module load (the platform doesn't
+change mid-session, so no reactivity is needed).
+
 ## 1.8.0-bcb.1 — 2026-09-07
 
 Synced with upstream through its 1.8.0 release (below) — see

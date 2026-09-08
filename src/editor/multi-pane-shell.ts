@@ -89,6 +89,7 @@ import { homeScreen } from './home-screen.js';
 import { captureCleanToken } from './save-clean-token.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
 import { getSpeechDocResolver } from './speech-doc-registry.js';
+import { ctrlOrCmdWord } from './platform.js';
 import { sendToSpeech as runSendToSpeech } from './speech-doc-send.js';
 import { selfRefSelectionPos } from './self-transclusion-commands.js';
 import { transclusionDivergenceKey } from './transclusion-divergence-plugin.js';
@@ -782,7 +783,7 @@ class Slot {
     this.chipExpandBtn = document.createElement('button');
     this.chipExpandBtn.type = 'button';
     this.chipExpandBtn.className = 'pmd-pane-chip-expand';
-    this.chipExpandBtn.title = 'Expand this pane to fill the workspace (Ctrl+Shift+F)';
+    this.chipExpandBtn.title = `Expand this pane to fill the workspace (${ctrlOrCmdWord()}+Shift+F)`;
     setIcon(this.chipExpandBtn, 'expand');
     this.chipExpandBtn.setAttribute('aria-pressed', 'false');
     this.chipExpandBtn.addEventListener('mousedown', (e) => e.preventDefault());

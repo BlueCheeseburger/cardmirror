@@ -21,6 +21,7 @@ import {
 } from './repair-paragraph-plugin.js';
 import { isAnyOverlayOpen } from './overlay-stack.js';
 import { quickCardSearchUI } from './quick-card-search-ui.js';
+import { ctrlOrCmdWord } from './platform.js';
 
 /** The [before, after] range of the nearest enclosing card / analytic_unit
  *  for `$pos`, or null if the cursor isn't inside one. */
@@ -35,10 +36,13 @@ function enclosingCardRange($pos: ResolvedPos): { from: number; to: number } | n
 }
 
 export class RepairParagraphBar {
+  // Both Ctrl-Enter and Cmd-Enter actually work here (the keydown
+  // handler below checks `e.ctrlKey || e.metaKey`), but the hint only
+  // names the one a given platform's user would actually reach for.
   private static readonly DEFAULT_HINT =
-    'Narrow to one match, then Enter to break before it — Ctrl-Enter also indents it. Esc to exit.';
+    `Narrow to one match, then Enter to break before it — ${ctrlOrCmdWord()}-Enter also indents it. Esc to exit.`;
   private static readonly ONE_MATCH_HINT =
-    'One match — Enter to break before it, or Ctrl-Enter to break and indent.';
+    `One match — Enter to break before it, or ${ctrlOrCmdWord()}-Enter to break and indent.`;
   private readonly getView: () => EditorView | null;
   private readonly root: HTMLDivElement;
   private readonly input: HTMLInputElement;
