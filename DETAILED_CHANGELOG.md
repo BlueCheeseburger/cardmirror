@@ -78,27 +78,44 @@ The user asked for keybinding-conflict detection to also cover macOS's
 own reserved shortcuts, not just in-app collisions (already handled by
 `findConflict`/`removeKeyFromCommand` in `keybindings-editor.ts`).
 
-- **`ribbon-commands.ts`**: new `MACOS_RESERVED_KEYS` — a small,
-  explicitly non-exhaustive table of well-known macOS system shortcuts
-  (Quit, Hide, Hide Others, Log Out, the three screenshot commands),
-  keyed in this app's OWN key-string convention. Two-modifier system
-  shortcuts that mix a real Ctrl with Cmd (Mission Control's app
-  Ctrl-arrows, Control-Command-F for Full Screen) are deliberately
-  NOT listed: `ribbonKeyStringFor` folds `e.ctrlKey || e.metaKey` into
-  a single `'Mod'` segment — a physical Ctrl-only chord and a Cmd-only
-  chord are textually indistinguishable once captured — so a two-
-  modifier entry would false-positive on an unrelated plain Cmd chord
-  a user actually wants (e.g. flagging `Mod-f` for Control-Command-F
-  Full Screen would also flag every ordinary Cmd-F). `isMacPlatform()`
-  extracted from `formatKeyForDisplay`'s inline `navigator.platform`
-  check so both share one definition. `macOSReservedKeyWarning(key)`
-  returns the matched description or `null` (always `null` off
-  macOS — none of this applies elsewhere).
+First pass checked the FOLDED key string (`ribbonKeyStringFor`'s own
+`'Mod-h'`-style output), keyed off a small table of well-known macOS
+shortcuts. The user then asked for the check to also catch a shortcut
+that "contains" a reserved one, not just an exact string match — the
+real gap: `ribbonKeyStringFor` folds `e.ctrlKey || e.metaKey` into one
+`'Mod'` segment for keymap-dispatch purposes, but real macOS shortcuts
+DO distinguish them (Quit is Cmd-Q specifically, not Ctrl-Q). Checking
+the folded string meant a genuine two-modifier system shortcut like
+Control-Command-F (Full Screen) couldn't be listed at all without also
+false-flagging a plain Cmd-F someone actually wants — the exact
+limitation the first pass's doc comment called out and explicitly
+excluded. Reworked to check the RAW `KeyboardEvent`'s modifier flags
+instead of the folded string, which resolves that cleanly: Ctrl-only
+and Cmd-only are distinguishable again, so two-modifier combos can be
+listed precisely.
+
+- **`ribbon-commands.ts`**: `MACOS_RESERVED_KEYS` (string-keyed)
+  replaced by `MACOS_RESERVED_SHORTCUTS`, an array of
+  `{ctrl?, meta?, alt?, shift?, key, description}` entries matched by
+  exact modifier-flag equality (mirrors how a real macOS shortcut only
+  fires on its exact modifier set, not a superset) — now also covers
+  Lock Screen (Control-Command-Q), Full Screen (Control-Command-F),
+  and Mission Control / App Exposé / move-a-space (the Control-arrow
+  keys), on top of the previous Quit/Hide/Hide Others/Log Out/
+  screenshots. `isMacPlatform()` (extracted from `formatKeyForDisplay`
+  in the first pass) is unchanged. `macOSReservedKeyWarningForEvent(e)`
+  replaces `macOSReservedKeyWarning(key)` — normalizes `e`'s key the
+  same way `ribbonKeyStringFor` does (digit via `e.code`, `Arrow*`
+  passed through, single chars lowercased) but checks the RAW
+  `ctrlKey`/`metaKey`/`altKey`/`shiftKey` flags against each entry
+  instead of folding first.
 - **`keybindings-editor.ts`**: the capture flow's `onKey` handler
-  checks `macOSReservedKeyWarning` alongside the existing `findConflict`
-  dislodge, and flashes a combined or standalone "Heads up: macOS: X —
-  it may not reach CardMirror" note via the existing `flashConflict`
-  note element. Non-blocking by design — some of these shortcuts are
+  calls `macOSReservedKeyWarningForEvent(e)` (the same `KeyboardEvent`
+  already in scope) instead of passing the folded key string, and
+  flashes a combined or standalone "Heads up: macOS: X — it may not
+  reach CardMirror" note via the existing `flashConflict` note
+  element, alongside the existing `findConflict` in-app-collision
+  dislodge. Non-blocking by design — several of these shortcuts are
   user-remappable in System Settings, so this is a warning, not a
   refusal; the binding still commits either way.
 

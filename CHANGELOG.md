@@ -22,9 +22,11 @@ see `DETAILED_CHANGELOG.md`.
   meant for a different, unfocused window no longer lands in the wrong
   one's slot picker.
 - **Rebinding a shortcut on macOS now warns when it overlaps a macOS
-  system shortcut** (Quit, Hide, Log Out, the screenshot keys) —
-  binding one used to silently do nothing when you pressed it, with no
-  indication why.
+  system shortcut** (Quit, Hide, Log Out, the screenshot keys, Mission
+  Control, Full Screen) — binding one used to silently do nothing when
+  you pressed it, with no indication why. Checks the real Ctrl/Cmd keys
+  you actually pressed, so a two-key combo like Control-Command-F is
+  correctly told apart from a plain Cmd-F.
 
 ### Fixed
 
