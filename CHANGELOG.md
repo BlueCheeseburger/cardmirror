@@ -5,6 +5,31 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Added
+
+- **Opening a Recent file that's moved or been deleted now offers to
+  locate it** instead of just toasting an error and forgetting it —
+  click "Locate…" to browse for where it lives now, or remove it from
+  Recents.
+- **The reader-speed setting now links to readingsoft.com** to actually
+  measure your reading speed, if you don't already know your wpm.
+- **Custom dash can now convert "--" and "---" independently, at the
+  same time** — previously an either/or choice, since converting "--"
+  immediately couldn't tell whether a third hyphen was about to make it
+  "---" instead. Off by default; the existing single-trigger behavior
+  is unchanged unless you turn the second one on.
+
+### Fixed
+
+- **Rebinding a shortcut to Option+\` (backtick) on macOS captured as
+  "Alt-Unidentified"** — a dead-key artifact of Option held on that
+  key — instead of the literal backtick. Cmd+\` also added to the
+  macOS-reserved-shortcut list (it's "Move to Next Window," a hard
+  OS-level reservation — the keystroke never reaches any app to
+  capture in the first place, so this is documentation, not a fix).
+
 ## 1.8.0-bcb.2 — 2026-09-08
 
 ### Added

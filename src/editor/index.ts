@@ -7417,9 +7417,58 @@ async function openRecentInPlace(recent: RecentFile): Promise<void> {
   if (!electron || recent.handle == null) return;
   let file = await electron.readFileAtPath(recent.handle);
   if (!file) {
-    showToast(`Couldn't open "${recent.filename}" — file moved or deleted.`);
-    removeRecent(recent.handle);
-    return;
+    // Field report: this used to just toast "file moved or deleted" and
+    // silently drop the Recents entry — no way to actually get at the
+    // file after it moved, even though the user can probably find it in
+    // two clicks in Finder. Offer to browse for it instead, same as the
+    // "Bind new filepath…" idea used elsewhere for a doc whose save
+    // target went missing — except there's no in-memory doc to save
+    // here, so this browses and OPENS the relocated file directly.
+    const choice = await promptForRouteChoice<'locate' | 'remove'>({
+      message: `"${recent.filename}" couldn't be found`,
+      detail:
+        "Its saved location can't be found — it may have been moved, renamed, or deleted.",
+      choices: [
+        {
+          value: 'locate',
+          label: 'Locate…',
+          description: 'Browse for where this file lives now.',
+        },
+        {
+          value: 'remove',
+          label: 'Remove from Recents',
+          description: "Just forget this entry — the file itself isn't touched.",
+        },
+      ],
+    });
+    if (choice === 'remove') {
+      removeRecent(recent.handle);
+      return;
+    }
+    if (choice !== 'locate') return; // dismissed (Esc / overlay click) — leave it as-is
+    let located: OpenedFile | null;
+    try {
+      located = await electron.openFile({ filters: OPEN_FILE_FILTERS });
+    } catch (err) {
+      void alertDialog(`Failed to open: ${err instanceof Error ? err.message : err}`);
+      return;
+    }
+    if (!located) return; // user cancelled the picker
+    if (typeof located.handle !== 'string') {
+      // Shouldn't happen — Electron's own openFile always returns a string
+      // path — but `OpenedFile.handle` is typed `unknown` since it's shared
+      // with the web host, which doesn't guarantee one.
+      void alertDialog('Failed to open: no file path was returned.');
+      return;
+    }
+    removeRecent(recent.handle); // the old path is dead either way; opening below re-records the new one
+    file = {
+      name: located.name,
+      bytes: located.bytes,
+      handle: located.handle,
+      format: formatFromFilename(located.name) ?? 'docx',
+      emptyOnDisk: located.emptyOnDisk,
+    };
   }
   // Genuinely-empty file (stat size 0): open blank instead of erroring —
   // same substitution resolveOpenedFile does for the Open-dialog path;

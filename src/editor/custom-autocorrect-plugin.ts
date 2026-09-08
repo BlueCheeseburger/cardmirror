@@ -117,7 +117,15 @@ export function findCustomMatch(
  *  the user may intend to toggle the other feature off. */
 export function entryConflictWarnings(
   from: string,
-  s: { smartQuotes: boolean; customDashEnabled: boolean; customDashTrigger: string },
+  s: {
+    smartQuotes: boolean;
+    customDashEnabled: boolean;
+    customDashTrigger: string;
+    /** Whether the secondary custom-dash rule (the OTHER trigger) is also
+     *  active — checked alongside the primary one when set, since both can
+     *  now convert at once instead of being an either/or choice. */
+    customDashOtherEnabled?: boolean;
+  },
 ): string[] {
   const warnings: string[] = [];
   if (s.smartQuotes && /['"]/.test(from)) {
@@ -125,10 +133,18 @@ export function entryConflictWarnings(
       "May never fire while Smart quotes is on — straight quotes convert as you type them.",
     );
   }
-  if (s.customDashEnabled && from.includes('-'.repeat(s.customDashTrigger.length))) {
-    warnings.push(
-      `Can never fire while Custom dash uses the ${s.customDashTrigger} trigger — the dash converts first.`,
-    );
+  if (s.customDashEnabled) {
+    const triggers = new Set([s.customDashTrigger]);
+    if (s.customDashOtherEnabled) {
+      triggers.add(s.customDashTrigger === '---' ? '--' : '---');
+    }
+    for (const trigger of triggers) {
+      if (from.includes('-'.repeat(trigger.length))) {
+        warnings.push(
+          `Can never fire while Custom dash uses the ${trigger} trigger — the dash converts first.`,
+        );
+      }
+    }
   }
   return warnings;
 }

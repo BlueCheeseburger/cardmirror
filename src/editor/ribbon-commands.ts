@@ -6734,6 +6734,17 @@ export function ribbonKeyStringFor(e: KeyboardEvent): string {
     // binding. Normalize to PM's "Space" name so the global key
     // handler matches space bindings even when the editor is unfocused.
     parts.push('Space');
+  } else if (e.code === 'Backquote') {
+    // Same idea as Space, for a different reason: on macOS, Option (Alt)
+    // held on the backtick key is a dead-key prefix (Option-` + a letter
+    // composes an accented character, e.g. à), so the browser can't
+    // resolve a single character synchronously and reports
+    // `e.key === 'Unidentified'` — which the fallback branch below would
+    // otherwise push verbatim as the key name (field report: captured as
+    // "Alt-Unidentified", a binding nothing could ever match). `e.code`
+    // names the physical key regardless of what it composes, so use it
+    // to normalize back to the literal backtick every time.
+    parts.push('`');
   } else if (e.key.length === 1) {
     // Single characters are matched case-insensitively, like
     // prosemirror-keymap does inside the editor: bindings are
@@ -6885,6 +6896,14 @@ interface MacReservedShortcut {
  *  regardless of modifiers, for unrelated reasons (keeping Tab free
  *  for focus navigation, etc.), so they never reach this check. */
 const MACOS_RESERVED_SHORTCUTS: MacReservedShortcut[] = [
+  // Cmd-` (Move to Next Window, cycling this app's own windows) is
+  // hard-reserved at the OS level — unlike everything else in this
+  // table, the keydown never reaches ANY app at all, so this entry can
+  // never actually fire (there's nothing for `onKey` to capture in the
+  // first place; field report, 2026-09-08: pressing it while capturing
+  // a binding did nothing, silently, no chip shown). Kept for
+  // documentation/correctness rather than because it does anything here.
+  { meta: true, key: '`', description: 'macOS: Move to Next Window' },
   { meta: true, key: 'q', description: 'macOS: Quit' },
   { meta: true, key: 'h', description: 'macOS: Hide' },
   { meta: true, alt: true, key: 'h', description: 'macOS: Hide Others' },
@@ -6936,9 +6955,11 @@ export function macOSReservedKeyWarningForEvent(e: KeyboardEvent): string | null
     ? e.key
     : /^Digit[0-9]$/.test(e.code)
       ? e.code.slice(5)
-      : e.key.length === 1
-        ? e.key.toLowerCase()
-        : e.key;
+      : e.code === 'Backquote'
+        ? '`'
+        : e.key.length === 1
+          ? e.key.toLowerCase()
+          : e.key;
   for (const s of MACOS_RESERVED_SHORTCUTS) {
     if (
       !!s.ctrl === e.ctrlKey &&

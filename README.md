@@ -8,6 +8,12 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Custom dash can convert "--" and "---" independently, at the same
+>   time** instead of picking just one; opening a moved/deleted Recent
+>   file now offers to locate it instead of just forgetting it; a
+>   reading-speed test link was added to the readers setting;
+>   Option+backtick no longer captures as "Unidentified" when rebinding
+>   a shortcut on macOS. (main)
 > - **Rebinding a shortcut on macOS warns when it overlaps a system
 >   shortcut** (Quit, Hide, Log Out, the screenshot keys, Mission
 >   Control, Full Screen — checked against the real Ctrl/Cmd keys you
