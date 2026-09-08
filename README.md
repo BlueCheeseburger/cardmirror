@@ -8,6 +8,13 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **A pane's speech-doc marking now shows through even while you're
+>   focused on it** (amber wins over the focused-pane blue highlight
+>   instead of being hidden by it), Send to Speech explains itself when
+>   the cursor isn't somewhere sendable instead of silently doing
+>   nothing, and a filename with a macOS Finder-typed "/" now displays
+>   the same way it does in Finder instead of showing the raw on-disk
+>   ":" underneath it. (main)
 > - **Custom dash can convert "--" and "---" independently, at the same
 >   time** instead of picking just one; opening a moved/deleted Recent
 >   file now offers to locate it instead of just forgetting it; a

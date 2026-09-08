@@ -323,7 +323,7 @@ import {
   type AnyCommandId,
   type RibbonCommandId,
 } from './ribbon-commands.js';
-import { ctrlOrCmdWord } from './platform.js';
+import { ctrlOrCmdWord, displayFilename } from './platform.js';
 import { openWordCount } from './word-count-ui.js';
 import { wireColorPanel } from './color-panel.js';
 import { AI_DISABLED_MESSAGE } from './ai/llm.js';
@@ -7666,13 +7666,15 @@ function updateWindowTitle(): void {
   const focused = activeFile();
   pushSingleDocInfo();
   if (multiDocActive && multiDocGetAllFilenames) {
-    const names = multiDocGetAllFilenames().filter((n): n is string => !!n);
+    const names = multiDocGetAllFilenames()
+      .filter((n): n is string => !!n)
+      .map(displayFilename);
     document.title = names.length > 0
       ? `${names.join(' · ')} — CardMirror`
       : 'CardMirror';
   } else {
     document.title = focused.filename
-      ? `${focused.filename} — CardMirror`
+      ? `${displayFilename(focused.filename)} — CardMirror`
       : 'CardMirror';
   }
   // In-app filename chip. The chip itself is CSS-hidden in
@@ -7686,8 +7688,9 @@ function updateWindowTitle(): void {
   const chip = document.getElementById('doc-name-chip');
   const chipText = document.getElementById('doc-name-chip-text');
   if (chip && chipText) {
-    chipText.textContent = focused.filename ?? '';
-    chip.setAttribute('title', focused.filename ?? '');
+    const shown = focused.filename ? displayFilename(focused.filename) : '';
+    chipText.textContent = shown;
+    chip.setAttribute('title', shown);
     chip.toggleAttribute('hidden', !focused.filename);
   }
   // The cloud badge follows the active document (one per window).

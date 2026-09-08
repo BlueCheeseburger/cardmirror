@@ -378,7 +378,16 @@ export function sendToSpeech(
     return;
   }
   const slice = takeSendSlice(sourceView);
-  if (!slice) return;
+  if (!slice) {
+    // Same silent-no-op shape as the self-send case below: the cursor
+    // isn't inside anything `resolveSendRange` considers sendable (a
+    // card, a heading, or an explicit selection) — an empty line, or
+    // between structural units. Field report, 2026-09-09: "I can't
+    // send to the active speech doc, it just doesn't do anything" —
+    // surface why instead of a command that looks broken.
+    showToast('Nothing to send — place the cursor in a card or heading, or select some text.');
+    return;
+  }
 
   const localView = resolver.viewForUid(speechUid);
   if (localView) {

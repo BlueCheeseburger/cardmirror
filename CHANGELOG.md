@@ -29,6 +29,17 @@ see `DETAILED_CHANGELOG.md`.
   macOS-reserved-shortcut list (it's "Move to Next Window," a hard
   OS-level reservation — the keystroke never reaches any app to
   capture in the first place, so this is documentation, not a fix).
+- **A pane's speech-doc marking (amber tint + 🎤) is no longer hidden
+  by the focused-pane blue highlight** — you can now tell a pane is
+  the active speech doc even while you're actively working in it, not
+  just when looking at it from another pane.
+- **Send to Speech silently did nothing when the cursor wasn't
+  somewhere sendable** (an empty line, or between cards/headings) — it
+  now says so instead of looking like the command is broken.
+- **A filename containing a macOS Finder-typed "/" now displays the
+  same way in CardMirror as it does in Finder** — Finder shows "/" but
+  actually stores the file with ":" on disk (a classic Mac OS
+  carryover); CardMirror was showing the raw on-disk name.
 
 ## 1.8.0-bcb.2 — 2026-09-08
 
