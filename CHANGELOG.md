@@ -34,6 +34,16 @@ see `DETAILED_CHANGELOG.md`.
   only document open and you tried to send from it to itself** — it
   now tells you why instead of looking like the button (or shortcut)
   is just broken.
+- **Settings, tooltips, and hints that mention a shortcut by name now
+  say "Cmd" instead of "Ctrl" on macOS** (Find, Find & Replace, zoom,
+  voice-control mic, expand-pane, Uncondense, the plain-paste hint, the
+  keybindings editor's own validation message) — these used to say
+  "Ctrl" everywhere, which was simply wrong on a Mac for anything
+  bound to the app's cross-platform modifier key. Left untouched where
+  "Ctrl" is genuinely, literally correct on every platform including
+  macOS: the pinch/scroll-to-zoom gesture checks a real Ctrl keypress
+  specifically (mirroring the browser's own pinch-to-zoom convention),
+  not the app's Cmd-on-Mac modifier.
 
 ## 1.8.0-bcb.1 — 2026-09-07
 

@@ -33,6 +33,7 @@ import {
 import { settings } from './settings.js';
 import type { NavigationPanel } from './nav-panel.js';
 import { setIcon, type IconName } from './icons';
+import { ctrlOrCmdWord } from './platform.js';
 
 type Mode = 'find' | 'replace';
 export type FindBarOpenOptions = { mode: Mode; sortMode: FindSortMode };
@@ -447,7 +448,7 @@ export class FindReplaceBar {
     this.sortLabel.title =
       opts.sortMode === 'uncategorized'
         ? 'Alt-F: matches in document order from the cursor (wrapping), categories ignored'
-        : 'Ctrl-F: matches grouped by category, each in document order from the cursor (wrapping). Configure category order in Settings.';
+        : `${ctrlOrCmdWord()}-F: matches grouped by category, each in document order from the cursor (wrapping). Configure category order in Settings.`;
 
     // Capture the cursor position as the wrap anchor: ordering runs
     // top-to-bottom from here, then wraps to the top. Stays fixed for

@@ -323,6 +323,7 @@ import {
   type AnyCommandId,
   type RibbonCommandId,
 } from './ribbon-commands.js';
+import { ctrlOrCmdWord } from './platform.js';
 import { openWordCount } from './word-count-ui.js';
 import { wireColorPanel } from './color-panel.js';
 import { AI_DISABLED_MESSAGE } from './ai/llm.js';
@@ -926,7 +927,7 @@ function updatePlainPasteIndicator(armed: boolean): void {
   if (armed) {
     registerRibbonTooltip({
       el: plainPasteToggleBtn,
-      label: 'Plain paste armed — press Ctrl/Cmd+V to paste as text',
+      label: `Plain paste armed — press ${ctrlOrCmdWord()}+V to paste as text`,
     });
   } else {
     registerRibbonTooltip({

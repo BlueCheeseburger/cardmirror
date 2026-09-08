@@ -12,9 +12,11 @@
 >   shortcut** (Quit, Hide, Log Out, the screenshot keys, Mission
 >   Control, Full Screen — checked against the real Ctrl/Cmd keys you
 >   pressed, so a two-key combo like Control-Command-F isn't confused
->   for a plain Cmd-F), and Send to Speech now tells you why it did
->   nothing instead of silently no-opping when the speech doc is the
->   only document open and you try to send from it to itself. (main)
+>   for a plain Cmd-F); settings/tooltips that name a shortcut now say
+>   "Cmd" instead of "Ctrl" on macOS wherever that's what actually
+>   works; and Send to Speech now tells you why it did nothing instead
+>   of silently no-opping when the speech doc is the only document open
+>   and you try to send from it to itself. (main)
 > - **New Document and opening a file from Finder/Dock now ask which
 >   pane or window** in a three-pane workspace, instead of guessing
 >   (New always spawned a whole window even with an empty pane sitting

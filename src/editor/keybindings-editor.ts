@@ -41,6 +41,7 @@ import { pluginCommandIds } from './plugin-registry.js';
 import { RIBBON_GROUPS } from './ribbon-groups.js';
 import { isRibbonCommandAvailable } from './ribbon-availability.js';
 import { settings, type KeyboardMacro } from './settings.js';
+import { ctrlOrCmdWord } from './platform.js';
 import { setIcon } from './icons';
 
 function getOverrides(): Partial<Record<string, string | string[]>> {
@@ -177,7 +178,10 @@ function validateKey(key: string, raw: KeyboardEvent): string | null {
     !raw.metaKey &&
     !raw.altKey
   ) {
-    return 'Single-character keys must include Ctrl/Cmd/Alt.';
+    // Either Ctrl or Cmd actually satisfies this check (see the guard
+    // above), but the message only names the one a given platform's
+    // user would idiomatically reach for.
+    return `Single-character keys must include ${ctrlOrCmdWord()}/Alt.`;
   }
   return null;
 }

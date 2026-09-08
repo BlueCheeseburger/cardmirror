@@ -14,6 +14,7 @@ import type { IconName } from './icons.js';
 import { getHost } from './host/index.js';
 import { isLiteBuild } from './lite.js';
 import { DEFAULT_SPEECH_FILENAME_TEMPLATE } from './speech-filename-default.js';
+import { ctrlOrCmdWord } from './platform.js';
 
 /** Body-text zoom bounds (percent). The live per-window / per-pane zoom AND the
  *  default-open zoom setting all clamp to these — one source of truth so
@@ -2186,7 +2187,15 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'gestureZoom',
     label: 'Pinch / Ctrl+Scroll to zoom',
     description:
-      'Zoom the document with a trackpad pinch or Ctrl + mouse-wheel (in 10% steps, same as the zoom buttons and Ctrl-= / Ctrl-- chords). Off by default; enable for pinch / Ctrl-scroll zooming.',
+      // The pinch/wheel gesture checks the wheel event's own `ctrlKey`
+      // flag specifically — a real, literal Ctrl key held while
+      // scrolling, same as the browser's own pinch-to-zoom convention
+      // on every platform including macOS (trackpad pinch synthesizes
+      // ctrlKey, not metaKey) — so "Ctrl" here is accurate everywhere
+      // and isn't swapped for "Cmd" on Mac. The zoom BUTTONS' own
+      // chords are the app's cross-platform Mod key, so those alone
+      // go through `ctrlOrCmdWord()`.
+      `Zoom the document with a trackpad pinch or Ctrl + mouse-wheel (in 10% steps, same as the zoom buttons and ${ctrlOrCmdWord()}-= / ${ctrlOrCmdWord()}-- chords). Off by default; enable for pinch / Ctrl-scroll zooming.`,
     kind: 'toggle',
     category: 'general',
     section: 'Editor behavior',
@@ -2269,7 +2278,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'findRememberLastQuery',
     label: 'Find: remember the last search query',
     description:
-      "When on, reopening the find bar (Ctrl-F / Ctrl-H / Alt-F) pre-fills the input with whatever you last searched for. Off by default — the bar opens empty so each search is a clean slate.",
+      `When on, reopening the find bar (${ctrlOrCmdWord()}-F / ${ctrlOrCmdWord()}-H / Alt-F) pre-fills the input with whatever you last searched for. Off by default — the bar opens empty so each search is a clean slate.`,
     kind: 'toggle',
     category: 'general',
     section: 'Find',
@@ -2278,7 +2287,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'findCategoryOrder',
     label: 'Find: category priority order',
     description:
-      'Ctrl-F groups search results by which kind of paragraph they appear in, and Next steps through groups in this order. Within each group, the first match is whichever is closest to your cursor (the cursor counts as the top — matches AFTER it come first, then matches before, like wrap-around). Reorder via the up / down buttons. Alt-F ignores this and goes purely by proximity.',
+      `${ctrlOrCmdWord()}-F groups search results by which kind of paragraph they appear in, and Next steps through groups in this order. Within each group, the first match is whichever is closest to your cursor (the cursor counts as the top — matches AFTER it come first, then matches before, like wrap-around). Reorder via the up / down buttons. Alt-F ignores this and goes purely by proximity.`,
     kind: 'findCategoryOrder',
     category: 'general',
     section: 'Find',
@@ -2534,7 +2543,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'defaultZoomPct',
     label: 'Default document zoom',
     description:
-      'The body-text zoom level every document opens at (50–300%). Zooming an open document (the zoom buttons, Ctrl-= / Ctrl--, or pinch) only affects that window or pane and resets to this default on reload — so different documents can sit at different zooms. Chrome scale is separate and stays linked across windows.',
+      `The body-text zoom level every document opens at (50–300%). Zooming an open document (the zoom buttons, ${ctrlOrCmdWord()}-= / ${ctrlOrCmdWord()}--, or pinch) only affects that window or pane and resets to this default on reload — so different documents can sit at different zooms. Chrome scale is separate and stays linked across windows.`,
     kind: 'defaultZoomPct',
     category: 'accessibility',
     aliases: ['zoom', 'default zoom', 'text size', 'document zoom'],
@@ -2697,7 +2706,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'voiceInputDeviceId',
     label: 'Voice control microphone',
     description:
-      'Which microphone the voice session (Ctrl-Shift-V) listens to. "System default" follows the OS setting. Device names appear after the first voice session grants microphone access. Desktop only.',
+      `Which microphone the voice session (${ctrlOrCmdWord()}-Shift-V) listens to. "System default" follows the OS setting. Device names appear after the first voice session grants microphone access. Desktop only.`,
     kind: 'voiceInputDevice',
     category: 'accessibility',
   },
@@ -3161,7 +3170,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'usePilcrows',
     label: 'F3 condense: use pilcrow markers',
     description:
-      'When paragraph integrity is off and this is on, F3 inserts a 6-pt ¶ at each original paragraph boundary in the merged result, so that the split can be reversed via Ctrl/Cmd+Alt+Shift+F3 (Uncondense).',
+      `When paragraph integrity is off and this is on, F3 inserts a 6-pt ¶ at each original paragraph boundary in the merged result, so that the split can be reversed via ${ctrlOrCmdWord()}+Alt+Shift+F3 (Uncondense).`,
     kind: 'toggle',
     category: 'editing',
     section: 'Condense',
