@@ -34,7 +34,7 @@ import {
   commandLabelFor,
   effectivePluginDefaultKeys,
   foldKeyString,
-  macOSReservedKeyWarning,
+  macOSReservedKeyWarningForEvent,
   type AnyCommandId,
 } from './ribbon-commands.js';
 import { pluginCommandIds } from './plugin-registry.js';
@@ -290,8 +290,12 @@ export function buildKeybindingsEditor(): HTMLElement {
       // isn't left guessing why a shortcut that "looks bound" never
       // fires. Doesn't block the binding: some of these are
       // user-remappable in System Settings, so it's a heads-up, not
-      // a refusal.
-      const macWarning = macOSReservedKeyWarning(key);
+      // a refusal. Checked against the RAW event (real Ctrl vs real
+      // Cmd), not the folded `key` string — this app's own keymap
+      // treats Ctrl and Cmd as interchangeable "Mod", but macOS
+      // itself doesn't, so a two-modifier combo like Control-Command-F
+      // would otherwise be indistinguishable from a plain Cmd-F.
+      const macWarning = macOSReservedKeyWarningForEvent(e);
       if (conflict && macWarning) {
         flashConflict(
           row,

@@ -6846,35 +6846,110 @@ export function formatKeyForDisplay(key: string): string {
     .replace(/-/g, '+');
 }
 
-/** Well-known macOS system shortcuts, in this app's own key-string
- *  convention (`ribbonKeyStringFor` folds real Ctrl and Cmd into one
- *  "Mod" — a physical Ctrl-only chord and a Cmd-only chord captured
- *  here are textually indistinguishable, so a two-modifier system
- *  shortcut like Control-Command-F for Full Screen isn't listed: it'd
- *  falsely flag a plain Cmd-F a user actually wants for something
- *  else). None of these are things CardMirror itself binds — they're
- *  not in `RIBBON_COMMAND_IDS`, so `findConflict` never sees them —
- *  binding over one means the keystroke may be consumed by macOS (or
- *  routed to Quit/Hide/etc.) before it ever reaches CardMirror.
- *  Best-effort, not exhaustive: covers the ones most likely to
- *  actually get hit, not every system shortcut that exists. */
-const MACOS_RESERVED_KEYS: Record<string, string> = {
-  'Mod-q': 'macOS: Quit',
-  'Mod-h': 'macOS: Hide',
-  'Mod-Alt-h': 'macOS: Hide Others',
-  'Mod-Shift-q': 'macOS: Log Out',
-  'Mod-Shift-3': 'macOS: Screenshot (whole screen)',
-  'Mod-Shift-4': 'macOS: Screenshot (selection)',
-  'Mod-Shift-5': 'macOS: Screenshot & Recording toolbar',
-};
+/** One well-known macOS system shortcut, in terms of the RAW modifier
+ *  flags a `KeyboardEvent` actually carries (`ctrlKey`/`metaKey`
+ *  independently — unlike this app's own `ribbonKeyStringFor`, which
+ *  folds both into one "Mod" for keymap dispatch purposes). Real
+ *  macOS shortcuts DO distinguish them — Quit is Cmd-Q specifically,
+ *  not Ctrl-Q — so checking the raw event instead of the folded
+ *  string is what makes a two-modifier combo like Control-Command-F
+ *  (Full Screen) detectable at all without also false-flagging a
+ *  plain Cmd-F someone actually wants for something else: under the
+ *  folded string a physical Ctrl-only press and a Cmd-only press are
+ *  textually identical, so a "Mod-f" table entry could never mean
+ *  only one of them. Unset modifier fields are required to be UNheld
+ *  (exact match, mirroring how real macOS shortcuts fire only on
+ *  their exact modifier set, not on a superset of it). `key` is the
+ *  normalized form `macOSReservedKeyWarningForEvent` derives below
+ *  (lowercased letter, bare digit, or `Arrow*`). */
+interface MacReservedShortcut {
+  ctrl?: boolean;
+  meta?: boolean;
+  alt?: boolean;
+  shift?: boolean;
+  key: string;
+  description: string;
+}
 
-/** Check `key` against `MACOS_RESERVED_KEYS` (folded, so case doesn't
- *  matter). Returns the matched system shortcut's description, or
- *  `null` when there's no known overlap — including when not running
- *  on macOS, where none of this applies. Doesn't refuse the binding:
- *  some of these ARE user-remappable in System Settings, so this is a
- *  heads-up, not a hard block — the caller decides what to do with it. */
-export function macOSReservedKeyWarning(key: string): string | null {
+/** Well-known macOS system shortcuts. None of these are things
+ *  CardMirror itself binds — they're not in `RIBBON_COMMAND_IDS`, so
+ *  `findConflict` never sees them — binding over one means the
+ *  keystroke may be consumed by macOS (or routed to Quit/Hide/etc.)
+ *  before it ever reaches CardMirror. Best-effort, not exhaustive:
+ *  covers the ones most likely to actually get hit, not every system
+ *  shortcut that exists; the Mission Control / Full Screen entries
+ *  are common DEFAULTS a user could have remapped in System Settings
+ *  → Keyboard → Shortcuts, so this warns rather than refuses either
+ *  way — see `macOSReservedKeyWarningForEvent`. `Tab` / `Space` /
+ *  `Escape` / `Enter` combos (App Switcher, Spotlight, Force Quit)
+ *  aren't listed — `validateKey` already blocks those outright,
+ *  regardless of modifiers, for unrelated reasons (keeping Tab free
+ *  for focus navigation, etc.), so they never reach this check. */
+const MACOS_RESERVED_SHORTCUTS: MacReservedShortcut[] = [
+  { meta: true, key: 'q', description: 'macOS: Quit' },
+  { meta: true, key: 'h', description: 'macOS: Hide' },
+  { meta: true, alt: true, key: 'h', description: 'macOS: Hide Others' },
+  { meta: true, shift: true, key: 'q', description: 'macOS: Log Out' },
+  { meta: true, ctrl: true, key: 'q', description: 'macOS: Lock Screen' },
+  { meta: true, shift: true, key: '3', description: 'macOS: Screenshot (whole screen)' },
+  { meta: true, shift: true, key: '4', description: 'macOS: Screenshot (selection)' },
+  { meta: true, shift: true, key: '5', description: 'macOS: Screenshot & Recording toolbar' },
+  {
+    meta: true,
+    ctrl: true,
+    key: 'f',
+    description: 'macOS: Enter Full Screen (default — remappable in System Settings)',
+  },
+  {
+    ctrl: true,
+    key: 'ArrowUp',
+    description: 'macOS: Mission Control (default — remappable in System Settings)',
+  },
+  {
+    ctrl: true,
+    key: 'ArrowDown',
+    description: "macOS: App Exposé (default — remappable in System Settings)",
+  },
+  {
+    ctrl: true,
+    key: 'ArrowLeft',
+    description: 'macOS: Move Left a Space (default — remappable in System Settings)',
+  },
+  {
+    ctrl: true,
+    key: 'ArrowRight',
+    description: 'macOS: Move Right a Space (default — remappable in System Settings)',
+  },
+];
+
+/** Check a captured `KeyboardEvent` against `MACOS_RESERVED_SHORTCUTS`
+ *  by its RAW modifier flags — not the folded key string, so a
+ *  Ctrl-only press is never confused for a Cmd-only one or vice
+ *  versa. Returns the matched shortcut's description, or `null` when
+ *  there's no exact-modifier-set overlap — including when not
+ *  running on macOS, where none of this applies. Doesn't refuse the
+ *  binding: several of these are user-remappable in System Settings,
+ *  so this is a heads-up, not a hard block — the caller decides what
+ *  to do with it. */
+export function macOSReservedKeyWarningForEvent(e: KeyboardEvent): string | null {
   if (!isMacPlatform()) return null;
-  return MACOS_RESERVED_KEYS[foldKeyString(key)] ?? null;
+  const key = e.key.startsWith('Arrow')
+    ? e.key
+    : /^Digit[0-9]$/.test(e.code)
+      ? e.code.slice(5)
+      : e.key.length === 1
+        ? e.key.toLowerCase()
+        : e.key;
+  for (const s of MACOS_RESERVED_SHORTCUTS) {
+    if (
+      !!s.ctrl === e.ctrlKey &&
+      !!s.meta === e.metaKey &&
+      !!s.alt === e.altKey &&
+      !!s.shift === e.shiftKey &&
+      s.key === key
+    ) {
+      return s.description;
+    }
+  }
+  return null;
 }
