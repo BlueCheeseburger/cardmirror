@@ -1914,6 +1914,11 @@ function buildCrashDumpsSection(): HTMLElement | null {
 const MANUAL_URL = 'https://github.com/ant981228/cardmirror/blob/main/MANUAL.md';
 const PRIVACY_URL = 'https://github.com/ant981228/cardmirror/blob/main/PRIVACY.md';
 const TERMS_URL = 'https://github.com/ant981228/cardmirror/blob/main/TERMS.md';
+/** Linked from the readers editor (Settings → wpm) so a user unsure of
+ *  their own reading speed has somewhere to actually measure it before
+ *  typing in a number. Third-party site, not our own — no telemetry or
+ *  affiliation implied, just a pointer. */
+const READING_SPEED_TEST_URL = 'https://readingsoft.com/';
 
 /** One external doc link. On desktop it routes through the host so it opens in
  *  the OS browser rather than a new Electron window; on web the anchor opens a
@@ -2401,6 +2406,12 @@ function buildReadersEditor(): HTMLElement {
   addBtn.className = 'pmd-readers-add';
   addBtn.textContent = '+ Add reader';
   wrap.appendChild(addBtn);
+
+  const speedTestNote = document.createElement('p');
+  speedTestNote.className = 'pmd-readers-speed-test';
+  speedTestNote.textContent = "Don't know your wpm? ";
+  speedTestNote.appendChild(buildDocLink('Test your reading speed ↗', READING_SPEED_TEST_URL));
+  wrap.appendChild(speedTestNote);
 
   function commit(readers: ReaderConfig[]): void {
     settings.set('readers', readers);
@@ -3946,10 +3957,16 @@ const CUSTOM_DASH_OPTIONS: ReadonlyArray<[Settings['customDashStyle'], string]> 
   ['em-spaced', ' — em dash (spaced)'],
 ];
 
-/** A checkbox enabling the remapping + a trigger dropdown ("---" or
- *  "--") + an output dropdown, both disabled until the checkbox is on:
- *  "Replace [---] with [-- em dash]". */
+/** Two stacked rows: a checkbox enabling the primary remapping + a trigger
+ *  dropdown ("---" or "--") + an output dropdown ("Replace [---] with
+ *  [em dash]"), and a second checkbox that layers a rule for the OTHER
+ *  trigger on top ("Also replace [--] with [en dash]") — so both can
+ *  convert independently instead of being an either/or choice. The second
+ *  row's trigger label tracks whichever the first ISN'T, live. */
 function buildCustomDashEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-custom-dash-editor';
+
   const row = document.createElement('label');
   row.className = 'pmd-multi-doc-layout-mode-row';
   const cb = document.createElement('input');
@@ -3979,21 +3996,67 @@ function buildCustomDashEditor(): HTMLElement {
     opt.selected = value === settings.get('customDashStyle');
     select.appendChild(opt);
   }
-  triggerSelect.disabled = !cb.checked;
-  select.disabled = !cb.checked;
-  cb.addEventListener('change', () => {
-    settings.set('customDashEnabled', cb.checked);
+  row.append(cb, replaceText, triggerSelect, withText, select);
+  wrap.appendChild(row);
+
+  // Second rule: always targets whichever trigger the first ISN'T, so the
+  // two can never both point at the same one. "Also replace --" / "Also
+  // replace ---" relabels itself when the first dropdown changes.
+  const otherRow = document.createElement('label');
+  otherRow.className = 'pmd-multi-doc-layout-mode-row';
+  const otherCb = document.createElement('input');
+  otherCb.type = 'checkbox';
+  otherCb.checked = settings.get('customDashOtherEnabled');
+  const otherReplaceText = document.createElement('span');
+  otherReplaceText.className = 'pmd-multi-doc-layout-mode-row-label';
+  const otherTriggerLabel = (): string =>
+    `Also replace "${triggerSelect.value === '---' ? '--' : '---'}"`;
+  otherReplaceText.textContent = otherTriggerLabel();
+  const otherWithText = document.createElement('span');
+  otherWithText.className = 'pmd-multi-doc-layout-mode-row-label';
+  otherWithText.textContent = 'with';
+  const otherSelect = document.createElement('select');
+  otherSelect.className = 'pmd-body-font-select';
+  for (const [value, text] of CUSTOM_DASH_OPTIONS) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = text;
+    opt.selected = value === settings.get('customDashOtherStyle');
+    otherSelect.appendChild(opt);
+  }
+  otherRow.append(otherCb, otherReplaceText, otherWithText, otherSelect);
+  wrap.appendChild(otherRow);
+
+  function updateDisabled(): void {
     triggerSelect.disabled = !cb.checked;
     select.disabled = !cb.checked;
+    // The "also" row needs the primary rule on too — there's nothing to
+    // layer "also" onto otherwise.
+    otherCb.disabled = !cb.checked;
+    otherSelect.disabled = !cb.checked || !otherCb.checked;
+  }
+  updateDisabled();
+
+  cb.addEventListener('change', () => {
+    settings.set('customDashEnabled', cb.checked);
+    updateDisabled();
   });
   triggerSelect.addEventListener('change', () => {
     settings.set('customDashTrigger', triggerSelect.value as Settings['customDashTrigger']);
+    otherReplaceText.textContent = otherTriggerLabel();
   });
   select.addEventListener('change', () => {
     settings.set('customDashStyle', select.value as Settings['customDashStyle']);
   });
-  row.append(cb, replaceText, triggerSelect, withText, select);
-  return row;
+  otherCb.addEventListener('change', () => {
+    settings.set('customDashOtherEnabled', otherCb.checked);
+    updateDisabled();
+  });
+  otherSelect.addEventListener('change', () => {
+    settings.set('customDashOtherStyle', otherSelect.value as Settings['customDashStyle']);
+  });
+
+  return wrap;
 }
 
 /** Enable checkbox + the user's replacement table: rows of "from → to" with
@@ -4059,6 +4122,7 @@ function buildCustomAutocorrectEditor(): HTMLElement {
     smartQuotes: settings.get('smartQuotes'),
     customDashEnabled: settings.get('customDashEnabled'),
     customDashTrigger: settings.get('customDashTrigger'),
+    customDashOtherEnabled: settings.get('customDashOtherEnabled'),
   });
 
   function renderList(): void {

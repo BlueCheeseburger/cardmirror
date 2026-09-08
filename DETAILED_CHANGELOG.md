@@ -5,6 +5,106 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Added: "Locate…" for a moved/deleted Recent file (`index.ts`)
+
+`openRecentInPlace`'s missing-file branch used to just
+`showToast(...)` and `removeRecent(handle)` unconditionally — no way
+to actually get at the file after it moved, even though the user can
+usually find it in Finder in two clicks. Now shows a
+`promptForRouteChoice` with "Locate…" (browses via
+`electron.openFile({filters: OPEN_FILE_FILTERS})`, then proceeds
+through the SAME multi-pane/spawn-window/load-in-place logic the
+function already had, just with the located file's info) and "Remove
+from Recents" (the old behavior, now explicit). Dismissing the dialog
+leaves the stale entry alone rather than silently deleting it. The
+located file re-adds itself to Recents naturally, through the same
+`recordRecent` calls every other open path already goes through — no
+special-casing needed there.
+
+### Added: readingsoft.com link in the readers editor (`settings-ui.ts`)
+
+`buildReadersEditor()` gained a `<a>` (via the existing `buildDocLink`
+helper, already used for the Manual/Privacy/Terms links) reading
+"Test your reading speed ↗", pointing at `READING_SPEED_TEST_URL =
+'https://readingsoft.com/'`. Third-party site, no telemetry/affiliation.
+
+### Fixed: Option+backtick captured as "Alt-Unidentified" (`ribbon-commands.ts`)
+
+Field report: rebinding a shortcut to Option+\` on macOS showed
+"⌥Unidentified" in the keybindings editor instead of "⌥\`". Root
+cause: Option held on the backtick key is a dead-key prefix on macOS
+(Option-\` + a letter composes an accented character, e.g. à), so the
+browser can't resolve a single character synchronously and reports
+`e.key === 'Unidentified'` — `ribbonKeyStringFor`'s fallback branch
+pushed that string verbatim as the key name, producing a binding
+nothing could ever match. Fixed by special-casing `e.code ===
+'Backquote'` to push the literal `` ` `` regardless of what `e.key`
+says, mirroring the existing Digit/Space special-cases in the same
+function for the same reason (a physical key whose `e.key` value is
+unreliable). `macOSReservedKeyWarningForEvent`'s own key-normalization
+got the same case for consistency, though it's not currently load-bearing
+there.
+
+Also added `Mod-\`` (Move to Next Window) to `MACOS_RESERVED_SHORTCUTS`
+— a separate field report from the same session: pressing Cmd+\` while
+capturing a binding did nothing at all, silently. This one is hard OS-
+reserved (unlike the Option case above, the keydown never reaches ANY
+app, so `onKey` has nothing to capture) — the table entry is there for
+documentation/correctness, not because the warning path can actually
+fire for it.
+
+### Added: custom dash can convert "--" and "---" independently, at once (`settings.ts`, `custom-dash-plugin.ts`, `settings-ui.ts`, `custom-autocorrect-plugin.ts`)
+
+Previously an intentional either/or choice (documented in
+`Settings['customDashTrigger']`'s own comment): a `--`-triggered rule
+fires eagerly on the second hyphen, before it can know whether a third
+is coming that should have made it `---` instead — so the two
+triggers "can't coexist." The user asked to lift that limitation
+(Word's usual behavior: both convert, independently, each to its own
+style).
+
+Kept the existing `customDashEnabled`/`customDashTrigger`/
+`customDashStyle` fields meaning EXACTLY what they meant before (zero
+migration, zero behavior change when the new field is off) and added
+`customDashOtherEnabled`/`customDashOtherStyle`, layering a SECOND
+rule that always targets whichever trigger `customDashTrigger` ISN'T
+— so the two can never both target the same one, and the UI can't be
+misconfigured into redundancy.
+
+- **`custom-dash-plugin.ts`**: rewritten around a shared
+  `makeDashRule({trigger, style, enabled})` builder, instantiated
+  twice (primary + secondary, pointed at each other's complementary
+  trigger). `tripleRuleActive()` checks whether a `---`-targeting rule
+  is active from EITHER slot; a `--`-targeting rule defers to the
+  character typed right after the pair (instead of firing on the
+  second hyphen) only when that's true — otherwise unchanged, eager,
+  single-keystroke firing. The deferred branch's `triggers()`
+  broadens from "only `-`" to "any single character" ONLY while
+  deferred mode could apply, keeping the common case cheap. Same run-
+  guard (no conversion mid-longer-hyphen-run) applies to both the
+  eager and deferred paths.
+- **`settings.ts`**: new fields + sanitizers, defaults `false`/`'en'`.
+  Comment on `customDashTrigger` updated — the two no longer "can't
+  coexist," they're just independently toggleable.
+- **`settings-ui.ts`**: `buildCustomDashEditor` now returns two stacked
+  rows instead of one; the second's label ("Also replace \"--\"
+  with…") tracks the first's trigger dropdown live, so it always names
+  the complement.
+- **`custom-autocorrect-plugin.ts`**: `entryConflictWarnings` gained an
+  optional `customDashOtherEnabled` field so its "can never fire while
+  Custom dash uses the X trigger" check considers BOTH active triggers
+  when checking a custom-autocorrect entry's reachability, not just
+  the primary one.
+- **`tests/editor/custom-dash.test.ts`**: 8 new tests covering the
+  dual-trigger interaction (3rd hyphen still completes `---`; a
+  non-hyphen character completes the deferred `--`; Backspace-revert
+  for the deferred case; the run-guard still holding; role-symmetry
+  when `--` is configured as the PRIMARY trigger and `---` the
+  secondary). All 12 pre-existing tests pass unchanged, confirming the
+  single-trigger path truly didn't change.
+
 ## 1.8.0-bcb.2 — 2026-09-08
 
 ### Added: New Document and external file-open both prompt for a destination in multi-pane mode (`index.ts`, `multi-pane-shell.ts`, `apps/desktop/src/main.ts`)

@@ -864,11 +864,21 @@ export interface Settings {
   enterAfterAnalytic: EnterAfterStyle;
   enterAfterUndertag: EnterAfterStyle;
   customDashStyle: 'en' | 'en-spaced' | 'em' | 'em-spaced';
-  /** What typed sequence the custom dash replaces: '---' (fires on
-   *  the third hyphen) or '--' (fires on the second). An exclusive
-   *  choice because a '--' rule fires before it can know whether a
-   *  third hyphen is coming — the two triggers can't coexist. */
+  /** What typed sequence the primary custom-dash rule replaces: '---'
+   *  (fires on the third hyphen) or '--' (fires on the second). See
+   *  `customDashOtherEnabled` for layering the OTHER trigger on top —
+   *  a '--' rule alone still fires eagerly on the second hyphen
+   *  (unchanged), but defers to the character after it once a '---'
+   *  rule is also active, so typing a third hyphen can still complete
+   *  it instead of the '--' rule stealing the keystroke first. */
   customDashTrigger: '---' | '--';
+  /** Layers a SECOND custom-dash rule on top of the one above, always
+   *  targeting whichever trigger `customDashTrigger` ISN'T — so
+   *  '---' + '--' can both convert at once (Word's usual behavior),
+   *  each to its own configured style, instead of being an
+   *  either/or choice. Off by default; requires `customDashEnabled`. */
+  customDashOtherEnabled: boolean;
+  customDashOtherStyle: 'en' | 'en-spaced' | 'em' | 'em-spaced';
   /** Microphone for voice control (MediaDeviceInfo.deviceId).
    *  Empty string = system default. Desktop only. */
   voiceInputDeviceId: string;
@@ -1737,6 +1747,8 @@ const DEFAULTS: Settings = {
   enterAfterUndertag: 'normal',
   customDashStyle: 'em',
   customDashTrigger: '---',
+  customDashOtherEnabled: false,
+  customDashOtherStyle: 'en',
   voiceInputDeviceId: '',
   voiceAutoSleepSeconds: 60,
   voiceDashStyle: 'em',
@@ -3111,11 +3123,11 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'customDashEnabled',
     label: 'Custom dash',
     description:
-      'As you type, replace "---" (or "--" — your choice) with a dash of your choice (en or em dash, with or without surrounding spaces). The replacement happens on the last hyphen of the trigger; press Backspace right after to revert to the literal hyphens. Off by default.',
+      'As you type, replace "---" (or "--" — your choice) with a dash of your choice (en or em dash, with or without surrounding spaces) — optionally BOTH at once, each with its own style, so "--" and "---" convert independently as you type (Word\'s usual behavior). The replacement happens on the last hyphen of the trigger (or, when both are active, whichever character makes clear no more hyphens are coming); press Backspace right after to revert to the literal hyphens. Off by default.',
     kind: 'customDash',
     category: 'editing',
     section: 'Typing',
-    aliases: ['dash', 'em dash', 'en dash', 'triple dash', 'autocorrect dash'],
+    aliases: ['dash', 'em dash', 'en dash', 'triple dash', 'autocorrect dash', 'double hyphen'],
   },
   {
     key: 'autoCapitalizeSentences',
@@ -4430,6 +4442,12 @@ function sanitize(s: Settings): Settings {
       ? (s.customDashStyle as Settings['customDashStyle'])
       : 'em',
     customDashTrigger: s.customDashTrigger === '--' ? '--' : '---',
+    customDashOtherEnabled: !!s.customDashOtherEnabled,
+    customDashOtherStyle: CUSTOM_DASH_STYLES.includes(
+      s.customDashOtherStyle as Settings['customDashStyle'],
+    )
+      ? (s.customDashOtherStyle as Settings['customDashStyle'])
+      : 'en',
     voiceInputDeviceId: typeof s.voiceInputDeviceId === 'string' ? s.voiceInputDeviceId : '',
     voiceAutoSleepSeconds:
       typeof s.voiceAutoSleepSeconds === 'number' && s.voiceAutoSleepSeconds >= 0

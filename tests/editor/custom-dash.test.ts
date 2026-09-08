@@ -48,6 +48,10 @@ function makeView(body: string) {
       const from = view.state.selection.from;
       return props.handleTextInput(view, from, from, '-');
     },
+    typeChar: (c: string) => {
+      const from = view.state.selection.from;
+      return props.handleTextInput(view, from, from, c);
+    },
     backspace: () =>
       props.handleKeyDown(view, {
         key: 'Backspace',
@@ -68,6 +72,19 @@ function configure(
   settings.set('customDashEnabled', enabled);
   settings.set('customDashStyle', style);
   settings.set('customDashTrigger', trigger);
+  settings.set('customDashOtherEnabled', false);
+}
+
+function configureBoth(
+  primaryStyle: 'en' | 'en-spaced' | 'em' | 'em-spaced',
+  primaryTrigger: '---' | '--',
+  otherStyle: 'en' | 'en-spaced' | 'em' | 'em-spaced',
+) {
+  settings.set('customDashEnabled', true);
+  settings.set('customDashStyle', primaryStyle);
+  settings.set('customDashTrigger', primaryTrigger);
+  settings.set('customDashOtherEnabled', true);
+  settings.set('customDashOtherStyle', otherStyle);
 }
 
 describe('dashOutput', () => {
@@ -155,5 +172,66 @@ describe('custom dash with the "--" trigger', () => {
     configure(true, 'em', '---');
     const v = makeView('a -');
     expect(v.typeHyphen()).toBe(false);
+  });
+});
+
+describe('custom dash with both triggers active', () => {
+  it('a third hyphen completes the "---" rule, not the deferred "--" one', () => {
+    configureBoth('em', '---', 'en');
+    const v = makeView('a--');
+    expect(v.typeHyphen()).toBe(true);
+    expect(v.body()).toBe('a—');
+  });
+
+  it('a non-hyphen character after exactly two hyphens completes the "--" rule', () => {
+    configureBoth('em', '---', 'en');
+    const v = makeView('a--');
+    expect(v.typeChar(' ')).toBe(true);
+    expect(v.body()).toBe('a– '); // en dash, then the space that completed it
+  });
+
+  it('the second hyphen alone does not convert while a third could still land', () => {
+    configureBoth('em', '---', 'en');
+    const v = makeView('a-');
+    expect(v.typeHyphen()).toBe(false); // still just "a--", not yet converted
+    expect(v.body()).toBe('a-');
+  });
+
+  it('Backspace right after the deferred "--" completion reverts to "--" + the char', () => {
+    configureBoth('em', '---', 'en');
+    const v = makeView('a--');
+    v.typeChar('x');
+    expect(v.body()).toBe('a–x');
+    expect(v.backspace()).toBe(true);
+    expect(v.body()).toBe('a--x');
+  });
+
+  it('does not fire the deferred rule inside a longer hyphen run', () => {
+    configureBoth('em', '---', 'en');
+    const v = makeView('a----'); // four hyphens: the last two are mid-run
+    expect(v.typeChar('x')).toBe(false);
+    expect(v.body()).toBe('a----');
+  });
+
+  it('roles are symmetric: "--" as the PRIMARY trigger still defers when "---" is the secondary', () => {
+    configureBoth('en', '--', 'em');
+    const v = makeView('a--');
+    // Third hyphen still completes "---" (now the secondary rule)...
+    expect(v.typeHyphen()).toBe(true);
+    expect(v.body()).toBe('a—');
+  });
+
+  it('roles are symmetric: the deferred "--" completion uses whichever style is configured for it', () => {
+    configureBoth('en', '--', 'em');
+    const v = makeView('a--');
+    expect(v.typeChar(' ')).toBe(true);
+    expect(v.body()).toBe('a– '); // "--" is the primary rule here, styled 'en'
+  });
+
+  it('only the primary rule fires when the secondary is off (unchanged from single-trigger mode)', () => {
+    configure(true, 'em', '--');
+    const v = makeView('a-');
+    expect(v.typeHyphen()).toBe(true); // eager on the second hyphen, no deferral
+    expect(v.body()).toBe('a—');
   });
 });
