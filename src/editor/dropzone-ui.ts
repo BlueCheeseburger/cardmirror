@@ -462,21 +462,24 @@ export function previewRowButton(open: () => void): HTMLButtonElement {
   return btn;
 }
 
+/** The row's type chip. Every label is three letters so the chips line
+ *  up (user request 2026-09-09); the heading ones match the search
+ *  toolbar's file-object badges (`FILE_OBJECT_KIND_BADGES`). */
 export function typeBadge(type: string): { kind: string; label: string } {
   switch (type) {
-    case 'pocket': return { kind: 'pocket', label: 'POCKET' };
+    case 'pocket': return { kind: 'pocket', label: 'POC' };
     case 'hat': return { kind: 'hat', label: 'HAT' };
-    case 'block': return { kind: 'block', label: 'BLOCK' };
+    case 'block': return { kind: 'block', label: 'BLK' };
     case 'tag': return { kind: 'tag', label: 'TAG' };
-    case 'analytic': return { kind: 'analytic', label: 'ANALYTIC' };
-    case 'card': return { kind: 'card', label: 'CARD' };
-    case 'card_body': return { kind: 'card', label: 'BODY' };
-    case 'cite_paragraph': return { kind: 'cite', label: 'CITE' };
-    case 'analytic_unit': return { kind: 'analytic', label: 'ANALYTIC' };
-    case 'undertag': return { kind: 'tag', label: 'UNDERTAG' };
-    case 'paragraph': return { kind: 'text', label: 'TEXT' };
-    case 'text': return { kind: 'text', label: 'TEXT' };
-    default: return { kind: 'generic', label: 'ITEM' };
+    case 'analytic': return { kind: 'analytic', label: 'ANL' };
+    case 'card': return { kind: 'card', label: 'CRD' };
+    case 'card_body': return { kind: 'card', label: 'BDY' };
+    case 'cite_paragraph': return { kind: 'cite', label: 'CIT' };
+    case 'analytic_unit': return { kind: 'analytic', label: 'ANL' };
+    case 'undertag': return { kind: 'tag', label: 'UND' };
+    case 'paragraph': return { kind: 'text', label: 'TXT' };
+    case 'text': return { kind: 'text', label: 'TXT' };
+    default: return { kind: 'generic', label: 'ITM' };
   }
 }
 

@@ -55,6 +55,17 @@ keys aimed at the preview's own surfaces run natively; nothing falls
 through to the document), `armDialogFocus` and focus restore on close.
 A payload that cannot be rebuilt toasts instead of opening.
 
+### Changed: three-letter type chips on shelf and inbox rows
+
+`typeBadge` (dropzone-ui.ts, shared by the Receive pill) returned labels
+from three to eight letters (TAG … UNDERTAG), so the chips were ragged
+and the labels shifted every row's content. Every label is now three
+letters: the heading ones equal the search toolbar's file-object badges
+(POC / HAT / BLK / TAG), and the rest follow suit (CRD card, BDY card
+body, ANL analytic, CIT cite, UND undertag, TXT text, ITM other); the
+session-invite row's chip is SES (`SESSION_BADGE_LABEL`). Styling is
+unchanged. A test holds every label to three letters.
+
 ### Fixed: live views escaped the clipboard as dangling references
 
 A live view (`self_ref`) holds no cards of its own: its children are

@@ -1365,7 +1365,7 @@ idle — it's gone and participants retain local copies.
 **Invite from your recipients:** click the **Send** pill and press the
 invite button on a recipient or group row. That starts a session on the
 current document and sends the invite; the recipient
-gets a **SESSION** row in their Receive pill and clicks **Join**.
+gets a **SES** (session) row in their Receive pill and clicks **Join**.
 **Invite Starred Partner to Session** does the same for your starred target
 in one keystroke. Anyone in a session can invite others, not just the host.
 Inviting requires the person's code in *your* Recipients list.

@@ -38,6 +38,9 @@ interface ReceivePillMountOptions {
 const PULSE_MS = 700;
 const REPEAT_MS = 10000;
 
+/** The session-invite row's type chip — three letters like every other chip. */
+export const SESSION_BADGE_LABEL = 'SES';
+
 export class ReceivePillController {
   private root!: HTMLDivElement;
   private bar!: HTMLDivElement;
@@ -372,7 +375,7 @@ export class ReceivePillController {
 
     const badge = document.createElement('span');
     badge.className = 'pmd-dropzone-row-type pmd-dropzone-row-type-generic';
-    badge.textContent = 'SESSION';
+    badge.textContent = SESSION_BADGE_LABEL;
     row.appendChild(badge);
 
     const main = document.createElement('span');

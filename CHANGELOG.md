@@ -22,6 +22,13 @@ see `DETAILED_CHANGELOG.md`.
   them, without inserting anything. Copy to clipboard copies the
   cards for pasting anywhere; Close or Esc dismisses the preview.
 
+### Changed
+
+- **Three-letter type chips in the dropzone and the Receive pill.** The
+  chips on shelf and inbox rows now read TAG, BLK, POC, HAT, CRD, ANL,
+  CIT, TXT and SES, the same length everywhere and matching the search
+  toolbar's badges for headings, so the rows line up.
+
 ### Fixed
 
 - **Live views always travel as cards.** Copying or cutting a section
