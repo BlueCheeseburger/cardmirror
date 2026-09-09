@@ -9,27 +9,25 @@ import { resolve } from 'node:path';
 import { settings, effectiveDocTypeFormat, SETTING_METADATA } from '../../src/editor/settings.js';
 
 afterEach(() => {
-  settings.set('sendDocFormat', 'default');
-  settings.set('readDocFormat', 'default');
-  settings.set('markedDocFormat', 'default');
+  settings.set('sendDocFormat', 'docx');
+  settings.set('readDocFormat', 'docx');
+  settings.set('markedDocFormat', 'docx');
   settings.set('defaultSaveFormat', 'docx');
 });
 
 describe('doc-type formats', () => {
-  it('default to following the new-document format', () => {
-    expect(settings.get('sendDocFormat')).toBe('default');
-    expect(settings.get('markedDocFormat')).toBe('default');
+  it('default to .docx regardless of the new-document format (user decision)', () => {
+    for (const key of ['sendDocFormat', 'readDocFormat', 'markedDocFormat'] as const) expect(settings.get(key)).toBe('docx');
     settings.set('defaultSaveFormat', 'cmir');
-    expect(effectiveDocTypeFormat('sendDocFormat')).toBe('cmir');
-    expect(effectiveDocTypeFormat('markedDocFormat')).toBe('cmir');
-    settings.set('defaultSaveFormat', 'docx');
-    expect(effectiveDocTypeFormat('sendDocFormat')).toBe('docx');
+    for (const key of ['sendDocFormat', 'readDocFormat', 'markedDocFormat'] as const) expect(effectiveDocTypeFormat(key)).toBe('docx');
   });
 
-  it('the read format resolves like the others', () => {
+  it('"Same as new documents" is still an explicit choice that follows the new-document format', () => {
     settings.set('defaultSaveFormat', 'cmir');
+    settings.set('readDocFormat', 'default');
     expect(effectiveDocTypeFormat('readDocFormat')).toBe('cmir');
-    settings.set('readDocFormat', 'docx');
+    expect(effectiveDocTypeFormat('sendDocFormat')).toBe('docx'); // untouched types stay .docx
+    settings.set('defaultSaveFormat', 'docx');
     expect(effectiveDocTypeFormat('readDocFormat')).toBe('docx');
   });
 
@@ -45,11 +43,12 @@ describe('doc-type formats', () => {
   it('a pinned choice wins over the new-document format, per type', () => {
     settings.set('defaultSaveFormat', 'cmir');
     settings.set('sendDocFormat', 'docx');
+    settings.set('markedDocFormat', 'default');
     expect(effectiveDocTypeFormat('sendDocFormat')).toBe('docx');
     expect(effectiveDocTypeFormat('markedDocFormat')).toBe('cmir');
     settings.set('markedDocFormat', 'docx');
-    settings.set('defaultSaveFormat', 'docx');
     settings.set('sendDocFormat', 'cmir');
+    settings.set('defaultSaveFormat', 'docx');
     expect(effectiveDocTypeFormat('sendDocFormat')).toBe('cmir');
     expect(effectiveDocTypeFormat('markedDocFormat')).toBe('docx');
   });

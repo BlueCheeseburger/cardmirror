@@ -15,31 +15,28 @@ see `DETAILED_CHANGELOG.md`.
   thing you typed, the same formatting on the new selection, one more
   Backspace or Delete, the same paste, or the last command. Redo still
   comes first, and Mod-Shift-Z is unchanged.
-
 - **Preview cards on the shelf and in the Receive pill.** Every row in
   the dropzone and the Receive pill has a Preview button that opens
   the cards full-size in a read-only view, with a nav pane beside
   them, without inserting anything. Copy to clipboard copies the
   cards for pasting anywhere; Close or Esc dismisses the preview.
-
 - **Favorite sections in the live-view picker.** Every row in the
   "Live view of a section of this document" picker (and the linked-copy
   and re-point pickers) has a star. Starred sections sit under a
   Favorites block above the filter, so a section you mirror often is
   one click with no search; the arrow keys visit favorites first.
   Remembered per file on this computer.
-
 - **A file format per doc type for the silent saves.** Settings →
   Files → Send / Read / Marked docs gains Send Doc, Read Doc and Marked
-  Cards format options: the same as new documents (the default, so
-  nothing changes until you pick), or .docx / .cmir pinned. They apply
-  to the Save Send Doc, Save Read Doc and Save Marked Cards commands and
-  their shortcuts only; the Save As dialog keeps its own format choice.
+  Cards format options: .docx (the default), .cmir, or the same as new
+  documents. They apply to the Save Send Doc, Save Read Doc and Save
+  Marked Cards commands and their shortcuts only; the Save As dialog
+  keeps its own format choice. (Before, these commands followed the
+  default format for new documents.)
 - **Save Read Doc command.** The Read Doc preset (the read-mode view of
   the document) now has a silent command like Save Send Doc, with its
   own destination, folder and format settings and the READ_ prefix.
   Unbound by default: run it from the command bar or give it a key.
-
 - **Underlines follow font color (Appearance → Document typography, off
   by default).** On, an underline under colored text is drawn in that
   text's color, the way Word draws it, including the underline of hats

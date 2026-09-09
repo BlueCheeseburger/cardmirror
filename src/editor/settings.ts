@@ -382,8 +382,9 @@ export const NUMBERING_SEPARATORS: readonly NumberingSeparator[] = [
 ];
 
 /** Schema for all editor settings. Add new fields here with sensible defaults. */
-/** Per-type format for the silent Send Doc / Marked Cards saves:
- *  `default` follows `defaultSaveFormat`; `cmir` / `docx` pin it. */
+/** Per-type format for the silent Send / Read / Marked saves: `docx`
+ *  (the default — what judges and opponents open), `cmir`, or `default`
+ *  = follow `defaultSaveFormat`. */
 export type DocTypeFormat = 'default' | 'cmir' | 'docx';
 
 export interface Settings {
@@ -490,9 +491,10 @@ export interface Settings {
   /** Destination folder for Save Marked Cards when `markedCardsDestination`
    *  is `fixedFolder`. Empty falls the command back to the OS save dialog. */
   markedCardsFolder: string;
-  /** Format the Save Send Doc command (and its shortcut) writes. `default`
-   *  follows `defaultSaveFormat`; `cmir` / `docx` pin it. The Save As
-   *  dialog's presets are untouched — the dialog has its own format choice. */
+  /** Format the Save Send Doc command (and its shortcut) writes: `docx`
+   *  (default), `cmir`, or `default` = follow `defaultSaveFormat`. The Save
+   *  As dialog's presets are untouched — the dialog has its own format
+   *  choice. */
   sendDocFormat: DocTypeFormat;
   /** Same for Save Read Doc. */
   readDocFormat: DocTypeFormat;
@@ -1669,9 +1671,9 @@ const DEFAULTS: Settings = {
   markedCardsFolder: '',
   readDocDestination: 'sameFolder',
   readDocFolder: '',
-  sendDocFormat: 'default',
-  readDocFormat: 'default',
-  markedDocFormat: 'default',
+  sendDocFormat: 'docx',
+  readDocFormat: 'docx',
+  markedDocFormat: 'docx',
   theme: 'system',
   themeAppliesToDocument: false,
   iconSet: 'modern',
@@ -2462,7 +2464,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'sendDocFormat',
     label: 'Send Doc format',
     description:
-      'The file format the Save Send Doc command (and its shortcut) writes. "Same as new documents" follows the default file format for new documents above; pick .docx or .cmir to pin it. The Save As dialog is not affected — it has its own format choice.',
+      'The file format the Save Send Doc command (and its shortcut) writes: .docx (the default — what judges and opponents open), .cmir, or "Same as new documents" to follow the default file format for new documents above. The Save As dialog is not affected — it has its own format choice.',
     kind: 'docTypeFormat',
     category: 'files',
     section: 'Send / Read / Marked docs',
@@ -2491,7 +2493,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'readDocFormat',
     label: 'Read Doc format',
     description:
-      'The file format the Save Read Doc command writes. "Same as new documents" follows the default file format for new documents above; pick .docx or .cmir to pin it. The Save As dialog is not affected.',
+      'The file format the Save Read Doc command writes: .docx (default), .cmir, or "Same as new documents" to follow the default file format for new documents above. The Save As dialog is not affected.',
     kind: 'docTypeFormat',
     category: 'files',
     section: 'Send / Read / Marked docs',
@@ -2520,7 +2522,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'markedDocFormat',
     label: 'Marked Cards format',
     description:
-      'The file format the Save Marked Cards command (and its shortcut) writes. "Same as new documents" follows the default file format for new documents above; pick .docx or .cmir to pin it. The Save As dialog is not affected.',
+      'The file format the Save Marked Cards command (and its shortcut) writes: .docx (default), .cmir, or "Same as new documents" to follow the default file format for new documents above. The Save As dialog is not affected.',
     kind: 'docTypeFormat',
     category: 'files',
     section: 'Send / Read / Marked docs',
@@ -4286,7 +4288,7 @@ function sanitizeCustomAutocorrects(raw: unknown): Array<{ from: string; to: str
 }
 
 function sanitizeDocTypeFormat(v: unknown): DocTypeFormat {
-  return v === 'cmir' || v === 'docx' ? v : 'default';
+  return v === 'cmir' || v === 'docx' || v === 'default' ? v : 'docx';
 }
 
 function sanitize(s: Settings): Settings {

@@ -84,8 +84,10 @@ guarded favorites, and the arrow order.
 `defaultSaveFormat`, the Save As dialog's default for never-saved docs,
 so a user who keeps backfiles in .cmir but hands judges .docx had to go
 through the dialog every time. Two settings, `sendDocFormat` and
-`markedDocFormat` (`DocTypeFormat` = `default` | `cmir` | `docx`, default
-`default`, sanitized to `default` on anything else), sit in the Send /
+`markedDocFormat` (`DocTypeFormat` = `docx` | `cmir` | `default`, default
+`docx` by user decision — what judges and opponents open — with `default`
+= follow `defaultSaveFormat` kept as an explicit choice; sanitized to
+`docx` on anything else), sit in the Send /
 Read / Marked docs section after each command's folder row, rendered by
 the new `docTypeFormat` kind (the default-format editor's radio chrome
 with a "Same as new documents" first choice). `effectiveDocTypeFormat`

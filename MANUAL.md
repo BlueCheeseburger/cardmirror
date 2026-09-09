@@ -1241,8 +1241,7 @@ or in one keystroke with **Save Send Doc (Mod-Alt-S)**.
 
 To send a copy of just the cards you marked in your speech, use **Save Marked Cards** 
 — it pulls just those cards out and saves them on their own, in the format you set 
-for marked cards (Settings → Files → *Marked Cards format*; the default follows your 
-new-document format). 
+for marked cards (Settings → Files → *Marked Cards format*; `.docx` by default). 
 Two ways in: a **Marked Doc** button in the Save As dialog, and a **Save Marked Cards** 
 command (default **Mod-Alt-M**, rebindable) that saves silently to a destination you 
 choose under Settings → *Marked Cards destination* (the source file's folder, or a 
@@ -2078,8 +2077,8 @@ copy:
 **Save Send Doc (Mod-Alt-S)** does the Send Doc export in one keystroke,
 no dialog. Two Settings → Files options control where it goes (the
 source file's folder, or a fixed folder you pick), and a third, **Send Doc
-format**, which format it writes (your new-document default, or `.docx` /
-`.cmir` pinned) — the Save As dialog keeps its own format choice.
+format**, which format it writes (`.docx` by default, `.cmir`, or the same
+as your new documents) — the Save As dialog keeps its own format choice.
 **Save Read Doc** is the same command for the Read Doc preset (the
 read-mode view of the document). It has no shortcut by default — run it
 from the command bar or bind a key — and has its own destination, folder,
@@ -2355,8 +2354,8 @@ file search scans, and how much version history to keep.
   (see [Saving a send doc](#saving-a-send-doc)).
 - **Send Doc folder** *(desktop)* — the fixed folder used when the
   destination above is "Fixed folder."
-- **Send Doc format** — the format Save Send Doc writes: the same as new
-  documents (default), or `.docx` / `.cmir` pinned. The Save As dialog is
+- **Send Doc format** — the format Save Send Doc writes: `.docx`
+  (default), `.cmir`, or the same as new documents. The Save As dialog is
   unaffected.
 - **Read Doc destination / folder / format** *(destination and folder:
   desktop)* — the same three options for the Save Read Doc command (unbound
@@ -2366,9 +2365,9 @@ file search scans, and how much version history to keep.
   [Saving marked cards](#saving-marked-cards)).
 - **Marked Cards folder** *(desktop)* — the fixed folder used when the Marked
   Cards destination is "Fixed folder."
-- **Marked Cards format** — the format Save Marked Cards writes: the same
-  as new documents (default), or `.docx` / `.cmir` pinned. The Save As
-  dialog is unaffected.
+- **Marked Cards format** — the format Save Marked Cards writes: `.docx`
+  (default), `.cmir`, or the same as new documents. The Save As dialog is
+  unaffected.
 
 **File search**
 

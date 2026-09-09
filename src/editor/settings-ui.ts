@@ -5666,16 +5666,16 @@ function buildSaveFormatEditor(): HTMLElement {
   return wrap;
 }
 
-/** Per-type format for the silent Send Doc / Marked Cards saves: follow the
- *  default new-document format, or pin .docx / .cmir. Same chrome as the
+/** Per-type format for the silent Send / Read / Marked saves: .docx
+ *  (default), .cmir, or follow the new-document format. Same chrome as the
  *  default-format editor above. */
 function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-multi-doc-layout-mode-editor pmd-doc-type-format-editor';
   const options: { value: 'default' | 'docx' | 'cmir'; label: string }[] = [
-    { value: 'default', label: 'Same as new documents (default)' },
-    { value: 'docx', label: '.docx — Word / Verbatim-compatible' },
+    { value: 'docx', label: '.docx — Word / Verbatim-compatible (default)' },
     { value: 'cmir', label: '.cmir — CardMirror native' },
+    { value: 'default', label: 'Same as new documents' },
   ];
   const groupName = `pmd-doc-type-format-${key}-${Math.random().toString(36).slice(2, 8)}`;
   for (const o of options) {
