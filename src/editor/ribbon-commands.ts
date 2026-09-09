@@ -4363,6 +4363,7 @@ export type RibbonCommandId =
   | 'save'
   | 'saveAs'
   | 'saveSendDoc'
+  | 'saveReadDoc'
   | 'saveMarkedCards'
   | 'toggleAutosave'
   | 'newSpeechDocument'
@@ -4597,6 +4598,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'save',
   'saveAs',
   'saveSendDoc',
+  'saveReadDoc',
   'saveMarkedCards',
   'toggleAutosave',
   'newSpeechDocument',
@@ -4783,6 +4785,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   save: 'Save',
   saveAs: 'Save As…',
   saveSendDoc: 'Save Send Doc',
+  saveReadDoc: 'Save Read Doc',
   saveMarkedCards: 'Save Marked Cards',
   toggleAutosave: 'Toggle Autosave',
   newSpeechDocument: 'New Speech Document',
@@ -5003,6 +5006,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   toggleSubRole: ['substructure', 'sub number', 'sub letter', 'numbering', 'sublist', 'letter'],
   toggleNumRestart: ['restart numbering', 'start over', 'renumber', 'continue numbering', 'number restart'],
   saveSendDoc: ['send doc', 'export send doc', 'send version'],
+  saveReadDoc: ['read doc', 'export read doc', 'read version', 'save read'],
   saveMarkedCards: ['marked cards', 'extract marked cards', 'export marked cards', 'save marked'],
   startFlowHost: ['warm flow', 'prewarm flow', 'flow connection', 'connect to flow', 'speed up flow'],
   toggleVoice: ['voice control', 'voice mode', 'dictation', 'speech', 'microphone', 'start voice', 'stop voice'],
@@ -5142,6 +5146,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   save: 'Mod-s',
   saveAs: 'Mod-Shift-s',
   saveSendDoc: 'Mod-Alt-s',
+  saveReadDoc: '',
   saveMarkedCards: 'Mod-Alt-m',
   toggleAutosave: '',
   insertLiveZone: '',
@@ -5378,6 +5383,7 @@ export interface RibbonContext {
   save: () => void;
   saveAs: () => void;
   saveSendDoc: () => void;
+  saveReadDoc: () => void;
   saveMarkedCards: () => void;
   toggleAutosave: () => void;
   /** Speech-doc commands (Verbatim's `Paperless.SendToSpeech` family).
@@ -5551,6 +5557,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   save: () => {},
   saveAs: () => {},
   saveSendDoc: () => {},
+  saveReadDoc: () => {},
   saveMarkedCards: () => {},
   toggleAutosave: () => {},
   newSpeechDocument: () => {},
@@ -6018,6 +6025,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.saveSendDoc();
+        return true;
+      };
+    case 'saveReadDoc':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.saveReadDoc();
         return true;
       };
     case 'saveMarkedCards':

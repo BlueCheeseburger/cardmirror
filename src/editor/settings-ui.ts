@@ -906,6 +906,10 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildSaveFormatEditor());
       return row;
+    } else if (meta.kind === 'docTypeFormat') {
+      row.appendChild(text);
+      row.appendChild(buildDocTypeFormatEditor(meta.key as 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'));
+      return row;
     } else if (meta.kind === 'aiProvider') {
       row.appendChild(text);
       row.appendChild(buildAiProviderEditor());
@@ -921,6 +925,10 @@ class SettingsModal {
     } else if (meta.kind === 'sendDocDestination') {
       row.appendChild(text);
       row.appendChild(buildSendDocDestinationEditor());
+      return row;
+    } else if (meta.kind === 'readDocDestination') {
+      row.appendChild(text);
+      row.appendChild(buildDestinationEditor('readDocDestination', 'pmd-read-doc-dest'));
       return row;
     } else if (meta.kind === 'markedCardsDestination') {
       row.appendChild(text);
@@ -5658,6 +5666,39 @@ function buildSaveFormatEditor(): HTMLElement {
   return wrap;
 }
 
+/** Per-type format for the silent Send Doc / Marked Cards saves: follow the
+ *  default new-document format, or pin .docx / .cmir. Same chrome as the
+ *  default-format editor above. */
+function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-multi-doc-layout-mode-editor pmd-doc-type-format-editor';
+  const options: { value: 'default' | 'docx' | 'cmir'; label: string }[] = [
+    { value: 'default', label: 'Same as new documents (default)' },
+    { value: 'docx', label: '.docx — Word / Verbatim-compatible' },
+    { value: 'cmir', label: '.cmir — CardMirror native' },
+  ];
+  const groupName = `pmd-doc-type-format-${key}-${Math.random().toString(36).slice(2, 8)}`;
+  for (const o of options) {
+    const row = document.createElement('label');
+    row.className = 'pmd-multi-doc-layout-mode-row';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = groupName;
+    input.value = o.value;
+    input.checked = o.value === settings.get(key);
+    input.addEventListener('change', () => {
+      if (input.checked) settings.set(key, o.value);
+    });
+    row.appendChild(input);
+    const labelText = document.createElement('span');
+    labelText.className = 'pmd-multi-doc-layout-mode-row-label';
+    labelText.textContent = o.label;
+    row.appendChild(labelText);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
 function buildAiProviderEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-multi-doc-layout-mode-editor';
@@ -5874,10 +5915,10 @@ function buildMarkedCardsDestinationEditor(): HTMLElement {
   return buildDestinationEditor('markedCardsDestination', 'pmd-marked-cards-dest');
 }
 
-/** Same/fixed-folder radio for a save destination setting (Send Doc, Marked
- *  Cards). `key` is the setting; `idPrefix` keeps the radio group distinct. */
+/** Same/fixed-folder radio for a save destination setting (Send Doc, Read
+ *  Doc, Marked Cards). `key` is the setting; `idPrefix` keeps the radio group distinct. */
 function buildDestinationEditor(
-  key: 'sendDocDestination' | 'markedCardsDestination',
+  key: 'sendDocDestination' | 'readDocDestination' | 'markedCardsDestination',
   idPrefix: string,
 ): HTMLElement {
   const wrap = document.createElement('div');

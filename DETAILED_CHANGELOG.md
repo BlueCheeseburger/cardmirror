@@ -78,6 +78,39 @@ through edits and moves). Tests cover the star round-trip from both
 places, persistence per path, the pathless fallback, missing and
 guarded favorites, and the arrow order.
 
+### Added: per-type format for the silent Send Doc / Marked Cards saves
+
+`runSaveSendDocFlow` and `runSaveMarkedCardsFlow` took their format from
+`defaultSaveFormat`, the Save As dialog's default for never-saved docs,
+so a user who keeps backfiles in .cmir but hands judges .docx had to go
+through the dialog every time. Two settings, `sendDocFormat` and
+`markedDocFormat` (`DocTypeFormat` = `default` | `cmir` | `docx`, default
+`default`, sanitized to `default` on anything else), sit in the Send /
+Read / Marked docs section after each command's folder row, rendered by
+the new `docTypeFormat` kind (the default-format editor's radio chrome
+with a "Same as new documents" first choice). `effectiveDocTypeFormat`
+resolves `default` to `defaultSaveFormat`; both flows call it, so the
+filename extension, the serializer and the dialog-fallback filters all
+follow the per-type choice. The Save As dialog's presets are untouched
+by design (user decision).
+
+### Added: Save Read Doc (silent), for symmetry with Save Send Doc
+
+The Read Doc preset (read-mode export: what is read aloud, comments /
+analytics / undertags stripped) had no silent command. `saveReadDoc`
+joins the registry (label, aliases, ribbon Files group next to Save Send
+Doc, dispatcher, context) with an EMPTY default keybinding (user
+decision: symmetry, unbound), and `runSaveReadDocFlow` mirrors Save Send
+Doc through a shared `runSilentExportFlow(spec)` — the Send Doc flow's
+body, parameterized by the type's format / prefix / destination / folder
+settings and the preset's export options (taken verbatim from
+save-as-ui.ts) — so the two flows cannot drift. New settings
+`readDocDestination` (kind `readDocDestination`, the shared destination
+radio), `readDocFolder` and `readDocFormat`, sanitized like their Send
+Doc twins, sit after the Send Doc rows. The desktop `saveSendDoc` IPC is
+generic (folder-or-sibling target with a source-collision refusal) and
+serves both.
+
 ### Changed: three-letter type chips on shelf and inbox rows
 
 `typeBadge` (dropzone-ui.ts, shared by the Receive pill) returned labels

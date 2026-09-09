@@ -29,6 +29,17 @@ see `DETAILED_CHANGELOG.md`.
   one click with no search; the arrow keys visit favorites first.
   Remembered per file on this computer.
 
+- **A file format per doc type for the silent saves.** Settings →
+  Files → Send / Read / Marked docs gains Send Doc, Read Doc and Marked
+  Cards format options: the same as new documents (the default, so
+  nothing changes until you pick), or .docx / .cmir pinned. They apply
+  to the Save Send Doc, Save Read Doc and Save Marked Cards commands and
+  their shortcuts only; the Save As dialog keeps its own format choice.
+- **Save Read Doc command.** The Read Doc preset (the read-mode view of
+  the document) now has a silent command like Save Send Doc, with its
+  own destination, folder and format settings and the READ_ prefix.
+  Unbound by default: run it from the command bar or give it a key.
+
 ### Changed
 
 - **Three-letter type chips in the dropzone and the Receive pill.** The

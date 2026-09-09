@@ -145,8 +145,7 @@ import {
   ZOOM_MAX_PCT,
   CHROME_SCALE_MIN_PCT,
   CHROME_SCALE_MAX_PCT,
-  migrateAutoUpdateOptOut,
-} from './settings.js';
+  migrateAutoUpdateOptOut, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { viewportSpellcheckPlugin } from './viewport-spellcheck.js';
@@ -1949,6 +1948,9 @@ const ribbonContext: RibbonContext = {
   },
   saveSendDoc: () => {
     void runSaveSendDocFlow();
+  },
+  saveReadDoc: () => {
+    void runSaveReadDocFlow();
   },
   saveMarkedCards: () => {
     void runSaveMarkedCardsFlow();
@@ -7855,29 +7857,42 @@ async function runSaveAsFlowInner(): Promise<boolean> {
   }
 }
 
-/**
- * Save a Send Doc silently — the keyboard-bindable automation of the
- * Save-As dialog's "Send Doc" preset. A send doc drops comments,
- * analytics, and undertags (full, non-read-mode export). The
- * destination comes from settings: `sendDocDestination` chooses between
- * the source file's own folder (`sameFolder`) and a fixed folder
- * (`sendDocFolder`); the format follows `defaultSaveFormat`; the `SEND_`
- * prefix honors `prefixPresetSaveFilenames` (same as the preset).
+/** One silent preset export — the keyboard-bindable automation of a Save-As
+ *  preset (Send Doc, Read Doc). The destination comes from the type's own
+ *  settings: `destinationKey` chooses between the source file's own folder
+ *  (`sameFolder`) and a fixed folder (`folderKey`); the format follows
+ *  `formatKey` (`default` = `defaultSaveFormat`; the Save As dialog is
+ *  untouched); the prefix honors `prefixPresetSaveFilenames` (same as the
+ *  preset).
  *
- * Falls back to the OS Save-As dialog when the silent destination can't
- * be resolved — a never-saved doc in same-folder mode, an unset fixed
- * folder, a name collision with the source file, or a non-Electron host.
+ *  Falls back to the OS Save-As dialog when the silent destination can't be
+ *  resolved — a never-saved doc in same-folder mode, an unset fixed folder, a
+ *  name collision with the source file, or a non-Electron host.
  *
- * Like the preset, this is a lossy export: the working document keeps
- * its own identity, dirty state, and recovery journal. Returns `true`
- * when bytes hit disk, `false` on cancel / error.
- */
-export async function runSaveSendDocFlow(): Promise<boolean> {
+ *  Like the preset, this is a lossy export: the working document keeps its
+ *  own identity, dirty state, and recovery journal. Returns `true` when bytes
+ *  hit disk, `false` on cancel / error. */
+interface SilentExportSpec {
+  /** For the failure alert ("Send doc save failed: …"). */
+  label: string;
+  formatKey: 'sendDocFormat' | 'readDocFormat';
+  prefixKey: 'sendDocPrefix' | 'readDocPrefix';
+  destinationKey: 'sendDocDestination' | 'readDocDestination';
+  folderKey: 'sendDocFolder' | 'readDocFolder';
+  /** The preset's own export options (save-as-ui.ts). */
+  exportOptions: {
+    includeComments: boolean;
+    includeAnalytics: boolean;
+    includeUndertags: boolean;
+    readMode: boolean;
+  };
+}
+async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
   const file = activeFile();
-  const format: 'cmir' | 'docx' = settings.get('defaultSaveFormat');
+  const format: 'cmir' | 'docx' = effectiveDocTypeFormat(spec.formatKey);
   const base = basenameWithoutExt(file.filename ?? 'untitled');
   const filename =
-    (settings.get('prefixPresetSaveFilenames') ? settings.get('sendDocPrefix') : '') +
+    (settings.get('prefixPresetSaveFilenames') ? settings.get(spec.prefixKey) : '') +
     `${base}.${format}`;
 
   // Resolve the silent destination. Fixed-folder mode needs a configured path;
@@ -7888,19 +7903,13 @@ export async function runSaveSendDocFlow(): Promise<boolean> {
   // land the export on the source's exact path.
   const sourceHandle =
     typeof file.handle === 'string' && file.handle ? file.handle : null;
-  const fixedFolderMode = settings.get('sendDocDestination') === 'fixedFolder';
-  const folder = fixedFolderMode ? settings.get('sendDocFolder') || null : null;
+  const fixedFolderMode = settings.get(spec.destinationKey) === 'fixedFolder';
+  const folder = fixedFolderMode ? settings.get(spec.folderKey) || null : null;
   const destResolvable = fixedFolderMode ? folder !== null : sourceHandle !== null;
 
   try {
-    // Send Doc filtering — drop comments / analytics / undertags. Lossy
-    // export → no docId embedded (stays a clean copy).
-    const bytes = await serializeForSave(format, {
-      includeComments: false,
-      includeAnalytics: false,
-      includeUndertags: false,
-      readMode: false,
-    });
+    // Lossy export → no docId embedded (stays a clean copy).
+    const bytes = await serializeForSave(format, spec.exportOptions);
 
     const electron = getElectronHost();
     let result: { name: string; handle?: unknown } | null = null;
@@ -7939,10 +7948,56 @@ export async function runSaveSendDocFlow(): Promise<boolean> {
     markNonPristineStarter();
     return true;
   } catch (err) {
-    console.error('Send doc save failed:', err);
-    void alertDialog(`Send doc save failed: ${err instanceof Error ? err.message : err}`);
+    console.error(`${spec.label} save failed:`, err);
+    void alertDialog(`${spec.label} save failed: ${err instanceof Error ? err.message : err}`);
     return false;
   }
+}
+
+/**
+ * Save a Send Doc silently — the keyboard-bindable automation of the
+ * Save-As dialog's "Send Doc" preset. A send doc drops comments,
+ * analytics, and undertags (full, non-read-mode export). Settings:
+ * `sendDocDestination` / `sendDocFolder` / `sendDocFormat` / `SEND_` prefix.
+ */
+export async function runSaveSendDocFlow(): Promise<boolean> {
+  return runSilentExportFlow({
+    label: 'Send doc',
+    formatKey: 'sendDocFormat',
+    prefixKey: 'sendDocPrefix',
+    destinationKey: 'sendDocDestination',
+    folderKey: 'sendDocFolder',
+    // Send Doc filtering — drop comments / analytics / undertags.
+    exportOptions: {
+      includeComments: false,
+      includeAnalytics: false,
+      includeUndertags: false,
+      readMode: false,
+    },
+  });
+}
+
+/**
+ * Save a Read Doc silently — the automation of the Save-As dialog's "Read
+ * Doc" preset (the read-mode view: what is read aloud, with comments,
+ * analytics, and undertags stripped). Added for symmetry with Save Send
+ * Doc; unbound by default. Settings: `readDocDestination` /
+ * `readDocFolder` / `readDocFormat` / `READ_` prefix.
+ */
+export async function runSaveReadDocFlow(): Promise<boolean> {
+  return runSilentExportFlow({
+    label: 'Read doc',
+    formatKey: 'readDocFormat',
+    prefixKey: 'readDocPrefix',
+    destinationKey: 'readDocDestination',
+    folderKey: 'readDocFolder',
+    exportOptions: {
+      includeComments: false,
+      includeAnalytics: false,
+      includeUndertags: false,
+      readMode: true,
+    },
+  });
 }
 
 /**
@@ -7950,7 +8005,8 @@ export async function runSaveSendDocFlow(): Promise<boolean> {
  * dialog's "Marked Cards" preset. Extracts only the cards containing a reading
  * marker (flat — no headings, no analytics). Destination comes from settings:
  * `markedCardsDestination` chooses the source file's folder (`sameFolder`) or a
- * fixed folder (`markedCardsFolder`); the format follows `defaultSaveFormat`;
+ * fixed folder (`markedCardsFolder`); the format follows `markedDocFormat`
+ * (`default` = `defaultSaveFormat`);
  * the `MARKED_` prefix honors `prefixPresetSaveFilenames`. Same dialog fallbacks
  * and derived-export semantics (working doc untouched) as Save Send Doc. No-ops
  * with a toast when nothing is marked. Returns `true` when bytes hit disk.
@@ -7962,7 +8018,7 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
     return false;
   }
   const file = activeFile();
-  const format: 'cmir' | 'docx' = settings.get('defaultSaveFormat');
+  const format: 'cmir' | 'docx' = effectiveDocTypeFormat('markedDocFormat');
   const base = basenameWithoutExt(file.filename ?? 'untitled');
   const filename =
     (settings.get('prefixPresetSaveFilenames') ? settings.get('markedDocPrefix') : '') +

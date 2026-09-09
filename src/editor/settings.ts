@@ -382,6 +382,10 @@ export const NUMBERING_SEPARATORS: readonly NumberingSeparator[] = [
 ];
 
 /** Schema for all editor settings. Add new fields here with sensible defaults. */
+/** Per-type format for the silent Send Doc / Marked Cards saves:
+ *  `default` follows `defaultSaveFormat`; `cmir` / `docx` pin it. */
+export type DocTypeFormat = 'default' | 'cmir' | 'docx';
+
 export interface Settings {
   /** Width of the navigation pane in pixels. */
   navWidth: number;
@@ -474,6 +478,11 @@ export interface Settings {
    *  is `fixedFolder`. Empty falls the command back to the OS save
    *  dialog. */
   sendDocFolder: string;
+  /** Where Save Read Doc writes — same model as `sendDocDestination`. */
+  readDocDestination: 'sameFolder' | 'fixedFolder';
+  /** Destination folder for Save Read Doc when `readDocDestination` is
+   *  `fixedFolder`. Empty falls the command back to the OS save dialog. */
+  readDocFolder: string;
   /** Where Save Marked Cards writes — same model as `sendDocDestination`:
    *  `sameFolder` (default) drops it beside the source file, `fixedFolder`
    *  always writes into `markedCardsFolder`. Unresolvable → Save-As dialog. */
@@ -481,6 +490,14 @@ export interface Settings {
   /** Destination folder for Save Marked Cards when `markedCardsDestination`
    *  is `fixedFolder`. Empty falls the command back to the OS save dialog. */
   markedCardsFolder: string;
+  /** Format the Save Send Doc command (and its shortcut) writes. `default`
+   *  follows `defaultSaveFormat`; `cmir` / `docx` pin it. The Save As
+   *  dialog's presets are untouched — the dialog has its own format choice. */
+  sendDocFormat: DocTypeFormat;
+  /** Same for Save Read Doc. */
+  readDocFormat: DocTypeFormat;
+  /** Same for Save Marked Cards. */
+  markedDocFormat: DocTypeFormat;
   /** When on, the highlight marks in the doc render in the colors
    *  defined by `overrideHighlightSlots` rather than their stored
    *  colors. Display-only — does NOT mutate the doc, so saving
@@ -1645,6 +1662,11 @@ const DEFAULTS: Settings = {
   sendDocFolder: '',
   markedCardsDestination: 'sameFolder',
   markedCardsFolder: '',
+  readDocDestination: 'sameFolder',
+  readDocFolder: '',
+  sendDocFormat: 'default',
+  readDocFormat: 'default',
+  markedDocFormat: 'default',
   theme: 'system',
   themeAppliesToDocument: false,
   iconSet: 'modern',
@@ -2005,10 +2027,12 @@ export interface SettingMeta {
     | 'speechDocFormat'
     | 'speechFilenameTemplate'
     | 'saveFormat'
+    | 'docTypeFormat'
     | 'formattingGapClass'
     | 'pasteCursor'
     | 'versionHistory'
     | 'sendDocDestination'
+    | 'readDocDestination'
     | 'markedCardsDestination'
     | 'findCategoryOrder'
     | 'color'
@@ -2412,7 +2436,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'sendDocDestination',
     label: 'Send Doc destination',
     description:
-      'Where the Save Send Doc command (and its shortcut) writes — a send doc is the document with comments, analytics, and undertags stripped, the same content the Save As dialog\'s Send Doc preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. The send doc is written in your default new-document format, and prefixed SEND_ when that option is on.',
+      'Where the Save Send Doc command (and its shortcut) writes — a send doc is the document with comments, analytics, and undertags stripped, the same content the Save As dialog\'s Send Doc preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. The send doc is written in the Send Doc format below, and prefixed SEND_ when that option is on.',
     kind: 'sendDocDestination',
     category: 'files',
     section: 'Send / Read / Marked docs',
@@ -2429,10 +2453,48 @@ export const SETTING_METADATA: SettingMeta[] = [
     electronOnly: true,
   },
   {
+    key: 'sendDocFormat',
+    label: 'Send Doc format',
+    description:
+      'The file format the Save Send Doc command (and its shortcut) writes. "Same as new documents" follows the default file format for new documents above; pick .docx or .cmir to pin it. The Save As dialog is not affected — it has its own format choice.',
+    kind: 'docTypeFormat',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+  },
+  {
+    key: 'readDocDestination',
+    label: 'Read Doc destination',
+    description:
+      'Where the Save Read Doc command writes — a read doc is the read-mode view of the document (what you would read aloud, with comments, analytics, and undertags stripped), the same content the Save As dialog\'s Read Doc preset produces. The command has no shortcut by default; run it from the command bar or give it a key. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. A doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the Save As dialog. Written in the Read Doc format below, and prefixed READ_ when that option is on.',
+    kind: 'readDocDestination',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    electronOnly: true,
+  },
+  {
+    key: 'readDocFolder',
+    label: 'Read Doc folder',
+    description:
+      'Destination folder for Save Read Doc when the destination above is set to "Fixed folder". Leave empty to fall back to the Save As dialog.',
+    kind: 'folder',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    electronOnly: true,
+  },
+  {
+    key: 'readDocFormat',
+    label: 'Read Doc format',
+    description:
+      'The file format the Save Read Doc command writes. "Same as new documents" follows the default file format for new documents above; pick .docx or .cmir to pin it. The Save As dialog is not affected.',
+    kind: 'docTypeFormat',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+  },
+  {
     key: 'markedCardsDestination',
     label: 'Marked Cards destination',
     description:
-      'Where the Save Marked Cards command (and its shortcut) writes — a marked-cards doc is just the cards that contain a reading marker, flattened (no headings, no analytics), the same content the Save As dialog\'s Marked Cards preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. Written in your default new-document format, and prefixed MARKED_ when that option is on.',
+      'Where the Save Marked Cards command (and its shortcut) writes — a marked-cards doc is just the cards that contain a reading marker, flattened (no headings, no analytics), the same content the Save As dialog\'s Marked Cards preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. Written in the Marked Cards format below, and prefixed MARKED_ when that option is on.',
     kind: 'markedCardsDestination',
     category: 'files',
     section: 'Send / Read / Marked docs',
@@ -2447,6 +2509,15 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'files',
     section: 'Send / Read / Marked docs',
     electronOnly: true,
+  },
+  {
+    key: 'markedDocFormat',
+    label: 'Marked Cards format',
+    description:
+      'The file format the Save Marked Cards command (and its shortcut) writes. "Same as new documents" follows the default file format for new documents above; pick .docx or .cmir to pin it. The Save As dialog is not affected.',
+    kind: 'docTypeFormat',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
   },
   {
     key: 'fileSearchRoots',
@@ -4198,6 +4269,10 @@ function sanitizeCustomAutocorrects(raw: unknown): Array<{ from: string; to: str
   return out;
 }
 
+function sanitizeDocTypeFormat(v: unknown): DocTypeFormat {
+  return v === 'cmir' || v === 'docx' ? v : 'default';
+}
+
 function sanitize(s: Settings): Settings {
   return {
     navWidth: clamp(s.navWidth, 150, 800),
@@ -4240,6 +4315,12 @@ function sanitize(s: Settings): Settings {
       s.markedCardsDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
     markedCardsFolder:
       typeof s.markedCardsFolder === 'string' ? s.markedCardsFolder : '',
+    readDocDestination:
+      s.readDocDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
+    readDocFolder: typeof s.readDocFolder === 'string' ? s.readDocFolder : '',
+    sendDocFormat: sanitizeDocTypeFormat(s.sendDocFormat),
+    readDocFormat: sanitizeDocTypeFormat(s.readDocFormat),
+    markedDocFormat: sanitizeDocTypeFormat(s.markedDocFormat),
     theme:
       s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system',
     themeAppliesToDocument: !!s.themeAppliesToDocument,
@@ -5494,4 +5575,11 @@ export function migrateAutoUpdateOptOut(onMigrated: () => void): void {
     settings.set('checkForUpdatesOnLaunch', true);
     onMigrated();
   }
+}
+
+/** The format a silent per-type save writes: the type's own setting, or the
+ *  default new-document format when it says `default`. */
+export function effectiveDocTypeFormat(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'): 'cmir' | 'docx' {
+  const v = settings.get(key);
+  return v === 'default' ? settings.get('defaultSaveFormat') : v;
 }

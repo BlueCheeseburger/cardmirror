@@ -1240,11 +1240,13 @@ or in one keystroke with **Save Send Doc (Mod-Alt-S)**.
 ### Saving marked cards
 
 To send a copy of just the cards you marked in your speech, use **Save Marked Cards** 
-— it pulls just those cards out and saves them on their own, in your default format. 
+— it pulls just those cards out and saves them on their own, in the format you set 
+for marked cards (Settings → Files → *Marked Cards format*; the default follows your 
+new-document format). 
 Two ways in: a **Marked Doc** button in the Save As dialog, and a **Save Marked Cards** 
 command (default **Mod-Alt-M**, rebindable) that saves silently to a destination you 
 choose under Settings → *Marked Cards destination* (the source file's folder, or a 
-fixed folder), using the `MARKED_` filename prefix and your default format — mirroring 
+fixed folder), using the `MARKED_` filename prefix and the Marked Cards format — mirroring 
 Save Send Doc. It keeps cards only (analytics and headings are dropped); if nothing is marked,
 it does nothing and tells you so.
 
@@ -2075,14 +2077,20 @@ copy:
 
 **Save Send Doc (Mod-Alt-S)** does the Send Doc export in one keystroke,
 no dialog. Two Settings → Files options control where it goes (the
-source file's folder, or a fixed folder you pick).
+source file's folder, or a fixed folder you pick), and a third, **Send Doc
+format**, which format it writes (your new-document default, or `.docx` /
+`.cmir` pinned) — the Save As dialog keeps its own format choice.
+**Save Read Doc** is the same command for the Read Doc preset (the
+read-mode view of the document). It has no shortcut by default — run it
+from the command bar or bind a key — and has its own destination, folder,
+and format settings beside the Send Doc ones.
 
 The filename prefixes for the preset saves — **Send Doc**, **Read Doc**, and
 **Marked Doc** (defaults `SEND_`, `READ_`, `MARKED_`) — are configurable under
 Settings → Files; change any of them, or leave one empty for no prefix. They
-apply to both the Save As preset buttons and the one-keystroke Save Send Doc /
-[Save Marked Cards](#saving-marked-cards) commands, gated on the existing
-"Prefix preset saves" toggle.
+apply to both the Save As preset buttons and the silent Save Send Doc /
+Save Read Doc / [Save Marked Cards](#saving-marked-cards) commands, gated on
+the existing "Prefix preset saves" toggle.
 
 ### Crash recovery
 
@@ -2337,8 +2345,8 @@ file search scans, and how much version history to keep.
 **Send / Read / Marked docs**
 
 - **Prefix preset saves** — when on, the Save As Send Doc / Read Doc /
-  Marked Doc presets and the silent Save Send Doc / Save Marked Cards commands
-  prepend a filename prefix.
+  Marked Doc presets and the silent Save Send Doc / Save Read Doc / Save
+  Marked Cards commands prepend a filename prefix.
 - **Send Doc / Read Doc / Marked Doc filename prefix** — the prefix each
   preset uses (defaults `SEND_` / `READ_` / `MARKED_`); change any, or leave one
   empty for no prefix.
@@ -2347,11 +2355,20 @@ file search scans, and how much version history to keep.
   (see [Saving a send doc](#saving-a-send-doc)).
 - **Send Doc folder** *(desktop)* — the fixed folder used when the
   destination above is "Fixed folder."
+- **Send Doc format** — the format Save Send Doc writes: the same as new
+  documents (default), or `.docx` / `.cmir` pinned. The Save As dialog is
+  unaffected.
+- **Read Doc destination / folder / format** *(destination and folder:
+  desktop)* — the same three options for the Save Read Doc command (unbound
+  by default; run it from the command bar or give it a key).
 - **Marked Cards destination** *(desktop)* — whether Save Marked Cards writes
   beside the source file or into a fixed folder (see
   [Saving marked cards](#saving-marked-cards)).
 - **Marked Cards folder** *(desktop)* — the fixed folder used when the Marked
   Cards destination is "Fixed folder."
+- **Marked Cards format** — the format Save Marked Cards writes: the same
+  as new documents (default), or `.docx` / `.cmir` pinned. The Save As
+  dialog is unaffected.
 
 **File search**
 
