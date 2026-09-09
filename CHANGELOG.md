@@ -18,6 +18,16 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **Live views always travel as cards.** Copying or cutting a section
+  from the outline, Copy Current Heading, copying a Cmd-click
+  selection, and cutting in a shared document put a live view on the
+  clipboard as the view itself, so pasting into the speech document
+  showed "Source section not found in this document" instead of the
+  cards. The same happened to a live view inserted from another file
+  through the quick-card palette, and to one dragged onto the Send
+  pill. All of them now turn the view into its cards first, the way
+  a plain copy and Send to Speech always did. Pasting back into the
+  same document still keeps the live view.
 - **The cloud pill follows the pane you click into, even in read mode.**
   In the three-pane workspace, clicking into a pane that was in read
   mode, or clicking anywhere while the timer was popped out, left the

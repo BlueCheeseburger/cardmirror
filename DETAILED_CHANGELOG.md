@@ -34,6 +34,34 @@ behind `repeatWithModY` (Settings → General → Editor behavior), off by
 default so Mod-Y behaves exactly as before. F4, Word's other Repeat
 key, converts blocks here and stays that way.
 
+### Fixed: live views escaped the clipboard as dangling references
+
+A live view (`self_ref`) holds no cards of its own: its children are
+derived from the source section on every render, and its DOM parses
+back as a live view. A plain copy runs the editor's `transformCopied`
+hook, which materializes each view against the source document and
+remembers the link-bearing original for a paste back into the same
+document. Several copy commands built their clipboard HTML themselves
+with the bare schema serializer and skipped that hook: the outline's
+Copy and Cut heading-and-contents, Copy Current Heading, the Cmd-click
+discontinuous copy, and cut-in-place's payload in a shared document
+(which probed the view for ProseMirror's clipboard serializer, a
+module function that is never a method, so it always fell through to
+the bare serializer). Pasting any of them into the speech document
+landed a view pointing at a heading that lives in the backfile, hence
+"Source section not found in this document" (field reports). Two
+capture-side paths leaked the same way: the quick-card palette's
+file-object insert sliced the browsed file and handed the slice to the
+insert path, which unwraps linked copies but cannot materialize a view
+without the source doc; and the Send pill's drag capture bundled the
+raw slice, so the receiver got a reference into a document it does not
+have. One helper (`clipboard-slice.ts`) now produces what the editor's
+own copy produces, views materialized and the same-document link
+remembered, and all four copy commands use it; the palette materializes
+against the file it browsed and the Send pill against the source view
+before bundling (a received card dragged onward is already
+materialized by its sender). A drift test pins each call site.
+
 ### Fixed: bulk operations were silent no-ops in a document with a live view
 
 A live view's children are derived from its source section and re-derived

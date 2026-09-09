@@ -293,10 +293,13 @@ export class DropzoneController {
     if (!session) return;
     const srcView = session.view;
     for (const item of items) {
-      const raw = item.prebuilt ?? srcView.state.doc.slice(item.from, item.to);
       // Materialize any Live View before it's frozen onto the shelf — the source
-      // doc is gone by drop time, so the reference can't survive.
-      const slice = flattenSelfRefsInSlice(raw, srcView.state.doc, newHeadingId);
+      // doc is gone by drop time, so the reference can't survive. A prebuilt
+      // slice (a received card, a shelf item dragged onward) was materialized
+      // by whoever built it; flattening it against THIS doc would drop its
+      // cards, since its source is not here.
+      const slice =
+        item.prebuilt ?? flattenSelfRefsInSlice(srcView.state.doc.slice(item.from, item.to), srcView.state.doc, newHeadingId);
       const sliceJson = slice.toJSON();
       const type = item.type || inferTypeFromSlice(slice);
       const label = deriveDropzoneLabel(slice, type);

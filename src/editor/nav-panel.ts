@@ -11,7 +11,8 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
-import { type Node as PMNode, DOMSerializer } from 'prosemirror-model';
+import { serializeRangesForClipboard } from './clipboard-slice.js';
+import { type Node as PMNode } from 'prosemirror-model';
 import { NodeSelection, TextSelection } from 'prosemirror-state';
 import { type Mappable } from 'prosemirror-transform';
 import { settings, SETTINGS_DEFAULTS } from './settings.js';
@@ -2378,15 +2379,10 @@ export class NavigationPanel {
     html: string;
     text: string;
   } {
-    const serializer = DOMSerializer.fromSchema(this.view!.state.schema);
-    const tmp = document.createElement('div');
-    const texts: string[] = [];
-    for (const range of ranges) {
-      const slice = this.view!.state.doc.slice(range.from, range.to);
-      tmp.appendChild(serializer.serializeFragment(slice.content));
-      texts.push(slice.content.textBetween(0, slice.content.size, '\n', '\n'));
-    }
-    return { html: tmp.innerHTML, text: texts.join('\n') };
+    // The shared clipboard path: live views materialize (a bare serializer
+    // pasted them as dangling views into the speech doc — field reports
+    // 2026-09-09), same-doc pastes keep their links.
+    return serializeRangesForClipboard(this.view!, ranges);
   }
 
   /**

@@ -8,12 +8,13 @@
  */
 
 import { EditorState, Plugin, Selection, TextSelection, type Command } from 'prosemirror-state';
+import { serializeRangesForClipboard } from './clipboard-slice.js';
 import { EditorView } from 'prosemirror-view';
 import { keymap } from 'prosemirror-keymap';
 import { history, redo, undo, redoDepth } from 'prosemirror-history';
 import { repeatLastActionPlugin, repeatLastAction, noteCommandRun } from './repeat-last-action.js';
 import { baseKeymap } from 'prosemirror-commands';
-import { Node as PMNode, type Mark, DOMSerializer } from 'prosemirror-model';
+import { Node as PMNode, type Mark } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
 import { fromDocxFull, toDocx, serializeNative, serializeNativeAsync, parseNative, parseNativeSalvage, NativeDamagedError, readDocIdFromBytes, stampDocId, setSaveHealListener } from '../index.js';
 import { transformForExport, countMarkedCards } from '../export/transform-for-export.js';
@@ -720,12 +721,9 @@ function deleteCurrentHeadingIn(sourceView: EditorView): void {
 async function copyCurrentHeadingIn(sourceView: EditorView): Promise<void> {
   const range = resolveCursorStructureRange(sourceView);
   if (!range) return;
-  const slice = sourceView.state.doc.slice(range.from, range.to);
-  const serializer = DOMSerializer.fromSchema(sourceView.state.schema);
-  const tmp = document.createElement('div');
-  tmp.appendChild(serializer.serializeFragment(slice.content));
-  const html = tmp.innerHTML;
-  const text = slice.content.textBetween(0, slice.content.size, '\n', '\n');
+  // The shared clipboard path (live views materialize; same-doc pastes keep
+  // their links) — the bare serializer here pasted dangling live views.
+  const { html, text } = serializeRangesForClipboard(sourceView, [range]);
   // Shared host-first / retrying path — and every outcome surfaces
   // (see clipboard-write.ts for the silent-failure history).
   if (await writeClipboardHtml(html, text)) showToast('Copied!');

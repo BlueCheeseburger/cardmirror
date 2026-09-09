@@ -46,8 +46,9 @@
  */
 
 import { Plugin, PluginKey, Selection, type EditorState, type Transaction } from 'prosemirror-state';
+import { serializeRangesForClipboard } from './clipboard-slice.js';
 import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
-import { DOMSerializer, Fragment, type Node as PMNode } from 'prosemirror-model';
+import { Fragment, type Node as PMNode } from 'prosemirror-model';
 import { buildMoveTransaction, type DragItem } from './drag-controller.js';
 import { unitRangeAtPos } from './structural-move.js';
 import { nearestValidInsertPos } from './insert-position.js';
@@ -177,25 +178,18 @@ export function cutInPlaceApplies(view: EditorView): RangePair[] | null {
 }
 
 function clipboardPayload(view: EditorView, ranges: RangePair[], marker: string): { html: string; text: string } {
+  // The shared clipboard path (what the editor's own copy produces: live
+  // views materialized, same-doc link kept). This used to probe the view for
+  // ProseMirror's clipboard serializer, which is a module function and never
+  // a method, so it always fell back to the bare schema serializer — and a
+  // cut section holding a live view pasted a dangling view into the speech
+  // doc (field reports 2026-09-09). The marker wrapper is what a same-doc
+  // paste recognizes as a MOVE.
+  const { html, text } = serializeRangesForClipboard(view, ranges);
   const wrap = document.createElement('div');
   wrap.setAttribute(CUT_MARKER_ATTR, marker);
-  const texts: string[] = [];
-  const serializer = DOMSerializer.fromSchema(view.state.schema);
-  for (const r of ranges) {
-    const slice = view.state.doc.slice(r.from, r.to);
-    // The editor's own clipboard serialization (transformCopied et al.)
-    // when the view offers it; the schema serializer otherwise.
-    const own = (view as EditorView & { serializeForClipboard?: (s: typeof slice) => { dom: HTMLElement; text: string } }).serializeForClipboard;
-    if (own) {
-      const { dom, text } = own.call(view, slice);
-      wrap.appendChild(dom);
-      texts.push(text);
-    } else {
-      wrap.appendChild(serializer.serializeFragment(slice.content));
-      texts.push(slice.content.textBetween(0, slice.content.size, '\n', '\n'));
-    }
-  }
-  return { html: wrap.outerHTML, text: texts.join('\n') };
+  wrap.innerHTML = html;
+  return { html: wrap.outerHTML, text };
 }
 
 /** Mark `ranges` as cut in place and put them on the clipboard. Resolves

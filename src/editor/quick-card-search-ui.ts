@@ -30,10 +30,11 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
+import { flattenSelfRefsInSlice } from './self-transclusion.js';
 import { Slice, type Node as PMNode } from 'prosemirror-model';
 import { undo, redo } from 'prosemirror-history';
 import { icon } from './icons';
-import { schema } from '../schema/index.js';
+import { schema, newHeadingId } from '../schema/index.js';
 import {
   settings,
   SETTING_METADATA,
@@ -2030,7 +2031,14 @@ class QuickCardSearchUI {
     try {
       if (result.source === 'fileobject' && result.fileRange && this.inFile) {
         // Slice lazily from the kept parsed doc (no per-object slice held).
-        slice = this.inFile.doc.slice(result.fileRange.from, result.fileRange.to);
+        // A live view inside the section is a reference into THAT file:
+        // materialize it here, while the file's doc is in hand (the insert
+        // path can only unwrap linked copies).
+        slice = flattenSelfRefsInSlice(
+          this.inFile.doc.slice(result.fileRange.from, result.fileRange.to),
+          this.inFile.doc,
+          newHeadingId,
+        );
       } else {
         slice = checkedSliceFromJSON(result.sliceJson);
       }
