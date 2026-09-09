@@ -5,7 +5,7 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 1.8.0-bcb.3 — 2026-09-09
 
 ### Added: "Locate…" for a moved/deleted Recent file (`index.ts`)
 
@@ -322,6 +322,70 @@ two different handles stay independent; click resolves through
 unsubscribes; `isSuppressed` freezes and `refresh()` catches it up.
 All 8 pre-existing `disk-conflict.test.ts` tests pass unchanged,
 confirming the single-doc tray truly didn't change.
+
+### Added: update chip shows download progress (`update-chip.ts`, `electron-host.ts`, `preload.ts`, `apps/desktop/src/main.ts`, `style.css`)
+
+Feature request: the status-bar update chip (`update-chip.ts`) went
+straight from hidden to `'ready'`/`'available'` with nothing in
+between — a multi-minute download on a slow connection looked
+identical to "nothing is happening," with no way to tell it was
+actually working.
+
+Added a third chip state, `'downloading'`, carrying a `pct: number`
+alongside the existing `version: string`:
+
+```ts
+export type UpdateChipState =
+  | { state: 'downloading'; version: string; pct: number }
+  | { state: 'available'; version: string }
+  | { state: 'ready'; version: string };
+```
+
+- **`apps/desktop/src/main.ts`**: `autoUpdater.on('update-available',
+  ...)` now sets the chip to `{ state: 'downloading', pct: 0 }`
+  immediately (both the Windows/Linux `autoDownload` path and mac's
+  explicit `downloadUpdate()` call) instead of waiting for the first
+  progress tick, which can lag a moment on a slow start. A new
+  `autoUpdater.on('download-progress', ...)` handler updates `pct` on
+  every tick, guarded to only advance a chip already in the
+  `'downloading'` state — so a stray late tick can't stomp on a chip
+  that already moved to `'ready'` or fell back to `'available'` (the
+  mac staging-failure path). The `host:update-chip-action` click
+  handler now no-ops while `'downloading'` (there's nothing to act on
+  yet — restart-install and open-release-page both apply only once the
+  chip has moved past it).
+- **`update-chip.ts`**: `renderUpdateChip` handles the new state by
+  setting a `data-state="downloading"` attribute and a
+  `--pmd-update-pct` CSS custom property (clamped to `[0, 100]`,
+  rounded) on the button, plus text like `"Downloading update 1.8.0 —
+  47%"`. The `'ready'`/`'available'` branches are untouched — same
+  `el.textContent = ...` as before, so the existing exact-string tests
+  didn't need updating.
+- **`style.css`**: `#update-chip[data-state='downloading']` paints a
+  `linear-gradient` with a hard edge at `--pmd-update-pct` — a
+  translucent (`color-mix(in srgb, var(--pmd-c-accent) 30%,
+  transparent)`) fill on the left of the edge, `transparent` past it —
+  so the pill visibly fills left-to-right as the percent climbs. Kept
+  translucent rather than the hover state's solid accent specifically
+  so the text stays legible on both sides of the edge without needing
+  per-zone text color. No transition on the gradient stop (ticks can
+  arrive many times a second on a fast connection; an animated chase
+  would look worse, not smoother). `:hover` is overridden back to the
+  resting accent color while downloading — the pill isn't actionable
+  yet, so it shouldn't invite a click the way the solid white-on-accent
+  hover normally does.
+- **`electron-host.ts`** / **`preload.ts`**: both `getUpdateChipState`/
+  `onUpdateChip` signatures widened to the new three-state union —
+  `electron-host.ts` imports `UpdateChipState` from `update-chip.ts`
+  directly; `preload.ts` (a separate package with no import path into
+  `src/editor/`) keeps its own mirrored `UpdateChipStateIpc`, same
+  convention as its other Ipc-suffixed wire types.
+
+New test in `tests/editor/update-chip.test.ts`: renders `pct: 0` and
+`pct: 47.6` (rounds to 48%), confirms a `pct: 137` overshoot clamps to
+100% instead of overflowing the bar, and confirms advancing to
+`'ready'` clears both `data-state` and the custom property. All 4
+pre-existing tests pass unchanged.
 
 ## 1.8.0-bcb.2 — 2026-09-08
 

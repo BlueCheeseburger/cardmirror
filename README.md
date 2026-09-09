@@ -8,6 +8,10 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **The update chip shows download progress** (desktop only) — the
+>   status-bar pill fills in as the update downloads and its text names
+>   the percent, instead of only appearing once the download is done.
+>   (main)
 > - **Each pane in a multi-pane workspace now shows its own cloud-sync
 >   pill**, in that pane's footer, instead of one shared pill that left
 >   it ambiguous which pane's document it applied to — compact,

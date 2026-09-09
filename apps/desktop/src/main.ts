@@ -3354,7 +3354,11 @@ ipcMain.handle('host:timer-popout-exists', () =>
 // surface, and nothing installs until the user clicks it (install-on-quit
 // stays as the fallback for users who never do). macOS (until the swap
 // updater lands) shows an "available" chip that opens the release page.
-type UpdateChipState = { state: 'available' | 'ready'; version: string } | null;
+type UpdateChipState =
+  | { state: 'downloading'; version: string; pct: number }
+  | { state: 'available'; version: string }
+  | { state: 'ready'; version: string }
+  | null;
 let updateChip: UpdateChipState = null;
 /** The verified update zip electron-updater staged (mac swap path). */
 let macStagedUpdateZip: string | null = null;
@@ -3370,9 +3374,10 @@ function setUpdateChip(next: Exclude<UpdateChipState, null>): void {
 ipcMain.handle('host:update-chip-state', () => updateChip);
 
 /** Chip click: 'ready' (staged) → quit + install now; 'available'
- *  (macOS, not stageable yet) → open the release page. */
+ *  (macOS, not stageable yet) → open the release page; 'downloading'
+ *  → nothing to do yet, no-op until it advances to one of those. */
 ipcMain.handle('host:update-chip-action', () => {
-  if (!updateChip) return;
+  if (!updateChip || updateChip.state === 'downloading') return;
   if (updateChip.state === 'ready') {
     if (process.platform === 'darwin') {
       // Bundle swap (Squirrel can't install into unsigned builds): hand
@@ -3420,8 +3425,15 @@ function startAutoUpdate(): void {
   });
   autoUpdater.on('update-available', (info) => {
     console.log(`Auto-update: ${info.version} available, downloading…`);
-    if (!isMac) return; // autoDownload handles Windows/Linux staging
+    if (!isMac) {
+      // autoDownload handles Windows/Linux staging; show the chip
+      // immediately at 0% rather than waiting for the first
+      // download-progress tick, which can lag a moment behind.
+      setUpdateChip({ state: 'downloading', version: info.version, pct: 0 });
+      return;
+    }
     if (macBundleSelfUpdatable(app.getPath('exe'))) {
+      setUpdateChip({ state: 'downloading', version: info.version, pct: 0 });
       autoUpdater.downloadUpdate().catch((err: unknown) => {
         // Staging failed (offline blip, or a pre-universal release with
         // no zip artifact) — fall back to an 'available' chip that opens
@@ -3432,6 +3444,17 @@ function startAutoUpdate(): void {
     } else {
       setUpdateChip({ state: 'available', version: info.version });
     }
+  });
+  autoUpdater.on('download-progress', (progress) => {
+    // Only advance an already-'downloading' chip — guards against a
+    // stray late progress tick landing after 'update-downloaded' (or
+    // the mac staging-failed fallback) already moved the chip on.
+    if (!updateChip || updateChip.state !== 'downloading') return;
+    setUpdateChip({
+      state: 'downloading',
+      version: updateChip.version,
+      pct: Math.round(progress.percent),
+    });
   });
   autoUpdater.on('update-downloaded', (info) => {
     if (isMac) {
