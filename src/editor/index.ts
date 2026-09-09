@@ -7392,6 +7392,13 @@ function activeFile(): { filename: string | null; handle: unknown | null; format
   if (multiDocActive && multiDocGetFocusedFile) {
     const f = multiDocGetFocusedFile();
     if (f) return { filename: f.filename, handle: f.handle, format: f.format };
+    // No focused document (focused slot empty, or none focused after a
+    // close): say so. The single-doc variables below are never cleared
+    // in three-pane mode and still name whatever last went through a
+    // single-pane path — the pre-mode-switch doc — so falling back to
+    // them made the cloud pill (and Save) act on a document nobody was
+    // looking at.
+    return { filename: null, handle: null, format: null };
   }
   return { filename: currentDocFilename, handle: currentDocHandle, format: currentDocFormat };
 }

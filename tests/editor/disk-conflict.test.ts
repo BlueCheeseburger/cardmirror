@@ -147,6 +147,24 @@ describe('badge', () => {
     expect(el.getAttribute('data-state')).toBe('changed');
   });
 
+  it('a change of active document renders even while suppressed (three-pane: clicking into a read-mode pane)', () => {
+    let suppressed = false;
+    const { el, setHandle } = badge({ suppressed: () => suppressed });
+    noteDocRegistered(A, 'fresh', 'dropbox');
+    noteDocRegistered('/local/x.cmir', 'fresh', null);
+    expect(el.getAttribute('data-state')).toBe('synced');
+    suppressed = true; // the pane we click into is in read mode / the timer is out
+    setHandle('/local/x.cmir');
+    refreshDiskBadge();
+    expect(el.hidden, 'the local document must not wear the Dropbox pill').toBe(true);
+    setHandle(A);
+    refreshDiskBadge();
+    expect(el.getAttribute('data-state'), 'and back').toBe('synced');
+    // Same document, still suppressed: a state change is held back.
+    noteDiskChanged(A);
+    expect(el.getAttribute('data-state')).toBe('synced');
+  });
+
   it('relativeTime buckets', () => {
     const now = 1_000_000_000;
     expect(relativeTime(now - 10_000, now)).toBe('just now');

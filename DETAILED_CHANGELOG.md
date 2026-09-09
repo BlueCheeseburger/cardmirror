@@ -5,6 +5,27 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed: the cloud pill froze across document switches
+
+The pill is deliberately frozen while the focused pane is in read mode
+or the timer is popped out, so a change of disk state cannot draw the
+eye mid-speech. The freeze covered every re-render, including the one
+for a change of active document, so in the three-pane workspace
+clicking into a read-mode pane, or into any pane with the timer out,
+kept the previous pane's pill: a local document showed "Dropbox"
+(field report 2026-09-09, reproduced live). The pill now records which
+document it last rendered for and re-renders whenever that changes,
+regardless of suppression; only same-document state transitions are
+held back. A second, quieter gap closed with it: the active-file lookup
+in three-pane mode fell back to the single-pane variables when the
+focused slot reported no visible document (an empty focused pane, or
+no focused slot after a close). Those variables are never cleared in
+three-pane mode and still named the pre-switch document, so the pill,
+and Save, could act on a document nobody was looking at. The lookup
+now reports no active document in that case.
+
 ## 1.8.0 — 2026-09-06
 
 ### Added + Fixed: disk-conflict guard rework and the cloud badge

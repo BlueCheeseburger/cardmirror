@@ -5,6 +5,22 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed
+
+- **The cloud pill follows the pane you click into, even in read mode.**
+  In the three-pane workspace, clicking into a pane that was in read
+  mode, or clicking anywhere while the timer was popped out, left the
+  pill showing the previous pane's state, so a local document could
+  wear a "Dropbox" pill. The pill now re-renders on every change of
+  document; only state changes of the same document are held back
+  while reading or with the timer out.
+- **No stale document in the three-pane workspace.** When no pane was
+  focused, or the focused pane was empty, the workspace could still act
+  on the document that had been open before switching layouts. It now
+  reports no active document instead.
+
 ## 1.8.0 — 2026-09-06
 
 ### Added

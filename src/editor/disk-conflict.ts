@@ -169,6 +169,8 @@ export interface DiskBadgeDeps {
 }
 
 let trayEl: HTMLElement | null = null;
+/** The document the pill last rendered for (null = hidden / none). */
+let lastRenderedHandle: string | null = null;
 let badgeEl: HTMLElement | null = null;
 let labelEl: HTMLElement | null = null;
 let barEl: HTMLElement | null = null;
@@ -223,6 +225,7 @@ export function installDiskBadge(deps: DiskBadgeDeps, opts?: { parent?: HTMLElem
 function render(): void {
   if (!badgeEl || !barEl || !labelEl || !badgeDeps) return;
   const { handle, name } = badgeDeps.getActive();
+  lastRenderedHandle = handle;
   const info = handle ? byHandle.get(handle) : null;
   if (!info || info.state === 'local') {
     badgeEl.hidden = true;
@@ -256,12 +259,17 @@ function render(): void {
   else stopClock();
 }
 
-/** Re-render for the active document — unless suppressed (read mode /
- *  timer pop-out), in which case the pill keeps its last rendering
- *  and catches up on the next refresh after the suppression clears. */
+/** Re-render for the active document. While suppressed (read mode /
+ *  timer pop-out) a STATE change of the same document is held back —
+ *  the pill keeps its last rendering and catches up when the
+ *  suppression clears, so a conflict never draws the eye mid-speech.
+ *  A change of ACTIVE DOCUMENT always renders: the freeze used to
+ *  cover that too, so clicking into a pane in read mode, or any
+ *  pane with the timer popped out, kept the previous document's pill
+ *  (field report 2026-09-09, three-pane). */
 export function refreshDiskBadge(): void {
   if (!badgeEl || !badgeDeps) return;
-  if (badgeDeps.isSuppressed()) return;
+  if (badgeDeps.isSuppressed() && badgeDeps.getActive().handle === lastRenderedHandle) return;
   render();
 }
 
@@ -345,6 +353,7 @@ export function __resetDiskConflictForTests(): void {
   stopClock();
   trayEl?.remove();
   trayEl = null;
+  lastRenderedHandle = null;
   badgeEl = null;
   barEl = null;
   labelEl = null;
