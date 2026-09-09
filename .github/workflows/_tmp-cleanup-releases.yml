@@ -1,0 +1,32 @@
+name: Temp Cleanup Old Releases
+
+# One-shot, manually-dispatched utility to delete superseded GitHub
+# Releases (not the underlying git tags) using the runner's own
+# GITHUB_TOKEN — mirrors the same "session credentials can't call the
+# Releases API directly" workaround release.yml's publish-release job
+# already uses. Deleted right after use; not part of the standing
+# release pipeline.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Space-separated release tags to delete (releases only, tags stay)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete superseded releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for tag in ${{ inputs.tags }}; do
+            echo "Deleting release $tag (tag ref kept)…"
+            gh release delete "$tag" --yes --repo "${{ github.repository }}"
+          done
