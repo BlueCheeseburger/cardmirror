@@ -1,5 +1,17 @@
 # Notes for Claude Code sessions working on this repo
 
+## End-of-response: flag anything outstanding the user hasn't answered
+
+The user asked (2026-09-09) that every response end with a divider
+(`---`) followed by an "Outstanding" list whenever something is
+outstanding — a question you asked that they haven't answered, a
+decision you flagged as needing their input, a choice you offered
+(e.g. "want me to do X or Y?") that they moved past without picking.
+Keep each item short: what you asked, and why it's still open. Omit
+the divider and section entirely when nothing is outstanding — don't
+manufacture one. This applies to every response from here on, not
+just this session; check before ending each one.
+
 ## When a release syncs in upstream changes, give it a separate "From upstream" section
 
 The user asked (2026-09-07) that any release whose CHANGELOG entry
