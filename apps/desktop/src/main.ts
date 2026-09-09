@@ -278,6 +278,13 @@ function pickFileFromArgv(argv: readonly string[]): string | null {
  *  windows are absent, so they keep the spawn-a-new-window path. */
 const multiPaneWindows = new Set<number>();
 
+/** User-chosen override for a window's title (Rename Window, ribbon
+ *  right-click) — takes precedence over the renderer's own doc-name-
+ *  derived title. Lives in main so it survives a renderer reload
+ *  (mode-switch, a settings change that reloads the page); cleared
+ *  when the window closes. */
+const windowNames = new Map<number, string>();
+
 /** Every live multi-pane window, candidates for receiving an
  *  externally-opened file. */
 function liveMultiPaneWindows(): BrowserWindow[] {
@@ -588,6 +595,7 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
     pendingInitialDocs.delete(win.id);
     skipCloseConfirm.delete(win.id);
     multiPaneWindows.delete(win.id);
+    windowNames.delete(win.id);
     // A lone floating timer must not outlive the last document
     // window (it would block `window-all-closed` from ever firing
     // on Windows / Linux).
@@ -2570,6 +2578,27 @@ ipcMain.handle('host:speech-set', async (event, uid: string | null) => {
 
 ipcMain.handle('host:speech-get', async () => {
   return speechRegistration ? { uid: speechRegistration.uid } : { uid: null };
+});
+
+/** Rename Window (ribbon right-click). `null`/empty clears the
+ *  override, reverting the title to the renderer's own doc-name-
+ *  derived one. Doesn't touch the native title directly — the
+ *  renderer re-reads this on every `updateWindowTitle()` call (open /
+ *  save / focus change) and sets `document.title` itself, same as the
+ *  doc-name case, so both paths funnel through one title-setting
+ *  mechanism. */
+ipcMain.handle('host:window-name-set', async (event, name: string | null) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return;
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  if (trimmed) windowNames.set(win.id, trimmed);
+  else windowNames.delete(win.id);
+});
+
+ipcMain.handle('host:window-name-get', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return { name: null };
+  return { name: windowNames.get(win.id) ?? null };
 });
 
 /** Route a send-to-speech slice to whatever window owns the speech
