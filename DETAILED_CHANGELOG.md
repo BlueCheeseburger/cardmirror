@@ -111,6 +111,28 @@ Doc twins, sit after the Send Doc rows. The desktop `saveSendDoc` IPC is
 generic (folder-or-sibling target with a source-collision refusal) and
 serves both.
 
+### Added: "Underlines follow font color" (Appearance, off by default)
+
+In the editor an underline is painted by the element that declares it —
+the underline / emphasis / underlined-cite span (ordered outside
+`font_color` in the schema) or the hat / block heading itself — in that
+element's color, so colored words get a body-colored line; Word paints
+its colorless underlines (`<w:u>` with no color, as the exporter and the
+Heading 2 / 3 styles emit) in the run's color. `underlineFollowsFontColor`
+(boolean, default false, sanitized to `=== true`) mirrors to a root
+predicate class `pmd-underline-follows-color` from the settings
+subscriber and the initial apply, beside the typography flags. Under it,
+a `[data-color]` span (the font_color mark; the 000000 automatic run is
+excluded, it inherits) nested inside `.pmd-underline`, `.pmd-emphasis`,
+a direct `<u>`, an underlined `.pmd-cite`, `.pmd-block` or `.pmd-hat`
+re-declares the underline on itself with `currentColor` — the same
+inner-repaint technique the highlight / shading band rules use — so the
+line takes the run's displayed color (the dark-mode dark-band override
+changes that color, and currentColor follows). Hats get the double
+variant, single under `pmd-hat-underline-single`. Display-only: files
+and exports are untouched. A test pins the setting's placement and the
+stylesheet rules.
+
 ### Changed: three-letter type chips on shelf and inbox rows
 
 `typeBadge` (dropzone-ui.ts, shared by the Receive pill) returned labels

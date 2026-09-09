@@ -3948,6 +3948,39 @@ body.pmd-override-shading [data-shading] {
   text-decoration-color: var(--pmd-c-band-fg-dark);
 }
 
+/* Underlines follow font color (Appearance → Document typography; OFF by
+   default). The line is painted by the element that declares it — the
+   outer underline / emphasis / underlined-cite span, or the hat / block
+   heading itself — in THAT element's color, so colored words get a
+   body-colored line (the classic look). Word does the opposite: its
+   colorless underlines take the run's color. With the flag on, a
+   colored run (`[data-color]` = the font_color mark's span; the 000000
+   "automatic" run inherits and needs nothing) nested inside any of
+   those re-declares the same underline on its own span, painting the
+   line in its own color over the outer one — the band technique above.
+   The dark-mode dark-band override changes the run's DISPLAYED color
+   and currentColor follows it, so nothing turns invisible. */
+:root.pmd-underline-follows-color .ProseMirror
+  :is(.pmd-underline, .pmd-emphasis, u) [data-color]:not([data-color="000000"]),
+:root.pmd-underline-follows-color.pmd-cite-underlined .ProseMirror
+  .pmd-cite [data-color]:not([data-color="000000"]) {
+  text-decoration: underline;
+  text-decoration-thickness: var(--pmd-underline-size, auto);
+  text-decoration-color: currentColor;
+}
+:root.pmd-underline-follows-color .ProseMirror .pmd-block [data-color]:not([data-color="000000"]) {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+}
+:root.pmd-underline-follows-color .ProseMirror .pmd-hat [data-color]:not([data-color="000000"]) {
+  text-decoration: underline double;
+  text-decoration-color: currentColor;
+}
+:root.pmd-underline-follows-color.pmd-hat-underline-single .ProseMirror
+  .pmd-hat [data-color]:not([data-color="000000"]) {
+  text-decoration: underline;
+}
+
 /* Shading is an arbitrary RGB background, so we can't enumerate the
    16 well-known highlight cases above. Instead `font_color`'s
    sibling logic in `src/schema/marks.ts` emits

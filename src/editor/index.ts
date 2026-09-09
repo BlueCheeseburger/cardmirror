@@ -3497,6 +3497,16 @@ function applyDisplayTypography(t: DisplayTypography): void {
   document.documentElement.style.setProperty('--pmd-emphasis-box-size', `${t.emphasisBoxSize}pt`);
 }
 
+/** Appearance → "Underlines follow font color": a root predicate class the
+ *  stylesheet reads (`:root.pmd-underline-follows-color`, style.css) to
+ *  re-declare the underline on colored runs inside underline / emphasis /
+ *  underlined-cite spans and inside hat / block headings, so the line
+ *  paints in the run's own color. Root-level so every pane and the ribbon
+ *  preview see it. */
+function applyUnderlineFollowsFontColor(on: boolean): void {
+  document.documentElement.classList.toggle('pmd-underline-follows-color', on);
+}
+
 /** Resolve the user's theme preference + the "apply theme to
  *  document" toggle into `data-theme` / `data-theme-doc`
  *  attributes on the document root. Light is the absence of a
@@ -3890,6 +3900,7 @@ settings.subscribe((s) => {
   applyChromeScale(s.chromeScalePct);
   applyDisplaySizes(s.displaySizes);
   applyDisplayTypography(s.displayTypography);
+  applyUnderlineFollowsFontColor(s.underlineFollowsFontColor);
   applyStyleAlignments(s.styleAlignments);
   applyMaxTextWidth(s.maxTextWidthPx, s.maxTextWidthAlign);
   applyDisplayColors(s.displayColors);
@@ -4231,6 +4242,7 @@ applyZoom(liveZoomPct);
 applyChromeScale(settings.get('chromeScalePct'));
 applyDisplaySizes(settings.get('displaySizes'));
 applyDisplayTypography(settings.get('displayTypography'));
+applyUnderlineFollowsFontColor(settings.get('underlineFollowsFontColor'));
 applyStyleAlignments(settings.get('styleAlignments'));
 applyMaxTextWidth(settings.get('maxTextWidthPx'), settings.get('maxTextWidthAlign'));
 applyDisplayColors(settings.get('displayColors'));

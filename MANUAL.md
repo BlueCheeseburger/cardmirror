@@ -2448,6 +2448,10 @@ How things look. None of these change the file — only your view (see
   cites), and whether substructure letters are bolded.
   The font-size editor above it has a reset button that restores every
   style's default size.
+- **Underlines follow font color** — off by default: an underline stays
+  the body text color whatever color the words are, including the
+  underline of hats and blocks. On draws it in the text's color, the way
+  Word does. Display-only; the file and exports are unchanged.
 - **Body font** — the editor's content font, including dyslexia-friendly
   options.
 - **Line spacing** — the line-height multiplier, per paragraph type.

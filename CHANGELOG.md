@@ -40,6 +40,12 @@ see `DETAILED_CHANGELOG.md`.
   own destination, folder and format settings and the READ_ prefix.
   Unbound by default: run it from the command bar or give it a key.
 
+- **Underlines follow font color (Appearance → Document typography, off
+  by default).** On, an underline under colored text is drawn in that
+  text's color, the way Word draws it, including the underline of hats
+  and blocks. Off keeps the classic look, with underlines in the body
+  text color. Display-only; files and exports are unchanged.
+
 ### Changed
 
 - **Three-letter type chips in the dropzone and the Receive pill.** The

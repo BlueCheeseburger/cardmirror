@@ -994,6 +994,11 @@ export interface Settings {
    * DisplayTypography. Each becomes a class toggle on `#editor`.
    */
   displayTypography: DisplayTypography;
+  /** Draw an underline under colored text in that text's color (the way
+   *  Word draws a colorless underline), including the hat / block heading
+   *  underline. Off (default) keeps underlines in the body text color.
+   *  Display-only: the file and exports are unchanged. */
+  underlineFollowsFontColor: boolean;
   /** Per-style center/justify alignment overrides (accessibility).
    *  Applied as CSS custom properties; see StyleAlignments. */
   styleAlignments: StyleAlignments;
@@ -1770,6 +1775,7 @@ const DEFAULTS: Settings = {
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
   displayParagraphSpacing: { ...DEFAULT_PARAGRAPH_SPACING },
   displayTypography: { ...DEFAULT_DISPLAY_TYPOGRAPHY },
+  underlineFollowsFontColor: false,
   styleAlignments: { ...DEFAULT_STYLE_ALIGNMENTS },
   maxTextWidthPx: 0,
   maxTextWidthAlign: 'center',
@@ -2874,6 +2880,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'appearance',
     section: 'Document typography',
     mobile: true,
+  },
+  {
+    key: 'underlineFollowsFontColor',
+    label: 'Underlines follow font color',
+    description:
+      'When on, an underline under colored text is drawn in that text\'s color — the way Word draws it — including the underline of hats and blocks. Off (default) keeps the classic look: underlines stay the body text color whatever color the words are. Display-only; the file and exports are unchanged (Word already colors them).',
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Document typography',
+    aliases: ['underline color', 'colored underline', 'colored underlines'],
   },
   {
     key: 'bodyFont',
@@ -4480,6 +4496,7 @@ function sanitize(s: Settings): Settings {
     liveRemainingReadTime: s.liveRemainingReadTime === true,
     displaySizes: sanitizeDisplaySizes(s.displaySizes),
     displayParagraphSpacing: sanitizeParagraphSpacing(s.displayParagraphSpacing),
+    underlineFollowsFontColor: s.underlineFollowsFontColor === true,
     displayTypography: sanitizeDisplayTypography(s.displayTypography),
     styleAlignments: sanitizeStyleAlignments(s.styleAlignments),
     maxTextWidthPx:
