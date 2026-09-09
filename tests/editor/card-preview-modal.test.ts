@@ -6,6 +6,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Node as PMNode } from 'prosemirror-model';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Slice, Fragment } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
 
@@ -87,6 +89,16 @@ describe('openCardPreview', () => {
     (d.querySelector('.pmd-card-preview-close') as HTMLButtonElement).click();
     expect(dialog()).toBeNull();
     expect(isAnyOverlayOpen()).toBe(false);
+  });
+
+  it('the stylesheet lets the title truncate and never the sender · time line', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/editor/style.css'), 'utf8');
+    const rule = (sel: string): string => css.slice(css.indexOf(`${sel} {`), css.indexOf('}', css.indexOf(`${sel} {`)));
+    expect(rule('.pmd-card-preview-title')).toMatch(/flex: 1 1 auto/);
+    expect(rule('.pmd-card-preview-title')).toMatch(/text-overflow: ellipsis/);
+    expect(rule('.pmd-card-preview-subtitle')).toMatch(/flex: 0 0 auto/);
+    expect(rule('.pmd-card-preview-subtitle')).toMatch(/white-space: nowrap/);
+    expect(rule('.pmd-card-preview-subtitle')).not.toMatch(/overflow: hidden/);
   });
 
   it('shows the subtitle (sender · time) when given', () => {

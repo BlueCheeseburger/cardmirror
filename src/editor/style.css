@@ -15679,18 +15679,19 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   gap: 0.6rem;
   min-width: 0;
   flex: 1;
+  margin-right: 0.75rem; /* breathing room before the × */
 }
+/* The title takes whatever room is left and is the only thing that
+   truncates; the sender · time line never shrinks. */
 .pmd-card-preview-title {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .pmd-card-preview-subtitle {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
   white-space: nowrap;
   font-size: 0.78rem;
   color: var(--pmd-c-text-muted);
