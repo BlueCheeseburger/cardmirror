@@ -2882,16 +2882,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     mobile: true,
   },
   {
-    key: 'underlineFollowsFontColor',
-    label: 'Underlines follow font color',
-    description:
-      'When on, an underline under colored text is drawn in that text\'s color — the way Word draws it — including the underline of hats and blocks. Off (default) keeps the classic look: underlines stay the body text color whatever color the words are. Display-only; the file and exports are unchanged (Word already colors them).',
-    kind: 'toggle',
-    category: 'appearance',
-    section: 'Document typography',
-    aliases: ['underline color', 'colored underline', 'colored underlines'],
-  },
-  {
     key: 'bodyFont',
     label: 'Body font',
     description:
@@ -2949,6 +2939,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'appearance',
     section: 'Document typography',
     aliases: ['reading marker', 'unread', 'red text', 'marked'],
+  },
+  {
+    key: 'underlineFollowsFontColor',
+    label: 'Underlines follow font color',
+    description:
+      'When on, an underline under colored text is drawn in that text\'s color — the way Word draws it — including the underline of hats and blocks. Off (default) keeps the classic look: underlines stay the body text color whatever color the words are. Display-only; the file and exports are unchanged (Word already colors them).',
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Document typography',
+    aliases: ['underline color', 'colored underline', 'colored underlines'],
   },
   {
     key: 'showCharacterStyles',

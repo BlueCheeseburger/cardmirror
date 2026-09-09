@@ -28,6 +28,9 @@ describe('underlines follow font color', () => {
     expect(meta.category).toBe('appearance');
     expect(meta.section).toBe('Document typography');
     expect(settings.get('underlineFollowsFontColor')).toBe(false);
+    // Sits right after "Turn text after a mark red" (user placement).
+    const keys = SETTING_METADATA.map((m) => m.key);
+    expect(keys.indexOf('underlineFollowsFontColor')).toBe(keys.indexOf('markUnreadAfterMarker') + 1);
   });
 
   it('mirrors to the root class from the settings subscriber and the initial apply', () => {
