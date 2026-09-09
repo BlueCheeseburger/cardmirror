@@ -25,6 +25,13 @@ see `DETAILED_CHANGELOG.md`.
   wear a "Dropbox" pill. The pill now re-renders on every change of
   document; only state changes of the same document are held back
   while reading or with the timer out.
+- **Bulk operations work in documents that contain a live view.** Condense,
+  Repair Paragraph Integrity, Replace All, Shrink and the formatting sweeps
+  used to do nothing at all, with no message, whenever their scope reached
+  into a live view, because the view's read-only guard threw the whole
+  operation away. The guard now refuses only edits made entirely through a
+  view; a document-wide operation goes through, and the view re-derives
+  from its source as it always did.
 - **The cloud pill leaves room at the bottom of the rightmost pane.**
   Like the Send and Receive pills on the left, it now adds blank space
   under the pane it sits over, so scrolling to the end still shows the

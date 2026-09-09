@@ -34,6 +34,25 @@ behind `repeatWithModY` (Settings → General → Editor behavior), off by
 default so Mod-Y behaves exactly as before. F4, Word's other Repeat
 key, converts blocks here and stays that way.
 
+### Fixed: bulk operations were silent no-ops in a document with a live view
+
+A live view's children are derived from its source section and re-derived
+after every change, so the view is read-only by way of a transaction filter
+that rejected any transaction with a step inside a view. Every bulk
+operation, condense, repair paragraph integrity, replace-all, shrink, the
+highlight and formatting sweeps, builds one transaction of per-range steps,
+so the moment one step reached into a view the whole batch was dropped,
+nothing anywhere changed, and nothing said why. The filter now rejects a
+transaction only when every ranged step lands inside a view, which is what
+typing into one, or replacing a single match inside one, looks like. A
+mixed transaction passes; the re-derive that runs in the same dispatch
+restores each view from its source, so the in-view steps cannot leave a
+mark, and the rest of the document gets the operation. Find does not skip
+view content (user decision): a match inside a view still counts and a
+single replace on it is still refused, since its twin at the source is the
+one to replace. Linked copies are unaffected: they are editable and were
+never filtered.
+
 ### Fixed: the cloud pill's bottom runway in three-pane
 
 The Send / Receive / Dropzone tray adds bottom padding under the pane
