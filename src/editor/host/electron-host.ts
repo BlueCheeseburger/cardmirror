@@ -423,6 +423,8 @@ interface ElectronAPI {
   speechSet(uid: string | null): Promise<void>;
   speechGet(): Promise<{ uid: string | null }>;
   onSpeechChanged(handler: (state: { uid: string | null }) => void): () => void;
+  windowNameSet(name: string | null): Promise<void>;
+  windowNameGet(): Promise<{ name: string | null }>;
   speechSendSlice(payload: {
     sliceJson: unknown;
     atEnd: boolean;
@@ -1255,6 +1257,14 @@ export class ElectronHost implements Host {
 
   async speechGet(): Promise<{ uid: string | null }> {
     return api().speechGet();
+  }
+
+  async windowNameSet(name: string | null): Promise<void> {
+    await api().windowNameSet(name);
+  }
+
+  async windowNameGet(): Promise<{ name: string | null }> {
+    return api().windowNameGet();
   }
 
   /** Subscribe to speech-state broadcasts. Handler receives the

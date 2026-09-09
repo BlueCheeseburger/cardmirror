@@ -539,6 +539,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('host:speech-set', uid),
   speechGet: () => ipcRenderer.invoke('host:speech-get'),
 
+  windowNameSet: (name: string | null) =>
+    ipcRenderer.invoke('host:window-name-set', name),
+  windowNameGet: () => ipcRenderer.invoke('host:window-name-get'),
+
   /** Voice recognition (SPEC-voice.md §12 item 2). One session at a
    *  time, owned by the window that started it. The renderer captures
    *  mic audio (getUserMedia → 16 kHz mono s16le PCM) and streams it

@@ -45,6 +45,8 @@ import {
 } from './speech-doc-send.js';
 import { promptForChoice, promptForText, promptForRouteChoice, alertDialog, confirmDialog, installModalKeys, armDialogFocus } from './text-prompt.js';
 import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
+import { positionFloatingMenu } from './context-menu-position.js';
+import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
 import { openDocMenu } from './doc-menu-ui.js';
 import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
@@ -582,6 +584,34 @@ let autosaveStateForActive: () => boolean = () => settings.get('autosaveEnabled'
 // it swaps in the main-process-mirroring resolver so doc
 // registrations and speech-set calls flow through IPC.
 installSpeechDocResolver(getHost());
+
+/** Custom window title override (ribbon right-click → Name This
+ *  Window…/Rename Window…), takes precedence over the doc-name-derived
+ *  title in `updateWindowTitle`. Persisted in the main process so it
+ *  survives a renderer reload (mode-switch, a reloading settings
+ *  change); fetched once at boot below, kept in sync locally by
+ *  `setWindowName`. Electron-only — the browser host has no
+ *  main-process home to persist this in, and no ribbon-right-click UI
+ *  is wired for it there. */
+let currentWindowName: string | null = null;
+if (getHost().kind === 'electron') {
+  void getElectronHost()
+    ?.windowNameGet()
+    .then((r) => {
+      currentWindowName = r.name;
+      updateWindowTitle();
+    });
+}
+
+/** Set (or clear, with `null`) the custom window-name override and
+ *  persist it via the Electron host, then refresh the title. */
+async function setWindowName(name: string | null): Promise<void> {
+  const eh = getElectronHost();
+  if (!eh) return;
+  currentWindowName = name;
+  await eh.windowNameSet(name);
+  updateWindowTitle();
+}
 
 /** Sync the speech-mark button's aria-pressed with whether the
  *  currently-active view IS the speech doc. Called from
@@ -4195,6 +4225,105 @@ function initRibbonResizer(): void {
 }
 initRibbonResizer();
 
+// --------------------------------- Ribbon right-click: name this window
+
+/** Local context-menu plumbing for the ribbon's "name this window"
+ *  right-click menu — mirrors the pattern nav-panel.ts uses for its own
+ *  heading context menu: a private item type + open/close state here,
+ *  built on the shared `positionFloatingMenu` / `registerOpenContextMenu`
+ *  / `clearOpenContextMenu` primitives rather than a new abstraction. */
+interface RibbonContextMenuItem {
+  label: string;
+  action: () => void;
+}
+let openRibbonContextMenuEl: HTMLElement | null = null;
+
+function closeRibbonContextMenu(): void {
+  if (openRibbonContextMenuEl) {
+    openRibbonContextMenuEl.remove();
+    openRibbonContextMenuEl = null;
+    window.removeEventListener('mousedown', maybeCloseRibbonContextMenu, { capture: true });
+    window.removeEventListener('keydown', maybeCloseRibbonContextMenu, { capture: true });
+  }
+  clearOpenContextMenu(closeRibbonContextMenu);
+}
+
+function maybeCloseRibbonContextMenu(e: MouseEvent | KeyboardEvent): void {
+  if (e instanceof KeyboardEvent) {
+    if (e.key === 'Escape') closeRibbonContextMenu();
+    return;
+  }
+  if (!openRibbonContextMenuEl) return;
+  if (!openRibbonContextMenuEl.contains(e.target as Node)) {
+    closeRibbonContextMenu();
+  }
+}
+
+async function renameWindowPrompt(): Promise<void> {
+  const result = await promptForText({
+    message: currentWindowName ? 'Rename this window' : 'Name this window',
+    initial: currentWindowName ?? '',
+    placeholder: 'e.g. Research, Speech Doc',
+    okLabel: currentWindowName ? 'Rename' : 'Name',
+  });
+  if (result === null) return;
+  const trimmed = result.trim();
+  await setWindowName(trimmed || null);
+}
+
+function openRibbonContextMenu(x: number, y: number): void {
+  closeRibbonContextMenu();
+
+  const items: RibbonContextMenuItem[] = currentWindowName
+    ? [
+        { label: 'Rename Window…', action: () => { void renameWindowPrompt(); } },
+        { label: 'Clear Window Name', action: () => { void setWindowName(null); } },
+      ]
+    : [{ label: 'Name This Window…', action: () => { void renameWindowPrompt(); } }];
+
+  const menu = document.createElement('div');
+  menu.className = 'pmd-nav-context-menu';
+  for (const item of items) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-nav-context-item';
+    btn.textContent = item.label;
+    btn.addEventListener('click', () => {
+      item.action();
+      closeRibbonContextMenu();
+    });
+    menu.appendChild(btn);
+  }
+
+  document.body.appendChild(menu);
+  positionFloatingMenu(menu, x, y);
+
+  openRibbonContextMenuEl = menu;
+  registerOpenContextMenu(closeRibbonContextMenu);
+  setTimeout(() => {
+    window.addEventListener('mousedown', maybeCloseRibbonContextMenu, { capture: true });
+    window.addEventListener('keydown', maybeCloseRibbonContextMenu, { capture: true });
+  });
+}
+
+/** Wires the ribbon's right-click → name/rename-window menu. Electron
+ *  only — window naming persists via IPC to the main process (see
+ *  `setWindowName`), which the browser host has nothing equivalent to.
+ *  Skips opening when the click already landed on a more specific
+ *  contextmenu handler (e.g. a formatting-panel button's "select all of
+ *  style" menu) that called `preventDefault` itself. */
+function initRibbonRenameMenu(): void {
+  if (getHost().kind !== 'electron') return;
+  const ribbon = document.getElementById('ribbon');
+  if (!ribbon) return;
+  ribbon.addEventListener('contextmenu', (e) => {
+    if (e.defaultPrevented) return;
+    e.preventDefault();
+    openRibbonContextMenu(e.clientX, e.clientY);
+  });
+}
+initRibbonRenameMenu();
+
 applyTheme(settings.get('theme'), settings.get('docTheme'));
 applyShowDocNameChip(settings.get('showDocNameChip'));
 applyIconSet(settings.get('iconSet'));
@@ -7166,8 +7295,11 @@ async function pickAndLoadInPlace(): Promise<boolean> {
 /** Open a `.cmir` by absolute path (the command palette's file search).
  *  Reads the file, then routes through the shared open logic — so it
  *  spawns a NEW window (single-doc) or shows the slot picker
- *  (multi-pane) rather than overwriting the current window's doc. */
-async function openFileByPath(path: string, name: string): Promise<void> {
+ *  (multi-pane) rather than overwriting the current window's doc.
+ *  Exported for the per-pane cloud badge's "open the original" action
+ *  (`kept-copy` state) — already multi-pane-aware as-is via
+ *  `routeOpenedFile`, so no change needed for that caller. */
+export async function openFileByPath(path: string, name: string): Promise<void> {
   const electron = getElectronHost();
   if (!electron) return;
   let file: Awaited<ReturnType<typeof electron.readFileAtPath>>;
@@ -7665,7 +7797,9 @@ function pushSingleDocInfo(): void {
 function updateWindowTitle(): void {
   const focused = activeFile();
   pushSingleDocInfo();
-  if (multiDocActive && multiDocGetAllFilenames) {
+  if (currentWindowName) {
+    document.title = `${currentWindowName} — CardMirror`;
+  } else if (multiDocActive && multiDocGetAllFilenames) {
     const names = multiDocGetAllFilenames()
       .filter((n): n is string => !!n)
       .map(displayFilename);
@@ -7693,9 +7827,15 @@ function updateWindowTitle(): void {
     chip.setAttribute('title', shown);
     chip.toggleAttribute('hidden', !focused.filename);
   }
-  // The cloud badge follows the active document (one per window).
-  ensureDiskBadge();
-  refreshDiskBadge();
+  // The cloud badge follows the active document — single-doc mode
+  // only. Multi-pane mode has its own per-pane badge (embedded in
+  // each pane's footer by multi-pane-shell.ts) instead of this one
+  // shared, focus-following tray, so a background pane's disk state
+  // is never ambiguous about which document it belongs to.
+  if (!multiDocActive) {
+    ensureDiskBadge();
+    refreshDiskBadge();
+  }
 }
 
 /** 1–2 letter initials from a display name, for a baked-in comment's
@@ -8290,8 +8430,11 @@ async function serializeActiveForSave(format: 'cmir' | 'docx', docId: string | n
   );
 }
 
-/** Badge action: "Keep mine as a copy" without a prior refused save. */
-async function saveActiveAsConflictedCopy(): Promise<void> {
+/** Badge action: "Keep mine as a copy" without a prior refused save.
+ *  Exported for the multi-pane per-pane cloud badge, which focuses the
+ *  target slot first (same "commands route via the focused doc"
+ *  pattern `promptSaveAllForQuit` already uses) then calls this. */
+export async function saveActiveAsConflictedCopy(): Promise<void> {
   const file = activeFile();
   if (typeof file.handle !== 'string' || !file.handle || !file.format) return;
   const docId = ensureActiveDocId();
@@ -8303,8 +8446,9 @@ async function saveActiveAsConflictedCopy(): Promise<void> {
   reportAutosaveSuccess();
 }
 
-/** Badge action: the double-confirmed Overwrite. */
-async function saveActiveForcingDisk(): Promise<void> {
+/** Badge action: the double-confirmed Overwrite. Exported for the
+ *  multi-pane per-pane cloud badge — see `saveActiveAsConflictedCopy`. */
+export async function saveActiveForcingDisk(): Promise<void> {
   const file = activeFile();
   if (typeof file.handle !== 'string' || !file.handle || !file.format) return;
   const docId = ensureActiveDocId();

@@ -74,7 +74,7 @@ export function noteDocRegistered(handle: string, claim: ClaimResult, provider: 
       copyOf: null,
     });
   }
-  refreshDiskBadge();
+  notifyDiskStateChanged();
 }
 
 /** Main's poller saw the file change on disk (stat-only: a sync
@@ -83,7 +83,7 @@ export function noteDiskChanged(handle: string, at: number = Date.now()): void {
   const prev = byHandle.get(handle);
   if (!prev || prev.state === 'changed') return;
   byHandle.set(handle, { ...prev, state: 'changed', changedAt: at });
-  refreshDiskBadge();
+  notifyDiskStateChanged();
 }
 
 /** An in-place save main ACCEPTED: the disk matched the baseline (or
@@ -92,7 +92,7 @@ export function noteSavedInPlace(handle: string): void {
   const prev = byHandle.get(handle);
   if (!prev || prev.state !== 'changed') return;
   byHandle.set(handle, { ...prev, state: prev.provider ? 'synced' : 'local', changedAt: null });
-  refreshDiskBadge();
+  notifyDiskStateChanged();
 }
 
 /** The window switched to a conflicted copy of `originalHandle`. */
@@ -104,7 +104,7 @@ export function noteKeptCopy(copyHandle: string, originalHandle: string): void {
     changedAt: null,
     copyOf: originalHandle,
   });
-  refreshDiskBadge();
+  notifyDiskStateChanged();
 }
 
 /** Reload from disk replaced the in-memory doc with the file. */
@@ -112,12 +112,22 @@ export function noteReloaded(handle: string): void {
   const prev = byHandle.get(handle);
   if (!prev) return;
   byHandle.set(handle, { ...prev, state: prev.provider ? 'synced' : 'local', changedAt: null, copyOf: null });
-  refreshDiskBadge();
+  notifyDiskStateChanged();
 }
 
 export function noteDocReleased(handle: string): void {
   byHandle.delete(handle);
+  notifyDiskStateChanged();
+}
+
+/** Per-pane badges (see `createPaneDiskBadge` below) subscribe here so
+ *  every note* mutation refreshes them too, not just the single-doc
+ *  window tray's default badge. */
+const paneRefreshListeners = new Set<() => void>();
+
+function notifyDiskStateChanged(): void {
   refreshDiskBadge();
+  for (const l of paneRefreshListeners) l();
 }
 
 /** The name used in a conflicted copy's filename: the co-editing display
@@ -180,6 +190,31 @@ const CLOUD_SVG =
   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
   'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M7 18.5h11a4 4 0 0 0 .6-7.95A6.5 6.5 0 0 0 6.2 9.3 4.6 4.6 0 0 0 7 18.5z"/></svg>';
+
+/** Compact, brand-colored provider marks for the per-pane badge (see
+ *  `createPaneDiskBadge`) — small enough to sit in a pane footer next
+ *  to the word-count/copresence/save controls, and identifiable at a
+ *  glance without a text label. Simplified, not pixel-accurate
+ *  reproductions of each company's logo. `other` reuses the generic
+ *  stroke cloud above. */
+const PROVIDER_ICON: Record<CloudProvider, string> = {
+  dropbox:
+    '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path fill="#0061FF" d="M6 3 12 7 6 11 0 7 6 3Zm12 0 6 4-6 4-6-4 6-4ZM0 15l6-4 6 4-6 4-6-4Zm18-4 6 4-6 4-6-4 6-4ZM6 20l6-4 6 4-6 4-6-4Z"/></svg>',
+  onedrive:
+    '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path fill="#0A63C9" d="M9.5 18a4.75 4.75 0 0 1-.62-9.46 6 6 0 0 1 11.52 2.36A4.25 4.25 0 0 1 19.75 18H9.5Z"/></svg>',
+  gdrive:
+    '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path fill="#00AC47" d="M8.05 2 2 12.2 5.4 18 11.5 7.8 8.05 2Z"/>' +
+    '<path fill="#EA4335" d="M15.95 2H8.05L11.5 7.8h7.9L15.95 2Z"/>' +
+    '<path fill="#FFBA00" d="M22 12.2 15.95 2 12.5 7.8 18.6 18 22 12.2Z"/>' +
+    '<path fill="#4285F4" d="M5.4 18 8.2 22.7h7.6L18.6 18H5.4Z"/></svg>',
+  icloud:
+    '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path fill="#3693F3" d="M9.5 18a4.75 4.75 0 0 1-.62-9.46 6 6 0 0 1 11.52 2.36A4.25 4.25 0 0 1 19.75 18H9.5Z"/></svg>',
+  other: CLOUD_SVG,
+};
 
 /** Create the tray + pill once (in `opts.parent`, default the body). */
 export function installDiskBadge(deps: DiskBadgeDeps, opts?: { parent?: HTMLElement }): void {
@@ -280,14 +315,21 @@ function baseName(p: string): string {
   return i >= 0 ? p.slice(i + 1) : p;
 }
 
-async function onBadgeClick(): Promise<void> {
-  if (!badgeDeps) return;
-  const { handle, name } = badgeDeps.getActive();
-  if (!handle) return;
-  const info = byHandle.get(handle);
-  if (!info) return;
+/** Shared "what should clicking the badge do" logic — the three-way
+ *  disk-conflict decision, and the synced/kept-copy reveal shortcuts.
+ *  Used by both the single-doc window's tray badge and each pane's
+ *  compact badge in multi-pane mode. */
+async function resolveBadgeClick(
+  handle: string,
+  name: string | null,
+  info: DocDiskInfo,
+  deps: Pick<
+    DiskBadgeDeps,
+    'isSessionHost' | 'isDirty' | 'reveal' | 'reloadFromDisk' | 'keepMineAsCopy' | 'overwrite' | 'openOriginal'
+  >,
+): Promise<void> {
   if (info.state === 'synced') {
-    badgeDeps.reveal(handle);
+    deps.reveal(handle);
     return;
   }
   if (info.state === 'kept-copy') {
@@ -299,14 +341,14 @@ async function onBadgeClick(): Promise<void> {
       ],
       cancelLabel: 'Close',
     });
-    if (choice === 'original' && info.copyOf) await badgeDeps.openOriginal(info.copyOf);
-    else if (choice === 'reveal') badgeDeps.reveal(handle);
+    if (choice === 'original' && info.copyOf) await deps.openOriginal(info.copyOf);
+    else if (choice === 'reveal') deps.reveal(handle);
     return;
   }
   // changed — three ways out, no secondary confirmations (design call
   // 2026-09-06): keep theirs (reload), keep mine (overwrite), keep both.
-  const host = badgeDeps.isSessionHost(handle);
-  const dirty = badgeDeps.isDirty?.() ?? false;
+  const host = deps.isSessionHost(handle);
+  const dirty = deps.isDirty?.() ?? false;
   const choices: Array<{ value: 'theirs' | 'mine' | 'both'; label: string; description: string }> = [];
   if (!host) {
     choices.push({
@@ -334,9 +376,18 @@ async function onBadgeClick(): Promise<void> {
       : {}),
     choices,
   });
-  if (choice === 'theirs') await badgeDeps.reloadFromDisk(handle);
-  else if (choice === 'mine') await badgeDeps.overwrite(handle);
-  else if (choice === 'both') await badgeDeps.keepMineAsCopy(handle);
+  if (choice === 'theirs') await deps.reloadFromDisk(handle);
+  else if (choice === 'mine') await deps.overwrite(handle);
+  else if (choice === 'both') await deps.keepMineAsCopy(handle);
+}
+
+async function onBadgeClick(): Promise<void> {
+  if (!badgeDeps) return;
+  const { handle, name } = badgeDeps.getActive();
+  if (!handle) return;
+  const info = byHandle.get(handle);
+  if (!info) return;
+  await resolveBadgeClick(handle, name, info, badgeDeps);
 }
 
 /** Test seam. */
@@ -350,4 +401,113 @@ export function __resetDiskConflictForTests(): void {
   labelEl = null;
   badgeDeps = null;
   document.documentElement.classList.remove('pmd-disk-pill-active');
+  paneRefreshListeners.clear();
+}
+
+// ── Per-pane badge (multi-pane mode) ──────────────────────────────
+// One compact, icon-first pill per pane, appended into that pane's own
+// `.pmd-pane-footer` — unlike the single-doc window's fixed bottom-
+// right tray above, so it's unambiguous which pane's disk state each
+// pill reflects. Shows the provider's own mark instead of a generic
+// cloud + "Cloud" label (space is tighter with N of these on screen at
+// once), and drops the label text entirely for the resting `synced`
+// state; `changed`/`kept-copy` keep a short text cue since those need
+// to say more than "which provider."
+
+export interface PaneDiskBadgeHandle {
+  el: HTMLElement;
+  /** Re-render from current state (also called automatically on every
+   *  note* mutation while installed). */
+  refresh: () => void;
+  /** Unsubscribe and remove the element — call when the pane closes. */
+  destroy: () => void;
+}
+
+/** Mount a compact per-pane disk badge into `parent` (append at the
+ *  end — callers appending after the word-count span, which is
+ *  `flex: 1 1 auto` and pushes everything after it to the row's right
+ *  edge, get the same right-aligned placement the footer's other
+ *  controls already use). Hidden (zero footprint) for a local file,
+ *  same as the single-doc tray badge. */
+export function createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement): PaneDiskBadgeHandle {
+  const root = document.createElement('button');
+  root.type = 'button';
+  root.className = 'pmd-pane-disk-badge';
+  root.hidden = true;
+  const icon = document.createElement('span');
+  icon.className = 'pmd-pane-disk-badge-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  root.appendChild(icon);
+  const label = document.createElement('span');
+  label.className = 'pmd-pane-disk-badge-label';
+  root.appendChild(label);
+  parent.appendChild(root);
+
+  let clockTimer: number | null = null;
+  function startClock(): void {
+    if (clockTimer !== null) return;
+    clockTimer = window.setInterval(render, 30_000);
+  }
+  function stopClock(): void {
+    if (clockTimer === null) return;
+    window.clearInterval(clockTimer);
+    clockTimer = null;
+  }
+
+  function render(): void {
+    if (deps.isSuppressed()) return;
+    const { handle, name } = deps.getActive();
+    const info = handle ? byHandle.get(handle) : null;
+    if (!info || info.state === 'local') {
+      root.hidden = true;
+      root.removeAttribute('data-state');
+      stopClock();
+      return;
+    }
+    root.hidden = false;
+    root.setAttribute('data-state', info.state);
+    icon.innerHTML = info.provider ? PROVIDER_ICON[info.provider] : CLOUD_SVG;
+    const provider = info.provider ? PROVIDER_LABEL[info.provider] : 'a synced folder';
+    let text = '';
+    let title = '';
+    if (info.state === 'synced') {
+      title = `In ${provider} · as of last sync. Click to reveal the file.`;
+    } else if (info.state === 'changed') {
+      const when = info.changedAt ? relativeTime(info.changedAt) : '';
+      text = when;
+      title = `"${name ?? 'This document'}" changed on disk ${when} — another device or program wrote it. Click to decide.`;
+    } else {
+      text = 'Copy';
+      title = `You are editing a conflicted copy of "${info.copyOf ? baseName(info.copyOf) : name ?? 'the original'}". Click for the original.`;
+    }
+    label.textContent = text;
+    root.title = title;
+    root.setAttribute('aria-label', title);
+    if (info.state === 'changed') startClock();
+    else stopClock();
+  }
+
+  root.addEventListener('mousedown', (e) => e.preventDefault()); // keep the editor's focus
+  root.addEventListener('click', () => void onClick());
+
+  async function onClick(): Promise<void> {
+    const { handle, name } = deps.getActive();
+    if (!handle) return;
+    const info = byHandle.get(handle);
+    if (!info) return;
+    await resolveBadgeClick(handle, name, info, deps);
+  }
+
+  paneRefreshListeners.add(render);
+  render();
+
+  return {
+    el: root,
+    refresh: render,
+    destroy: () => {
+      paneRefreshListeners.delete(render);
+      stopClock();
+      root.remove();
+    },
+  };
 }
