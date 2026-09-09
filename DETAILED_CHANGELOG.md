@@ -5,6 +5,31 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Added: "Shrink" exposed as a Card-menu item (`index.ts`)
+
+Field request: a button equivalent to Verbatim's "Shrink" — collapse
+everything in a card EXCEPT underlined/emphasized text down small, so
+pasting an article paragraph and underlining the parts worth reading
+leaves the rest visually de-emphasized. This already existed as the
+`shrink` ribbon command (`ribbon-commands.ts`'s `shrinkText`, bound to
+`Mod-8`): its own header comment already describes exactly this
+behavior — text NOT carrying `underline_mark`/`underline_direct`/
+`emphasis_mark` (`SHRINK_EXEMPT_MARK_NAMES`) cycles down to 8pt
+(`SHRINK_NORMAL_TO_SMALL_PT`) while exempt text keeps its size — it
+just had no clickable surface, only the keyboard shortcut and the
+command palette.
+
+Added a new "Shrink" section (one item, labeled "Shrink") to the
+"Card" dropdown menu's section list in `index.ts` (`cardMenuBtn`'s
+click handler → `openDocMenu`), after the existing "Highlighting"
+section, keeping the alphabetical-by-title convention the surrounding
+comment already documents (Condense, Excerpt, Highlighting, Shrink).
+The item routes through `runRibbon('shrink')`, the same dispatch path
+`Mod-8` already uses — no new command, no new wiring, just a new menu
+entry point onto existing, already-tested logic.
+
 ## 1.8.0-bcb.3 — 2026-09-09
 
 ### Added: "Locate…" for a moved/deleted Recent file (`index.ts`)

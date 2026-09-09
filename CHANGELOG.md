@@ -5,6 +5,15 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Added
+
+- **A "Shrink" button in the Card menu** — shrinks a card's connective
+  text (everything except underlined/emphasized text) to 8pt in one
+  click, matching the existing Mod-8 keyboard shortcut. Previously
+  only reachable via that shortcut or the command palette.
+
 ## 1.8.0-bcb.3 — 2026-09-09
 
 ### Added

@@ -8,6 +8,10 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **A "Shrink" button in the Card menu** — collapses everything in a
+>   card except underlined/emphasized text down to 8pt in one click,
+>   Verbatim-style. Was already a keyboard shortcut (Mod-8); now also
+>   clickable. (main)
 > - **The update chip shows download progress** (desktop only) — the
 >   status-bar pill fills in as the update downloads and its text names
 >   the percent, instead of only appearing once the download is done.
