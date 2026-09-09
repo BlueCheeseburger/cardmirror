@@ -1964,15 +1964,20 @@ prompt, and focusing a copy that's already open). Other file types are ignored,
 and dragging cards around inside the editor is unaffected.
 
 **Reopening your last set of documents.** CardMirror remembers which files
-you had open when you last quit. The Home screen shows them under **Last
-workspace** — one click reopens the whole set (in the three-pane workspace,
-each document goes back to the pane it was in; in single-document mode each
-gets its own window). Turn on **Settings → General → Workspace → Reopen last
-workspace at launch** to have that happen automatically every time you start
-CardMirror. **Save Workspace** (command bar — try "save session") snapshots
-what's open right now, so you can come back to a particular working set even
-after opening other things; **Reopen Last Workspace** restores it without going
-via the Home screen, and **Forget** on the Home screen drops the snapshot.
+you had open when you last quit and lists them on the Home screen under
+**Last workspace**, each with a tick box. **Reopen** opens the ticked ones —
+untick the ones you don't want, or use **All** / **None** to flip the whole
+list. In the three-pane workspace each document goes back to the pane it was
+in; in single-document mode each gets its own window. Turn on **Settings →
+General → Workspace → Reopen last workspace at launch** to reopen the set
+automatically every time you start CardMirror.
+
+Close every document before you quit and there's nothing to offer, so the
+section disappears — a clean quit means a clean start. To keep a particular
+working set regardless, run **Save Workspace** (command bar — try "save
+session"): a saved set survives quitting with nothing open, and stays on offer
+until you open other documents and quit with those. **Reopen Last Workspace**
+restores it without going via the Home screen, and **Forget** drops it.
 Documents that have never been saved aren't included — there's no file to
 reopen — and one that has moved or been deleted is skipped with a note.
 

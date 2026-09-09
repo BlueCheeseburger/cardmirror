@@ -20,9 +20,14 @@
  *    accumulating from scratch. `saveWorkspaceNow()` does the same
  *    fold mid-session for the explicit Save Workspace command.
  *
- * A rollover that finds nothing open KEEPS the previous snapshot
- * rather than blanking it: launching, closing everything, and
- * quitting shouldn't destroy the set the user might still want back.
+ * Closing every document before quitting is taken at face value: the
+ * roll-over finds nothing and CLEARS the snapshot, so the next launch
+ * offers nothing to reopen. The exception is a snapshot the user saved
+ * deliberately (`pinned`, written by Save Workspace) — that survives an
+ * empty quit, which is the whole reason to reach for the command. A
+ * session that ends WITH documents open always replaces the snapshot,
+ * pinned or not; pinning protects against erasure, it doesn't freeze
+ * the row.
  *
  * The mode (`panes` / `windows`) is recorded so a restore can honour
  * slot assignments when the user is still in three-pane mode, and
@@ -59,6 +64,10 @@ export interface WorkspaceSnapshot {
   savedAt: number;
   mode: 'panes' | 'windows';
   docs: WorkspaceDoc[];
+  /** True when the user saved this set deliberately (Save Workspace)
+   *  rather than it being the automatic end-of-session capture. Only
+   *  effect: an empty quit doesn't clear it. */
+  pinned: boolean;
 }
 
 interface LiveEntry {
@@ -153,7 +162,7 @@ function foldLive(live: Record<string, LiveEntry>): WorkspaceSnapshot | null {
     if (docs.length >= MAX_DOCS) break;
   }
   const newest = entries.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
-  return { savedAt: Date.now(), mode: newest.mode, docs };
+  return { savedAt: Date.now(), mode: newest.mode, docs, pinned: false };
 }
 
 /** Record what THIS window currently has open. Docs without a string
@@ -183,7 +192,12 @@ export function lastWorkspace(): WorkspaceSnapshot | null {
   if (typeof s.savedAt !== 'number' || !Array.isArray(s.docs)) return null;
   const docs = s.docs.filter(isDoc).map(normalizeDoc).slice(0, MAX_DOCS);
   if (docs.length === 0) return null;
-  return { savedAt: s.savedAt, mode: s.mode === 'panes' ? 'panes' : 'windows', docs };
+  return {
+    savedAt: s.savedAt,
+    mode: s.mode === 'panes' ? 'panes' : 'windows',
+    docs,
+    pinned: s.pinned === true,
+  };
 }
 
 function publish(snapshot: WorkspaceSnapshot | null): void {
@@ -192,14 +206,22 @@ function publish(snapshot: WorkspaceSnapshot | null): void {
 
 /** Boot-time roll-over, run ONCE per app session by the first window:
  *  the LIVE map still holds the previous session's open docs, so fold
- *  it into LAST and empty it. Returns the resulting snapshot (which
- *  may be a previous one, when the last session ended with nothing
- *  open). */
+ *  it into LAST and empty it. A session that ended with nothing open
+ *  clears LAST — unless the standing snapshot was pinned by Save
+ *  Workspace, which is exactly the set the user asked to keep.
+ *  Returns the resulting snapshot. */
 export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
   const folded = foldLive(readLive());
   writeJson(LIVE_KEY, {});
-  if (folded) writeJson(LAST_KEY, folded);
-  const snapshot = folded ?? lastWorkspace();
+  let snapshot: WorkspaceSnapshot | null;
+  if (folded) {
+    writeJson(LAST_KEY, folded);
+    snapshot = folded;
+  } else {
+    const standing = lastWorkspace();
+    snapshot = standing?.pinned ? standing : null;
+    if (!snapshot) writeJson(LAST_KEY, null);
+  }
   publish(snapshot);
   return snapshot;
 }
@@ -210,9 +232,10 @@ export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
 export function saveWorkspaceNow(): WorkspaceSnapshot | null {
   const folded = foldLive(readLive());
   if (!folded) return null;
-  writeJson(LAST_KEY, folded);
-  publish(folded);
-  return folded;
+  const pinned: WorkspaceSnapshot = { ...folded, pinned: true };
+  writeJson(LAST_KEY, pinned);
+  publish(pinned);
+  return pinned;
 }
 
 export function clearLastWorkspace(): void {

@@ -9,21 +9,25 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
-- **Last workspace — reopen everything you had open.** CardMirror now
-  remembers the documents open when you last quit and offers them back
-  on the Home screen under **Last workspace**: one click reopens the
-  whole set. In the three-pane workspace each document returns to the
-  pane it was in; in single-document mode each gets its own window.
-  Turn on **Settings → General → Workspace → Reopen last workspace at
-  launch** to have it happen automatically at every start. Two new
-  command-bar commands go with it (both unbound by default): **Save
-  Workspace**, which snapshots what's open right now so you can return
-  to a particular working set later, and **Reopen Last Workspace**,
-  which restores it without going via the Home screen. **Forget** on
-  the Home screen drops the snapshot. Desktop only — reopening needs
-  files on disk — and documents you never saved aren't included; a file
-  that has since moved or been deleted is skipped with a note, and one
-  that's already open (here or in another window) is never duplicated.
+- **Last workspace — reopen what you had open last time.** CardMirror
+  now remembers the documents open when you last quit and lists them on
+  the Home screen under **Last workspace**, each with a tick box:
+  **Reopen** opens the ticked ones, and **All** / **None** flip the
+  whole list, so coming back to a 15-document workspace doesn't have to
+  mean reopening all 15. In the three-pane workspace each document
+  returns to the pane it was in; in single-document mode each gets its
+  own window. Turn on **Settings → General → Workspace → Reopen last
+  workspace at launch** to have it happen automatically at every start.
+  Closing everything before you quit clears the set — a clean quit
+  means a clean start — unless you deliberately saved it with the new
+  **Save Workspace** command, which keeps a working set on offer until
+  you quit with other documents open. **Reopen Last Workspace**
+  restores it without going via the Home screen, and **Forget** drops
+  it. (Both commands are unbound by default.) Desktop only — reopening
+  needs files on disk — and documents you never saved aren't included;
+  a file that has since moved or been deleted is skipped with a note,
+  and one that's already open (here or in another window) is never
+  duplicated.
 
 ## 1.9.0 — 2026-09-09
 

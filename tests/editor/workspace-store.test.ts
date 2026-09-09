@@ -4,10 +4,11 @@
  *
  * The interesting behaviours are the two-record dance: every window
  * reports into the LIVE map, and the first window of a session folds
- * that map into the LAST snapshot at boot and empties it. Notably a
- * fold that finds nothing must KEEP the previous snapshot rather than
- * blank it (launch → close everything → quit shouldn't destroy the set
- * the user might still want back).
+ * that map into the LAST snapshot at boot and empties it. A fold that
+ * finds nothing CLEARS the snapshot — closing everything before you
+ * quit is taken at face value — except when the standing snapshot was
+ * pinned by an explicit Save Workspace, which is the whole reason to
+ * reach for that command.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -69,12 +70,30 @@ describe('workspace store', () => {
     expect(rolloverLastWorkspace()?.docs.map((d) => d.path)).toEqual(['/w/saved.cmir']);
   });
 
-  it('a fold with nothing open keeps the previous snapshot', () => {
+  it('a fold with nothing open clears an automatic snapshot', () => {
     report(['/w/a.cmir']);
     rolloverLastWorkspace();
-    // Next session: nothing was open when it ended.
+    // Next session: everything was closed before quitting.
+    expect(rolloverLastWorkspace()).toBeNull();
+    expect(lastWorkspace()).toBeNull();
+  });
+
+  it('a fold with nothing open keeps a pinned snapshot', () => {
+    report(['/w/a.cmir']);
+    expect(saveWorkspaceNow()?.pinned).toBe(true);
+    report([]); // closed it again before quitting
     const kept = rolloverLastWorkspace();
     expect(kept?.docs.map((d) => d.path)).toEqual(['/w/a.cmir']);
+    expect(kept?.pinned).toBe(true);
+  });
+
+  it('a session that ends with docs open replaces even a pinned snapshot', () => {
+    report(['/w/pinned.cmir']);
+    saveWorkspaceNow();
+    report(['/w/later.cmir']);
+    const rolled = rolloverLastWorkspace();
+    expect(rolled?.docs.map((d) => d.path)).toEqual(['/w/later.cmir']);
+    expect(rolled?.pinned).toBe(false);
   });
 
   it('merges windows oldest-first and de-duplicates by path', () => {
@@ -109,6 +128,19 @@ describe('workspace store', () => {
     report([]); // this window closed its doc
     expect(saveWorkspaceNow()).toBeNull();
     expect(lastWorkspace()?.docs.map((d) => d.path)).toEqual(['/w/a.cmir']);
+  });
+
+  it('a snapshot written before pinning existed reads as unpinned', () => {
+    localStorage.setItem(
+      LAST_KEY,
+      JSON.stringify({
+        savedAt: Date.now(),
+        mode: 'windows',
+        docs: [{ path: '/w/old.cmir', filename: 'old.cmir', format: 'cmir', slot: null }],
+      }),
+    );
+    expect(lastWorkspace()?.pinned).toBe(false);
+    expect(rolloverLastWorkspace()).toBeNull();
   });
 
   it('ignores live entries older than the age cap', () => {

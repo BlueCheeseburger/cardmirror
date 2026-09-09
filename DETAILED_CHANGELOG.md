@@ -27,12 +27,16 @@ The first window of an app session folds LIVE into the LAST snapshot
 at boot (`rolloverLastWorkspace`) and empties it, so LAST is always
 "the previous session", and the roll-over runs BEFORE this window
 mounts anything (then re-reports) so a doc mounted first isn't swept
-back out. A fold that finds nothing open keeps the previous snapshot:
-launch → close everything → quit shouldn't destroy the set the user
-might still want back. Windows merge oldest-first, de-duplicated by
-path and capped at 24; live entries older than 30 days are dropped on
-read, bounding the map against windows that vanished on a machine
-whose next launch never came.
+back out. A fold that finds nothing open CLEARS the snapshot —
+closing every document before quitting is taken at face value — with
+one exception: a snapshot written by the explicit Save Workspace
+command is `pinned` and survives an empty quit, which is the whole
+reason to reach for that command. Pinning protects against erasure,
+it doesn't freeze the row: a session that ends WITH documents open
+replaces the snapshot either way. Windows merge oldest-first,
+de-duplicated by path and capped at 24; live entries older than 30
+days are dropped on read, bounding the map against windows that
+vanished on a machine whose next launch never came.
 
 Restoring is mode-aware. Three-pane hands the whole set to the shell,
 which reads each file by path and loads it into the slot it was saved
@@ -46,6 +50,20 @@ already open here or in another window is skipped rather than opened
 twice, and both substitute blank-document bytes for a genuinely-empty
 file the way the Open dialog's `resolveOpenedFile` does. Files that
 moved or were deleted are counted and reported in one toast.
+
+The home-screen section lists the whole set as a checklist rather than
+a single all-or-nothing row: reopening 15 documents (15 windows, in
+single-doc mode) is rarely what the user wants, and seeing what's in
+the set is half the value. Ticks are tracked as an EXCLUSION set keyed
+to the snapshot's `savedAt`, so a snapshot that gains documents
+defaults them to ticked and a genuinely new snapshot resets the
+selection; All / None flip every row at once, and the summary label
+plus the Reopen button's disabled state are re-derived in place rather
+than by re-rendering (which would rebuild the list under the user's
+cursor). The button hands the callback a snapshot carrying only the
+ticked documents, so the renderer opens exactly what it's given. The
+list scrolls past ~18rem, like the sessions list, so a 24-document
+workspace can't push the utilities off screen.
 
 The launch restore is opt-in (`reopenWorkspaceOnLaunch`, default off —
 a launch that silently reopens six files is a surprise unless it was
