@@ -1224,6 +1224,10 @@ Assemble a speech document by sending cards into it:
 The **dropzone** is a holding shelf: press **Mod-`` ` ``** to send a card
 there and pull it back later — useful for parking common evidence temporarily,
 or parking a card you know you need but are not sure where to put yet.
+**Preview** on a shelf row opens the cards full-size in a read-only view,
+with a nav pane beside them, so you can check what you parked without
+inserting it; **Copy to clipboard** there copies the cards for pasting
+anywhere, and **Close** (or Esc) puts the preview away.
 
 ### Saving a send doc
 
@@ -1327,6 +1331,10 @@ row shows the card's label, who sent it, and when. From a row:
   copies — the card stays in the pill until you ✕ it. A bundled
   multi-selection send shows a **×N** count and is taken as one piece —
   click, drag, and ✕ all act on the whole bundle.
+- **Preview** opens the card (or the whole bundle) full-size in a read-only
+  view with a nav pane, so you can see what someone sent before it goes
+  anywhere; **Copy to clipboard** there copies the cards for pasting, and
+  **Close** (or Esc) dismisses it.
 - Inserted cards fold in the nav pane to your current outline depth
   instead of arriving fully expanded.
 - **Mod-P** inserts the most recently received card at the cursor, and

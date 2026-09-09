@@ -16,7 +16,9 @@ import type { EditorView } from 'prosemirror-view';
 import { dragController, type DragItem } from '../drag-controller.js';
 import { schema } from '../../schema/index.js';
 import { setIcon } from '../icons';
-import { typeBadge, dropzoneDragLevel } from '../dropzone-ui.js';
+import { typeBadge, dropzoneDragLevel, previewRowButton } from '../dropzone-ui.js';
+import { openCardPreview } from '../card-preview-modal.js';
+import { isAnyOverlayOpen } from '../overlay-stack.js';
 import { settings } from '../settings.js';
 import {
   inboxItemCardCount, inboxStore, type InboxItem } from './inbox-store.js';
@@ -312,6 +314,12 @@ export class ReceivePillController {
     main.appendChild(meta);
     row.appendChild(main);
 
+    // Look before you insert: a full-size read-only preview with Copy.
+    const subtitle = meta.textContent;
+    row.appendChild(
+      previewRowButton(() => openCardPreview({ title: item.label, subtitle, sliceJson: item.sliceJson })),
+    );
+
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'pmd-dropzone-row-delete';
@@ -326,7 +334,7 @@ export class ReceivePillController {
 
     row.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
-      if ((e.target as HTMLElement).closest('.pmd-dropzone-row-delete')) return;
+      if ((e.target as HTMLElement).closest('.pmd-dropzone-row-delete, .pmd-row-preview')) return;
       this.dragOutSource = {
         startX: e.clientX,
         startY: e.clientY,
@@ -496,6 +504,9 @@ export class ReceivePillController {
 
   private onDocumentPointerDown = (e: PointerEvent): void => {
     if (!this.open) return;
+    // A modal on top (the card preview opened from a row) takes the pointer:
+    // its Close button must not collapse the list the user is browsing.
+    if (isAnyOverlayOpen()) return;
     const t = e.target as Node | null;
     if (!t) return;
     if (this.root.contains(t)) return;

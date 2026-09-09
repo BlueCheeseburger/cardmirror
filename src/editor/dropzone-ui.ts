@@ -48,6 +48,8 @@ import { setIcon } from './icons';
 import { readModePlugin } from './read-mode-plugin.js';
 import { READ_MODE_DRAG_META } from './reading-marker.js';
 import { checkedSliceFromJSON } from '../schema/slice-check.js';
+import { openCardPreview } from './card-preview-modal.js';
+import { isAnyOverlayOpen } from './overlay-stack.js';
 
 interface DropzoneMountOptions {
   parent: HTMLElement;
@@ -256,6 +258,9 @@ export class DropzoneController {
     label.title = item.label;
     row.appendChild(label);
 
+    // Look before you insert: a full-size read-only preview with Copy.
+    row.appendChild(previewRowButton(() => openCardPreview({ title: item.label, sliceJson: item.sliceJson })));
+
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'pmd-dropzone-row-delete';
@@ -270,7 +275,7 @@ export class DropzoneController {
 
     row.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
-      if ((e.target as HTMLElement).closest('.pmd-dropzone-row-delete')) return;
+      if ((e.target as HTMLElement).closest('.pmd-dropzone-row-delete, .pmd-row-preview')) return;
       this.dragOutSource = {
         startX: e.clientX,
         startY: e.clientY,
@@ -427,6 +432,9 @@ export class DropzoneController {
 
   private onDocumentPointerDown = (e: PointerEvent): void => {
     if (!this.open) return;
+    // A modal on top (the card preview opened from a row) takes the pointer:
+    // its Close button must not collapse the list the user is browsing.
+    if (isAnyOverlayOpen()) return;
     const t = e.target as Node | null;
     if (!t) return;
     if (this.root.contains(t)) return;
@@ -436,6 +444,22 @@ export class DropzoneController {
 
 function newId(): string {
   return `dz-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** The row's Preview button — the compact accent-outline look of the
+ *  Receive pill's Join button. Shared by the shelf and the inbox rows;
+ *  the click never starts the row's drag-out. */
+export function previewRowButton(open: () => void): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pmd-row-preview';
+  btn.textContent = 'Preview';
+  btn.title = 'Look at these cards without inserting them';
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    open();
+  });
+  return btn;
 }
 
 export function typeBadge(type: string): { kind: string; label: string } {

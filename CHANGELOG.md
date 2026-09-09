@@ -16,6 +16,12 @@ see `DETAILED_CHANGELOG.md`.
   Backspace or Delete, the same paste, or the last command. Redo still
   comes first, and Mod-Shift-Z is unchanged.
 
+- **Preview cards on the shelf and in the Receive pill.** Every row in
+  the dropzone and the Receive pill has a Preview button that opens
+  the cards full-size in a read-only view, with a nav pane beside
+  them, without inserting anything. Copy to clipboard copies the
+  cards for pasting anywhere; Close or Esc dismisses the preview.
+
 ### Fixed
 
 - **Live views always travel as cards.** Copying or cutting a section

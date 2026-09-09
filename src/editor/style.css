@@ -14814,8 +14814,10 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 }
 
 /* Session-invite rows act, they don't insert: a compact Join button in
-   the accent color where the drag affordance would be. */
-.pmd-receive-row-join {
+   the accent color where the drag affordance would be. The same look
+   serves the Preview button every shelf and inbox card row carries. */
+.pmd-receive-row-join,
+.pmd-row-preview {
   flex: 0 0 auto;
   border: 1px solid var(--pmd-c-accent);
   border-radius: 4px;
@@ -14826,9 +14828,15 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   padding: 2px 8px;
   cursor: pointer;
 }
-.pmd-receive-row-join:hover {
+.pmd-receive-row-join:hover,
+.pmd-row-preview:hover {
   background: var(--pmd-c-accent);
   color: var(--pmd-c-bg, #fff);
+}
+
+.pmd-card-preview-pane {
+  flex: 1;
+  min-height: 0;
 }
 
 
@@ -15652,6 +15660,40 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 .pmd-recover-preview-editor .ProseMirror {
   padding: 1rem 1.25rem;
   min-height: 0;
+}
+
+/* Card preview (shelf / Receive rows): the wide two-pane recover dialog's
+   chrome with the preview alone filling the body — the real nav pane on
+   the left, the rendered cards on the right — and Copy / Close below. */
+.pmd-card-preview-dialog {
+  width: min(1200px, 94vw);
+  max-width: min(1200px, 94vw);
+  height: min(900px, 92vh);
+}
+.pmd-card-preview-dialog:focus {
+  outline: none; /* armed focus (armDialogFocus), no ring */
+}
+.pmd-card-preview-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1;
+}
+.pmd-card-preview-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pmd-card-preview-subtitle {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-muted);
 }
 
 /* Session-history flavor of the two-pane dialog: group rows keep

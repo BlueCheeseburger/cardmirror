@@ -34,6 +34,27 @@ behind `repeatWithModY` (Settings → General → Editor behavior), off by
 default so Mod-Y behaves exactly as before. F4, Word's other Repeat
 key, converts blocks here and stays that way.
 
+### Added: Preview for shelf and received cards
+
+The only way to see what a Dropzone row or a Receive-pill row held was to
+insert it into a document. Each card row now carries a Preview button in
+the compact accent-outline style of the Receive pill's Join button
+(`previewRowButton`, shared by both pills; the click never starts the
+row's drag-out). `card-preview-modal.ts` rebuilds the stored slice through
+the validated parser, fits it into an empty document, and mounts the same
+read-only preview Recover Previous Version uses (`mountVersionPreview`: a
+real ProseMirror view under the document stylesheet with the real nav
+pane in read-only mode beside it) in a dialog sized to most of the
+window. Copy to clipboard puts the cards on the clipboard through the
+shared clipboard path (`serializeRangesForClipboard`, so the payload is
+exactly what a copy from a document produces), toasts the card count and
+closes; a busy clipboard toasts and keeps the preview open. Close, the ×,
+Esc and a click outside dismiss it. The dialog follows the modal
+conventions: overlay-stack token, `installModalKeys` (Escape handled;
+keys aimed at the preview's own surfaces run natively; nothing falls
+through to the document), `armDialogFocus` and focus restore on close.
+A payload that cannot be rebuilt toasts instead of opening.
+
 ### Fixed: live views escaped the clipboard as dangling references
 
 A live view (`self_ref`) holds no cards of its own: its children are
