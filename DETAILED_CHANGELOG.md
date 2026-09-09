@@ -5,6 +5,58 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Added: Last workspace (reopen the documents you had open)
+
+Recents reopened one file at a time; the only machinery that ever
+reopened a SET of documents was the internal mode-switch reload. This
+generalizes that idea into a user-facing feature, without touching the
+mode-switch path.
+
+`workspace-store.ts` keeps two localStorage records. The LIVE map is
+windowId → the docs that window currently has open: every window
+rewrites its own entry whenever its open set changes (single-doc from
+`updateWindowTitle` / `setCurrentDocHandle`, which every doc-identity
+change funnels through — memoized on a path|name|format key so the
+hot dirty-marker refresh doesn't hammer storage; three-pane from
+`refreshLayout`, where every open / close / send-to-slot already
+lands, plus `setFocusedFile` for Save As). Nothing clears LIVE on
+quit — a killed app leaves exactly what was open, which is the point.
+The first window of an app session folds LIVE into the LAST snapshot
+at boot (`rolloverLastWorkspace`) and empties it, so LAST is always
+"the previous session", and the roll-over runs BEFORE this window
+mounts anything (then re-reports) so a doc mounted first isn't swept
+back out. A fold that finds nothing open keeps the previous snapshot:
+launch → close everything → quit shouldn't destroy the set the user
+might still want back. Windows merge oldest-first, de-duplicated by
+path and capped at 24; live entries older than 30 days are dropped on
+read, bounding the map against windows that vanished on a machine
+whose next launch never came.
+
+Restoring is mode-aware. Three-pane hands the whole set to the shell,
+which reads each file by path and loads it into the slot it was saved
+from (a snapshot taken in single-doc mode has no slots, so those fill
+slot1 → slot2 → slot3 in turn). Single-doc mounts the first document
+in place when this window still holds the pristine starter and spawns
+a window for each of the rest — the one-doc-per-window convention every
+other desktop flow follows. Both paths run the existing duplicate-open
+guards (`findOpenRecordByHandle` / `openPathCheck`), so a document
+already open here or in another window is skipped rather than opened
+twice, and both substitute blank-document bytes for a genuinely-empty
+file the way the Open dialog's `resolveOpenedFile` does. Files that
+moved or were deleted are counted and reported in one toast.
+
+The launch restore is opt-in (`reopenWorkspaceOnLaunch`, default off —
+a launch that silently reopens six files is a surprise unless it was
+asked for) and runs AFTER startup recovery, so a recovered draft keeps
+this window and the restore skips it as already open. It never fires on
+a mode-switch reload, which reopens an exact doc set of its own. The
+feature is gated on the Electron host throughout: the web edition can't
+serialize a `FileSystemFileHandle`, exactly as in `recents-store.ts`,
+so docs with no string path are never recorded and the Home screen
+section is omitted rather than shown dead.
+
 ## 1.9.0 — 2026-09-09
 
 ### Added: Word-style Repeat on Mod-Y (setting, off by default)

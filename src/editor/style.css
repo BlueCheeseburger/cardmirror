@@ -4407,6 +4407,41 @@ html.pmd-home-active #speech-doc-banner {
      if it must. */
 }
 
+/* Last workspace — one row above Recent that reopens the whole set of
+   documents the previous session ended with. Borrows the recent row's
+   chip / name scaffolding; the file list takes the path cell's slot. */
+.pmd-home-workspace-section {
+  margin-bottom: 1.1rem;
+}
+.pmd-home-workspace-open {
+  appearance: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--pmd-c-text);
+  width: 100%;
+}
+.pmd-home-workspace-open:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-home-workspace-files {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
 /* Collaboration sessions — dedicated section below Recent. Scrolls
    past ~6 rows so a long list never pushes the utilities off screen,
    and a session can never be displaced the way recents rotate. */

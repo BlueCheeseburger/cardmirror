@@ -128,6 +128,13 @@ import { bulkCompressEnabled } from './bulk-compress-gate.js';
 import { openClean, runCleanSingleFileWeb } from './clean-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
 import { recordRecent, removeRecent, listRecents, type RecentFile } from './recents-store.js';
+import {
+  reportWindowWorkspace,
+  rolloverLastWorkspace,
+  lastWorkspace,
+  saveWorkspaceNow,
+  type WorkspaceSnapshot,
+} from './workspace-store.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
 import {
   settings,
@@ -1642,6 +1649,37 @@ const ribbonContext: RibbonContext = {
     if (view) openWordCount(view);
   },
   toggleReaderView: () => toggleReaderViewCommand(),
+  saveWorkspace: () => {
+    if (!getElectronHost()) {
+      showToast('Saving a workspace requires the desktop edition.');
+      return;
+    }
+    const saved = saveWorkspaceNow();
+    if (!saved) {
+      showToast('Nothing to save — no saved documents are open.');
+      return;
+    }
+    showToast(
+      saved.docs.length === 1
+        ? 'Workspace saved (1 document).'
+        : `Workspace saved (${saved.docs.length} documents).`,
+    );
+  },
+  reopenWorkspace: () => {
+    if (!getElectronHost()) {
+      showToast('Reopening a workspace requires the desktop edition.');
+      return;
+    }
+    const snapshot = lastWorkspace();
+    if (!snapshot) {
+      showToast('No saved workspace yet.');
+      return;
+    }
+    void (async () => {
+      const opened = await restoreWorkspace(snapshot);
+      if (opened === 0) showToast('Every document in that workspace is already open.');
+    })();
+  },
   openContainingFolder: () => {
     const host = getElectronHost();
     if (!host) {
@@ -6117,6 +6155,7 @@ function setCurrentDocHandle(next: unknown | null): void {
   if (prev === next) return;
   if (typeof prev === 'string' && prev) releaseDocPath(prev);
   if (typeof next === 'string' && next) void registerDocPath(next);
+  reportSingleDocWorkspace();
 }
 /** On-disk format of the current single-doc file. Drives whether
  *  "Save" routes through `toDocx` or `serializeNative`. `null` for
@@ -6870,6 +6909,15 @@ const homeCallbacks: HomeScreenCallbacks = {
   openRecent: (recent: RecentFile) => {
     void openRecentInPlace(recent);
   },
+  // Reopen-by-path is desktop-only (the web edition can't persist
+  // file handles), so the home screen omits the section without it.
+  ...(getElectronHost()
+    ? {
+        reopenWorkspace: (snapshot: WorkspaceSnapshot): void => {
+          void restoreWorkspace(snapshot);
+        },
+      }
+    : {}),
   resumeSession: (roomId: string) => {
     void (async (): Promise<void> => {
       // Duplicate guards BEFORE any spawn, so a redundant click never mints
@@ -7314,6 +7362,136 @@ async function routeInitialDocIntoWorkspace(): Promise<boolean> {
   return true;
 }
 
+/** Last workspace tuple this window published, so the report hook can
+ *  sit on the (hot) window-title path without hammering localStorage
+ *  on every keystroke-driven dirty-marker refresh. */
+let lastReportedWorkspaceKey = '';
+
+/** Publish this single-doc window's open doc to the workspace store.
+ *  No-op in three-pane mode, where the shell reports all three slots
+ *  itself. Called from `updateWindowTitle` (every doc-identity change
+ *  funnels through it) and from `setCurrentDocHandle`. */
+function reportSingleDocWorkspace(): void {
+  if (multiDocActive) return;
+  const path = typeof currentDocHandle === 'string' ? currentDocHandle : null;
+  const key = `${path ?? ''}|${currentDocFilename ?? ''}|${currentDocFormat ?? ''}`;
+  if (key === lastReportedWorkspaceKey) return;
+  lastReportedWorkspaceKey = key;
+  reportWindowWorkspace('windows', [
+    { path, filename: currentDocFilename, format: currentDocFormat },
+  ]);
+}
+
+/** Read a file for a reopen-by-path flow (recents, workspace restore).
+ *  Returns null when the file is gone. A genuinely-empty file (stat
+ *  size 0) is substituted with blank-document bytes, the same way the
+ *  Open dialog's `resolveOpenedFile` does — these paths bypass it. */
+async function readFileForReopen(
+  path: string,
+): Promise<Awaited<ReturnType<NonNullable<ReturnType<typeof getElectronHost>>['readFileAtPath']>>> {
+  const electron = getElectronHost();
+  if (!electron) return null;
+  let file: Awaited<ReturnType<typeof electron.readFileAtPath>>;
+  try {
+    file = await electron.readFileAtPath(path);
+  } catch {
+    return null;
+  }
+  if (!file) return null;
+  if (opensAsBlank(file)) {
+    file = {
+      ...file,
+      bytes: await blankDocumentBytes(file.format, makeBlankNewDoc(), {
+        defaultFont: settings.get('bodyFont'),
+      }),
+    };
+  }
+  return file;
+}
+
+/** Reopen a saved workspace. Three-pane hands the whole set to the
+ *  shell, which restores each doc into the slot it was saved from.
+ *  Single-doc mounts the first doc in THIS window when it still holds
+ *  the pristine starter, and spawns a window for each of the rest —
+ *  the one-doc-per-window convention every other desktop flow follows.
+ *  Docs already open (here or in another window) are skipped rather
+ *  than duplicated. Resolves with how many actually opened. */
+async function restoreWorkspace(snapshot: WorkspaceSnapshot): Promise<number> {
+  const electron = getElectronHost();
+  if (!electron) {
+    showToast('Reopening a workspace requires the desktop edition.');
+    return 0;
+  }
+  homeScreen.hide();
+  if (multiDocActive) {
+    const { restoreWorkspaceIntoSlots } = await import('./multi-pane-shell.js');
+    // Slot assignments only mean something for a snapshot taken in
+    // three-pane mode; one taken in single-doc mode fills the slots
+    // in order instead.
+    return restoreWorkspaceIntoSlots(
+      snapshot.docs.map((d) => ({
+        path: d.path,
+        filename: d.filename,
+        slot: snapshot.mode === 'panes' ? d.slot : null,
+      })),
+    );
+  }
+  let opened = 0;
+  let missing = 0;
+  let inPlaceAvailable = isPristineStarter;
+  for (const doc of snapshot.docs) {
+    if (currentDocHandle != null && (await isSameOpenHandle(currentDocHandle, doc.path))) {
+      continue;
+    }
+    let takenByOther = false;
+    try {
+      takenByOther = (await electron.openPathCheck(doc.path)).takenByOther;
+    } catch {
+      /* old preload — fall through and let the open proceed */
+    }
+    if (takenByOther) continue;
+    const file = await readFileForReopen(doc.path);
+    if (!file) {
+      missing += 1;
+      continue;
+    }
+    try {
+      if (inPlaceAvailable) {
+        inPlaceAvailable = false;
+        await loadFileInPlace({
+          filename: file.name,
+          bytes: file.bytes,
+          handle: file.handle,
+          format: file.format,
+        });
+      } else if (electron.canSpawnWindow) {
+        await electron.spawnWindow({
+          filename: file.name,
+          bytes: file.bytes,
+          handle: file.handle,
+          format: file.format,
+          uid: null,
+        });
+      } else {
+        break; // nowhere left to put the rest
+      }
+      opened += 1;
+    } catch (err) {
+      if (err instanceof OpenCancelledError) continue; // password box dismissed
+      console.error(`Reopening "${doc.filename}" failed:`, err);
+      missing += 1;
+    }
+  }
+  if (missing > 0) {
+    showToast(
+      missing === 1
+        ? "1 document couldn't be reopened — it may have moved or been deleted."
+        : `${missing} documents couldn't be reopened — they may have moved or been deleted.`,
+    );
+  }
+  return opened;
+}
+
 /** Reopen a recent file in-place via its stored path handle.
  *  Prunes the entry if the file is gone / unreadable. */
 async function openRecentInPlace(recent: RecentFile): Promise<void> {
@@ -7527,6 +7705,7 @@ function pushSingleDocInfo(): void {
 function updateWindowTitle(): void {
   const focused = activeFile();
   pushSingleDocInfo();
+  reportSingleDocWorkspace();
   if (multiDocActive && multiDocGetAllFilenames) {
     const names = multiDocGetAllFilenames().filter((n): n is string => !!n);
     document.title = names.length > 0
@@ -9738,11 +9917,17 @@ if (BOOT_MULTI_DOC_WORKSPACE) {
     // window), and wire the forward channel.
     void getElectronHost()?.registerMultipane(true);
     installExternalOpenListener();
+    // Roll the previous session's open set into the offerable
+    // snapshot BEFORE anything mounts (the roll-over empties the live
+    // map, so a doc reported first would be swept back out), then
+    // re-report whatever this window ends up holding.
+    const lastSession = rolloverLastWorkspace();
     // If this window was spawned for an OS open (cold launch), route
     // its initial doc through the slot picker instead of booting
     // blank. Skip recovery when we did — a spawned-for-a-file window
     // isn't the place to surface unrelated drafts (matches single-doc).
     const routedInitialDoc = await routeInitialDocIntoWorkspace();
+    m.reportShellWorkspace();
     if (!routedInitialDoc) {
       // Blank multi-pane launch → land on the home screen, matching
       // single-pane. Shown BEFORE recovery (same order as single-pane):
@@ -9750,6 +9935,11 @@ if (BOOT_MULTI_DOC_WORKSPACE) {
       // auto-reopened docs hide it via the slot-populated hook.
       homeScreen.show();
       await runStartupRecovery();
+      // Opt-in launch restore, after recovery so a recovered draft
+      // keeps its slot and the restore skips that doc as already open.
+      if (lastSession && settings.get('reopenWorkspaceOnLaunch')) {
+        await restoreWorkspace(lastSession);
+      }
     }
   })();
 } else {
@@ -9780,6 +9970,23 @@ if (BOOT_MULTI_DOC_WORKSPACE) {
  *  If no payload, mount the starter and run normal recovery. */
 async function initSingleDocBoot(): Promise<void> {
   const host = getHost();
+  // Firstness is settled before anything else so the workspace
+  // roll-over below runs even on the OS-open path (which returns
+  // early with a spawn payload). Otherwise a launch that started by
+  // double-clicking a file in Finder would never roll the previous
+  // session over, and the next roll-over would fold two sessions'
+  // docs together. The main-process answer is a pure comparison —
+  // asking early costs nothing and never changes.
+  let isFirst = true;
+  try {
+    isFirst = await host.isFirstWindow();
+  } catch (err) {
+    console.warn('isFirstWindow failed; defaulting to true:', err);
+  }
+  // Only the first window rolls the previous session's set over, and
+  // it does so before its own doc is reported (the roll-over empties
+  // the live map). Later windows just keep reporting.
+  const lastSession = isFirst ? rolloverLastWorkspace() : null;
   // A spawned window carries an initial-doc payload. Check regardless of THIS
   // window's own `canSpawnWindow`: a web window spawned into a plain browser tab
   // isn't itself standalone, but must still mount the doc it was opened with.
@@ -9817,12 +10024,6 @@ async function initSingleDocBoot(): Promise<void> {
   // overlay: when it's covering the editor (fresh launches that land on
   // Home), keystrokes belong to it, not to the doc underneath.
   if (!homeScreen.isVisible()) view?.focus();
-  let isFirst = true;
-  try {
-    isFirst = await getHost().isFirstWindow();
-  } catch (err) {
-    console.warn('isFirstWindow failed; defaulting to true:', err);
-  }
   // A mode-switch reload must run recovery in THIS window no matter
   // what: it's the switch's surviving window, but frequently NOT the
   // app session's first window — every single→multi switch closes
@@ -9834,6 +10035,12 @@ async function initSingleDocBoot(): Promise<void> {
   if (modeSwitchPending) {
     console.log(`[cardmirror] modeswitch: single-pane boot, isFirst=${isFirst}`);
   }
+  if (isFirst) {
+    // Re-report after the roll-over emptied the live map, so this
+    // window is represented again straight away.
+    lastReportedWorkspaceKey = '';
+    reportSingleDocWorkspace();
+  }
   if (isFirst || modeSwitchPending) {
     // Launched with no file → show the home screen over the
     // (blank) starter doc. Recovery still runs underneath; if the
@@ -9842,6 +10049,11 @@ async function initSingleDocBoot(): Promise<void> {
     // no-recovery launch lands on the hub rather than a blank doc.
     homeScreen.show();
     await runStartupRecovery();
+    // Opt-in launch restore. A mode-switch reload already reopens an
+    // exact doc set of its own, so it never doubles up with this.
+    if (lastSession && !modeSwitchPending && settings.get('reopenWorkspaceOnLaunch')) {
+      await restoreWorkspace(lastSession);
+    }
   }
   if (isFirst) {
     const electron = getElectronHost();

@@ -5,6 +5,26 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Added
+
+- **Last workspace — reopen everything you had open.** CardMirror now
+  remembers the documents open when you last quit and offers them back
+  on the Home screen under **Last workspace**: one click reopens the
+  whole set. In the three-pane workspace each document returns to the
+  pane it was in; in single-document mode each gets its own window.
+  Turn on **Settings → General → Workspace → Reopen last workspace at
+  launch** to have it happen automatically at every start. Two new
+  command-bar commands go with it (both unbound by default): **Save
+  Workspace**, which snapshots what's open right now so you can return
+  to a particular working set later, and **Reopen Last Workspace**,
+  which restores it without going via the Home screen. **Forget** on
+  the Home screen drops the snapshot. Desktop only — reopening needs
+  files on disk — and documents you never saved aren't included; a file
+  that has since moved or been deleted is skipped with a note, and one
+  that's already open (here or in another window) is never duplicated.
+
 ## 1.9.0 — 2026-09-09
 
 ### Added

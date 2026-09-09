@@ -99,6 +99,7 @@ import {
 } from './text-prompt.js';
 import { showToast } from './toast.js';
 import { recordRecent } from './recents-store.js';
+import { reportWindowWorkspace, type WorkspaceDoc } from './workspace-store.js';
 import { maybeDecryptForOpen, OpenCancelledError } from './open-encrypted.js';
 import {
   checkSessionRejoinForOpenedDoc,
@@ -1698,6 +1699,23 @@ class MultiPaneShell {
     this.navRailEl.dataset['active'] = String(active);
     // Active-count change → pane widths change → re-sync.
     this.scheduleSyncAllCardIntrinsicWidths();
+    // Every open / close / send-to-slot lands here, so this is the one
+    // place the workspace snapshot needs refreshing (Save As renames go
+    // through `setFocusedFile`, which reports separately).
+    this.reportWorkspace();
+  }
+
+  /** Publish this window's open set to the workspace store, so
+   *  "Reopen last workspace" can rebuild it — including which slot
+   *  each doc sat in. Unsaved docs (no path) drop out in the store. */
+  reportWorkspace(): void {
+    const docs: Array<Pick<WorkspaceDoc, 'filename' | 'format' | 'slot'> & { path: unknown }> = [];
+    for (const id of SLOT_IDS) {
+      for (const rec of this.slots[id].stack) {
+        docs.push({ path: rec.handle, filename: rec.filename, format: rec.format, slot: id });
+      }
+    }
+    reportWindowWorkspace('panes', docs);
   }
 
   /** Toggle expand mode on `slot`. If the same slot is already
@@ -2389,6 +2407,9 @@ class MultiPaneShell {
     rec.format = file.format;
     slot.refreshChipFilename();
     pushPaneDocInfo(rec.uid, rec.filename);
+    // Save As moved the doc (or gave a never-saved doc its first
+    // path) — the snapshot's paths are now out of date.
+    this.reportWorkspace();
   }
 
   /** Journal every DocRecord across every slot's stack. Called by
@@ -2648,6 +2669,57 @@ class MultiPaneShell {
     if (record) {
       requestAnimationFrame(() => scrollRecordToDescriptor(record, req.descriptor, req.name));
     }
+  }
+
+  /** Reopen a saved workspace into this window's slots. Each doc is
+   *  read straight from its recorded path — no picker — and lands in
+   *  the slot it was saved from; docs saved in single-doc mode (no
+   *  slot) fill slot1 → slot2 → slot3 in turn. Docs already open here
+   *  or held by another window are skipped rather than duplicated,
+   *  and a file that moved or was deleted is skipped with a toast.
+   *  Resolves with the number of docs actually opened. */
+  async restoreWorkspaceDocs(
+    docs: Array<{ path: string; filename: string; slot: SlotId | null }>,
+  ): Promise<number> {
+    const electron = getElectronHost();
+    if (!electron) return 0;
+    let opened = 0;
+    let missing = 0;
+    let nextSlot = 0;
+    for (const doc of docs) {
+      if (await this.findOpenRecordByHandle(doc.path)) continue;
+      if (await isFileOpenInAnotherWindow(doc.path)) continue;
+      let file: Awaited<ReturnType<typeof electron.readFileAtPath>>;
+      try {
+        file = await electron.readFileAtPath(doc.path);
+      } catch {
+        file = null;
+      }
+      if (!file) {
+        missing += 1;
+        continue;
+      }
+      const target = doc.slot ?? SLOT_IDS[nextSlot % SLOT_IDS.length]!;
+      nextSlot += 1;
+      try {
+        await this.loadOpenedIntoSlot(
+          { name: file.name, bytes: file.bytes, handle: file.handle },
+          target,
+        );
+        opened += 1;
+      } catch (err) {
+        console.error(`Reopening "${doc.filename}" failed:`, err);
+        missing += 1;
+      }
+    }
+    if (missing > 0) {
+      showToast(
+        missing === 1
+          ? "1 document couldn't be reopened — it may have moved or been deleted."
+          : `${missing} documents couldn't be reopened — they may have moved or been deleted.`,
+      );
+    }
+    return opened;
   }
 
   /** Duplicate-open guard: if `opened` is already loaded in the
@@ -3099,6 +3171,23 @@ export function focusSlotByIndex(idx: 0 | 1 | 2): void {
 export function sendVisibleToSlotByIndex(idx: 0 | 1 | 2): void {
   if (!shell) return;
   shell.sendVisibleToSlotByIndex(idx);
+}
+
+/** Re-publish the shell's open set to the workspace store. Called at
+ *  boot right after the roll-over (which empties the live map) so this
+ *  window's docs are represented again straight away. */
+export function reportShellWorkspace(): void {
+  shell?.reportWorkspace();
+}
+
+/** Reopen a saved workspace into the three-pane shell. No-op (0) in
+ *  single-doc mode, where `index.ts` restores by spawning a window
+ *  per doc instead. */
+export async function restoreWorkspaceIntoSlots(
+  docs: Array<{ path: string; filename: string; slot: SlotId | null }>,
+): Promise<number> {
+  if (!shell) return 0;
+  return shell.restoreWorkspaceDocs(docs);
 }
 
 /** Toggle expand-mode on the focused slot. No-op when no slot is

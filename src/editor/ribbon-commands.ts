@@ -4317,6 +4317,8 @@ export type RibbonCommandId =
   | 'toggleReadMode'
   | 'toggleReaderView'
   | 'openContainingFolder'
+  | 'saveWorkspace'
+  | 'reopenWorkspace'
   | 'toggleCommentsVisible'
   | 'addCommentToSelection'
   | 'addNoteToSelection'
@@ -4552,6 +4554,8 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'toggleReadMode',
   'toggleReaderView',
   'openContainingFolder',
+  'saveWorkspace',
+  'reopenWorkspace',
   'toggleCommentsVisible',
   'addCommentToSelection',
   'addNoteToSelection',
@@ -4739,6 +4743,8 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   toggleReadMode: 'Toggle Read Mode',
   toggleReaderView: 'Toggle Reading View',
   openContainingFolder: 'Open Containing Folder',
+  saveWorkspace: 'Save Workspace',
+  reopenWorkspace: 'Reopen Last Workspace',
   toggleCommentsVisible: 'Show / Hide Comments',
   addCommentToSelection: 'Add Comment to Selection',
   addNoteToSelection: 'Add Note to Selection',
@@ -4913,6 +4919,8 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   toggleReadMode: ['show read mode', 'hide read mode', 'invisibility mode'],
   toggleReaderView: ['reading view', 'reader view', 'paginated view', 'read view', 'book view', 'columns'],
   openContainingFolder: ['reveal in finder', 'show in folder', 'show in explorer', 'reveal file', 'file location', 'containing folder'],
+  saveWorkspace: ['save session', 'save open documents', 'remember open documents', 'save tabs'],
+  reopenWorkspace: ['restore session', 'reopen session', 'open previous session', 'reopen last session', 'restore workspace', 'reopen documents', 'reopen tabs'],
   toggleAutosave: ['enable autosave', 'disable autosave', 'turn on autosave', 'turn off autosave'],
   markActiveAsSpeech: ['toggle speech doc', 'set speech document'],
   // vague / Word-flavored labels
@@ -5089,6 +5097,8 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   toggleReadMode: '',
   toggleReaderView: '',
   openContainingFolder: '',
+  saveWorkspace: '',
+  reopenWorkspace: '',
   toggleCommentsVisible: '',
   addCommentToSelection: '',
   addNoteToSelection: 'Mod-Shift-n',
@@ -5332,6 +5342,8 @@ export interface RibbonContext {
   toggleReadMode: () => void;
   toggleReaderView: () => void;
   openContainingFolder: () => void;
+  saveWorkspace: () => void;
+  reopenWorkspace: () => void;
   openShortcutsReference: () => void;
   toggleCommentsVisible: () => void;
   addCommentToSelection: () => void;
@@ -5527,6 +5539,8 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   toggleReadMode: () => {},
   toggleReaderView: () => {},
   openContainingFolder: () => {},
+  saveWorkspace: () => {},
+  reopenWorkspace: () => {},
   openShortcutsReference: () => {},
   toggleCommentsVisible: () => {},
   addCommentToSelection: () => {},
@@ -5784,6 +5798,18 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.openContainingFolder();
+        return true;
+      };
+    case 'saveWorkspace':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.saveWorkspace();
+        return true;
+      };
+    case 'reopenWorkspace':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.reopenWorkspace();
         return true;
       };
     case 'toggleCommentsVisible':

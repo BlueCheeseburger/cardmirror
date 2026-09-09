@@ -1,0 +1,236 @@
+/**
+ * Workspace store — "reopen the documents I had open last time."
+ *
+ * Two localStorage records, both host-agnostic in shape but only
+ * useful where handles are serializable (Electron paths; the web
+ * edition's `FileSystemFileHandle` can't be stored, exactly as in
+ * `recents-store.ts`, so web docs are skipped):
+ *
+ *  - LIVE (`pmd-live-workspace`): a map of windowId → the docs that
+ *    window currently has open. Every window rewrites its OWN entry
+ *    whenever its open set changes (single-doc: on handle change;
+ *    three-pane: on every slot composition change). Nothing clears
+ *    it on quit — a killed app leaves exactly what was open, which
+ *    is the point.
+ *
+ *  - LAST (`pmd-last-workspace`): the snapshot offered to the user.
+ *    The first window of an app session calls `rolloverLastWorkspace()`
+ *    at boot, which folds the LIVE map (i.e. the previous session's
+ *    survivors) into LAST and empties LIVE so this session starts
+ *    accumulating from scratch. `saveWorkspaceNow()` does the same
+ *    fold mid-session for the explicit Save Workspace command.
+ *
+ * A rollover that finds nothing open KEEPS the previous snapshot
+ * rather than blanking it: launching, closing everything, and
+ * quitting shouldn't destroy the set the user might still want back.
+ *
+ * The mode (`panes` / `windows`) is recorded so a restore can honour
+ * slot assignments when the user is still in three-pane mode, and
+ * ignore them when they've since switched.
+ */
+
+const LIVE_KEY = 'pmd-live-workspace';
+const LAST_KEY = 'pmd-last-workspace';
+
+/** Cap on a snapshot's size — a workspace bigger than this is
+ *  almost certainly stale entries from windows that never got
+ *  pruned, and reopening 40 documents would be hostile anyway. */
+const MAX_DOCS = 24;
+
+/** Live entries older than this are dropped on read. Bounds the map
+ *  against windowIds that vanished without a rollover (a crash on a
+ *  machine where the next launch never happened, say). */
+const LIVE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+export type WorkspaceSlotId = 'slot1' | 'slot2' | 'slot3';
+
+export interface WorkspaceDoc {
+  /** Absolute path (Electron). Docs without a serializable handle
+   *  are never recorded, so this is always a non-empty string. */
+  path: string;
+  filename: string;
+  format: 'cmir' | 'docx' | null;
+  /** Three-pane only: which slot held the doc. Null in single-doc
+   *  mode, and ignored by a restore running in the other mode. */
+  slot: WorkspaceSlotId | null;
+}
+
+export interface WorkspaceSnapshot {
+  savedAt: number;
+  mode: 'panes' | 'windows';
+  docs: WorkspaceDoc[];
+}
+
+interface LiveEntry {
+  updatedAt: number;
+  mode: 'panes' | 'windows';
+  docs: WorkspaceDoc[];
+}
+
+/** Identity for THIS window inside the LIVE map, minted per load.
+ *  Deliberately NOT persisted: a reloaded window is a new window as
+ *  far as the map is concerned, and its old entry is swept by the
+ *  next rollover. */
+const WINDOW_ID =
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `w${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+
+type Listener = (snapshot: WorkspaceSnapshot | null) => void;
+const listeners = new Set<Listener>();
+
+function isDoc(d: unknown): d is WorkspaceDoc {
+  if (!d || typeof d !== 'object') return false;
+  const doc = d as WorkspaceDoc;
+  return typeof doc.path === 'string' && !!doc.path && typeof doc.filename === 'string';
+}
+
+function normalizeDoc(d: WorkspaceDoc): WorkspaceDoc {
+  return {
+    path: d.path,
+    filename: d.filename,
+    format: d.format === 'cmir' || d.format === 'docx' ? d.format : null,
+    slot: d.slot === 'slot1' || d.slot === 'slot2' || d.slot === 'slot3' ? d.slot : null,
+  };
+}
+
+function readJson(key: string): unknown {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeJson(key: string, value: unknown): void {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage disabled / quota — the feature degrades to "no
+    // snapshot", which every caller already handles.
+  }
+}
+
+function readLive(): Record<string, LiveEntry> {
+  const parsed = readJson(LIVE_KEY);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  const out: Record<string, LiveEntry> = {};
+  const cutoff = Date.now() - LIVE_MAX_AGE_MS;
+  for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue;
+    const e = value as LiveEntry;
+    if (typeof e.updatedAt !== 'number' || e.updatedAt < cutoff) continue;
+    if (!Array.isArray(e.docs)) continue;
+    out[id] = {
+      updatedAt: e.updatedAt,
+      mode: e.mode === 'panes' ? 'panes' : 'windows',
+      docs: e.docs.filter(isDoc).map(normalizeDoc),
+    };
+  }
+  return out;
+}
+
+/** Fold the LIVE map into one snapshot: oldest window first (so the
+ *  set reads in the order the user built it), de-duplicated by path.
+ *  Mode comes from the newest contributing entry — every window in a
+ *  session runs the same mode, so this only matters after a toggle. */
+function foldLive(live: Record<string, LiveEntry>): WorkspaceSnapshot | null {
+  const entries = Object.values(live)
+    .filter((e) => e.docs.length > 0)
+    .sort((a, b) => a.updatedAt - b.updatedAt);
+  if (entries.length === 0) return null;
+  const seen = new Set<string>();
+  const docs: WorkspaceDoc[] = [];
+  for (const entry of entries) {
+    for (const doc of entry.docs) {
+      if (seen.has(doc.path)) continue;
+      seen.add(doc.path);
+      docs.push(doc);
+      if (docs.length >= MAX_DOCS) break;
+    }
+    if (docs.length >= MAX_DOCS) break;
+  }
+  const newest = entries.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
+  return { savedAt: Date.now(), mode: newest.mode, docs };
+}
+
+/** Record what THIS window currently has open. Docs without a string
+ *  path (unsaved, or a web handle) are dropped — they can't be
+ *  reopened, and recording them would render dead rows. Cheap enough
+ *  to call from every open / close / Save As. */
+export function reportWindowWorkspace(
+  mode: 'panes' | 'windows',
+  docs: Array<{ path: unknown; filename: string | null; format: 'cmir' | 'docx' | null; slot?: WorkspaceSlotId | null }>,
+): void {
+  const kept: WorkspaceDoc[] = [];
+  for (const d of docs) {
+    if (typeof d.path !== 'string' || !d.path || !d.filename) continue;
+    kept.push({ path: d.path, filename: d.filename, format: d.format, slot: d.slot ?? null });
+  }
+  const live = readLive();
+  if (kept.length === 0) delete live[WINDOW_ID];
+  else live[WINDOW_ID] = { updatedAt: Date.now(), mode, docs: kept };
+  writeJson(LIVE_KEY, live);
+}
+
+/** The snapshot the user can reopen, or null when there is none. */
+export function lastWorkspace(): WorkspaceSnapshot | null {
+  const parsed = readJson(LAST_KEY);
+  if (!parsed || typeof parsed !== 'object') return null;
+  const s = parsed as WorkspaceSnapshot;
+  if (typeof s.savedAt !== 'number' || !Array.isArray(s.docs)) return null;
+  const docs = s.docs.filter(isDoc).map(normalizeDoc).slice(0, MAX_DOCS);
+  if (docs.length === 0) return null;
+  return { savedAt: s.savedAt, mode: s.mode === 'panes' ? 'panes' : 'windows', docs };
+}
+
+function publish(snapshot: WorkspaceSnapshot | null): void {
+  for (const fn of listeners) fn(snapshot);
+}
+
+/** Boot-time roll-over, run ONCE per app session by the first window:
+ *  the LIVE map still holds the previous session's open docs, so fold
+ *  it into LAST and empty it. Returns the resulting snapshot (which
+ *  may be a previous one, when the last session ended with nothing
+ *  open). */
+export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
+  const folded = foldLive(readLive());
+  writeJson(LIVE_KEY, {});
+  if (folded) writeJson(LAST_KEY, folded);
+  const snapshot = folded ?? lastWorkspace();
+  publish(snapshot);
+  return snapshot;
+}
+
+/** Explicit "Save Workspace": fold what every live window reports
+ *  RIGHT NOW into LAST, without disturbing the live map. Returns the
+ *  saved snapshot, or null when nothing reopenable is open. */
+export function saveWorkspaceNow(): WorkspaceSnapshot | null {
+  const folded = foldLive(readLive());
+  if (!folded) return null;
+  writeJson(LAST_KEY, folded);
+  publish(folded);
+  return folded;
+}
+
+export function clearLastWorkspace(): void {
+  writeJson(LAST_KEY, null);
+  publish(null);
+}
+
+export function subscribeLastWorkspace(fn: Listener): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+// Cross-window sync, same mechanism recents use: a write from ANOTHER
+// window arrives as a `storage` event (never fired in the writing
+// window, which published to its own listeners above). Keeps a home
+// screen sitting visible in one window current when another saves.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === LAST_KEY || e.key === null) publish(lastWorkspace());
+  });
+}

@@ -24,6 +24,12 @@ import {
   clearRecents,
   type RecentFile,
 } from './recents-store.js';
+import {
+  lastWorkspace,
+  subscribeLastWorkspace,
+  clearLastWorkspace,
+  type WorkspaceSnapshot,
+} from './workspace-store.js';
 import { learnStore, localToday } from './learn-store-host.js';
 import { getElectronHost } from './host/index.js';
 import { openLearnSession } from './learn-session-ui.js';
@@ -49,6 +55,10 @@ export interface HomeScreenCallbacks {
   /** Reopen a recent file in-place. The renderer reads the
    *  handle, mounts the doc, and prunes the entry on failure. */
   openRecent: (recent: RecentFile) => void;
+  /** Reopen every document from the last saved workspace. Omitted on
+   *  hosts that can't reopen by path (the web edition), in which case
+   *  the Workspace section isn't rendered at all. */
+  reopenWorkspace?: (snapshot: WorkspaceSnapshot) => void;
   /** Open the Quick Cards manage overlay. */
   manageQuickCards: () => void;
   /** Open the .docx style cleaner. Electron-only (recursive folder I/O +
@@ -69,6 +79,8 @@ export interface HomeScreenCallbacks {
 class HomeScreen {
   private root!: HTMLDivElement;
   private recentsEl!: HTMLDivElement;
+  private workspaceSection!: HTMLElement;
+  private workspaceEl!: HTMLDivElement;
   private sessionsSection!: HTMLElement;
   private sessionsEl!: HTMLDivElement;
   private learnEl!: HTMLDivElement;
@@ -181,6 +193,32 @@ class HomeScreen {
       this.actionCard('Open…', 'Browse for a .cmir or .docx file.', this.actionRunners[2]!),
     );
     inner.appendChild(actions);
+
+    // Last workspace — "pick up where you left off", above Recent
+    // because it restores a whole working set in one click where
+    // Recent reopens one file. Hidden when there's no snapshot, and
+    // omitted entirely on hosts that can't reopen by path.
+    this.workspaceSection = document.createElement('section');
+    this.workspaceSection.className = 'pmd-home-workspace-section';
+    this.workspaceSection.hidden = true;
+    const wsHeader = document.createElement('div');
+    wsHeader.className = 'pmd-home-recents-header';
+    const wsTitle = document.createElement('h2');
+    wsTitle.className = 'pmd-home-section-title';
+    wsTitle.textContent = 'Last workspace';
+    wsHeader.appendChild(wsTitle);
+    const wsForget = document.createElement('button');
+    wsForget.type = 'button';
+    wsForget.className = 'pmd-home-recents-clear';
+    wsForget.textContent = 'Forget';
+    wsForget.title = 'Forget the saved workspace';
+    wsForget.addEventListener('click', () => clearLastWorkspace());
+    wsHeader.appendChild(wsForget);
+    this.workspaceSection.appendChild(wsHeader);
+    this.workspaceEl = document.createElement('div');
+    this.workspaceEl.className = 'pmd-home-workspace';
+    this.workspaceSection.appendChild(this.workspaceEl);
+    inner.appendChild(this.workspaceSection);
 
     // Recent files.
     const recentsSection = document.createElement('section');
@@ -307,6 +345,8 @@ class HomeScreen {
     parent.appendChild(this.root);
 
     this.unsubscribe = subscribeRecents(() => this.renderRecents());
+    subscribeLastWorkspace(() => this.renderWorkspace());
+    this.renderWorkspace();
     learnStore.subscribe(() => this.renderLearn());
     subscribeSessionRecords(() => void this.renderSessions());
     this.renderRecents();
@@ -335,6 +375,7 @@ class HomeScreen {
     // opened a file); re-read. Same for the learn counts (cards may
     // have been created while a doc was open).
     this.renderRecents();
+    this.renderWorkspace();
     void this.renderSessions();
     this.renderLearn();
     this.notifyVisibility(true);
@@ -623,6 +664,37 @@ class HomeScreen {
       }
       this.learnEl.appendChild(list);
     }
+  }
+
+  /** Rebuild the Last-workspace section from the store. One button
+   *  that reopens the whole set, labeled with the count and the
+   *  filenames it holds. */
+  private renderWorkspace(): void {
+    if (!this.workspaceSection) return;
+    const snapshot = this.callbacks?.reopenWorkspace ? lastWorkspace() : null;
+    this.workspaceSection.hidden = snapshot === null;
+    this.workspaceEl.replaceChildren();
+    if (!snapshot) return;
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'pmd-home-workspace-open';
+    const count = document.createElement('span');
+    count.className = 'pmd-home-recent-format';
+    count.textContent = String(snapshot.docs.length);
+    row.appendChild(count);
+    const name = document.createElement('span');
+    name.className = 'pmd-home-recent-name';
+    name.textContent =
+      snapshot.docs.length === 1 ? 'Reopen 1 document' : `Reopen ${snapshot.docs.length} documents`;
+    row.appendChild(name);
+    const files = document.createElement('span');
+    files.className = 'pmd-home-workspace-files';
+    const names = snapshot.docs.map((d) => stripKnownExt(d.filename));
+    files.textContent = names.join(' · ');
+    row.appendChild(files);
+    row.title = `Saved ${relativeTime(snapshot.savedAt)}\n${snapshot.docs.map((d) => d.path).join('\n')}`;
+    row.addEventListener('click', () => this.callbacks?.reopenWorkspace?.(snapshot));
+    this.workspaceEl.appendChild(row);
   }
 
   private recentRow(recent: RecentFile): HTMLButtonElement {

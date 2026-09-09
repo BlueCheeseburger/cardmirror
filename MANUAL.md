@@ -1963,6 +1963,19 @@ home screen — to open it, exactly like File → Open (including the unsaved-ch
 prompt, and focusing a copy that's already open). Other file types are ignored,
 and dragging cards around inside the editor is unaffected.
 
+**Reopening your last set of documents.** CardMirror remembers which files
+you had open when you last quit. The Home screen shows them under **Last
+workspace** — one click reopens the whole set (in the three-pane workspace,
+each document goes back to the pane it was in; in single-document mode each
+gets its own window). Turn on **Settings → General → Workspace → Reopen last
+workspace at launch** to have that happen automatically every time you start
+CardMirror. **Save Workspace** (command bar — try "save session") snapshots
+what's open right now, so you can come back to a particular working set even
+after opening other things; **Reopen Last Workspace** restores it without going
+via the Home screen, and **Forget** on the Home screen drops the snapshot.
+Documents that have never been saved aren't included — there's no file to
+reopen — and one that has moved or been deleted is skipped with a note.
+
 **Password-protected Word files.** If you open a `.docx` that Word encrypted
 with a password, CardMirror asks for the password and opens it. Saving writes
 a normal, unencrypted file — CardMirror doesn't re-apply the password. (Only
