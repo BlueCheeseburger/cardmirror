@@ -6622,11 +6622,14 @@ export function primaryKeyFor(
 export function buildRibbonKeymap(
   overrides: Partial<Record<string, string | string[]>> = {},
   ctx: RibbonContext = DEFAULT_RIBBON_CONTEXT,
+  /** Wrap each bound command (the Repeat recorder tags runs by id). */
+  wrap?: (id: string, cmd: Command) => Command,
 ): Record<string, Command> {
   const out: Record<string, Command> = {};
   for (const id of RIBBON_COMMAND_IDS) {
     const spec = overrides[id] ?? DEFAULT_RIBBON_KEYS[id];
-    const cmd = commandFor(id, ctx);
+    const raw = commandFor(id, ctx);
+    const cmd = wrap ? wrap(id, raw) : raw;
     for (const key of keysArray(spec)) {
       if (!key) continue;
       out[key] = cmd;

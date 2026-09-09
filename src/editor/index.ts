@@ -10,7 +10,8 @@
 import { EditorState, Plugin, Selection, TextSelection, type Command } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { keymap } from 'prosemirror-keymap';
-import { history, redo, undo } from 'prosemirror-history';
+import { history, redo, undo, redoDepth } from 'prosemirror-history';
+import { repeatLastActionPlugin, repeatLastAction, noteCommandRun } from './repeat-last-action.js';
 import { baseKeymap } from 'prosemirror-commands';
 import { Node as PMNode, type Mark, DOMSerializer } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
@@ -2431,7 +2432,26 @@ settingsBtn.addEventListener('click', () => {
  */
 export function runRibbon(id: AnyCommandId): void {
   if (!view) return;
-  getRibbonCommand(id, ribbonContext)(view.state, view.dispatch.bind(view), view);
+  recordCommandRun(id, getRibbonCommand(id, ribbonContext))(view.state, view.dispatch.bind(view), view);
+}
+
+/** Wrap a ribbon command so Word-style Repeat (repeat-last-action.ts)
+ *  remembers it by id when it changed the document. Async commands that
+ *  change the doc later (dialogs) are not recorded — the check runs when
+ *  the command returns. */
+function recordCommandRun(id: string, cmd: Command): Command {
+  return (state, dispatch, v) => {
+    if (!dispatch || !v) return cmd(state, dispatch, v);
+    const before = v.state.doc;
+    noteCommandRun(id, 'begin');
+    let ran: boolean;
+    try {
+      ran = cmd(state, dispatch, v);
+    } finally {
+      noteCommandRun(id, 'end', v, v.state.doc !== before);
+    }
+    return ran;
+  };
 }
 
 /**
@@ -5386,6 +5406,10 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // mobile shell; a no-op everywhere else (the active flag is set
     // once at boot, before any view mounts).
     mobilePlugin,
+    // Word-style Repeat's recorder — ahead of every keymap and the paste
+    // plugin so its hooks see typing, Backspace/Delete and paste first
+    // (they record and return false). Inert unless `repeatWithModY`.
+    repeatLastActionPlugin(),
     // Cut in place — ahead of the undo keymap (Cmd-Z while a cut is
     // pending clears the mark, not the last edit) and of the paste
     // plugin (our own payload pasted in the same document is a MOVE).
@@ -5395,10 +5419,10 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // guarantee once remote transactions interleave. Outside a session,
     // the plain history stack as always.
     ...(collabPluginSourceFor(targetUid)?.ownsUndo()
-      ? [keymap({ 'Mod-z': collabUndo, 'Mod-y': collabRedo, 'Mod-Shift-z': collabRedo })]
+      ? [keymap({ 'Mod-z': collabUndo, 'Mod-y': collabRedoOrRepeat, 'Mod-Shift-z': collabRedo })]
       : [
           history(),
-          keymap({ 'Mod-z': readModeAwareUndo, 'Mod-y': readModeAwareRedo, 'Mod-Shift-z': readModeAwareRedo }),
+          keymap({ 'Mod-z': readModeAwareUndo, 'Mod-y': redoOrRepeat, 'Mod-Shift-z': readModeAwareRedo }),
         ]),
     // Tag/analytic boundary editing rules (ARCHITECTURE.md §14.3).
     // These run before baseKeymap so they get first crack at
@@ -5461,7 +5485,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     }),
     keymap(buildMacroKeymap(settings.get('keyboardMacros'))),
     keymap(
-      buildRibbonKeymap(settings.get('ribbonKeyOverrides'), ribbonContext),
+      buildRibbonKeymap(settings.get('ribbonKeyOverrides'), ribbonContext, recordCommandRun),
     ),
     // Word-style nav: Ctrl+Left/Right (units), Ctrl+Up/Down
     // (paragraphs, asymmetric Ctrl+Up), PageUp/PageDown
@@ -5643,6 +5667,31 @@ const collabUndo: Command = (state, dispatch, viewArg) =>
   collabPluginSourceFor(activeDocIdentity().sessionUid)?.undo(state, dispatch, viewArg) ?? false;
 const collabRedo: Command = (state, dispatch, viewArg) =>
   collabPluginSourceFor(activeDocIdentity().sessionUid)?.redo(state, dispatch, viewArg) ?? false;
+
+// ─── Mod-Y: Redo, else Word-style Repeat (setting `repeatWithModY`) ────
+// Redo always wins while there is something to redo; with the stack
+// empty and the setting on, Mod-Y re-runs the last editing action at
+// the selection (see repeat-last-action.ts). Mod-Shift-Z stays Redo.
+// Read mode: a no-op that still claims the key (nothing may edit).
+/** Feed one more press of `key` through the app's own key handlers
+ *  (tag-boundary rules, node-select guards); false if none claimed it. */
+function replayKeyDown(v: EditorView, key: 'Backspace' | 'Delete'): boolean {
+  const event = new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true });
+  return v.someProp('handleKeyDown', (f) => f(v, event)) === true;
+}
+const runRepeat = (v: EditorView | undefined): boolean =>
+  !!v && repeatLastAction(v, (id) => runRibbonCommandById(id as AnyCommandId), replayKeyDown);
+const redoOrRepeat: Command = (state, dispatch, viewArg) => {
+  if (!settings.get('repeatWithModY') || redoDepth(state) > 0) return readModeAwareRedo(state, dispatch, viewArg);
+  if (readModePlugin.getState(state)?.on) return true;
+  return runRepeat(viewArg);
+};
+const collabRedoOrRepeat: Command = (state, dispatch, viewArg) => {
+  const src = collabPluginSourceFor(activeDocIdentity().sessionUid);
+  if (!settings.get('repeatWithModY') || !src || src.canRedo()) return collabRedo(state, dispatch, viewArg);
+  if (readModePlugin.getState(state)?.on) return true;
+  return runRepeat(viewArg);
+};
 
 let voiceController: VoiceController | null = null;
 function getVoiceController(): VoiceController {

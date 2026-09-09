@@ -7,6 +7,33 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+### Added: Word-style Repeat on Mod-Y (setting, off by default)
+
+In Word, Ctrl+Y is Redo while there is something to redo and Repeat
+otherwise: the last action runs again at the current selection. A
+recorder plugin, placed ahead of every keymap and the paste plugin so
+its hooks see events first, remembers the last editing action per
+view: the last contiguous burst of typed text (a caret move ends the
+burst; the next keystroke starts a new one), Backspace or Delete
+(replayed as one more press of the same key, through the app's own
+tag-boundary and node-select handlers, which is Word's "Repeat Clear"
+rather than "delete the same text"), a paste (the same slice replaces
+the selection), or a ribbon command that changed the document,
+remembered by id so user key overrides and buttons are covered alike.
+Command runs are reported by the runner, which also wraps the
+keyboard-bound ribbon commands; the document is compared before and
+after, so a command that opened a dialog and changed nothing is not
+recorded. Any other document change (drag and drop, autocorrect's own
+fix-ups, remote edits) clears the record rather than being replayed
+wrong; undo and redo leave it alone, so after undoing and redoing
+everything Mod-Y repeats again, as in Word. Mod-Y falls through to
+Repeat only when redo is empty, checked against the plain history
+outside a session and the CRDT undo manager inside one; Mod-Shift-Z
+stays plain Redo; read mode claims the key and does nothing. Gated
+behind `repeatWithModY` (Settings → General → Editor behavior), off by
+default so Mod-Y behaves exactly as before. F4, Word's other Repeat
+key, converts blocks here and stays that way.
+
 ### Fixed: the cloud pill froze across document switches
 
 The pill is deliberately frozen while the focused pane is in read mode

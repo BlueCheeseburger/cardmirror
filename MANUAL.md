@@ -2245,6 +2245,13 @@ headers shown inside each tab.
   lines. Off by default. Display-only, like the rest of read mode — the
   document isn't touched (that's what
   [Condense](#condense-pilcrows-and-case) does).
+- **Mod-Y repeats the last action** — Word's Repeat. When on, Mod-Y with
+  nothing left to redo does the last editing action again at the cursor:
+  types the last thing you typed, applies the same formatting to the
+  new selection, deletes one more character after a Backspace or
+  Delete, pastes the same thing again, or re-runs the last command.
+  Redo still comes first whenever there is something to redo, and
+  Mod-Shift-Z stays plain Redo. Off by default.
 - **Read mode: keep entire cite** — when on, read mode shows the whole of
   any cite that has read-aloud text in it — qualifications, source, date
   and all — instead of only its cite-marked and highlighted words. A cite

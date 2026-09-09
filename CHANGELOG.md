@@ -7,6 +7,15 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **Mod-Y can repeat the last action, like Word.** A new setting under
+  Editor behavior, off by default. When on, Mod-Y with nothing left to
+  redo does the last editing action again at the cursor: the last
+  thing you typed, the same formatting on the new selection, one more
+  Backspace or Delete, the same paste, or the last command. Redo still
+  comes first, and Mod-Shift-Z is unchanged.
+
 ### Fixed
 
 - **The cloud pill follows the pane you click into, even in read mode.**

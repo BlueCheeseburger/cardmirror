@@ -900,6 +900,11 @@ export interface Settings {
    *  Convert Cards to Read Mode follows it. Off by default: the marked
    *  runs are what most people read at the podium. */
   readModeKeepEntireCite: boolean;
+  /** Word-style Repeat: when true, Mod-Y with nothing left to redo
+   *  re-runs the last editing action at the current selection (the
+   *  last burst of typing, a formatting command, Backspace/Delete, a
+   *  paste). Off by default: Mod-Y is plain Redo. */
+  repeatWithModY: boolean;
   /** When true, tint every run of card body text that falls AFTER a
    *  reading-position marker red, a visual record of what you didn't reach
    *  in a round. Bounded per-card; display-only (a decoration, never a doc
@@ -1728,6 +1733,7 @@ const DEFAULTS: Settings = {
   hideEmphasisBordersInReadMode: false,
   readModeParagraphIntegrity: false,
   readModeKeepEntireCite: false,
+  repeatWithModY: false,
   markUnreadAfterMarker: false,
   defaultZoomPct: 100,
   chromeScalePct: 100,
@@ -2195,6 +2201,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Editor behavior',
     aliases: ['whole cite', 'full cite', 'entire cite', 'read mode cite', 'quals'],
+  },
+  {
+    key: 'repeatWithModY',
+    label: 'Mod-Y repeats the last action',
+    description:
+      'Word-style Repeat. When on, Mod-Y with nothing left to redo does the last editing action again at the cursor: types the last thing you typed, applies the same formatting to the new selection, deletes one more character, pastes the same thing again, or re-runs the last command. Mod-Shift-Z stays plain Redo. Off by default: Mod-Y is Redo only.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Editor behavior',
+    aliases: ['repeat', 'repeat last action', 'ctrl y', 'cmd y', 'word repeat', 'f4'],
   },
   // ─── General ────────────────────────────────────────────────────
   {
@@ -4368,6 +4384,7 @@ function sanitize(s: Settings): Settings {
     hideEmphasisBordersInReadMode: !!s.hideEmphasisBordersInReadMode,
     readModeParagraphIntegrity: !!s.readModeParagraphIntegrity,
     readModeKeepEntireCite: !!s.readModeKeepEntireCite,
+    repeatWithModY: !!s.repeatWithModY,
     markUnreadAfterMarker: !!s.markUnreadAfterMarker,
     // A legacy persisted `zoomPct` is deliberately ignored — live body
     // zoom is transient; documents open at this default.
