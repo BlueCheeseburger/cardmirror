@@ -55,6 +55,29 @@ keys aimed at the preview's own surfaces run natively; nothing falls
 through to the document), `armDialogFocus` and focus restore on close.
 A payload that cannot be rebuilt toasts instead of opening.
 
+### Added: favorites in the in-document section picker
+
+Inserting a live view of a section you use often meant filtering the
+whole outline every time. `self-ref-picker.ts` rows now carry a star
+(☆/★, `aria-pressed`, a click never picks) and a Favorites block sits
+above the filter listing the starred sections in starring order, each
+with its own star to un-star and disabled (like its outline row) when
+the cursor sits inside it; a favorite whose heading is gone is simply
+not listed (kept in storage in case it comes back). Keyboard
+navigation moved from a row index to an element-based active slot so
+the arrows walk favorites first, then the visible outline; Left/Right
+still collapse and expand outline rows only; Enter picks the active
+slot. `self-ref-favorites.ts` holds the store: favorites are a UI
+preference, not document content, so they live outside the file —
+keyed by the document's path in localStorage (like the per-document
+autosave memory; capped at 300 documents, oldest-touched dropped) so
+starring never dirties the document or reaches collaborators — and in
+a per-view WeakMap for a document without a path (unsaved, or a web
+handle). Heading ids are the identity (stored in the file, stable
+through edits and moves). Tests cover the star round-trip from both
+places, persistence per path, the pathless fallback, missing and
+guarded favorites, and the arrow order.
+
 ### Changed: three-letter type chips on shelf and inbox rows
 
 `typeBadge` (dropzone-ui.ts, shared by the Receive pill) returned labels

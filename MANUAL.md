@@ -1482,7 +1482,11 @@ connected to its source. There are two flavors, and the difference is simple —
 - **Insert Live View** / **Insert Linked Copy from This Document** — pick a
   section of the current document. The picker is a collapsible outline of your
   headings with a filter box — type a few letters to narrow it, use the arrow
-  keys, press Enter to pick.
+  keys, press Enter to pick. A section you reach for often can be **starred**
+  (the ☆ on its row): starred sections sit under **Favorites** at the top of
+  the picker, one click with no search, and the arrow keys visit them first.
+  Favorites are remembered per file on this computer; a document that hasn't
+  been saved yet keeps them until it is closed.
 - **Insert Linked Copy from a File** — open the Search Everything palette, dive
   into the source file, land on a heading — or on a card's tag, to copy just
   that one card — and press **Mod-Enter**. The source

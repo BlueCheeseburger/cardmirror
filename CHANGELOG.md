@@ -22,6 +22,13 @@ see `DETAILED_CHANGELOG.md`.
   them, without inserting anything. Copy to clipboard copies the
   cards for pasting anywhere; Close or Esc dismisses the preview.
 
+- **Favorite sections in the live-view picker.** Every row in the
+  "Live view of a section of this document" picker (and the linked-copy
+  and re-point pickers) has a star. Starred sections sit under a
+  Favorites block above the filter, so a section you mirror often is
+  one click with no search; the arrow keys visit favorites first.
+  Remembered per file on this computer.
+
 ### Changed
 
 - **Three-letter type chips in the dropzone and the Receive pill.** The

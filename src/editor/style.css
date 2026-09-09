@@ -2575,6 +2575,42 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Favorites: starred sections pinned above the filter (self-ref-favorites.ts). */
+.pmd-selfref-picker-favorites {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid var(--pmd-c-border-soft);
+}
+.pmd-selfref-picker-favorites[hidden] { display: none; }
+.pmd-selfref-picker-favorites-title {
+  padding: 0 12px 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-selfref-picker-fav { padding-left: 12px; }
+.pmd-selfref-picker-star {
+  margin-left: auto;
+  flex: none;
+  width: 1.5em;
+  text-align: center;
+  border-radius: 3px;
+  font-size: 0.95em;
+  line-height: 1.2;
+  opacity: 0.4;
+  cursor: pointer;
+}
+.pmd-selfref-picker-star[hidden] { display: none; }
+.pmd-selfref-picker-star:hover { opacity: 1; background: var(--pmd-c-hover); }
+.pmd-selfref-picker-star-on { opacity: 1; color: var(--pmd-c-accent); }
+/* A disabled row (the cursor's own section) can still be starred for later. */
+.pmd-selfref-picker-row-disabled .pmd-selfref-picker-star { cursor: pointer; opacity: 0.55; }
+.pmd-selfref-picker-row-disabled .pmd-selfref-picker-star-on { opacity: 1; }
 
 /* Custom autocorrect table (Settings → Editing → Typing). */
 .pmd-autocorrect-editor {
