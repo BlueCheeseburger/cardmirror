@@ -58,6 +58,30 @@ describe('update chip', () => {
     expect(el.hidden).toBe(true);
   });
 
+  it('renders the downloading state with a percent and a fill custom property', () => {
+    const el = makeEl();
+    renderUpdateChip(el, { state: 'downloading', version: '1.8.0-bcb.3', pct: 0 });
+    expect(el.hidden).toBe(false);
+    expect(el.getAttribute('data-state')).toBe('downloading');
+    expect(el.textContent).toBe('Downloading update 1.8.0-bcb.3 — 0%');
+    expect(el.style.getPropertyValue('--pmd-update-pct')).toBe('0%');
+
+    renderUpdateChip(el, { state: 'downloading', version: '1.8.0-bcb.3', pct: 47.6 });
+    expect(el.textContent).toBe('Downloading update 1.8.0-bcb.3 — 48%');
+    expect(el.style.getPropertyValue('--pmd-update-pct')).toBe('48%');
+    expect(el.title).toContain('48%');
+
+    // Clamped to [0, 100] — a stray out-of-range tick shouldn't overflow the bar.
+    renderUpdateChip(el, { state: 'downloading', version: '1.8.0-bcb.3', pct: 137 });
+    expect(el.textContent).toContain('100%');
+
+    // Advancing past downloading clears the data-state/fill property.
+    renderUpdateChip(el, { state: 'ready', version: '1.8.0-bcb.3' });
+    expect(el.getAttribute('data-state')).toBeNull();
+    expect(el.style.getPropertyValue('--pmd-update-pct')).toBe('');
+    expect(el.textContent).toBe('Update 1.8.0-bcb.3 ready — restart to install');
+  });
+
   it('pulls the initial state at boot (late-opened window case)', async () => {
     const el = makeEl();
     initUpdateChip(el, makeHost({ state: 'ready', version: '1.2.3' }));

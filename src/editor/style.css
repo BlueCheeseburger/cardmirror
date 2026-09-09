@@ -2333,6 +2333,26 @@ body:not(.pmd-multi-doc) #app {
 #update-chip[hidden] {
   display: none;
 }
+/* Downloading: same pill, but its background fills left-to-right as
+   `--pmd-update-pct` climbs (set in update-chip.ts on every progress
+   tick) — a plain two-stop gradient with a hard edge at the percent,
+   so it reads as a growing bar rather than a smooth blend. A
+   translucent fill (not the hover state's solid accent) keeps the
+   text legible on both sides of the edge without a per-zone text
+   color. No transition on the gradient stop — ticks arrive every
+   fraction of a second during a fast download and an animated chase
+   would look janky, not smooth. */
+#update-chip[data-state='downloading'] {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--pmd-c-accent) 30%, transparent) var(--pmd-update-pct, 0%),
+    transparent var(--pmd-update-pct, 0%)
+  );
+  cursor: default;
+}
+#update-chip[data-state='downloading']:hover {
+  color: var(--pmd-c-accent);
+}
 
 .status-segment {
   display: flex;

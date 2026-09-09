@@ -5,7 +5,7 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 1.8.0-bcb.3 — 2026-09-09
 
 ### Added
 
@@ -34,6 +34,10 @@ see `DETAILED_CHANGELOG.md`.
   label entirely while just synced — only "changed on disk" and
   "conflicted copy" states still show a short text cue. Single-doc mode
   is unchanged (still the one shared pill).
+- **The update chip now shows download progress** — desktop only. While
+  an update is downloading, the same status-bar pill fills in left to
+  right and its text names the percent complete, instead of just
+  appearing once the download finishes.
 
 ### Fixed
 
