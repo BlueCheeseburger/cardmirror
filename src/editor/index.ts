@@ -7295,8 +7295,11 @@ async function pickAndLoadInPlace(): Promise<boolean> {
 /** Open a `.cmir` by absolute path (the command palette's file search).
  *  Reads the file, then routes through the shared open logic — so it
  *  spawns a NEW window (single-doc) or shows the slot picker
- *  (multi-pane) rather than overwriting the current window's doc. */
-async function openFileByPath(path: string, name: string): Promise<void> {
+ *  (multi-pane) rather than overwriting the current window's doc.
+ *  Exported for the per-pane cloud badge's "open the original" action
+ *  (`kept-copy` state) — already multi-pane-aware as-is via
+ *  `routeOpenedFile`, so no change needed for that caller. */
+export async function openFileByPath(path: string, name: string): Promise<void> {
   const electron = getElectronHost();
   if (!electron) return;
   let file: Awaited<ReturnType<typeof electron.readFileAtPath>>;
@@ -7824,9 +7827,15 @@ function updateWindowTitle(): void {
     chip.setAttribute('title', shown);
     chip.toggleAttribute('hidden', !focused.filename);
   }
-  // The cloud badge follows the active document (one per window).
-  ensureDiskBadge();
-  refreshDiskBadge();
+  // The cloud badge follows the active document — single-doc mode
+  // only. Multi-pane mode has its own per-pane badge (embedded in
+  // each pane's footer by multi-pane-shell.ts) instead of this one
+  // shared, focus-following tray, so a background pane's disk state
+  // is never ambiguous about which document it belongs to.
+  if (!multiDocActive) {
+    ensureDiskBadge();
+    refreshDiskBadge();
+  }
 }
 
 /** 1–2 letter initials from a display name, for a baked-in comment's
@@ -8421,8 +8430,11 @@ async function serializeActiveForSave(format: 'cmir' | 'docx', docId: string | n
   );
 }
 
-/** Badge action: "Keep mine as a copy" without a prior refused save. */
-async function saveActiveAsConflictedCopy(): Promise<void> {
+/** Badge action: "Keep mine as a copy" without a prior refused save.
+ *  Exported for the multi-pane per-pane cloud badge, which focuses the
+ *  target slot first (same "commands route via the focused doc"
+ *  pattern `promptSaveAllForQuit` already uses) then calls this. */
+export async function saveActiveAsConflictedCopy(): Promise<void> {
   const file = activeFile();
   if (typeof file.handle !== 'string' || !file.handle || !file.format) return;
   const docId = ensureActiveDocId();
@@ -8434,8 +8446,9 @@ async function saveActiveAsConflictedCopy(): Promise<void> {
   reportAutosaveSuccess();
 }
 
-/** Badge action: the double-confirmed Overwrite. */
-async function saveActiveForcingDisk(): Promise<void> {
+/** Badge action: the double-confirmed Overwrite. Exported for the
+ *  multi-pane per-pane cloud badge — see `saveActiveAsConflictedCopy`. */
+export async function saveActiveForcingDisk(): Promise<void> {
   const file = activeFile();
   if (typeof file.handle !== 'string' || !file.handle || !file.format) return;
   const docId = ensureActiveDocId();

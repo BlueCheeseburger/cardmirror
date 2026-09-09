@@ -8,6 +8,10 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Each pane in a multi-pane workspace now shows its own cloud-sync
+>   pill**, in that pane's footer, instead of one shared pill that left
+>   it ambiguous which pane's document it applied to — compact,
+>   provider-logo-only while synced, no "Cloud" text label. (main)
 > - **Right-click anywhere on the ribbon to name (or rename) a window**
 >   (desktop only) — a named window shows that name as its title
 >   instead of the document filename, so windows are easier to tell

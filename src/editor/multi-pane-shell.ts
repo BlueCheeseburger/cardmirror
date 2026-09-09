@@ -33,7 +33,11 @@ import {
   noteKeptCopy,
   noteReloaded,
   conflictedCopyUserName,
+  createPaneDiskBadge,
+  type DiskBadgeDeps,
+  type PaneDiskBadgeHandle,
 } from './disk-conflict.js';
+import { getTimerState } from './timer-state.js';
 import { EditorView } from 'prosemirror-view';
 import { setViewDocPath } from './transclusion-doc-path.js';
 import { Node as PMNode } from 'prosemirror-model';
@@ -138,6 +142,9 @@ import {
   getCommentsColumnEl,
   notifyCommentsForActiveTransaction,
   sendViewToDropzone,
+  saveActiveAsConflictedCopy,
+  saveActiveForcingDisk,
+  openFileByPath,
 } from './index.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { sendViewToRecipient } from './pairing/send-to-recipient.js';
@@ -677,6 +684,10 @@ class Slot {
   /** Footer co-editing indicator — status text + presence dots for THIS slot's
    *  visible doc's session. Hidden when that doc has no live session. */
   private copresenceEl: HTMLElement;
+  /** Footer cloud-sync badge for THIS slot's visible doc specifically —
+   *  the multi-pane, per-pane equivalent of the single-doc window's
+   *  shared bottom-right cloud pill (see `disk-conflict.ts`). */
+  private diskBadge: PaneDiskBadgeHandle;
   /** Nav section (in the multi-nav rail). Hidden when stack is empty. */
   readonly navSectionEl: HTMLElement;
   /** Nav body — DocRecord.navEl mounts here. */
@@ -854,6 +865,25 @@ class Slot {
     this.copresenceEl.className = 'pmd-pane-copresence';
     this.copresenceEl.hidden = true;
     footer.appendChild(this.copresenceEl);
+    // Cloud-sync badge — this slot's visible doc specifically, so it's
+    // never ambiguous which pane's disk state it's showing (the old
+    // single shared tray followed whichever pane was FOCUSED, which is
+    // exactly what confused users with two-plus panes open).
+    const diskBadgeDeps: DiskBadgeDeps = {
+      getActive: () => {
+        const rec = this.visible;
+        return { handle: typeof rec?.handle === 'string' ? rec.handle : null, name: rec?.filename ?? null };
+      },
+      isSuppressed: () => (this.visible?.readMode ?? false) || getTimerState().poppedOut,
+      isDirty: () => this.visible?.dirty ?? false,
+      isSessionHost: () => collabCopresenceFor(this.visible?.uid ?? '')?.role === 'host',
+      reveal: (handle) => void getElectronHost()?.showItemInFolder?.(handle),
+      reloadFromDisk: (handle) => this.shell.reloadFromDisk(handle),
+      keepMineAsCopy: (handle) => this.shell.keepMineAsCopyForHandle(handle),
+      overwrite: (handle) => this.shell.overwriteForHandle(handle),
+      openOriginal: (original) => openFileByPath(original, original.split(/[\\/]/u).pop() ?? original),
+    };
+    this.diskBadge = createPaneDiskBadge(diskBadgeDeps, footer);
     const newBtn = document.createElement('button');
     newBtn.type = 'button';
     newBtn.className = 'pmd-pane-new';
@@ -1231,6 +1261,7 @@ class Slot {
     this.refreshChipSaveState();
     this.refreshWordCount();
     this.refreshCopresence();
+    this.diskBadge.refresh();
     // Speech-chip class lives on the pane element and reflects
     // the currently-visible record vs the speech-doc registry;
     // swapping records via the stack switcher needs to refresh.
@@ -1239,6 +1270,13 @@ class Slot {
     // multi-pane mode — refresh it on every mount so opening a new
     // doc in a non-focused slot still updates the title bar.
     refreshWindowTitle();
+  }
+
+  /** Re-render this slot's cloud-sync badge from current state — call
+   *  after anything that could change whether it should be frozen
+   *  (read mode) without going through `mountVisible`. */
+  refreshDiskBadge(): void {
+    this.diskBadge.refresh();
   }
 
   /** Update the chip's stack-dropdown trigger visibility based on
@@ -2435,6 +2473,10 @@ class MultiPaneShell {
     // setActiveView is the path that drives `refreshReadModeBtn`,
     // so we route through it to keep the ribbon button in sync.
     setActiveView(rec.view);
+    // The pane's disk badge freezes while read mode is active (same
+    // suppression the single-doc window's badge already has) — refresh
+    // so entering/leaving read mode catches it up immediately.
+    this.focusedSlot?.refreshDiskBadge();
   }
 
   /** Zoom the focused pane's body by a delta (per-pane). The zoom commands /
@@ -2771,6 +2813,28 @@ class MultiPaneShell {
     slot.push(fresh);
     this.focusSlot(slot);
     noteReloaded(file.handle);
+  }
+
+  /** Pill action "Keep mine as a copy" for the pane holding `handle` —
+   *  same "commands route via the focused doc" pattern
+   *  `promptSaveAllForQuit` already uses: surface the record, focus its
+   *  slot, then run the ordinary (focus-scoped) save action. */
+  async keepMineAsCopyForHandle(handle: string): Promise<void> {
+    const found = this.findRecordByHandle(handle);
+    if (!found) return;
+    found.slot.showRecord(found.record);
+    this.focusSlot(found.slot);
+    await saveActiveAsConflictedCopy();
+  }
+
+  /** Pill action "Keep mine" (overwrite) for the pane holding `handle`
+   *  — see `keepMineAsCopyForHandle`. */
+  async overwriteForHandle(handle: string): Promise<void> {
+    const found = this.findRecordByHandle(handle);
+    if (!found) return;
+    found.slot.showRecord(found.record);
+    this.focusSlot(found.slot);
+    await saveActiveForcingDisk();
   }
 
   async onRecoveredDoc(entry: {

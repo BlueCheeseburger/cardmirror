@@ -25,6 +25,15 @@ see `DETAILED_CHANGELOG.md`.
   of the document filename, useful for telling windows apart at a
   glance (e.g. "Speech Doc"). The name persists across mode-switch
   reloads and clears with "Clear Window Name."
+- **Each pane in a multi-pane workspace now has its own cloud-sync
+  pill**, in that pane's own footer, instead of one shared pill in the
+  window's bottom-right corner that left it ambiguous which pane's
+  document it was reporting on. Also more compact: it shows the
+  provider's own icon (Dropbox / OneDrive / Google Drive / iCloud)
+  instead of a generic cloud glyph plus the word "Cloud," and drops the
+  label entirely while just synced — only "changed on disk" and
+  "conflicted copy" states still show a short text cue. Single-doc mode
+  is unchanged (still the one shared pill).
 
 ### Fixed
 

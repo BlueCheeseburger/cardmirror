@@ -1584,9 +1584,12 @@ html:not(.pmd-doc-name-chip-on) #doc-name-chip { display: none !important; }
 .pmd-pill-tray-right > * {
   pointer-events: auto;
 }
-/* Same two-bar clearance as the left tray in the multi-pane workspace. */
+/* Multi-pane mode has its own per-pane badge embedded in each pane's
+   footer (`.pmd-pane-disk-badge`, below) instead of this one shared,
+   focus-following tray — hide the tray there so a background pane's
+   disk state is never shown as if it were the whole window's. */
 body.pmd-multi-doc .pmd-pill-tray-right {
-  bottom: calc(var(--status-bar-height) + var(--pmd-pane-footer-height) + 0.5rem);
+  display: none;
 }
 .pmd-disk-bar {
   cursor: pointer;
@@ -11920,6 +11923,61 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   font-weight: 600;
 }
 
+/* Per-pane cloud-sync badge (disk-conflict.ts's `createPaneDiskBadge`)
+   — the multi-pane equivalent of the single-doc window's bottom-right
+   cloud pill, but one per pane (in its footer, so it's unambiguous
+   which document's disk state it shows) and compact: the provider's
+   own logo instead of a generic cloud glyph + "Cloud" text, and no
+   label at all while merely `synced` (space is tight with up to three
+   of these visible at once). `changed`/`kept-copy` keep a short label
+   since those need to say more than "which provider". Hidden (zero
+   footprint) for a local, non-cloud-synced file. */
+.pmd-pane-disk-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 1px 4px;
+  font-family: inherit;
+  font-size: 0.68rem;
+  color: var(--pmd-c-text-muted);
+  cursor: pointer;
+}
+.pmd-pane-disk-badge:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-pane-disk-badge-icon {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+.pmd-pane-disk-badge-icon svg {
+  display: block;
+}
+.pmd-pane-disk-badge-label {
+  white-space: nowrap;
+}
+.pmd-pane-disk-badge[data-state='synced'] .pmd-pane-disk-badge-label {
+  display: none;
+}
+.pmd-pane-disk-badge[data-state='changed'] {
+  color: #8a5a00;
+  border-color: #e0b24a;
+  background: #fff6dc;
+}
+.pmd-pane-disk-badge[data-state='kept-copy'] {
+  color: #5a4a8a;
+  border-color: #b8a6e6;
+  background: #f1ecfb;
+}
+@media (prefers-color-scheme: dark) {
+  .pmd-pane-disk-badge[data-state='changed'] { color: #f0c66a; border-color: #8a6a1a; background: #3a2e0e; }
+  .pmd-pane-disk-badge[data-state='kept-copy'] { color: #c9b8f5; border-color: #5f4c9a; background: #2a2340; }
+}
 
 /* ---- Routing prompt overlay ---- */
 

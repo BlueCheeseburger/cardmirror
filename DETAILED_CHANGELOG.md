@@ -214,6 +214,115 @@ checks `e.defaultPrevented` first so it doesn't also fire on top of
 the one existing per-element handler inside the ribbon (a
 formatting-panel button's "select all of style" right-click).
 
+### Added: per-pane cloud-sync badge in multi-pane mode (`disk-conflict.ts`, `multi-pane-shell.ts`, `index.ts`, `style.css`)
+
+Field report: with two or three panes open, the cloud pill only ever
+appeared once, in the window's fixed bottom-right corner, following
+whichever pane was FOCUSED — so it was never clear whose disk state it
+was reporting on when panes disagreed (one synced, one changed on
+disk). The pill's rendering (`installDiskBadge`/`render`/`refreshDiskBadge`
+in `disk-conflict.ts`) was a module-level singleton by construction —
+exactly one tray, one badge element, module-level closure variables.
+The underlying STATE it reads (`byHandle: Map<string, DocDiskInfo>`,
+keyed by on-disk handle) was already correctly per-document and shared
+by both layouts (`registerDocPath`/`releaseDocPath` populate it the
+same way regardless of layout) — only the rendering side needed to
+become per-pane.
+
+Left the existing singleton (`installDiskBadge`/`refreshDiskBadge`/
+`__resetDiskConflictForTests`, and the exported `DiskBadgeDeps` type)
+completely untouched — still used as-is for the single-doc window's
+one shared tray, so no existing behavior or test changed. Added
+alongside it:
+
+- **`notifyDiskStateChanged()`**: every `note*` mutation
+  (`noteDocRegistered`, `noteDiskChanged`, `noteSavedInPlace`,
+  `noteKeptCopy`, `noteReloaded`, `noteDocReleased`) now calls this
+  instead of `refreshDiskBadge()` directly. It still calls
+  `refreshDiskBadge()` internally (so the singleton's behavior is
+  byte-for-byte the same) and additionally notifies a new
+  `paneRefreshListeners: Set<() => void>` that per-pane badges
+  subscribe into.
+- **`resolveBadgeClick(handle, name, info, deps)`**: the three-way
+  disk-conflict decision (reload / keep mine / keep both) and the
+  synced/kept-copy reveal shortcuts, extracted out of the singleton's
+  private `onBadgeClick` so both the single-doc tray and the new
+  per-pane badges share one implementation instead of two copies that
+  could drift.
+- **`PROVIDER_ICON: Record<CloudProvider, string>`**: small brand-
+  colored SVG marks (Dropbox / OneDrive / Google Drive / iCloud;
+  `other` reuses the existing generic stroke-cloud glyph) — simplified,
+  not pixel-accurate logos, but enough to tell providers apart at a
+  glance without reading text.
+- **`createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement):
+  PaneDiskBadgeHandle`**: mounts one compact `<button
+  class="pmd-pane-disk-badge">` into `parent`, subscribes its own
+  `render` closure into `paneRefreshListeners`, and returns
+  `{el, refresh, destroy}`. Same underlying state/logic as the
+  singleton (`byHandle` lookups, `resolveBadgeClick` for clicks,
+  `startClock`/`stopClock` for the `changed` state's live-updating
+  relative-time text) but visually distinct per the user's ask: the
+  provider's own icon instead of a generic cloud + "Cloud" text, and
+  the text label is dropped entirely for the resting `synced` state
+  (`.pmd-pane-disk-badge[data-state='synced'] .pmd-pane-disk-badge-label
+  { display: none; }`) — `changed`/`kept-copy` keep a short label
+  ("2m ago" / "Copy") since those need to say more than "which
+  provider."
+
+`multi-pane-shell.ts`'s `Slot` class gained a `private diskBadge:
+PaneDiskBadgeHandle`, constructed in the footer right after the
+copresence indicator (before `+New`/`+Open`, so the row reads word
+count → copresence → disk badge → file actions) with deps scoped
+entirely to `this.visible` — no focus dependency at all, unlike the
+ribbon/status-bar commands multi-pane mode otherwise routes through
+"the focused doc":
+
+- `getActive`/`isDirty`/`isSuppressed` read `this.visible?.handle` /
+  `.dirty` / `.readMode` directly (`DocRecord` already tracks `readMode`
+  and `dirty` per-document, the same per-doc story as autosave state) —
+  no shell involvement needed. `isSuppressed` also checks
+  `getTimerState().poppedOut` for parity with the single-doc badge.
+- `isSessionHost` reuses `collabCopresenceFor(this.visible.uid)`,
+  already resolved per-record.
+- `reloadFromDisk` calls the shell's existing `reloadFromDisk(handle)`
+  (already multi-pane-aware, resolves the target pane by handle via
+  `findRecordByHandle` — this one already existed, explicitly commented
+  "Pill action 'Keep their changes' for the pane holding `handle`").
+- `keepMineAsCopy`/`overwrite` call two NEW shell methods,
+  `keepMineAsCopyForHandle`/`overwriteForHandle`: both resolve the
+  target pane via `findRecordByHandle`, `slot.showRecord(record)` +
+  `this.focusSlot(slot)` to bring it into focus (same "commands route
+  via the focused doc" pattern `promptSaveAllForQuit` already uses),
+  then call the newly-exported `saveActiveAsConflictedCopy`/
+  `saveActiveForcingDisk` from `index.ts` (previously private — the
+  only change needed there besides also exporting `openFileByPath`,
+  reused as-is for `openOriginal` since it was already multi-pane-aware
+  via `routeOpenedFile`).
+- `mountVisible()` (the single choke point `push`/`showRecord`/stack-
+  switch all route through) gained a `this.diskBadge.refresh()` call,
+  and `toggleFocusedReadMode()` gained `this.focusedSlot?.refreshDiskBadge()`
+  (a new public one-line wrapper on `Slot`) so entering/leaving read
+  mode un-suppresses the badge immediately instead of on the next
+  unrelated `note*` event.
+
+`index.ts`'s `updateWindowTitle()` now only calls `ensureDiskBadge()`/
+`refreshDiskBadge()` (the single-doc tray) when `!multiDocActive`.
+Belt-and-suspenders: `style.css`'s `body.pmd-multi-doc .pmd-pill-tray-right`
+rule changed from repositioning the old shared tray above the pane
+footer to `display: none`, so even a tray installed before a mode-
+switch (single-doc → multi-pane without a reload) stays hidden rather
+than showing the old ambiguous "follows the focused pane" pill
+alongside the new per-pane ones.
+
+New `tests/editor/disk-conflict-pane-badge.test.ts` (7 tests): hidden
+for local/unregistered; provider icon with no label while synced;
+relative-time / "Copy" labels for changed/kept-copy; two panes with
+two different handles stay independent; click resolves through
+`resolveBadgeClick` (reveal on a synced click); `destroy()`
+unsubscribes; `isSuppressed` freezes and `refresh()` catches it up.
+All 8 pre-existing `disk-conflict.test.ts` tests pass unchanged,
+confirming the single-doc tray truly didn't change.
+
 ## 1.8.0-bcb.2 — 2026-09-08
 
 ### Added: New Document and external file-open both prompt for a destination in multi-pane mode (`index.ts`, `multi-pane-shell.ts`, `apps/desktop/src/main.ts`)
