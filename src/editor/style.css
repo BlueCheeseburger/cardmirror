@@ -1551,9 +1551,17 @@ body.pmd-multi-doc .pmd-pill-tray-right {
   .pmd-disk-badge[data-state='kept-copy'] .pmd-pill-icon { color: #c9b8f5; }
 }
 /* The pill overlaps the editor's bottom-right corner: give the last
-   lines the same runway the left tray gets (single-doc; panes scroll
-   independently and the pill covers only a corner of the rightmost). */
+   lines the same runway the left tray gets, so scrolling to the end
+   still shows the bottom-most text. Single-doc pads #editor; three-pane
+   pads only the rightmost visible pane (tagged
+   `pmd-pane-cloud-pill-anchored` by positionRightTray — the pill sits
+   over that pane's corner). Both gated on the pill actually showing
+   (`pmd-disk-pill-active`); keep the value in sync with the left
+   tray's `pmd-pill-tray-active` rules. */
 html.pmd-disk-pill-active body:not(.pmd-multi-doc) #editor .ProseMirror {
+  padding-bottom: 4.5rem;
+}
+html.pmd-disk-pill-active .pmd-pane-cloud-pill-anchored .pmd-pane-editor .ProseMirror {
   padding-bottom: 4.5rem;
 }
 body.pmd-multi-doc #doc-name-chip { display: none; }

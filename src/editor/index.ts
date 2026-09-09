@@ -9562,6 +9562,14 @@ function positionRightTray(): void {
   if (document.body.classList.contains('pmd-multi-doc')) {
     const bodies = document.querySelectorAll<HTMLElement>('.pmd-pane:not([hidden]) .pmd-pane-body');
     scroller = bodies[bodies.length - 1] ?? null;
+    // Tag the pane the pill sits over (the rightmost visible one) so CSS
+    // can give just that pane's editor a bottom runway while the pill is
+    // showing — the mirror of `pmd-pane-pill-anchored` for the left tray.
+    const anchorPane = scroller?.closest('.pmd-pane') ?? null;
+    document.querySelectorAll('.pmd-pane-cloud-pill-anchored').forEach((stale) => {
+      if (stale !== anchorPane) stale.classList.remove('pmd-pane-cloud-pill-anchored');
+    });
+    anchorPane?.classList.add('pmd-pane-cloud-pill-anchored');
   } else {
     let el: HTMLElement | null = document.getElementById('editor');
     while (el && el !== document.body) {

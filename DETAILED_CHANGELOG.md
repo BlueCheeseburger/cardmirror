@@ -34,6 +34,17 @@ behind `repeatWithModY` (Settings → General → Editor behavior), off by
 default so Mod-Y behaves exactly as before. F4, Word's other Repeat
 key, converts blocks here and stays that way.
 
+### Fixed: the cloud pill's bottom runway in three-pane
+
+The Send / Receive / Dropzone tray adds bottom padding under the pane
+it sits over so the last line can scroll clear of the pills; when the
+cloud pill moved to the bottom-right, single-pane got the same runway
+but the three-pane case was left out. The right-tray positioning pass
+now tags the rightmost visible pane the way the left pass tags the
+leftmost, and a rule pads that pane's editor by the same amount while
+the pill is showing. A stylesheet test pins both rules to the left
+tray's value.
+
 ### Fixed: the cloud pill froze across document switches
 
 The pill is deliberately frozen while the focused pane is in read mode

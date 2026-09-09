@@ -25,6 +25,10 @@ see `DETAILED_CHANGELOG.md`.
   wear a "Dropbox" pill. The pill now re-renders on every change of
   document; only state changes of the same document are held back
   while reading or with the timer out.
+- **The cloud pill leaves room at the bottom of the rightmost pane.**
+  Like the Send and Receive pills on the left, it now adds blank space
+  under the pane it sits over, so scrolling to the end still shows the
+  last line. Single-pane already had this.
 - **No stale document in the three-pane workspace.** When no pane was
   focused, or the focused pane was empty, the workspace could still act
   on the document that had been open before switching layouts. It now
