@@ -20,6 +20,11 @@ see `DETAILED_CHANGELOG.md`.
   immediately couldn't tell whether a third hyphen was about to make it
   "---" instead. Off by default; the existing single-trigger behavior
   is unchanged unless you turn the second one on.
+- **Right-click anywhere on the ribbon to name (or rename) the window**
+  — desktop only. A named window shows that name as its title instead
+  of the document filename, useful for telling windows apart at a
+  glance (e.g. "Speech Doc"). The name persists across mode-switch
+  reloads and clears with "Clear Window Name."
 
 ### Fixed
 

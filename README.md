@@ -8,6 +8,10 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Right-click anywhere on the ribbon to name (or rename) a window**
+>   (desktop only) — a named window shows that name as its title
+>   instead of the document filename, so windows are easier to tell
+>   apart at a glance; persists across mode-switch reloads. (main)
 > - **A pane's speech-doc marking now shows through even while you're
 >   focused on it** (amber wins over the focused-pane blue highlight
 >   instead of being hidden by it), Send to Speech explains itself when

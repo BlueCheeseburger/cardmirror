@@ -174,6 +174,46 @@ Deliberately NOT applied to any actual path/handle used for file I/O
 separator and must keep the true on-disk colon-containing name for
 reads/writes/comparisons) — display-only, everywhere.
 
+### Added: right-click the ribbon to name/rename the window (`apps/desktop/src/main.ts`, `apps/desktop/src/preload.ts`, `src/editor/host/electron-host.ts`, `index.ts`)
+
+Desktop-only feature request: multiple windows open at once (e.g. one
+holding the speech doc, others for research) are hard to tell apart
+from just their doc-derived titles/taskbar entries. Right-clicking
+anywhere on the ribbon now opens a small context menu — "Name This
+Window…" (or "Rename Window…" / "Clear Window Name" once already
+named) — backed by a `promptForText` dialog.
+
+Persistence lives in the main process, not the renderer, so a name
+survives a renderer reload (mode-switch, a reloading settings change):
+`apps/desktop/src/main.ts` gained a `windowNames: Map<number,
+string>` keyed by `BrowserWindow.id`, cleaned up in the existing
+`win.on('closed', ...)` handler, plus two IPC handlers
+(`host:window-name-set`/`host:window-name-get`) mirroring the existing
+`host:speech-set`/`host:speech-get` shape exactly. `preload.ts` bridges
+both as `windowNameSet`/`windowNameGet`; `electron-host.ts` adds the
+same two methods to `ElectronHost`, one-for-one with its existing
+`speechSet`/`speechGet` (not part of the shared `Host` interface in
+`types.ts` — Electron-only, reached via `getElectronHost()`, same as
+the speech-doc bridge).
+
+`index.ts`: a module-level `currentWindowName`, fetched once at boot
+via `getElectronHost()?.windowNameGet()` (no-op on the browser host).
+`updateWindowTitle()` checks it FIRST — `${currentWindowName} —
+CardMirror` — before falling back to the existing doc-name-derived
+title logic; the per-pane/single-doc filename chip is untouched (it
+identifies the document, not the window, so keeps showing the real
+filename). The context menu itself (`openRibbonContextMenu` and
+friends) follows the same local-menu-plus-shared-primitives pattern
+`nav-panel.ts` already uses for its heading context menu: a private
+`RibbonContextMenuItem` type and open/close state local to `index.ts`,
+built on the shared `positionFloatingMenu` / `registerOpenContextMenu`
+/ `clearOpenContextMenu` primitives, reusing the existing
+`.pmd-nav-context-menu`/`.pmd-nav-context-item` CSS (already fully
+generic despite the name). The ribbon-wide `contextmenu` listener
+checks `e.defaultPrevented` first so it doesn't also fire on top of
+the one existing per-element handler inside the ribbon (a
+formatting-panel button's "select all of style" right-click).
+
 ## 1.8.0-bcb.2 — 2026-09-08
 
 ### Added: New Document and external file-open both prompt for a destination in multi-pane mode (`index.ts`, `multi-pane-shell.ts`, `apps/desktop/src/main.ts`)
