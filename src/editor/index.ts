@@ -2817,6 +2817,12 @@ if (cardMenuBtn) {
           },
         ],
       },
+      {
+        title: 'Shrink',
+        items: [
+          { label: 'Shrink', commandId: 'shrink', run: () => runRibbon('shrink') },
+        ],
+      },
     ]);
   });
 }
