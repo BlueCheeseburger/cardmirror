@@ -33,6 +33,15 @@ interface JournalEntry {
   diskBase?: { mtimeMs: number; size: number; contentHash?: string };
 }
 
+/** Wire shape of the status-bar update chip's state (see main.ts
+ *  "Update chip"). Declared locally, mirroring `UpdateChipState` in
+ *  `src/editor/update-chip.ts` — this package doesn't import from the
+ *  editor source, same convention as the other Ipc types below. */
+type UpdateChipStateIpc =
+  | { state: 'downloading'; version: string; pct: number }
+  | { state: 'available'; version: string }
+  | { state: 'ready'; version: string };
+
 interface QuickCardIpc {
   id: string;
   name: string;
@@ -137,9 +146,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   triggerAutoUpdateCheck: () => ipcRenderer.invoke('host:trigger-auto-update-check'),
   getUpdateChipState: () => ipcRenderer.invoke('host:update-chip-state'),
   updateChipAction: () => ipcRenderer.invoke('host:update-chip-action'),
-  onUpdateChip(handler: (payload: { state: 'available' | 'ready'; version: string } | null) => void): () => void {
-    const listener = (_evt: unknown, payload: { state: 'available' | 'ready'; version: string } | null): void =>
-      handler(payload);
+  onUpdateChip(handler: (payload: UpdateChipStateIpc | null) => void): () => void {
+    const listener = (_evt: unknown, payload: UpdateChipStateIpc | null): void => handler(payload);
     ipcRenderer.on('update:chip', listener);
     return () => ipcRenderer.removeListener('update:chip', listener);
   },

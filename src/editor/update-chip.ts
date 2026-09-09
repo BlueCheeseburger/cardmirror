@@ -2,8 +2,13 @@
  * Status-bar update chip — install-on-confirm (adopted 2026-07-16,
  * modeled on ebb's update UX): auto-updates never dialog. The desktop
  * main process stages downloads silently and reports chip state; this
- * module renders the chip and forwards clicks. Two states:
+ * module renders the chip and forwards clicks. Three states:
  *
+ *   'downloading' — the update is actively being fetched. Same pill,
+ *                 but its background fills left-to-right as `pct`
+ *                 climbs and the text names the percent. Not clickable
+ *                 in any useful way (there's nothing to act on yet);
+ *                 the click handler just no-ops until it advances.
  *   'ready'     — the update is downloaded and staged (Windows/Linux).
  *                 Click = restart now and install. Users who never
  *                 click still get it on next quit (install-on-quit
@@ -15,10 +20,10 @@
  * outside the index.ts app shell.
  */
 
-export interface UpdateChipState {
-  state: 'available' | 'ready';
-  version: string;
-}
+export type UpdateChipState =
+  | { state: 'downloading'; version: string; pct: number }
+  | { state: 'available'; version: string }
+  | { state: 'ready'; version: string };
 
 export interface UpdateChipHost {
   getUpdateChipState(): Promise<UpdateChipState | null>;
@@ -33,6 +38,16 @@ export function renderUpdateChip(el: HTMLButtonElement, s: UpdateChipState | nul
     return;
   }
   el.hidden = false;
+  if (s.state === 'downloading') {
+    const pct = Math.max(0, Math.min(100, Math.round(s.pct)));
+    el.setAttribute('data-state', 'downloading');
+    el.style.setProperty('--pmd-update-pct', `${pct}%`);
+    el.textContent = `Downloading update ${s.version} — ${pct}%`;
+    el.title = `Downloading update ${s.version}: ${pct}% complete`;
+    return;
+  }
+  el.removeAttribute('data-state');
+  el.style.removeProperty('--pmd-update-pct');
   if (s.state === 'ready') {
     el.textContent = `Update ${s.version} ready — restart to install`;
     el.title = 'Restart CardMirror now to finish installing the update';
