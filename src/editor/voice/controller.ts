@@ -237,7 +237,7 @@ export class VoiceController {
       return;
     }
     const proceed = await confirmDialog(
-      `Voice control needs a one-time download of its recognition model (about ${info.sizeMB} MB). ` +
+      `Voice control needs a one-time download of its speech engine and recognition model (about ${info.sizeMB} MB). ` +
         'This can take a few minutes; you can keep working and you’ll be notified when it’s ready. Download now?',
       { okLabel: 'Download' },
     );

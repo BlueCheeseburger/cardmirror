@@ -4341,7 +4341,7 @@ function buildVoiceModelEditor(): HTMLElement {
     } else {
       status.textContent = info.downloading ? 'Downloading…' : 'Recognition model not downloaded.';
       button.style.display = info.downloading ? 'none' : '';
-      button.textContent = `Download recognition model (~${info.sizeMB} MB)`;
+      button.textContent = `Download speech engine and model (~${info.sizeMB} MB)`;
       deleteButton.style.display = 'none';
     }
   };
@@ -4350,7 +4350,7 @@ function buildVoiceModelEditor(): HTMLElement {
     if (!api) return;
     button.style.display = 'none';
     const unsub = api.onVoiceDownloadProgress((p) => {
-      status.textContent = p.extracting ? 'Extracting…' : `Downloading ${p.model === 'vad' ? 'voice detector' : 'model'}… ${p.pct}%`;
+      status.textContent = p.extracting ? 'Extracting…' : `Downloading ${p.model === 'engine' ? 'speech engine' : p.model === 'vad' ? 'voice detector' : 'model'}… ${p.pct}%`;
     });
     void api.voiceDownloadModel().then((res) => {
       unsub();

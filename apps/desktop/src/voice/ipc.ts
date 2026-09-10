@@ -16,6 +16,15 @@ import { fork, type ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { VoiceProfile, VoiceStartOptions, VoiceStartResult, WorkerInbound } from './types';
+import {
+  ENGINE_DOWNLOAD_MB,
+  SHERPA_VERSION,
+  enginePackages,
+  enginePresentAt,
+  packumentUrl,
+  parsePackument,
+  verifyIntegrity,
+} from './runtime.js';
 
 let worker: ChildProcess | null = null;
 let ownerWebContentsId: number | null = null;
@@ -44,6 +53,29 @@ function modelPresent(): boolean {
   ) && fs.existsSync(vadPath());
 }
 
+/** The speech engine (see runtime.ts) is a first-use download as well:
+ *  userData/voice-engine/<version>/node_modules/{sherpa-onnx-node,
+ *  sherpa-onnx-<os>-<arch>}. Versioned so an engine bump downloads
+ *  fresh and the old one is swept once the new one is complete.
+ *  CARDMIRROR_VOICE_ENGINE_DIR overrides the root (dev/diagnosis). */
+function engineRoot(): string {
+  return process.env.CARDMIRROR_VOICE_ENGINE_DIR || path.join(app.getPath('userData'), 'voice-engine');
+}
+function engineNodeModules(): string {
+  return path.join(engineRoot(), SHERPA_VERSION, 'node_modules');
+}
+function enginePresent(): boolean {
+  return enginePresentAt(engineNodeModules());
+}
+/** Everything the worker needs on disk. */
+function voiceReady(): boolean {
+  return enginePresent() && modelPresent();
+}
+/** What a download would still have to fetch. */
+function pendingDownloadMB(): number {
+  return (enginePresent() ? 0 : ENGINE_DOWNLOAD_MB) + (modelPresent() ? 0 : MODEL_DOWNLOAD_MB);
+}
+
 /** v1 left Vosk models (up to 1.8 GB) and a downloaded Node runtime in
  *  userData. Reclaim them once; the new model replaces both. */
 function cleanupLegacyVoiceAssets(): void {
@@ -63,9 +95,10 @@ function cleanupLegacyVoiceAssets(): void {
 /** The bundled worker. In a packaged build the worker is forked under a
  *  plain Node (or Electron-as-Node) which has no asar support, so it
  *  cannot load from inside app.asar — electron-builder's `asarUnpack`
- *  keeps dist/voice/** and the sherpa-onnx packages on disk under
- *  app.asar.unpacked; rewrite the path there. In dev __dirname is an
- *  ordinary directory and the replace is a no-op. */
+ *  keeps dist/voice/** on disk under app.asar.unpacked; rewrite the
+ *  path there. (The speech engine itself lives in userData, outside the
+ *  asar, and reaches the worker through NODE_PATH.) In dev __dirname is
+ *  an ordinary directory and the replace is a no-op. */
 function resolveWorkerPath(): string {
   const p = path.join(__dirname, 'worker.cjs');
   return p.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`);
@@ -113,10 +146,49 @@ async function downloadFile(url: string, file: string, sender: Electron.WebConte
   await new Promise<void>((resolve) => out.end(() => resolve()));
 }
 
-async function downloadModel(sender: Electron.WebContents): Promise<{ ok: boolean; error?: string }> {
-  if (modelPresent()) return { ok: true };
-  if (downloadInFlight) return { ok: false, error: 'download-in-progress' };
-  downloadInFlight = true;
+/** bsdtar (macOS, Linux, Windows 10+) autodetects bzip2 and gzip. */
+async function extractArchive(archive: string, dir: string): Promise<void> {
+  const { execFile } = await import('node:child_process');
+  await new Promise<void>((resolve, reject) =>
+    execFile('tar', ['-xf', archive, '-C', dir], (err) => (err ? reject(err) : resolve())),
+  );
+}
+
+/** Fetch the two engine packages from the npm registry: per package,
+ *  the version document → its tarball, sha512-checked against the
+ *  document, extracted to a staging directory and moved into place
+ *  only when complete — a half-written package is never "present". */
+async function downloadEngine(sender: Electron.WebContents): Promise<void> {
+  const nm = engineNodeModules();
+  fs.mkdirSync(nm, { recursive: true });
+  for (const name of enginePackages()) {
+    const dest = path.join(nm, name);
+    if (fs.existsSync(path.join(dest, 'package.json'))) continue;
+    const res = await fetch(packumentUrl(name), { signal: AbortSignal.timeout(60_000) });
+    if (!res.ok) throw new Error(`engine registry HTTP ${res.status} (${name})`);
+    const dist = parsePackument(await res.json());
+    const tgz = path.join(nm, `${name}.tgz`);
+    const stage = path.join(nm, `${name}.extract`);
+    try {
+      await downloadFile(dist.tarball, tgz, sender, 'engine');
+      await verifyIntegrity(tgz, dist.integrity);
+      fs.rmSync(stage, { recursive: true, force: true });
+      fs.mkdirSync(stage, { recursive: true });
+      await extractArchive(tgz, stage); // npm tarballs unpack to package/
+      fs.rmSync(dest, { recursive: true, force: true });
+      fs.renameSync(path.join(stage, 'package'), dest);
+    } finally {
+      fs.rmSync(tgz, { force: true });
+      fs.rmSync(stage, { recursive: true, force: true });
+    }
+  }
+  // Older engine versions are dead weight once this one is complete.
+  for (const entry of fs.readdirSync(engineRoot())) {
+    if (entry !== SHERPA_VERSION) fs.rmSync(path.join(engineRoot(), entry), { recursive: true, force: true });
+  }
+}
+
+async function downloadModelFiles(sender: Electron.WebContents): Promise<void> {
   const root = modelsRoot();
   const archive = path.join(root, MODEL_ARCHIVE);
   try {
@@ -124,15 +196,22 @@ async function downloadModel(sender: Electron.WebContents): Promise<{ ok: boolea
     await downloadFile(VAD_URL, vadPath(), sender, 'vad');
     await downloadFile(MODEL_URL, archive, sender, 'model');
     if (!sender.isDestroyed()) sender.send('voice:download-progress', { model: 'model', pct: 100, extracting: true });
-    // bsdtar (macOS, Linux, Windows 10+) autodetects bzip2.
-    const { execFile } = await import('node:child_process');
-    await new Promise<void>((resolve, reject) =>
-      execFile('tar', ['-xf', archive, '-C', root], (err) => (err ? reject(err) : resolve())),
-    );
+    await extractArchive(archive, root);
+  } finally {
     fs.rmSync(archive, { force: true });
-    return modelPresent() ? { ok: true } : { ok: false, error: 'extract-failed' };
+  }
+}
+
+/** Engine first (small, and nothing works without it), then the model. */
+async function downloadModel(sender: Electron.WebContents): Promise<{ ok: boolean; error?: string }> {
+  if (voiceReady()) return { ok: true };
+  if (downloadInFlight) return { ok: false, error: 'download-in-progress' };
+  downloadInFlight = true;
+  try {
+    if (!enginePresent()) await downloadEngine(sender);
+    if (!modelPresent()) await downloadModelFiles(sender);
+    return voiceReady() ? { ok: true } : { ok: false, error: 'extract-failed' };
   } catch (err) {
-    fs.rmSync(archive, { force: true });
     return { ok: false, error: String(err) };
   } finally {
     downloadInFlight = false;
@@ -156,12 +235,19 @@ export function registerVoiceIpc(): void {
       }
     }
     if (worker) stopSession();
-    if (!modelPresent()) return { ok: false, error: 'voice-model-missing' };
+    if (!voiceReady()) return { ok: false, error: 'voice-model-missing' };
     console.log(`voice: starting worker (${resolveWorkerPath()})`);
 
     const nodeBin = resolveNodeBinary();
+    // The downloaded engine resolves like an installed package: NODE_PATH
+    // is consulted after the usual node_modules walk, so a dev checkout
+    // (devDependency copy) and a packaged build (download only) both work.
+    const env = {
+      ...process.env,
+      NODE_PATH: [engineNodeModules(), process.env.NODE_PATH].filter(Boolean).join(path.delimiter),
+    };
     const child = fork(resolveWorkerPath(), [], {
-      ...(nodeBin ? { execPath: nodeBin, env: { ...process.env } } : { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }),
+      ...(nodeBin ? { execPath: nodeBin, env } : { env: { ...env, ELECTRON_RUN_AS_NODE: '1' } }),
       serialization: 'advanced',
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     });
@@ -249,9 +335,9 @@ export function registerVoiceIpc(): void {
   });
 
   ipcMain.handle('host:voice-model-info', async () => ({
-    present: modelPresent(),
+    present: voiceReady(),
     downloading: downloadInFlight,
-    sizeMB: MODEL_DOWNLOAD_MB,
+    sizeMB: pendingDownloadMB(),
   }));
 
   ipcMain.handle('host:voice-download-model', async (event) =>
@@ -263,6 +349,7 @@ export function registerVoiceIpc(): void {
     try {
       fs.rmSync(modelDir(), { recursive: true, force: true });
       fs.rmSync(vadPath(), { force: true });
+      fs.rmSync(engineRoot(), { recursive: true, force: true });
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

@@ -201,9 +201,9 @@ the translate action, no text is sent to a translation service.
   but sends no document content. Nothing installs without your click. The web
   edition performs no update checks.
 - **Voice control**, if you enable it, performs a **one‑time download** of its
-  recognition model (about 640 MB) from the sherpa‑onnx project's GitHub
-  releases. Recognition then runs entirely on your device: no audio ever leaves
-  it. If you also turn on **Clean up dictation with AI** and have an AI key
+  speech engine (about 10 MB, from the npm registry) and its recognition model
+  (about 640 MB, from the sherpa‑onnx project's GitHub releases). Recognition
+  then runs entirely on your device: no audio ever leaves it. If you also turn on **Clean up dictation with AI** and have an AI key
   configured, each dictated fragment's *text* (plus a little nearby document
   text and names from the document) is sent to your chosen AI provider for
   cleanup — never the audio. Calibration profiles (your recognizer's spellings
@@ -295,6 +295,7 @@ a feature that inherently requires it, and only to the extent that feature needs
 | **MyMemory / Google** | Translate action | The text you translate |
 | **GitHub** | Update checks (on by default, desktop only; can be turned off) | Your IP address and app version |
 | **github.com** (k2‑fsa/sherpa‑onnx releases) | First‑time voice‑model download (opt‑in) | Your IP address |
+| **registry.npmjs.org** | First‑time voice speech‑engine download (opt‑in) | Your IP address |
 
 Each third party handles what it receives under its own privacy policy.
 

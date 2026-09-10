@@ -1871,10 +1871,11 @@ your own machine** — no audio ever leaves it, with or without a network
 connection — except for the optional AI cleanup described below, which
 sends text, never audio.
 
-The recognition model is a **one-time download of about 640 MB**, not part
-of the installer, so the app stays small for the many people who never use
-voice. The first time you turn voice on, CardMirror asks to download it and
-tells you when it's ready. If you'll be somewhere without a connection,
+The speech engine and its recognition model are a **one-time download of
+about 650 MB** (10 MB of engine, 640 MB of model), not part of the
+installer, so the app stays small for the many people who never use voice.
+The first time you turn voice on, CardMirror asks to download them and
+tells you when they're ready. If you'll be somewhere without a connection,
 download it ahead of time under **Settings → Accessibility → Voice
 recognition model**.
 

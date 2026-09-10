@@ -21,7 +21,7 @@ see `DETAILED_CHANGELOG.md`.
   key fixes self-corrections, fillers, punctuation and names before
   the words land. A one-minute calibration learns how the recognizer
   hears each command word in your voice, per microphone. Recognition
-  runs on a new local model (about 640 MB, a one-time download) that
+  runs on a new local engine and model (about 650 MB, a one-time download; nothing voice-related ships in the installer) that
   is far more accurate than before, including on author names, and
   still keeps every bit of audio on your machine. Removed: spoken
   targeting ("take", "pick", "go to"), paint mode, the large dictation

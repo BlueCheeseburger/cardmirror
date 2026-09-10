@@ -16,13 +16,12 @@
     "start:electron": "wait-on http://localhost:5173 && electron .",
     "dev": "npm run build:native && npm run build:main && npm run build:service && concurrently --kill-others-on-fail --names \"vite,electron\" --prefix-colors \"cyan,magenta\" \"npm:start:web\" \"npm:start:electron\"",
     "build:native": "node scripts/build-ax-suppress.cjs",
-    "pack": "npm run fetch:koffi-cross && npm run fetch:sherpa-cross && npm run build:native && npm run build:renderer && npm run build:main && npm run build:service && electron-builder --dir",
-    "dist": "npm run fetch:koffi-cross && npm run fetch:sherpa-cross && npm run build:native && npm run build:renderer && npm run build:main && npm run build:service && electron-builder",
-    "release": "npm run fetch:koffi-cross && npm run fetch:sherpa-cross && npm run build:native && npm run build:renderer && npm run build:main && npm run build:service && electron-builder --publish always",
+    "pack": "npm run fetch:koffi-cross && npm run build:native && npm run build:renderer && npm run build:main && npm run build:service && electron-builder --dir",
+    "dist": "npm run fetch:koffi-cross && npm run build:native && npm run build:renderer && npm run build:main && npm run build:service && electron-builder",
+    "release": "npm run fetch:koffi-cross && npm run build:native && npm run build:renderer && npm run build:main && npm run build:service && electron-builder --publish always",
     "fetch:koffi-cross": "bash scripts/fetch-koffi-cross.sh",
     "pack:lite": "node scripts/inject-lite-build.cjs 1 && VITE_LITE=1 npm run pack -- -c.productName=\"CardMirror Lite\" -c.appId=com.cardmirror.lite -c.executableName=\"CardMirror Lite\"; node scripts/inject-lite-build.cjs 0",
-    "dist:lite": "node scripts/inject-lite-build.cjs 1 && VITE_LITE=1 npm run dist -- -c.appId=com.cardmirror.lite -c.productName=\"CardMirror Lite\" -c.mac.artifactName=\"CardMirror-Lite-${version}-${arch}.${ext}\" -c.win.artifactName=\"CardMirror-Lite-Setup-${version}.${ext}\" -c.linux.artifactName=\"cardmirror-lite-${version}.${ext}\" -c.executableName=\"CardMirror Lite\" -c.linux.executableName=cardmirror-lite; node scripts/inject-lite-build.cjs 0",
-    "fetch:sherpa-cross": "bash scripts/fetch-sherpa-cross.sh"
+    "dist:lite": "node scripts/inject-lite-build.cjs 1 && VITE_LITE=1 npm run dist -- -c.appId=com.cardmirror.lite -c.productName=\"CardMirror Lite\" -c.mac.artifactName=\"CardMirror-Lite-${version}-${arch}.${ext}\" -c.win.artifactName=\"CardMirror-Lite-Setup-${version}.${ext}\" -c.linux.artifactName=\"cardmirror-lite-${version}.${ext}\" -c.executableName=\"CardMirror Lite\" -c.linux.executableName=cardmirror-lite; node scripts/inject-lite-build.cjs 0"
   },
   "build": {
     "appId": "com.cardmirror.app",
@@ -40,12 +39,7 @@
     "asarUnpack": [
       "dist/voice/**",
       "node_modules/koffi/**",
-      "node_modules/@koromix/**",
-      "node_modules/sherpa-onnx-node/**",
-      "node_modules/sherpa-onnx-darwin-arm64/**",
-      "node_modules/sherpa-onnx-darwin-x64/**",
-      "node_modules/sherpa-onnx-linux-x64/**",
-      "node_modules/sherpa-onnx-win-x64/**"
+      "node_modules/@koromix/**"
     ],
     "extraResources": [
       {
@@ -103,7 +97,7 @@
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "x64ArchFiles": "{**/node_modules/@koromix/**,**/node_modules/sherpa-onnx-darwin-*/**}"
+      "x64ArchFiles": "**/node_modules/@koromix/**"
     },
     "win": {
       "target": [
@@ -160,10 +154,10 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.3",
-    "koffi": "^3.0.2",
-    "sherpa-onnx-node": "^1.13.7"
+    "koffi": "^3.0.2"
   },
   "devDependencies": {
+    "sherpa-onnx-node": "1.13.7",
     "concurrently": "^9.1.0",
     "electron": "^42.2.0",
     "electron-builder": "^26.8.1",
