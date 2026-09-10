@@ -37,6 +37,16 @@ manual; [`PRIVACY.md`](./PRIVACY.md) for how CardMirror handles your data;
 
 You can find a video walkthrough of CardMirror's basic functions [here](https://www.youtube.com/playlist?list=PLXM5iwKNQkSs). 
 
+## Sharing relay status
+
+[![Sharing relay status](https://uptime.betterstack.com/status-badges/v2/monitor/2xdk0.svg)](https://cardmirror.betteruptime.com/)
+
+Card sharing and collaboration sessions go through a small relay server.
+If sharing seems broken, check the live status page at
+**[cardmirror.betteruptime.com](https://cardmirror.betteruptime.com/)**
+before troubleshooting on your end. Everything else in CardMirror works
+offline and does not depend on it.
+
 ## Support
 
 The core CardMirror editor is free, and built and maintained by one
