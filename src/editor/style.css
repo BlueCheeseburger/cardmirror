@@ -5905,12 +5905,48 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--pmd-c-divider);
   flex: 0 0 auto;
+  gap: 1rem;
+}
+
+/* Wraps the title + search box so they sit together on the left,
+   immediately next to each other, while `justify-content: space-between`
+   on the header still pins the close button to the right. */
+.pmd-settings-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .pmd-settings-header h2 {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
+  flex: 0 0 auto;
+}
+
+.pmd-settings-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 260px;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 6px;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+}
+.pmd-settings-search:focus {
+  outline: none;
+  border-color: var(--pmd-c-accent);
+}
+/* Native search-input decorations (WebKit's clear-x, Firefox's) —
+   keep the clear button, it's useful; the rest inherits the plain
+   text-input look above rather than the browser's own chrome. */
+.pmd-settings-search::-webkit-search-cancel-button {
+  cursor: pointer;
 }
 
 .pmd-settings-close {
@@ -6060,6 +6096,22 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   color: var(--pmd-c-text-faint);
   font-style: italic;
   margin: 2rem 0;
+}
+
+/* Search results panel (settings-ui.ts's SettingsModal.applySearch) —
+   same base list/scroll styling as a category panel (`.pmd-settings-list`
+   is shared), plus its own section headers naming which TAB each group
+   of results actually lives in (the tab strip itself is hidden while
+   searching, so this is the only place that context still shows). */
+.pmd-settings-search-hit {
+  background: #fff3a3;
+  color: #1a1a1a;
+  border-radius: 2px;
+  padding: 0 0.1em;
+}
+:root[data-theme='dark'] .pmd-settings-search-hit {
+  background: #8a7a1a;
+  color: #fff;
 }
 
 /* "About this install" block — read-only diagnostic info at the
