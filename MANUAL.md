@@ -340,7 +340,8 @@ means the default: the count restarts at that block.
 
 Tune how they look in **Settings → Appearance → Card numbering**: independent
 formats for the number and its substructure, the separator between them (period,
-dash, colon, and more), whether the substructure is capitalized and whether it's
+dash, colon, square brackets, and more), whether the substructure is capitalized and
+whether it's
 bold, the number color, and how far each is indented — all display settings that
 change how the numbers *look*, never the content. Numbers are exported to Word if
 you save as .docx.

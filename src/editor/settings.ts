@@ -358,7 +358,8 @@ export type EnterAfterStyle =
 
 /** Separator glyph that trails a card-numbering number/letter (display-only).
  *  `period` = ".", `paren` = ")", `dash` = " -", `colon` = ":", `emdash` = "—",
- *  `endash` = "–", `doublehyphen` = "--", `triplehyphen` = "---". */
+ *  `endash` = "–", `doublehyphen` = "--", `triplehyphen` = "---"; `brackets`
+ *  is the one that WRAPS instead: "[1]" / "[a]". */
 export type NumberingSeparator =
   | 'period'
   | 'paren'
@@ -367,7 +368,8 @@ export type NumberingSeparator =
   | 'emdash'
   | 'endash'
   | 'doublehyphen'
-  | 'triplehyphen';
+  | 'triplehyphen'
+  | 'brackets';
 
 /** Runtime list of every valid `NumberingSeparator` (persistence validation +
  *  the settings-UI option lists read from this). */
@@ -380,7 +382,30 @@ export const NUMBERING_SEPARATORS: readonly NumberingSeparator[] = [
   'endash',
   'doublehyphen',
   'triplehyphen',
+  'brackets',
 ];
+
+/** What trails the number or letter for each separator — except
+ *  `brackets`, which wraps it (`applyNumberingSeparator` is the only
+ *  place that knows the difference). One table so the editor's
+ *  decorations, the ribbon faces, and the settings previews cannot
+ *  disagree. */
+export const NUMBERING_SEPARATOR_GLYPH: Record<NumberingSeparator, string> = {
+  period: '.',
+  paren: ')',
+  dash: ' -',
+  colon: ':',
+  emdash: '—',
+  endash: '–',
+  doublehyphen: '--',
+  triplehyphen: '---',
+  brackets: ']',
+};
+
+/** "1" + `period` → "1."; "a" + `brackets` → "[a]". */
+export function applyNumberingSeparator(text: string, sep: NumberingSeparator): string {
+  return sep === 'brackets' ? `[${text}]` : `${text}${NUMBERING_SEPARATOR_GLYPH[sep]}`;
+}
 
 /** Schema for all editor settings. Add new fields here with sensible defaults. */
 /** Per-type format for the silent Send / Read / Marked saves: `docx`
@@ -3071,7 +3096,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'cardNumberingFormat',
     label: 'Number separator',
     description:
-      'The glyph after a number — “1.”, “1)”, “1:”, “1 -”, and dash/hyphen variants. Display-only — the .docx carries a canonical format each reader can override.',
+      'The glyph after a number — “1.”, “1)”, “1:”, “1 -”, dash/hyphen variants — or square brackets around it, “[1]”. Display-only — the .docx carries a canonical format each reader can override.',
     kind: 'cardNumberFormat',
     category: 'appearance',
     section: 'Card numbering',
@@ -3081,7 +3106,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'cardNumberingSubFormat',
     label: 'Substructure separator',
     description:
-      'The glyph after a substructure letter — configured independently of the number separator. Display-only.',
+      'The glyph after a substructure letter, or square brackets around it — configured independently of the number separator. Display-only.',
     kind: 'cardNumberSubFormat',
     category: 'appearance',
     section: 'Card numbering',

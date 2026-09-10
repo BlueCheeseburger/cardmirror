@@ -53,6 +53,10 @@ see `DETAILED_CHANGELOG.md`.
   reader often wants what's left first and an editor the whole
   document. Each pane in the three-pane workspace follows its own read
   mode.
+- **Square brackets for card numbers.** The number and substructure
+  separators (Settings → Appearance → Card numbering) now offer
+  brackets — “[1]”, “[a]” — alongside the trailing glyphs. Display-only,
+  like every separator.
 
 ## 1.9.0 — 2026-09-09
 

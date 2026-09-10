@@ -48,6 +48,7 @@ import {
   ZOOM_MAX_PCT,
   type StyleAlignments,
   type StyleAlignment,
+  applyNumberingSeparator,
 } from './settings.js';
 import { CATEGORY_TABS, visibleCategoryTabs, type SettingsTarget } from './settings-categories.js';
 import { generateGroupId, normalizePairingCode } from './pairing/pairing-ids.js';
@@ -3678,17 +3679,6 @@ function buildPairingReceiveFlashEditor(): HTMLElement {
 
 /** The trailing glyph each separator renders — mirrors `FORMAT_SEP` in the
  *  numbering plugin, so the dropdown labels read exactly as the numbers will. */
-const NUMBERING_SEP_GLYPH: Record<NumberingSeparator, string> = {
-  period: '.',
-  paren: ')',
-  dash: ' -',
-  colon: ':',
-  emdash: '—',
-  endash: '–',
-  doublehyphen: '--',
-  triplehyphen: '---',
-};
-
 /** A separator picker for one numbering level. `sample` is the leading glyph the
  *  options preview against ("1" for numbers, "a" for substructure). */
 function buildSeparatorSelect(
@@ -3700,7 +3690,7 @@ function buildSeparatorSelect(
   for (const sep of NUMBERING_SEPARATORS) {
     const opt = document.createElement('option');
     opt.value = sep;
-    opt.textContent = `${sample}${NUMBERING_SEP_GLYPH[sep]}`;
+    opt.textContent = applyNumberingSeparator(sample, sep);
     if (sep === settings.get(key)) opt.selected = true;
     select.appendChild(opt);
   }
