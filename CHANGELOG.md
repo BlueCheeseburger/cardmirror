@@ -7,6 +7,12 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+## 1.8.0-bcb.4.1 — 2026-09-10
+
+### Fixed
+
+- **Settings search now finds settings on every query**, not just the first one — a second (or re-typed) search could silently drop rows that matched the previous query, showing "No settings match" even when it should.
+
 ## 1.8.0-bcb.4 — 2026-09-10
 
 ### Added
