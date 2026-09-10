@@ -38,7 +38,12 @@ class FakeVad implements VadHandle {
   isEmpty(): boolean { return this.queue.length === 0; }
   front(): SpeechSegment { return this.queue[0]!; }
   pop(): void { this.queue.shift(); }
-  flush(): void {}
+  flush(): void {
+    if (this.inSpeech) {
+      this.queue.push({ start: this.start, samples: Float32Array.from(this.buf) });
+      this.inSpeech = false;
+    }
+  }
   reset(): void { this.inSpeech = false; this.buf = []; this.silent = 0; }
 }
 
@@ -140,19 +145,71 @@ describe('voice service: commands', () => {
 });
 
 describe('voice service: held dictation', () => {
-  it('buffers everything while held, suppresses commands, transcribes once on release', () => {
+  it('while held, commands are suppressed and short pauses merge into one landing on release', () => {
     const h = harness(['Shalaby argues the accords are dead', 'unused']);
     h.feed(300, false);
     h.svc.setDictation(true);
     expect(h.svc.currentMode).toBe('dictation');
-    h.feed(600, true); h.feed(300, false); h.feed(600, true); h.feed(300, false); // two "utterances" while held: no command events
+    h.feed(600, true); h.feed(300, false); h.feed(600, true); h.feed(300, false); // a 300 ms breath: shorter than the landing pause
     expect(h.events.filter((e) => e.kind === 'command' || e.kind === 'rejection')).toHaveLength(0);
+    expect(h.events.filter((e) => e.kind === 'dictation')).toHaveLength(0);
     h.svc.setDictation(false);
     expect(h.svc.currentMode).toBe('command');
-    const d = h.events.find((e) => e.kind === 'dictation');
-    expect(d && d.kind === 'dictation' ? d.text : null).toBe('Shalaby argues the accords are dead');
-    expect(d && d.kind === 'dictation' ? Math.round(d.durationMs) : 0).toBe(1800);
-    expect(h.engine.decoded).toHaveLength(1); // one decode for the whole hold
+    const ds = h.events.filter((e) => e.kind === 'dictation');
+    expect(ds).toHaveLength(1);
+    const d = ds[0]!;
+    expect(d.kind === 'dictation' ? d.text : null).toBe('Shalaby argues the accords are dead');
+    // Both runs of speech plus their context rolls, in one decode.
+    expect(d.kind === 'dictation' ? d.durationMs : 0).toBeGreaterThanOrEqual(1200);
+    expect(h.engine.decoded).toHaveLength(1);
+  });
+
+  it('a pause inside a dictation lands what came before it; release lands the tail', () => {
+    const h = harness(['first sentence', 'second sentence']);
+    h.svc.setDictation(true);
+    h.feed(600, true);
+    h.feed(1000, false); // longer than DICTATION_PAUSE_MS
+    let ds = h.events.filter((e) => e.kind === 'dictation');
+    expect(ds.map((e) => (e.kind === 'dictation' ? e.text : ''))).toEqual(['first sentence']);
+    expect(h.svc.currentMode, 'still dictating after a pause').toBe('dictation');
+    h.feed(600, true);
+    h.svc.setDictation(false);
+    ds = h.events.filter((e) => e.kind === 'dictation');
+    expect(ds.map((e) => (e.kind === 'dictation' ? e.text : ''))).toEqual(['first sentence', 'second sentence']);
+    expect(h.engine.decoded).toHaveLength(2);
+  });
+
+  it('toggle mode: the silence limit ends the session after the text has landed', () => {
+    const h = harness(['a thought']);
+    h.svc.setDictation(true, 6000);
+    h.feed(600, true);
+    h.feed(3000, false);
+    expect(h.svc.currentMode, 'three seconds of silence is thinking, not the end').toBe('dictation');
+    h.feed(4000, false);
+    expect(h.svc.currentMode).toBe('command');
+    const kinds = h.events.map((e) => (e.kind === 'mode' ? `mode:${e.to}:${e.trigger}` : e.kind === 'dictation' ? `dictation:${e.text}` : e.kind));
+    expect(kinds.indexOf('dictation:a thought')).toBeGreaterThan(-1);
+    expect(kinds.indexOf('mode:command:silence')).toBeGreaterThan(kinds.indexOf('dictation:a thought'));
+  });
+
+  it('toggle mode with no speech at all ends on the limit with one empty landing', () => {
+    const h = harness(['unused']);
+    h.svc.setDictation(true, 3000);
+    h.feed(3500, false);
+    expect(h.svc.currentMode).toBe('command');
+    const ds = h.events.filter((e) => e.kind === 'dictation');
+    expect(ds).toHaveLength(1);
+    expect(ds[0]!.kind === 'dictation' ? ds[0]!.text : 'x').toBe('');
+    expect(h.engine.decoded).toHaveLength(0);
+  });
+
+  it('hold mode never ends on silence', () => {
+    const h = harness(['patient']);
+    h.svc.setDictation(true);
+    h.feed(600, true);
+    h.feed(30_000, false);
+    expect(h.svc.currentMode).toBe('dictation');
+    expect(h.events.filter((e) => e.kind === 'dictation').map((e) => (e.kind === 'dictation' ? e.text : ''))).toEqual(['patient']);
   });
 
   it('a tap shorter than the padding lands nothing', () => {

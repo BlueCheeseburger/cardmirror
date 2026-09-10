@@ -8,9 +8,14 @@
  *    whole-utterance rule (vocabulary.ts). While speech runs on (a
  *    noisy room keeps the VAD open), a rolling window of the trailing
  *    audio is decoded periodically so a command still lands (spec §6.1).
- *  - Dictation (held key): while the key is held, audio is buffered and
- *    the command path is suppressed structurally — the VAD is not fed.
- *    On release the whole utterance is transcribed once.
+ *  - Dictation (key held, or toggled on): the command path is suppressed
+ *    structurally; the VAD keeps finding utterances and each run of
+ *    speech lands as soon as it is followed by a pause (DICTATION_PAUSE_MS),
+ *    so text appears sentence by sentence and no session ever becomes one
+ *    huge decode. Release (or the second press) flushes the tail. A toggle
+ *    session may also carry a silence limit: `autoEndAfterMs` without
+ *    speech ends dictation from here, with a 'silence' mode event, so a
+ *    forgotten toggle does not transcribe the room.
  *
  * No Electron imports: driven by PCM buffers and a clock, so it is
  * testable headless with a fake engine and synthetic audio.
@@ -56,7 +61,27 @@ const RING_SECONDS = 6;
  *  and after its end. */
 const PRE_ROLL_MS = 250;
 const POST_ROLL_MS = 120;
+/** A pause this long inside a dictation lands what came before it. */
+export const DICTATION_PAUSE_MS = 700;
+/** Land at the next utterance boundary once this much speech has piled up. */
+const DICTATION_FLUSH_SECONDS = 20;
+/** Absolute cap on un-landed dictation audio. */
 const MAX_DICTATION_SECONDS = 120;
+
+interface DictationSession {
+  chunks: Float32Array[];
+  /** Samples queued for the next landing, context rolls included. */
+  samples: number;
+  /** Raw speech in the queue (what the detector itself flagged). */
+  speechSamples: number;
+  startedAt: number;
+  /** When the VAD last closed a run of speech; null until the first one. */
+  lastSpeechEndAt: number | null;
+  /** Toggle mode's silence limit; null = only the key ends it. */
+  autoEndAfterMs: number | null;
+  /** Whether any text landed this session (drives the "nothing heard" echo). */
+  landed: boolean;
+}
 
 export class VoiceService {
   private vad: VadHandle | null = null;
@@ -71,8 +96,7 @@ export class VoiceService {
   private ringFilled = 0;
   /** Samples pushed through the ring since start (absolute index base). */
   private samplesSeen = 0;
-  private dictation: Float32Array[] | null = null;
-  private dictationSamples = 0;
+  private dictation: DictationSession | null = null;
   private speechSince: number | null = null;
   private spanFired = false;
   private lastRollingAt = 0;
@@ -97,51 +121,104 @@ export class VoiceService {
   stop(): void {
     this.vad = null;
     this.dictation = null;
-    this.dictationSamples = 0;
   }
 
   setProfile(profile: VoiceProfile | null): void {
     this.profile = profile;
   }
 
-  /** Held-key dictation: on = buffer and suppress commands; off =
-   *  transcribe what was buffered and return to command listening. */
-  setDictation(on: boolean): void {
+  /** Dictation on: suppress commands and start landing speech at pauses.
+   *  `autoEndAfterMs` (toggle mode) ends the session from here after that
+   *  much silence. Off: land the tail and return to command listening. */
+  setDictation(on: boolean, autoEndAfterMs?: number): void {
     const now = this.now();
     if (on) {
       if (this.mode === 'dictation') return;
-      this.dictation = [];
-      this.dictationSamples = 0;
+      // A half-open command segment must not bleed into the dictation.
+      this.vad?.reset();
+      this.pending = new Float32Array(0);
+      this.speechSince = null;
+      this.spanFired = false;
+      this.dictation = {
+        chunks: [],
+        samples: 0,
+        speechSamples: 0,
+        startedAt: now,
+        lastSpeechEndAt: null,
+        autoEndAfterMs: autoEndAfterMs && autoEndAfterMs > 0 ? autoEndAfterMs : null,
+        landed: false,
+      };
       this.setMode('dictation', 'hold', now);
       return;
     }
-    if (this.mode !== 'dictation') return;
-    const chunks = this.dictation ?? [];
+    this.endDictation('release', now);
+  }
+
+  private endDictation(trigger: string, now: number): void {
+    if (this.mode !== 'dictation' || !this.dictation) return;
+    // Close the run of speech still open in the detector so the tail lands.
+    if (this.vad) {
+      this.vad.flush();
+      while (!this.vad.isEmpty()) {
+        const seg = this.vad.front();
+        this.vad.pop();
+        this.accumulateDictation(this.withContext(seg.start, seg.samples), seg.samples.length, now);
+      }
+    }
+    this.landDictation(now, true);
     this.dictation = null;
-    const total = this.dictationSamples;
-    this.dictationSamples = 0;
-    // The VAD saw none of the held audio; drop any half-open state so the
-    // first post-release command decodes clean.
     this.vad?.reset();
     this.pending = new Float32Array(0);
     this.speechSince = null;
     this.spanFired = false;
     this.lastActivityAt = now;
-    this.setMode('command', 'release', now);
+    this.setMode('command', trigger, now);
+  }
+
+  private accumulateDictation(samples: Float32Array, speechSamples: number, now: number): void {
+    const d = this.dictation;
+    if (!d) return;
+    d.chunks.push(samples);
+    d.samples += samples.length;
+    d.speechSamples += speechSamples;
+    d.lastSpeechEndAt = now;
+    if (d.samples >= DICTATION_FLUSH_SECONDS * SAMPLE_RATE) this.landDictation(now, false);
+  }
+
+  /** Decode what has piled up and emit it as one dictation utterance.
+   *  `final` = the session is ending: a session that never landed
+   *  anything still emits one empty event so the UI can say so. */
+  private landDictation(now: number, final: boolean): void {
+    const d = this.dictation;
+    if (!d) return;
+    const total = d.samples;
+    const speech = d.speechSamples;
+    const chunks = d.chunks;
+    d.chunks = [];
+    d.samples = 0;
+    d.speechSamples = 0;
     const durationMs = (total / SAMPLE_RATE) * 1000;
-    const id = ++this.utteranceId;
-    if (durationMs < PAD_MS) {
-      this.opts.onEvent({ utteranceId: id, mode: 'command', raw: '', tEndOfSpeech: now, tParse: now, kind: 'dictation', text: '', durationMs });
+    let text = '';
+    // A tap shorter than the padding is never speech: no decode.
+    if ((speech / SAMPLE_RATE) * 1000 >= PAD_MS) {
+      const samples = new Float32Array(total);
+      let at = 0;
+      for (const c of chunks) {
+        samples.set(c, at);
+        at += c.length;
+      }
+      text = this.opts.engine.decode(pad(samples)).trim();
+    }
+    if (!text) {
+      if (final && !d.landed) {
+        const id = ++this.utteranceId;
+        this.opts.onEvent({ utteranceId: id, mode: this.mode, raw: '', tEndOfSpeech: now, tParse: now, kind: 'dictation', text: '', durationMs });
+      }
       return;
     }
-    const samples = new Float32Array(total);
-    let at = 0;
-    for (const c of chunks) {
-      samples.set(c, at);
-      at += c.length;
-    }
-    const text = this.opts.engine.decode(pad(samples)).trim();
-    this.opts.onEvent({ utteranceId: id, mode: 'command', raw: text, tEndOfSpeech: now, tParse: this.now(), kind: 'dictation', text, durationMs });
+    d.landed = true;
+    const id = ++this.utteranceId;
+    this.opts.onEvent({ utteranceId: id, mode: this.mode, raw: text, tEndOfSpeech: now, tParse: this.now(), kind: 'dictation', text, durationMs });
   }
 
   /** Feed one chunk of 16 kHz mono s16le PCM. */
@@ -157,15 +234,6 @@ export class VoiceService {
     }
     const rms = n ? Math.sqrt(sumSq / n) : 0;
     const now = this.now();
-
-    if (this.mode === 'dictation' && this.dictation) {
-      if (this.dictationSamples < MAX_DICTATION_SECONDS * SAMPLE_RATE) {
-        this.dictation.push(samples);
-        this.dictationSamples += n;
-      }
-      this.report(now, rms, true, undefined);
-      return;
-    }
 
     this.pushRing(samples);
     // Feed the VAD in its fixed windows.
@@ -184,11 +252,31 @@ export class VoiceService {
     while (!this.vad.isEmpty()) {
       const seg = this.vad.front();
       this.vad.pop();
-      this.handleSegment(this.withContext(seg.start, seg.samples), now);
+      const withContext = this.withContext(seg.start, seg.samples);
+      if (this.mode === 'dictation' && this.dictation) this.accumulateDictation(withContext, seg.samples.length, now);
+      else this.handleSegment(withContext, now);
       this.speechSince = null;
       this.spanFired = false;
     }
     if (!detected) this.speechSince = null;
+    if (this.mode === 'dictation' && this.dictation) {
+      const d = this.dictation;
+      if (!detected) {
+        // A pause after speech: land what came before it.
+        if (d.chunks.length && d.lastSpeechEndAt !== null && now - d.lastSpeechEndAt >= DICTATION_PAUSE_MS) {
+          this.landDictation(now, false);
+        }
+        // Toggle mode's silence limit, measured from the last speech (or
+        // from the start if none came).
+        if (d.autoEndAfterMs !== null && now - (d.lastSpeechEndAt ?? d.startedAt) >= d.autoEndAfterMs) {
+          this.endDictation('silence', now);
+        }
+      } else if (d.samples >= MAX_DICTATION_SECONDS * SAMPLE_RATE) {
+        this.landDictation(now, false);
+      }
+      this.report(now, rms, detected, undefined);
+      return;
+    }
 
     // Rolling decode: speech has run on without closing (background talk
     // keeps the VAD open) — look for a command word in the trailing window.

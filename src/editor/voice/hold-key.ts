@@ -1,18 +1,33 @@
 /**
- * Hold-to-dictate key (spec §4.2). A capture-phase keydown/keyup pair on
- * the document: the configured chord held = dictation buffering; release
- * of the main key (or of a modifier the chord needs) = transcribe. Auto-
- * repeat keydowns are swallowed while held so nothing types. A window
- * blur mid-hold ends the hold (a lost keyup must never leave the mic
- * buffering forever).
+ * The dictation key (spec §4.2). A capture-phase keydown/keyup pair on
+ * the document. Two behaviors, chosen by a setting:
+ *
+ *  - hold: the chord held = dictation; release of the main key (or of a
+ *    modifier the chord needs) = end. Auto-repeat keydowns are swallowed
+ *    while held so nothing types.
+ *  - toggle: one press starts, the next press ends. For a mouse macro
+ *    that cannot hold, or a hand that cannot. Other keys pass through
+ *    (the hands are free), and the service's silence limit ends a
+ *    forgotten session; `isDictating` reports that so the next press
+ *    starts fresh rather than "ending" a session already over.
+ *
+ * A window blur ends dictation in both modes (a lost keyup must never
+ * leave the mic buffering forever; a session left on while you are in
+ * another app must not transcribe the room).
  */
 import { ribbonKeyStringFor } from '../ribbon-commands.js';
+
+export type DictateKeyMode = 'hold' | 'toggle';
 
 export interface HoldKeyDeps {
   /** The chord, e.g. "Mod-Shift-Space" (ribbon key-string format). */
   getKey: () => string;
   begin: () => void;
   end: () => void;
+  /** Default 'hold'. */
+  getMode?: () => DictateKeyMode;
+  /** Toggle mode asks this before deciding whether a press starts or ends. */
+  isDictating?: () => boolean;
 }
 
 const MODIFIER_KEYS = new Set(['Control', 'Meta', 'Shift', 'Alt']);
@@ -37,6 +52,14 @@ export function installHoldToDictate(deps: HoldKeyDeps): () => void {
   const onDown = (e: KeyboardEvent): void => {
     const chord = deps.getKey();
     if (!chord) return;
+    if ((deps.getMode?.() ?? 'hold') === 'toggle') {
+      if (e.repeat || MODIFIER_KEYS.has(e.key) || ribbonKeyStringFor(e) !== chord) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (deps.isDictating?.()) deps.end();
+      else deps.begin();
+      return;
+    }
     if (holding) {
       // Auto-repeat of the held chord (or any stray key while holding):
       // swallow so nothing types into the document mid-dictation.
@@ -62,9 +85,12 @@ export function installHoldToDictate(deps: HoldKeyDeps): () => void {
     deps.end();
   };
   const onBlur = (): void => {
-    if (!holding) return;
-    holding = false;
-    deps.end();
+    if (holding) {
+      holding = false;
+      deps.end();
+      return;
+    }
+    if ((deps.getMode?.() ?? 'hold') === 'toggle' && deps.isDictating?.()) deps.end();
   };
   document.addEventListener('keydown', onDown, true);
   document.addEventListener('keyup', onUp, true);

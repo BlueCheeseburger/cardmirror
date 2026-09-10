@@ -324,9 +324,10 @@ export function registerVoiceIpc(): void {
     }
   });
 
-  ipcMain.handle('host:voice-dictation', async (event, on: boolean) => {
+  ipcMain.handle('host:voice-dictation', async (event, on: boolean, opts?: { autoEndAfterMs?: number }) => {
     if (ownerWebContentsId !== event.sender.id || !worker) return;
-    worker.send({ type: 'dictation', on: !!on } satisfies WorkerInbound);
+    const autoEndAfterMs = typeof opts?.autoEndAfterMs === 'number' && opts.autoEndAfterMs > 0 ? opts.autoEndAfterMs : undefined;
+    worker.send({ type: 'dictation', on: !!on, ...(autoEndAfterMs ? { autoEndAfterMs } : {}) } satisfies WorkerInbound);
   });
 
   ipcMain.handle('host:voice-profile', async (event, profile: VoiceProfile | null) => {

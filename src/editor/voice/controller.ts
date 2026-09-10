@@ -25,7 +25,7 @@ export interface VoiceHostApi {
   voiceStart(opts?: { autoSleepSeconds?: number; profile?: VoiceProfile | null }): Promise<{ ok: boolean; error?: string; modelLoadMs?: number }>;
   voiceStop(): Promise<void>;
   voicePushAudio(chunk: ArrayBuffer): void;
-  voiceDictation(on: boolean): Promise<void>;
+  voiceDictation(on: boolean, opts?: { autoEndAfterMs?: number }): Promise<void>;
   voiceSetProfile(profile: VoiceProfile | null): Promise<void>;
   voiceClipboard(op: 'copy' | 'cut' | 'paste'): Promise<void>;
   onVoiceEvent(handler: (event: unknown) => void): () => void;
@@ -264,11 +264,17 @@ export class VoiceController {
     }
     if (this.holding) return;
     this.holding = true;
-    void voiceHost()?.voiceDictation(true);
+    // Toggle mode carries the silence limit; a held key is its own limit.
+    const toggle = settings.get('voiceDictateToggle');
+    void voiceHost()?.voiceDictation(true, toggle ? { autoEndAfterMs: settings.get('voiceDictateSilenceSeconds') * 1000 } : undefined);
     const view = this.deps.getView();
     if (view) patchVoiceState(view, { ghostText: null });
   }
 
+  /** Whether a dictation session is open (the toggle key asks). */
+  isDictating(): boolean {
+    return this.holding;
+  }
   endDictation(): void {
     if (!this.holding) return;
     this.holding = false;
@@ -350,6 +356,16 @@ export class VoiceController {
         break;
       }
       case 'mode': {
+        if (event.from === 'dictation') {
+          patchVoiceState(view, { ghostText: null });
+          if (this.holding && event.trigger === 'silence') {
+            // The service ended the session (toggle mode's silence limit):
+            // the key side must agree, or the next press would "end" a
+            // session that is already over.
+            this.holding = false;
+            this.pill?.setEcho('dictation stopped — silence', false);
+          }
+        }
         this.pill?.setMode(event.to);
         this.pill?.earconMode(event.to);
         setBodyModeClass(event.to);

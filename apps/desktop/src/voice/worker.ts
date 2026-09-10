@@ -37,7 +37,7 @@ process.on('message', (m: WorkerInbound) => {
       if (m.chunk instanceof ArrayBuffer) service?.pushAudio(Buffer.from(m.chunk));
       else if (ArrayBuffer.isView(m.chunk)) service?.pushAudio(Buffer.from((m.chunk as Uint8Array).buffer));
     } else if (m.type === 'dictation') {
-      service?.setDictation(!!m.on);
+      service?.setDictation(!!m.on, m.autoEndAfterMs);
     } else if (m.type === 'profile') {
       service?.setProfile(m.profile ?? null);
     }

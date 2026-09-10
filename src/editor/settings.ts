@@ -897,6 +897,12 @@ export interface Settings {
    *  e.g. "Mod-Shift-Space"). Held = dictation; released = the utterance
    *  lands. Commands need no key. */
   voiceDictateKey: string;
+  /** The dictation key toggles (press to start, press to end) instead
+   *  of holding — for a macro that can only send a keystroke, or a hand
+   *  that cannot hold. */
+  voiceDictateToggle: boolean;
+  /** In toggle mode, this much silence ends the session by itself. */
+  voiceDictateSilenceSeconds: number;
   /** Run dictated text through a short AI cleanup (self-corrections,
    *  fillers, punctuation, names) on the user's own key before it lands.
    *  Off in Lite; a failure lands the raw transcript. */
@@ -1770,6 +1776,8 @@ const DEFAULTS: Settings = {
   voiceAutoSleepSeconds: 60,
   voiceDashStyle: 'em',
   voiceDictateKey: 'Mod-Shift-Space',
+  voiceDictateToggle: false,
+  voiceDictateSilenceSeconds: 6,
   voiceCleanupEnabled: true,
   voiceModelEngine: 'parakeet',
   voiceProfiles: {},
@@ -2820,13 +2828,33 @@ export const SETTING_METADATA: SettingMeta[] = [
   },
   {
     key: 'voiceDictateKey',
-    label: 'Hold to dictate',
+    label: 'Dictation key',
     description:
-      'The key you hold while dictating. Hold it, speak, release: the words land at the cursor. Commands need no key — they listen whenever voice is on. A foot pedal that acts as a keyboard key works here too. Default Mod-Shift-Space.',
+      'Hold it, speak, release: the words land at the cursor — or, with the next setting on, press it once to start and again to stop. Commands need no key — they listen whenever voice is on. A foot pedal that acts as a keyboard key works here too. Default Mod-Shift-Space.',
     kind: 'voiceHoldKey',
     category: 'accessibility',
     electronOnly: true,
-    aliases: ['push to talk', 'dictation key', 'pedal'],
+    aliases: ['push to talk', 'hold to dictate', 'pedal'],
+  },
+  {
+    key: 'voiceDictateToggle',
+    label: 'Press to start and stop dictation',
+    description:
+      'Instead of holding the dictation key, press it once to start and again to stop — for a mouse macro that can only send a keystroke, or when holding a key is not an option. A run of silence (next setting) also stops it, so a forgotten session never transcribes the room. Dictated text lands at each pause either way.',
+    kind: 'toggle',
+    category: 'accessibility',
+    electronOnly: true,
+    aliases: ['toggle dictation', 'push to toggle', 'macro'],
+  },
+  {
+    key: 'voiceDictateSilenceSeconds',
+    label: 'Stop dictation after silence (seconds)',
+    description:
+      'With press-to-start-and-stop on, this many seconds without speech ends dictation and the mic goes back to listening for commands. Long enough to think; short enough that a forgotten session does not sit open. Default 6.',
+    kind: 'number',
+    min: 2,
+    category: 'accessibility',
+    electronOnly: true,
   },
   {
     key: 'voiceCleanupEnabled',
@@ -4549,6 +4577,11 @@ function sanitize(s: Settings): Settings {
       ? (s.voiceDashStyle as Settings['voiceDashStyle'])
       : 'em',
     voiceDictateKey: typeof s.voiceDictateKey === 'string' ? s.voiceDictateKey : 'Mod-Shift-Space',
+    voiceDictateToggle: s.voiceDictateToggle === true,
+    voiceDictateSilenceSeconds:
+      typeof s.voiceDictateSilenceSeconds === 'number' && Number.isFinite(s.voiceDictateSilenceSeconds)
+        ? Math.min(600, Math.max(2, Math.round(s.voiceDictateSilenceSeconds)))
+        : 6,
     voiceCleanupEnabled: s.voiceCleanupEnabled === false ? false : true,
     voiceModelEngine: 'parakeet',
     voiceProfiles: sanitizeVoiceProfiles(s.voiceProfiles),

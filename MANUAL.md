@@ -1921,11 +1921,21 @@ always agree.
 
 ### Dictation
 
-Dictation uses a **hold-to-dictate key** (default **Mod-Shift-Space**,
-changeable under Settings → Accessibility → Hold to dictate). Hold it,
+Dictation uses a **dictation key** (default **Mod-Shift-Space**,
+changeable under Settings → Accessibility → Dictation key). Hold it,
 speak, release: the words land at the cursor. A foot pedal that acts as a
 keyboard key works the same way. While the key is held, command words are
-ignored — say "delete the paragraph" in a dictation and it types. With text selected, dictating replaces it.
+ignored — say "delete the paragraph" in a dictation and it types. With text
+selected, dictating replaces it. Text lands at each pause, so a long passage
+appears sentence by sentence rather than all at once when you let go.
+
+If holding a key is not an option — a mouse macro that can only send a
+keystroke, or a hand that cannot hold — turn on **Press to start and stop
+dictation** in the same settings section. One press starts, the next press
+stops, and a run of silence stops it too (**Stop dictation after silence**,
+default six seconds), so a session you forgot about never transcribes the
+room. The pill plays the same sound either way when the mic goes back to
+listening for commands.
 
 Dictated text goes through the same autocorrect rules as typing, so `---`
 becomes an em dash and your expansions fire. Spoken punctuation works

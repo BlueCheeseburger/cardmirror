@@ -583,7 +583,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   voicePushAudio: (chunk: ArrayBuffer) => ipcRenderer.send('host:voice-audio', chunk),
   /** Held-key dictation: on = buffer audio and suppress commands; off =
    *  transcribe the buffered utterance (arrives as a `dictation` event). */
-  voiceDictation: (on: boolean) => ipcRenderer.invoke('host:voice-dictation', on),
+  voiceDictation: (on: boolean, opts?: { autoEndAfterMs?: number }) => ipcRenderer.invoke('host:voice-dictation', on, opts),
   /** Per-user recognizer profile (calibration aliases) for the live session. */
   voiceSetProfile: (profile: { aliases?: Record<string, string[]> } | null) =>
     ipcRenderer.invoke('host:voice-profile', profile),

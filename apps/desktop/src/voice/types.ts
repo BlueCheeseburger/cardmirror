@@ -73,7 +73,7 @@ export type WorkerInbound =
       threads?: number;
     }
   | { type: 'audio'; chunk: ArrayBuffer }
-  | { type: 'dictation'; on: boolean }
+  | { type: 'dictation'; on: boolean; autoEndAfterMs?: number }
   | { type: 'profile'; profile: VoiceProfile | null };
 
 export type WorkerOutbound =

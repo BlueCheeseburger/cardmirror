@@ -52,6 +52,46 @@ describe('hold-to-dictate', () => {
     expect(log).toEqual(['begin', 'end']);
   });
 
+  it('toggle mode: a press starts, the next press ends, keyup and other keys are ignored', () => {
+    const log: string[] = [];
+    let dictating = false;
+    uninstall = installHoldToDictate({
+      getKey: () => 'F9',
+      getMode: () => 'toggle',
+      isDictating: () => dictating,
+      begin: () => { dictating = true; log.push('begin'); },
+      end: () => { dictating = false; log.push('end'); },
+    });
+    const down = key('keydown', { key: 'F9', code: 'F9' });
+    expect(down.defaultPrevented).toBe(true);
+    key('keyup', { key: 'F9', code: 'F9' });
+    expect(log).toEqual(['begin']);
+    const other = key('keydown', { key: 'a', code: 'KeyA' });
+    expect(other.defaultPrevented, 'hands are free in toggle mode').toBe(false);
+    key('keydown', { key: 'F9', code: 'F9', repeat: true });
+    expect(log).toEqual(['begin']);
+    key('keydown', { key: 'F9', code: 'F9' });
+    expect(log).toEqual(['begin', 'end']);
+  });
+
+  it('toggle mode: after the service ended the session, the next press starts fresh; a blur ends an open one', () => {
+    const log: string[] = [];
+    let dictating = false;
+    uninstall = installHoldToDictate({
+      getKey: () => 'F9',
+      getMode: () => 'toggle',
+      isDictating: () => dictating,
+      begin: () => { dictating = true; log.push('begin'); },
+      end: () => { dictating = false; log.push('end'); },
+    });
+    key('keydown', { key: 'F9', code: 'F9' });
+    dictating = false; // the silence limit ended it from the service side
+    key('keydown', { key: 'F9', code: 'F9' });
+    expect(log).toEqual(['begin', 'begin']);
+    window.dispatchEvent(new Event('blur'));
+    expect(log).toEqual(['begin', 'begin', 'end']);
+  });
+
   it('releaseEndsHold reads the chord', () => {
     expect(releaseEndsHold(new KeyboardEvent('keyup', { key: 'Meta' }), 'Mod-Shift-Space')).toBe(true);
     expect(releaseEndsHold(new KeyboardEvent('keyup', { key: 'Alt' }), 'Mod-Shift-Space')).toBe(false);

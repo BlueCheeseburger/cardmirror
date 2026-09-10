@@ -5735,6 +5735,8 @@ setVoiceCalibrationOpener(() => void openVoiceCalibration(getVoiceController()))
 // pedal or key works whatever has focus while a session is on.
 installHoldToDictate({
   getKey: () => settings.get('voiceDictateKey'),
+  getMode: () => (settings.get('voiceDictateToggle') ? 'toggle' : 'hold'),
+  isDictating: () => getVoiceController().isDictating(),
   begin: () => getVoiceController().beginDictation(),
   end: () => getVoiceController().endDictation(),
 });
