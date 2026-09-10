@@ -163,9 +163,21 @@ import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
 type SlotId = 'slot1' | 'slot2' | 'slot3';
 const SLOT_IDS: SlotId[] = ['slot1', 'slot2', 'slot3'];
 
-let nextDocUid = 1;
+// `doc-${n}` looked fine in a single window, but every Electron window is
+// its own renderer process — a second window's counter restarts at 1, so
+// its first pane collides with the first window's `doc-1`. The speech-doc
+// registry keys everything off this uid (main process broadcasts one
+// global uid; each renderer resolves it against its OWN local view map),
+// so a colliding uid made a brand-new pane in the new window "become" the
+// speech doc the moment it registered — the new window's `views.get(uid)`
+// resolved to ITS OWN (wrong) view for the uid main already had marked,
+// and refreshSpeechChips had no way to tell the collision apart from the
+// real thing (2026-09-10 field report: two panes in two windows both
+// showing the mic marker after opening a second window, having only
+// marked one). Match `newSessionDocUid`'s scheme so uids are unique
+// across processes, not just within one.
 function newDocUid(): string {
-  return `doc-${nextDocUid++}`;
+  return `doc-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 }
 
 /** Sync the cross-window open-path claim when a record's handle
