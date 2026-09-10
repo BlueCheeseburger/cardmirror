@@ -1,7 +1,6 @@
 /**
- * Voice utterance ↔ undo atomicity (SPEC-voice.md §8): one utterance =
- * one undo step, exactly, and keyboard undo and `scratch that` must
- * agree. These tests are deliberately adversarial — multi-transaction
+ * Voice utterance ↔ undo atomicity: one utterance = one undo step,
+ * exactly, and keyboard undo and a spoken `undo` must agree. These tests are deliberately adversarial — multi-transaction
  * utterances, keyboard edits interleaved inside the history merge
  * window, and back-to-back utterances with no time gap.
  */
@@ -138,26 +137,11 @@ describe('voice utterance atomicity', () => {
     const u1 = voiceDispatcher(view, 1);
     u1(view.state.tr.insertText('x', 1));
     sealUtterance(view);
-    patchVoiceState(view, { pen: { name: 'highlight' } });
-    patchVoiceState(view, { appendLog: { utteranceId: 1, kind: 'command', text: 'mark' } });
+    patchVoiceState(view, { pen: 'highlight' });
+    patchVoiceState(view, { appendLog: { utteranceId: 1, kind: 'command', text: 'glow' } });
 
-    expect(voicePluginKey.getState(view.state)?.pen.name).toBe('highlight');
+    expect(voicePluginKey.getState(view.state)?.pen).toBe('highlight');
     expect(undosToRestore(view, original)).toBe(1);
-  });
-
-  it('maps lastOpRange through subsequent edits (again-but replay target)', () => {
-    const view = makeView();
-    const u1 = voiceDispatcher(view, 1);
-    u1(view.state.tr.setSelection(TextSelection.create(view.state.doc, 7, 12))); // "bravo"
-    sealUtterance(view);
-    patchVoiceState(view, { lastOpRange: { from: 7, to: 12 } });
-
-    // An edit earlier in the doc shifts positions.
-    type(view, 'XX ', 1);
-
-    const st = voicePluginKey.getState(view.state)!;
-    expect(st.lastOpRange).toEqual({ from: 10, to: 15 });
-    expect(view.state.doc.textBetween(st.lastOpRange!.from, st.lastOpRange!.to)).toBe('bravo');
   });
 });
 
@@ -165,40 +149,3 @@ function makeUndone(view: ReturnType<typeof makeView>, times: number): string {
   for (let i = 0; i < times; i++) undo(view.state, view.dispatch);
   return view.state.doc.textContent;
 }
-
-describe('voice jump history (go back)', () => {
-  const LONG = 'word '.repeat(40).trim(); // > JUMP_MIN positions of text
-
-  it('records jump origins and pops them, without re-recording the back-jump', () => {
-    const view = makeView(LONG);
-    // Jump from pos 1 to pos 150 — origin recorded.
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1)));
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 150)));
-    expect(voicePluginKey.getState(view.state)?.backStack).toEqual([1]);
-
-    // Simulate the goBack transaction (pop + suppressed recording).
-    const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, 1));
-    tr.setMeta(voicePluginKey, { popBack: true, suppressJumpRecord: true });
-    view.dispatch(tr);
-    expect(view.state.selection.head).toBe(1);
-    expect(voicePluginKey.getState(view.state)?.backStack).toEqual([]);
-  });
-
-  it('ignores small cursor moves', () => {
-    const view = makeView(LONG);
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 10)));
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 20)));
-    expect(voicePluginKey.getState(view.state)?.backStack ?? []).toHaveLength(0);
-  });
-
-  it('remaps stack positions through edits', () => {
-    const view = makeView(LONG);
-    // 1→60 and 60→160 are both jumps; both origins record.
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 60)));
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 160)));
-    expect(voicePluginKey.getState(view.state)?.backStack).toEqual([1, 60]);
-    // Insert 10 chars at the doc start — every origin shifts.
-    view.dispatch(view.state.tr.insertText('0123456789', 1));
-    expect(voicePluginKey.getState(view.state)?.backStack).toEqual([11, 70]);
-  });
-});

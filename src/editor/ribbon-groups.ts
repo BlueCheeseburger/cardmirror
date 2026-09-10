@@ -258,7 +258,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
   },
   {
     title: 'Voice',
-    commands: ['toggleVoice'],
+    commands: ['toggleVoice', 'calibrateVoice'],
   },
   {
     title: 'Card cutter',

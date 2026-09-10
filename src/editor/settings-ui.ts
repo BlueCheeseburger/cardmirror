@@ -8,6 +8,7 @@
  */
 
 import { confirmDialog, promptForRouteChoice } from './text-prompt.js';
+import { requestVoiceCalibration } from './voice/hooks.js';
 import { isLiteBuild } from './lite.js';
 import { entryConflictWarnings } from './custom-autocorrect-plugin.js';
 import {
@@ -77,7 +78,7 @@ import { applyTimerProfile } from './timer-profile.js';
 import { showToast } from './toast.js';
 import { setIcon, CUSTOM_BUTTON_ICONS, type IconName } from './icons';
 import { availableRibbonCommandIds } from './ribbon-availability.js';
-import { commandLabelFor, RIBBON_COMMAND_LABELS, type RibbonCommandId } from './ribbon-commands.js';
+import { commandLabelFor, RIBBON_COMMAND_LABELS, type RibbonCommandId, ribbonKeyStringFor, formatKeyForDisplay } from './ribbon-commands.js';
 import { settingCommandOptions } from './setting-commands.js';
 import {
   FILE_OBJECT_KINDS,
@@ -890,9 +891,17 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildVoiceDashStyleEditor());
       return row;
-    } else if (meta.kind === 'voiceDictationModel') {
+    } else if (meta.kind === 'voiceModel') {
       row.appendChild(text);
-      row.appendChild(buildVoiceDictationModelEditor());
+      row.appendChild(buildVoiceModelEditor());
+      return row;
+    } else if (meta.kind === 'voiceHoldKey') {
+      row.appendChild(text);
+      row.appendChild(buildVoiceHoldKeyEditor());
+      return row;
+    } else if (meta.kind === 'voiceCalibrate') {
+      row.appendChild(text);
+      row.appendChild(buildVoiceCalibrateEditor());
       return row;
     } else if (meta.kind === 'speechDocFormat') {
       row.appendChild(text);
@@ -4296,104 +4305,17 @@ function buildCreateReferenceDelimiterEditor(): HTMLElement {
   return select;
 }
 
-function buildVoiceDictationModelEditor(): HTMLElement {
+function buildVoiceModelEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-multi-doc-layout-mode-editor';
   const api = (window as unknown as {
     electronAPI?: {
-      voiceBaseModelInfo(): Promise<{ present: boolean; downloading: boolean }>;
-      voiceDownloadBaseModel(): Promise<{ ok: boolean; error?: string }>;
-      voiceDeleteBaseModel(): Promise<{ ok: boolean; error?: string }>;
-      voiceDictationModelInfo(): Promise<{ present: boolean; downloading: boolean }>;
-      voiceDownloadDictationModel(): Promise<{ ok: boolean; error?: string }>;
-      voiceDeleteDictationModel(): Promise<{ ok: boolean; error?: string }>;
-      onVoiceDownloadProgress(
-        h: (p: { model?: string; pct: number; extracting?: boolean }) => void,
-      ): () => void;
+      voiceModelInfo(): Promise<{ present: boolean; downloading: boolean; sizeMB: number }>;
+      voiceDownloadModel(): Promise<{ ok: boolean; error?: string }>;
+      voiceDeleteModel(): Promise<{ ok: boolean; error?: string }>;
+      onVoiceDownloadProgress(h: (p: { model?: string; pct: number; receivedMB?: number; extracting?: boolean }) => void): () => void;
     };
   }).electronAPI;
-
-  // Radio choice first (which model voice uses), then the download
-  // controls for each below.
-  const groupName = `pmd-voice-dict-model-${Math.random().toString(36).slice(2, 8)}`;
-  for (const o of [
-    { value: 'standard' as const, label: 'Standard' },
-    { value: 'large' as const, label: 'Large — better general-English dictation' },
-  ]) {
-    const row = document.createElement('label');
-    row.className = 'pmd-multi-doc-layout-mode-row';
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = groupName;
-    input.checked = o.value === settings.get('voiceDictationModel');
-    input.addEventListener('change', () => {
-      if (input.checked) settings.set('voiceDictationModel', o.value);
-    });
-    const labelText = document.createElement('span');
-    labelText.textContent = o.label;
-    row.append(input, labelText);
-    wrap.appendChild(row);
-  }
-
-  // Base (standard) model: the one voice needs to run at all. First-use
-  // download, pre-fetchable here (useful before going somewhere with no
-  // wifi).
-  if (api?.voiceBaseModelInfo) {
-    const baseStatus = document.createElement('div');
-    baseStatus.className = 'pmd-voice-model-status';
-    const baseButton = document.createElement('button');
-    baseButton.type = 'button';
-    baseButton.className = 'pmd-voice-model-download';
-    const baseDeleteBtn = document.createElement('button');
-    baseDeleteBtn.type = 'button';
-    baseDeleteBtn.className = 'pmd-voice-model-delete';
-    baseDeleteBtn.textContent = 'Delete standard model';
-    baseDeleteBtn.style.display = 'none';
-    wrap.append(baseStatus, baseButton, baseDeleteBtn);
-    const refreshBase = async (): Promise<void> => {
-      const info = await api.voiceBaseModelInfo();
-      if (info.present) {
-        baseStatus.textContent = 'Standard model downloaded ✓';
-        baseButton.style.display = 'none';
-        baseDeleteBtn.style.display = '';
-      } else {
-        baseStatus.textContent = info.downloading
-          ? 'Downloading standard model…'
-          : 'Standard model not downloaded.';
-        baseButton.style.display = info.downloading ? 'none' : '';
-        baseButton.textContent = 'Download standard model (~130 MB)';
-        baseDeleteBtn.style.display = 'none';
-      }
-    };
-    void refreshBase();
-    baseDeleteBtn.addEventListener('click', () => {
-      void confirmDialog(
-        "Delete the standard voice model? Voice control won't work until you download it again.",
-        { okLabel: 'Delete' },
-      ).then((go) => {
-        if (!go) return;
-        baseDeleteBtn.style.display = 'none';
-        baseStatus.textContent = 'Deleting…';
-        void api.voiceDeleteBaseModel().then((res) => {
-          if (!res.ok) baseStatus.textContent = `Delete failed: ${res.error ?? 'unknown'}`;
-          void refreshBase();
-        });
-      });
-    });
-    baseButton.addEventListener('click', () => {
-      baseButton.style.display = 'none';
-      const unsub = api.onVoiceDownloadProgress((p) => {
-        if (p.model && p.model !== 'base-model') return;
-        baseStatus.textContent = p.extracting ? 'Extracting…' : `Downloading… ${p.pct}%`;
-      });
-      void api.voiceDownloadBaseModel().then((res) => {
-        unsub();
-        if (!res.ok) baseStatus.textContent = `Download failed: ${res.error ?? 'unknown'}`;
-        void refreshBase();
-      });
-    });
-  }
-
   const status = document.createElement('div');
   status.className = 'pmd-voice-model-status';
   const button = document.createElement('button');
@@ -4402,64 +4324,113 @@ function buildVoiceDictationModelEditor(): HTMLElement {
   const deleteButton = document.createElement('button');
   deleteButton.type = 'button';
   deleteButton.className = 'pmd-voice-model-delete';
-  deleteButton.textContent = 'Delete large model';
+  deleteButton.textContent = 'Delete model';
   deleteButton.style.display = 'none';
   wrap.append(status, button, deleteButton);
-
   const refresh = async (): Promise<void> => {
-    if (!api) {
+    if (!api?.voiceModelInfo) {
       status.textContent = 'Desktop only.';
       button.style.display = 'none';
-      deleteButton.style.display = 'none';
       return;
     }
-    const info = await api.voiceDictationModelInfo();
+    const info = await api.voiceModelInfo();
     if (info.present) {
-      status.textContent = 'Large model downloaded ✓';
+      status.textContent = 'Recognition model downloaded ✓';
       button.style.display = 'none';
       deleteButton.style.display = '';
     } else {
-      status.textContent = info.downloading ? 'Downloading…' : 'Large model not downloaded.';
+      status.textContent = info.downloading ? 'Downloading…' : 'Recognition model not downloaded.';
       button.style.display = info.downloading ? 'none' : '';
-      button.textContent = 'Download large model (1.8 GB)';
+      button.textContent = `Download recognition model (~${info.sizeMB} MB)`;
       deleteButton.style.display = 'none';
     }
   };
   void refresh();
-
-  deleteButton.addEventListener('click', () => {
-    if (!api) return;
-    void confirmDialog(
-      'Delete the large dictation model (1.8 GB)? Voice will fall back to the standard model.',
-      { okLabel: 'Delete' },
-    ).then((go) => {
-      if (!go) return;
-      deleteButton.style.display = 'none';
-      status.textContent = 'Deleting…';
-      void api.voiceDeleteDictationModel().then((res) => {
-        if (!res.ok) status.textContent = `Delete failed: ${res.error ?? 'unknown'}`;
-        void refresh();
-      });
-    });
-  });
-
   button.addEventListener('click', () => {
     if (!api) return;
     button.style.display = 'none';
     const unsub = api.onVoiceDownloadProgress((p) => {
-      // Shared progress channel — ignore base-model / node-runtime ticks.
-      if (p.model && p.model !== 'large-model') {
-        if (p.model === 'node-runtime') status.textContent = 'Downloading runtime…';
-        return;
-      }
-      status.textContent = p.extracting ? 'Extracting…' : `Downloading… ${p.pct}%`;
+      status.textContent = p.extracting ? 'Extracting…' : `Downloading ${p.model === 'vad' ? 'voice detector' : 'model'}… ${p.pct}%`;
     });
-    void api.voiceDownloadDictationModel().then((res) => {
+    void api.voiceDownloadModel().then((res) => {
       unsub();
       if (!res.ok) status.textContent = `Download failed: ${res.error ?? 'unknown'}`;
       void refresh();
     });
   });
+  deleteButton.addEventListener('click', () => {
+    if (!api) return;
+    void confirmDialog("Delete the voice recognition model? Voice control won't work until you download it again.", { okLabel: 'Delete' }).then((go) => {
+      if (!go) return;
+      deleteButton.style.display = 'none';
+      status.textContent = 'Deleting…';
+      void api.voiceDeleteModel().then((res) => {
+        if (!res.ok) status.textContent = `Delete failed: ${res.error ?? 'unknown'}`;
+        void refresh();
+      });
+    });
+  });
+  return wrap;
+}
+
+/** Hold-to-dictate chord: a capture pill like the keybindings editor's. */
+function buildVoiceHoldKeyEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-voice-holdkey-editor';
+  const current = document.createElement('code');
+  current.className = 'pmd-voice-holdkey-current';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pmd-settings-btn';
+  btn.textContent = 'Change…';
+  const render = (): void => {
+    current.textContent = formatKeyForDisplay(settings.get('voiceDictateKey')) || '(none)';
+  };
+  render();
+  btn.addEventListener('click', () => {
+    btn.textContent = 'Press a key… (Esc cancels)';
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        done();
+        return;
+      }
+      if (e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta') return;
+      e.preventDefault();
+      e.stopPropagation();
+      settings.set('voiceDictateKey', ribbonKeyStringFor(e));
+      done();
+    };
+    const done = (): void => {
+      document.removeEventListener('keydown', onKey, true);
+      btn.textContent = 'Change…';
+      render();
+    };
+    document.addEventListener('keydown', onKey, true);
+  });
+  wrap.append(current, btn);
+  return wrap;
+}
+
+function buildVoiceCalibrateEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-voice-calibrate-editor';
+  const status = document.createElement('div');
+  status.className = 'pmd-voice-model-status';
+  const device = settings.get('voiceInputDeviceId') || '';
+  const prof = settings.get('voiceProfiles')[device];
+  const learned = prof ? Object.values(prof.aliases).reduce((n, l) => n + l.length, 0) : 0;
+  status.textContent = prof?.updatedAt
+    ? `Calibrated ${new Date(prof.updatedAt).toLocaleDateString()} · ${learned} learned spelling${learned === 1 ? '' : 's'} for this microphone`
+    : 'Not calibrated for this microphone yet.';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pmd-settings-btn';
+  btn.textContent = 'Calibrate…';
+  btn.addEventListener('click', () => {
+    if (!requestVoiceCalibration()) showToast('Open a document first, then calibrate from the voice pill or here.', { durationMs: 2600 });
+  });
+  wrap.append(status, btn);
   return wrap;
 }
 

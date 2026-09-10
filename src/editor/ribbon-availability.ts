@@ -70,7 +70,7 @@ const AI_COMMANDS = new Set<RibbonCommandId>([
 export function isRibbonCommandAvailable(id: RibbonCommandId): boolean {
   if (isLiteBuild() && AI_COMMANDS.has(id)) return false;
   if (FLOW_COMMANDS.has(id)) return isWindowsHost();
-  if (id === 'toggleVoice') return getElectronHost() !== null;
+  if (id === 'toggleVoice' || id === 'calibrateVoice') return getElectronHost() !== null;
   // The dev console is Chromium DevTools via the Electron host; on the
   // web the browser's own DevTools exist and we can't open them anyway.
   if (id === 'openDevConsole') return getElectronHost() !== null;

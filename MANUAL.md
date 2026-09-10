@@ -1863,92 +1863,102 @@ Keyboard shortcuts**. They appear only on Windows.
 
 ## 15. Voice control
 
-**(Desktop only. Experimental.)** Press **Ctrl-Shift-V** to start a
-hands-free editing session and work a card by voice — read text aloud to
-ink it, dictate tags and cites, and move around the document without
-touching the keyboard. Recognition runs **entirely on your own machine** —
-no audio ever leaves it, with or without a network connection.
+**(Desktop only.)** Voice control lets you work a document with your
+voice and a mouse: point with the mouse, say what to do. It was built for
+people with RSI and similar strain injuries, where sustained typing is
+what hurts and occasional pointing is fine. Recognition runs **entirely on
+your own machine** — no audio ever leaves it, with or without a network
+connection — except for the optional AI cleanup described below, which
+sends text, never audio.
 
-The speech model is a **one-time ~130 MB download** rather than part of
-the installer, so the app itself stays small for the many people who never
-use voice. The first time you turn voice on, CardMirror asks to download it
-and notifies you when it's ready (you can keep working meanwhile — it does
-not start listening on its own). If you'll be somewhere without a
-connection, download it ahead of time under **Settings → Accessibility →
-Dictation accuracy model**.
+The recognition model is a **one-time download of about 640 MB**, not part
+of the installer, so the app stays small for the many people who never use
+voice. The first time you turn voice on, CardMirror asks to download it and
+tells you when it's ready. If you'll be somewhere without a connection,
+download it ahead of time under **Settings → Accessibility → Voice
+recognition model**.
 
-This is early, experimental software; expect rough edges, particularly
-pertaining to the voice recognition model, and keep the keyboard within
-reach. On macOS, voice requires Apple Silicon.
+### Turning it on
 
-### Starting a session
+**Ctrl-Shift-V** (Mod-Shift-V; rebindable) turns the microphone on. A
+**status pill** appears at the bottom right showing whether CardMirror is
+listening, the current **mode** as a labeled badge (command / dictating /
+asleep), the armed **pen**, what it last heard, and a live input meter.
+Click the pill for a menu: pick a microphone, calibrate, or stop.
 
-**Ctrl-Shift-V** turns the microphone on. A **status pill** appears
-showing whether CardMirror is listening, the current **mode** as a
-labeled badge (command / dictation / paint / asleep — always visible, so
-you never have to read the mode from the dot's color alone), the active
-**pen**, what it last heard, and a live mic level. Click the pill to
-choose which microphone to use. To park the mic without ending the session, say **`voice sleep`**; say
-**`voice wake`** to start listening again. The mic also **auto-sleeps**
-after a stretch of silence (configurable) so a forgotten session doesn't
-keep transcribing the room — the pill dims as a warning before it does.
+While voice is on, CardMirror is always listening for **command words** —
+there is no wake word and no key to hold. To park the mic without ending
+the session, say **`voice sleep`** and **`voice wake`** to resume; it also
+**auto-sleeps** after a stretch of silence (configurable) so a forgotten
+session doesn't transcribe the room.
 
 ### Commands
 
-Every command starts with a spoken verb. A few you'll use constantly:
+Twelve words. A command fires only when the word is the whole thing you
+said — "line" fires, "the line of argument" does not — so ordinary
+conversation doesn't trigger anything. Select with the mouse first when a
+command needs a span.
 
-- **`pen highlight`** (or `pen underline`, `pen emphasis`, `pen cite`) sets
-  the active pen — the mark that `mark` and paint apply. The pen sticks
-  until you change it.
-- **`take <words you can see>`** selects exactly those words on screen;
-  **`mark`** then applies the pen, or **`mark <words>`** does both at once.
-- **`next card`** / **`go back`** move you around; **`condense`** and
-  **`shrink`** run the usual card commands.
+| Say | Does |
+|---|---|
+| **line** | underline the selection — or, with nothing selected, arm the underline pen for your next dictation (say it again to disarm) |
+| **box** | emphasis, the same way |
+| **glow** | highlight in the ribbon's current color, the same way |
+| **bare** | clear underline, emphasis and highlight from the selection; with nothing selected, disarm the pen |
+| **shrink** | Shrink Card Text |
+| **condense** | Condense |
+| **tag** | apply the Tag style to the selection or the current paragraph |
+| **cite** | apply the Cite style to the selection |
+| **card** | insert a new card after the current one and land in its tag |
+| **delete** | delete the selection |
+| **replace** | delete the selection and wait for your dictated replacement |
+| **undo** | undo, exactly like Ctrl-Z |
 
-When words you speak appear more than once on screen, numbered badges pop
-up over each match — say **`pick two`** to choose.
-
-### Paint mode
-
-Say **`paint`** and then simply **read the card aloud**: the words you read
-are inked with the active pen as you go, the voice-native way to highlight
-or underline a card. Switch pens mid-pass (`pen highlight`), skip ahead
-without marking, and say **`stop paint`** when you're done.
+Every voice action is a single undo step, so a spoken `undo` and Ctrl-Z
+always agree.
 
 ### Dictation
 
-Say **`start typing`** to dictate at the cursor and **`stop typing`** to
-stop; while you talk, words stream in as gray preview text before they
-land. Dictation understands spoken punctuation (`period`, `comma`,
-`question mark`, quotes), a configurable **dash** word, and capitalizes
-sentences for you. To dictate a word that's also a command, prefix it with
-**`literal`** (so `literal stop typing` types the words instead of
-exiting).
+Dictation uses a **hold-to-dictate key** (default **Mod-Shift-Space**,
+changeable under Settings → Accessibility → Hold to dictate). Hold it,
+speak, release: the words land at the cursor. A foot pedal that acts as a
+keyboard key works the same way. While the key is held, command words are
+ignored — say "delete the paragraph" in a dictation and it types.
 
-### Precise targeting
+Dictated text goes through the same autocorrect rules as typing, so `---`
+becomes an em dash and your expansions fire. Spoken punctuation works
+(`period`, `comma`, `question mark`, quotes), a configurable **dash** word,
+and sentences are capitalized for you. If a pen is armed (say `line` with
+nothing selected), the dictated words are underlined as they land.
 
-Targeting composes, so you can be specific without reaching for the mouse:
+**AI cleanup.** With an AI key configured (Settings → Comments & AI), a
+short cleanup pass runs before dictated text lands: it resolves
+mid-sentence self-corrections ("actually, make that…"), drops fillers,
+adds punctuation, and spells names to match the document. Only the
+transcript and a little nearby text are sent — never audio. Turn it off
+under Accessibility → Clean up dictation with AI; the raw transcript lands
+instead. It is off in CardMirror Lite.
 
-- **Ordinals count inside their natural container.** `take second
-  sentence` is the second sentence of this paragraph; `go to third card`
-  is the third card in this block.
-- **`mark every tag`** marks every tag in the block in a single step.
-- **`take head card`** / **`take tail paragraph`** select to a scope's
-  start or end.
-- **`take from <words> to <words>`** spans two spoken anchors.
+### Calibrate to your voice
 
-### Undo
+Voices, accents and headsets vary. **Calibrate** (from the pill menu, the
+command bar, or Settings → Accessibility) takes about a minute: say each
+command word a couple of times through the microphone you use, and, if you
+whisper in quiet rooms, once more whispered. Whatever the recognizer hears
+becomes your own spelling of each word, so commands fire for your voice
+specifically. Profiles are saved per microphone. Run it again after a new
+headset.
 
-Every voice action is a single undo step, and voice undo (**`scratch
-that`**) and **Ctrl-Z** always agree — so you can take back a voice action
-with the keyboard, or vice versa, and never lose your place.
+**Microphone tips.** The closer the mic, the quieter you can speak — a
+headset or a mic within a couple of inches lets you whisper commands at a
+shared table. Wireless earbuds tend to compress audio and add delay;
+prefer a wired headset or the laptop mic up close.
 
 ### Options
 
-Voice settings live under **Settings → Accessibility**. They include an
-optional **large dictation model** — a one-time 1.8 GB download that uses
-around 5 GB of memory while it's on and roughly halves general-English
-dictation errors (it doesn't change command recognition).
+Voice settings live under **Settings → Accessibility**: microphone,
+auto-sleep, the dictated dash, the hold-to-dictate key, AI cleanup,
+calibration, and the model download.
 
 ---
 

@@ -35,3 +35,16 @@ buildSync({
   outfile: path.join(__dirname, '..', 'dist', 'learn-store-owner.cjs'),
   logLevel: 'warning',
 });
+
+// The voice recognizer worker: bundled because it imports the shared
+// command vocabulary from src/editor/voice; the native runtime stays an
+// external `require` resolved from the (asar-unpacked) node_modules.
+buildSync({
+  entryPoints: [path.join(__dirname, '..', 'src', 'voice', 'worker.ts')],
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  external: ['sherpa-onnx-node'],
+  outfile: path.join(__dirname, '..', 'dist', 'voice', 'worker.cjs'),
+  logLevel: 'warning',
+});

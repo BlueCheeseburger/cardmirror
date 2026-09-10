@@ -120,6 +120,9 @@ import {
 } from './scroll-anchor.js';
 import { voicePlugin } from './voice/plugin.js';
 import { VoiceController } from './voice/controller.js';
+import { installHoldToDictate } from './voice/hold-key.js';
+import { openVoiceCalibration } from './voice/calibrate.js';
+import { setVoiceCalibrationOpener } from './voice/hooks.js';
 import { openCardEditor } from './learn-create-ui.js';
 import { openLearnManage } from './learn-manage-ui.js';
 import { openBulkConvert, runConvertSingleFileWeb } from './bulk-convert-ui.js';
@@ -1823,6 +1826,9 @@ const ribbonContext: RibbonContext = {
   },
   toggleVoice: () => {
     void getVoiceController().toggle();
+  },
+  calibrateVoice: () => {
+    void openVoiceCalibration(getVoiceController());
   },
   openCardCutter: () => {
     if (view) void openCutLaunchSheet(view);
@@ -4380,6 +4386,7 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<AnyCommandId>([
   'closeDocOrWindow',
   // Voice toggle flips a session, not a doc — works with no pane focused.
   'toggleVoice',
+  'calibrateVoice',
   // Pre-warming the Flow host spawns a process; no doc required.
   'startFlowHost',
   // Collaboration-session lifecycle operates on the app shell (state
@@ -4413,6 +4420,7 @@ function runViewlessRibbon(id: AnyCommandId): void {
     case 'insertInDocCopy': ribbonContext.insertInDocCopy(); return;
     case 'manageQuickCards': ribbonContext.manageQuickCards(); return;
     case 'toggleVoice': ribbonContext.toggleVoice(); return;
+    case 'calibrateVoice': ribbonContext.calibrateVoice(); return;
     case 'startFlowHost': ribbonContext.startFlowHost(); return;
     case 'collabStartSession': ribbonContext.collabStartSession(); return;
     case 'collabJoinSession': ribbonContext.collabJoinSession(); return;
@@ -5710,9 +5718,26 @@ function getVoiceController(): VoiceController {
   voiceController ??= new VoiceController({
     getView: getActiveView,
     ribbonCtx: ribbonContext,
+    // The editor's own undo path — the CRDT undo manager inside a live
+    // session, plain history otherwise — so a spoken `undo` ≡ Mod-Z.
+    undo: () => {
+      const v = getActiveView();
+      if (!v) return false;
+      const cmd = collabPluginSourceFor(activeDocIdentity().sessionUid)?.ownsUndo() ? collabUndo : readModeAwareUndo;
+      return cmd(v.state, v.dispatch.bind(v), v);
+    },
+    onCalibrate: () => void openVoiceCalibration(getVoiceController()),
   });
   return voiceController;
 }
+setVoiceCalibrationOpener(() => void openVoiceCalibration(getVoiceController()));
+// Hold-to-dictate: the chord is a setting; the listener is global so a
+// pedal or key works whatever has focus while a session is on.
+installHoldToDictate({
+  getKey: () => settings.get('voiceDictateKey'),
+  begin: () => getVoiceController().beginDictation(),
+  end: () => getVoiceController().endDictation(),
+});
 
 function mountView(doc: PMNode, threads: Thread[] = []): void {
   if (view) {

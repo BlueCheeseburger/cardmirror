@@ -1,81 +1,70 @@
 /**
- * Voice controller: session lifecycle glue between the main-process
- * recognition service and the editor (SPEC-voice.md §12 items 2–4).
- * Owns mic capture, event routing into the dispatcher, the feedback
- * pill, and (debounced) vocabulary shipping. Desktop-only — the web
- * edition has no recognition host.
+ * Voice controller (voice v2): session lifecycle glue between the
+ * recognizer worker and the editor. Owns mic capture, the two channels
+ * (ambient commands; held-key dictation), event routing into the
+ * dispatcher and the landing pipeline, the feedback pill, and the
+ * per-microphone calibration profile. Desktop-only — the web edition
+ * has no recognition host.
  */
 import type { EditorView } from 'prosemirror-view';
 import { alertDialog, confirmDialog } from '../text-prompt.js';
 import type { RibbonContext } from '../ribbon-commands.js';
 import { settings } from '../settings.js';
 import { showToast } from '../toast.js';
-import { VOICE_NEAR_RADIUS } from './align.js';
 import { MicCapture } from './capture.js';
-import { commandNameVocabulary } from './please-match.js';
-import {
-  applyVoiceCommand,
-  applyDictation,
-  handlePaintPartial,
-  activeUiInput,
-  typeIntoUiInput,
-  type DispatchDeps,
-} from './dispatch.js';
+import { cleanupTranscript } from './cleanup.js';
+import { applyVoiceCommand, type DispatchDeps } from './dispatch.js';
+import { landDictation } from './landing.js';
 import { patchVoiceState, voicePluginKey } from './plugin.js';
 import { VoicePill } from './ui.js';
 import type { VoiceEndedEvent, VoiceEvent, VoiceLevel } from './types';
+import type { VoiceProfile } from './vocabulary.js';
 
 /** The preload voice surface (subset of window.electronAPI). */
-interface VoiceHostApi {
-  voiceStart(opts?: {
-    autoSleepSeconds?: number;
-    dictationModel?: 'standard' | 'large';
-  }): Promise<{
-    ok: boolean;
-    error?: string;
-    modelLoadMs?: number;
-    largeDictationMissing?: boolean;
-    largeDictationUnsupported?: boolean;
-  }>;
+export interface VoiceHostApi {
+  voiceStart(opts?: { autoSleepSeconds?: number; profile?: VoiceProfile | null }): Promise<{ ok: boolean; error?: string; modelLoadMs?: number }>;
   voiceStop(): Promise<void>;
   voicePushAudio(chunk: ArrayBuffer): void;
-  voiceSetVocabulary(docText: string): Promise<void>;
+  voiceDictation(on: boolean): Promise<void>;
+  voiceSetProfile(profile: VoiceProfile | null): Promise<void>;
   voiceClipboard(op: 'copy' | 'cut' | 'paste'): Promise<void>;
-  voiceSendKey(key: string): Promise<void>;
   onVoiceEvent(handler: (event: unknown) => void): () => void;
   onVoiceLevel(handler: (level: VoiceLevel) => void): () => void;
-  voiceBaseModelInfo?(): Promise<{ present: boolean; downloading: boolean }>;
-  voiceDownloadBaseModel?(): Promise<{ ok: boolean; error?: string }>;
+  voiceModelInfo?(): Promise<{ present: boolean; downloading: boolean; sizeMB: number }>;
+  voiceDownloadModel?(): Promise<{ ok: boolean; error?: string }>;
 }
 
-function voiceHost(): VoiceHostApi | null {
+export function voiceHost(): VoiceHostApi | null {
   const api = (window as unknown as { electronAPI?: Partial<VoiceHostApi> }).electronAPI;
   return api && typeof api.voiceStart === 'function' ? (api as VoiceHostApi) : null;
 }
 
-const VOCAB_POLL_MS = 2000;
+export type TranscriptListener = (raw: string, verb: string | null) => void;
+
+/** The calibration profile for the selected microphone ('' = default). */
+export function profileForDevice(deviceId: string): VoiceProfile | null {
+  const all = settings.get('voiceProfiles');
+  const mine = all[deviceId] ?? all[''];
+  return mine ? { aliases: mine.aliases } : null;
+}
 
 export class VoiceController {
   private capture = new MicCapture();
   private pill: VoicePill | null = null;
   private unsubscribers: Array<() => void> = [];
-  private vocabTimer: ReturnType<typeof setInterval> | null = null;
-  private lastVocabText: string | null = null;
   private active = false;
-  /** Re-entrancy guard: `toggle()` awaits several times before `active`
-   *  flips, so a double Ctrl-Shift-V would otherwise race two starts —
-   *  duplicate capture streams (hot mic leak), stacked vocab timers.
-   *  The generation counter also cancels an in-flight start when
-   *  `stop()` lands mid-way. */
   private starting = false;
   private generation = 0;
-  /** Input value before live dictation partials started revising it. */
+  private holding = false;
+  private transcriptListeners = new Set<TranscriptListener>();
   private uiInputBaseline: string | null = null;
 
   constructor(
     private deps: {
       getView: () => EditorView | null;
       ribbonCtx: RibbonContext;
+      undo?: () => boolean;
+      onCalibrate?: () => void;
     },
   ) {}
 
@@ -83,8 +72,18 @@ export class VoiceController {
     return this.active;
   }
 
+  get isHolding(): boolean {
+    return this.holding;
+  }
+
+  /** Every command-mode transcript (accepted or not), for calibration. */
+  onTranscript(fn: TranscriptListener): () => void {
+    this.transcriptListeners.add(fn);
+    return () => this.transcriptListeners.delete(fn);
+  }
+
   async toggle(): Promise<void> {
-    if (this.starting) return; // ignore double-press during startup
+    if (this.starting) return;
     if (this.active) {
       this.stop();
       return;
@@ -95,6 +94,13 @@ export class VoiceController {
     } finally {
       this.starting = false;
     }
+  }
+
+  /** Start if not running; resolves true when listening. */
+  async ensureActive(): Promise<boolean> {
+    if (this.active) return true;
+    await this.toggle();
+    return this.active;
   }
 
   private async startSession(): Promise<void> {
@@ -108,49 +114,35 @@ export class VoiceController {
     const view = this.deps.getView();
     if (!view) return;
 
-    this.pill ??= new VoicePill(() => {
-      if (this.active) this.stop();
+    this.pill ??= new VoicePill({
+      onStop: () => {
+        if (this.active) this.stop();
+      },
+      onCalibrate: this.deps.onCalibrate,
     });
     this.pill.setListening(true);
     this.pill.setEcho('loading model…', true);
 
+    const deviceId = settings.get('voiceInputDeviceId') || '';
     const res = await host.voiceStart({
       autoSleepSeconds: settings.get('voiceAutoSleepSeconds'),
-      dictationModel: settings.get('voiceDictationModel'),
+      profile: profileForDevice(deviceId),
     });
     if (cancelled()) {
       void host.voiceStop();
       this.pill?.setListening(false);
       return;
     }
-    if (res.ok && res.largeDictationMissing) {
-      showToast('Large dictation model not downloaded — using standard (see Settings)', {
-        durationMs: 2600,
-      });
-    }
-    if (res.ok && res.largeDictationUnsupported) {
-      showToast('Large dictation model needs a Node runtime on this install — using standard', {
-        durationMs: 2600,
-      });
-    }
     if (!res.ok) {
       this.pill.setListening(false);
-      // The base model is a first-use download, not a bundled asset —
-      // "missing" is the common, recoverable case: offer to fetch it
-      // rather than showing a dead-end error.
       if (res.error === 'voice-model-missing') {
-        void this.offerBaseModelDownload(host);
+        void this.offerModelDownload(host);
         return;
       }
-      let msg: string;
-      if (res.error === 'voice-assets-missing') {
-        msg =
-          'Voice recognizer library missing — reinstall CardMirror (developers: set CARDMIRROR_VOICE_DIR)';
-      } else if (res.error === 'voice-mic-denied') {
-        msg = 'Microphone access denied — enable it in System Settings → Privacy & Security → Microphone';
-      } else {
-        msg = `Voice failed to start: ${res.error}`;
-      }
+      const msg =
+        res.error === 'voice-mic-denied'
+          ? 'Microphone access denied — enable it in System Settings → Privacy & Security → Microphone'
+          : `Voice failed to start: ${res.error}`;
       showToast(msg, { durationMs: res.error === 'voice-mic-denied' ? 4000 : 2400 });
       return;
     }
@@ -161,42 +153,27 @@ export class VoiceController {
         if (ok) this.pill?.earconAccept();
         else this.pill?.earconReject();
       },
-      hint: (text) => {
-        this.pill?.setEcho(text, false);
-      },
+      hint: (text) => this.pill?.setEcho(text, false),
     };
     const dispatchDeps: DispatchDeps = {
       ribbonCtx: this.deps.ribbonCtx,
       ui,
-      native: {
-        copy: () => host.voiceClipboard('copy'),
-        cut: () => host.voiceClipboard('cut'),
-        paste: () => host.voiceClipboard('paste'),
-        sendKey: (key) => host.voiceSendKey(key),
-      },
-      visibleRange: () => {
-        const v = this.deps.getView();
-        return v ? editorVisibleRange(v) : null;
+      undo: this.deps.undo,
+      armReplace: () => {
+        this.pill?.setEcho('hold the dictation key and say the replacement', true);
       },
     };
 
-    let announcedReady = false;
     this.unsubscribers.push(
       host.onVoiceEvent((raw) => this.handleEvent(raw as VoiceEvent | VoiceEndedEvent, dispatchDeps)),
       host.onVoiceLevel((level) => {
         this.pill?.setLevel(level);
         this.pill?.setAutoSleepCountdown(level.autoSleepRemainingMs ?? null);
-        if (!announcedReady && !level.calibrating) {
-          announcedReady = true;
-          this.pill?.setEcho('listening', true);
-          this.pill?.earconMode('command');
-        }
       }),
     );
 
-    const deviceId = settings.get('voiceInputDeviceId') || undefined;
     try {
-      await this.capture.start((chunk) => host.voicePushAudio(chunk), deviceId);
+      await this.capture.start((chunk) => host.voicePushAudio(chunk), deviceId || undefined);
       if (cancelled()) {
         this.capture.stop();
         void host.voiceStop();
@@ -204,8 +181,6 @@ export class VoiceController {
         return;
       }
     } catch (err) {
-      // A saved device that's gone (unplugged headset at a tournament)
-      // must not brick voice — fall back to the system default.
       if (deviceId) {
         try {
           await this.capture.start((chunk) => host.voicePushAudio(chunk));
@@ -222,9 +197,9 @@ export class VoiceController {
       }
     }
 
-    // Device changes mid-session swap the capture stream live; the
-    // recognizer keeps running (it just sees a gap, then new audio).
-    let activeDeviceId = deviceId ?? '';
+    // Device changes mid-session swap the capture stream live and load
+    // that microphone's calibration profile.
+    let activeDeviceId = deviceId;
     this.unsubscribers.push(
       settings.subscribe((snapshot) => {
         if (!this.active || snapshot.voiceInputDeviceId === activeDeviceId) return;
@@ -233,96 +208,90 @@ export class VoiceController {
         void this.capture
           .start((chunk) => host.voicePushAudio(chunk), activeDeviceId || undefined)
           .catch((err) => showToast(`Microphone switch failed: ${String(err)}`, { durationMs: 2400 }));
+        void host.voiceSetProfile(profileForDevice(activeDeviceId));
       }),
     );
 
     this.active = true;
     this.pill.setMode('command');
-    this.pill.setEcho('listening (calibrating…)', true);
-    document.body.classList.add('pmd-voice-listening'); // nav ordinals on
+    this.pill.setEcho('listening', true);
+    this.pill.earconMode('command');
+    this.pill.setPen(voicePluginKey.getState(view.state)?.pen ?? null);
+    document.body.classList.add('pmd-voice-listening');
     setBodyModeClass('command');
     patchVoiceState(view, { listening: true, mode: 'command' });
-
-    // Vocabulary shipping (§12 item 4): VIEWPORT-derived, not whole-doc.
-    // Grammar rebuild and decode cost scale with vocabulary size, and
-    // both run synchronously in the main process — whole-doc text from
-    // a real debate file janks the entire app.
-    const ship = () => {
-      const v = this.deps.getView();
-      if (!v) return;
-      const text = vocabularyText(v);
-      if (text === this.lastVocabText) return;
-      this.lastVocabText = text;
-      void host.voiceSetVocabulary(text);
-    };
-    ship();
-    this.vocabTimer = setInterval(ship, VOCAB_POLL_MS);
   }
 
-  /** First-run flow when the base recognition model isn't downloaded
-   *  yet. Confirm, kick off the background download, and DON'T
-   *  auto-start when it lands — a multi-minute download outlasts the
-   *  user's attention, and a surprise hot mic is worse than a second
-   *  key press. Instead inform them, unmissably, that it's ready. Live
-   *  progress is shown in Settings → the voice section. */
-  private async offerBaseModelDownload(host: VoiceHostApi): Promise<void> {
-    if (!host.voiceDownloadBaseModel || !host.voiceBaseModelInfo) {
-      showToast(
-        "Voice model not downloaded, and this install can't fetch it — update CardMirror (developers: set CARDMIRROR_VOICE_DIR)",
-        { durationMs: 3200 },
-      );
+  /** First-run flow when the models aren't downloaded yet. */
+  private async offerModelDownload(host: VoiceHostApi): Promise<void> {
+    if (!host.voiceDownloadModel || !host.voiceModelInfo) {
+      showToast("Voice model not downloaded, and this install can't fetch it — update CardMirror", { durationMs: 3200 });
       return;
     }
-    const info = await host.voiceBaseModelInfo();
+    const info = await host.voiceModelInfo();
     if (info.downloading) {
-      showToast('Voice model is already downloading — you’ll be notified when it’s ready', {
-        durationMs: 3200,
-      });
+      showToast('Voice model is already downloading — you’ll be notified when it’s ready', { durationMs: 3200 });
       return;
     }
-    const proceed =
-      typeof document !== 'undefined' &&
-      (await confirmDialog(
-        'Voice control needs a one-time download of its recognition model (about 130 MB). ' +
-          'This can take a few minutes; you can keep working and you’ll be notified when it’s ready. ' +
-          'Download now?',
-        { okLabel: 'Download' },
-      ));
+    const proceed = await confirmDialog(
+      `Voice control needs a one-time download of its recognition model (about ${info.sizeMB} MB). ` +
+        'This can take a few minutes; you can keep working and you’ll be notified when it’s ready. Download now?',
+      { okLabel: 'Download' },
+    );
     if (!proceed) return;
     showToast('Downloading voice model in the background…', { durationMs: 3200 });
-    const res = await host.voiceDownloadBaseModel();
+    const res = await host.voiceDownloadModel();
     if (res.ok) {
-      // Modal, not a toast: after minutes away the user has moved on,
-      // and the whole point is to catch their attention so the "ready"
-      // state isn't a surprise the next time they hit the voice key.
-      if (typeof document !== 'undefined') {
-        await alertDialog('Voice model downloaded. Press the voice key (or the ribbon button) to start voice control.');
-      }
+      await alertDialog('Voice model downloaded. Press the voice key (or the ribbon button) to start voice control.');
     } else {
       const reason = res.error === 'download-in-progress' ? 'already in progress' : (res.error ?? 'unknown error');
       showToast(`Voice model download failed: ${reason}`, { durationMs: 4000 });
     }
   }
 
+  /** Push the (possibly just calibrated) profile to the live session. */
+  reloadProfile(): void {
+    if (!this.active) return;
+    void voiceHost()?.voiceSetProfile(profileForDevice(settings.get('voiceInputDeviceId') || ''));
+  }
+
+  // ---- held-key dictation ----
+
+  beginDictation(): void {
+    if (!this.active) {
+      showToast('Turn voice control on first (Ctrl-Shift-V)', { durationMs: 1800 });
+      return;
+    }
+    if (this.holding) return;
+    this.holding = true;
+    void voiceHost()?.voiceDictation(true);
+    const view = this.deps.getView();
+    if (view) patchVoiceState(view, { ghostText: null });
+  }
+
+  endDictation(): void {
+    if (!this.holding) return;
+    this.holding = false;
+    void voiceHost()?.voiceDictation(false);
+    const view = this.deps.getView();
+    if (view) patchVoiceState(view, { ghostText: '…' });
+  }
+
   stop(): void {
-    this.generation++; // cancels any in-flight start
+    this.generation++;
     this.active = false;
+    this.holding = false;
     this.capture.stop();
     for (const u of this.unsubscribers.splice(0)) u();
-    if (this.vocabTimer) clearInterval(this.vocabTimer);
-    this.vocabTimer = null;
-    this.lastVocabText = null;
     void voiceHost()?.voiceStop();
     this.pill?.setListening(false);
     document.body.classList.remove('pmd-voice-listening');
     setBodyModeClass(null);
     const view = this.deps.getView();
-    if (view) patchVoiceState(view, { listening: false, pendingDisambiguation: null, ghostText: null });
+    if (view) patchVoiceState(view, { listening: false, ghostText: null, mode: 'command' });
   }
 
   private handleEvent(event: VoiceEvent | VoiceEndedEvent, deps: DispatchDeps): void {
-    // Out-of-band session termination (worker crash): stop everything
-    // and SAY so — a dead session must never look like a listening one.
     if (event.kind === 'ended') {
       this.stop();
       showToast(`Voice stopped: ${event.reason}`, { durationMs: 2600 });
@@ -332,156 +301,112 @@ export class VoiceController {
     if (!view) return;
     void this.routeEvent(view, event, deps)
       .catch((err) => {
-        // A throw must not leave the loop looking dead — echo + earcon
-        // and keep the session alive.
         console.error('voice: command failed', err);
         this.pill?.setEcho(`(error) ${event.raw ?? ''}`, false);
         this.pill?.earconReject();
       })
       .finally(() => {
-        // Pen badge tracks sticky pen state after every event (§3.1).
         const v = this.deps.getView();
         const st = v ? voicePluginKey.getState(v.state) : null;
-        if (st) this.pill?.setPen(st.pen.name, st.pen.color);
+        if (st) this.pill?.setPen(st.pen);
       });
   }
 
   private async routeEvent(view: EditorView, event: VoiceEvent, deps: DispatchDeps): Promise<void> {
     switch (event.kind) {
       case 'command':
+        for (const fn of this.transcriptListeners) fn(event.raw, event.verb);
         await applyVoiceCommand(view, event, deps);
         break;
-      case 'dictation': {
-        // Focused UI inputs (palette search fields, dialogs) receive
-        // dictation instead of the document.
-        const input = activeUiInput();
-        if (input) {
-          this.uiInputBaseline ??= input.value;
-          input.value = this.uiInputBaseline;
-          typeIntoUiInput(input, event.text);
-          this.uiInputBaseline = null;
-        } else {
-          applyDictation(view, event);
-        }
-        this.pill?.setEcho(event.text, true);
+      case 'rejection':
+        for (const fn of this.transcriptListeners) fn(event.raw, null);
+        if (event.reason === 'too-long') break; // speech aimed elsewhere; stay quiet
+        this.pill?.setEcho(`(not a command) "${event.raw}"`, false);
+        patchVoiceState(view, { appendLog: { utteranceId: event.utteranceId, kind: 'rejection', text: event.raw } });
         break;
-      }
-      case 'dictation-partial': {
-        const input = activeUiInput();
-        if (input) {
-          // Live search-as-you-speak: the field updates with the
-          // in-progress transcript so palettes filter in real time; an
-          // empty partial (utterance closing) restores the baseline —
-          // the final segment, if any, then commits on top of it.
-          if (!event.text) {
-            if (this.uiInputBaseline !== null) {
-              input.value = this.uiInputBaseline;
-              input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-              this.uiInputBaseline = null;
-            }
-          } else {
-            this.uiInputBaseline ??= input.value;
-            input.value = this.uiInputBaseline;
-            typeIntoUiInput(input, event.text);
-          }
+      case 'dictation': {
+        patchVoiceState(view, { ghostText: null });
+        if (!event.text.trim()) {
+          this.pill?.setEcho('(nothing heard)', false);
           break;
         }
-        // Provisional ghost text at the cursor; cleared by an empty
-        // partial when the utterance closes.
-        patchVoiceState(view, { ghostText: event.text || null });
+        const input = activeUiInput();
+        if (input) {
+          // Focused UI inputs (palette search fields, dialogs) receive
+          // dictation instead of the document.
+          typeIntoUiInput(input, event.text);
+          this.pill?.setEcho(event.text, true);
+          break;
+        }
+        const sel = view.state.selection;
+        const before = view.state.doc.textBetween(Math.max(0, sel.from - 200), sel.from, '\n', ' ');
+        const cleaned = await cleanupTranscript(event.text, { before, names: namesNear(view) });
+        const v2 = this.deps.getView();
+        if (!v2) break;
+        const pen = voicePluginKey.getState(v2.state)?.pen ?? null;
+        landDictation(v2, { utteranceId: event.utteranceId, pen, deps, text: cleaned });
+        this.pill?.setEcho(cleaned, true);
+        this.pill?.earconAccept();
         break;
       }
-      case 'paint-partial':
-        handlePaintPartial(view, event.text);
-        break;
-      case 'rejection':
-        this.pill?.setEcho(`(${event.reason}) "${event.raw}"`, false);
-        // Out-of-grammar = stray speech; with an open mic it's routine,
-        // so it stays visual-only. Low-conf / invalid-utterance mean
-        // "heard you, refused" — those beep.
-        if (event.reason !== 'out-of-grammar') this.pill?.earconReject();
-        patchVoiceState(view, {
-          appendLog: { utteranceId: event.utteranceId, kind: 'rejection', text: event.raw },
-        });
-        break;
       case 'mode': {
         this.pill?.setMode(event.to);
         this.pill?.earconMode(event.to);
         setBodyModeClass(event.to);
-        // Paint session lives exactly as long as paint mode: anchored
-        // at the cursor on entry, dropped on exit (commits happen per
-        // utterance while inside).
-        const paintSession =
-          event.to === 'paint'
-            ? {
-                anchor: view.state.selection.head,
-                provisional: [],
-                headPos: view.state.selection.head,
-              }
-            : null;
-        patchVoiceState(view, {
-          mode: event.to,
-          paintSession,
-          appendLog: { utteranceId: event.utteranceId, kind: 'mode', text: event.trigger },
-        });
+        patchVoiceState(view, { mode: event.to, appendLog: { utteranceId: event.utteranceId, kind: 'mode', text: event.trigger } });
         break;
       }
     }
   }
 
-  /** Current plugin-state snapshot (for menus/UI). */
   stateFor(view: EditorView) {
     return voicePluginKey.getState(view.state);
   }
 }
 
-/** Editor border tint per mode (§9 — reuses the body-class approach the
- *  drag surface uses for accept states). */
-const MODE_CLASSES = ['pmd-voice-m-command', 'pmd-voice-m-dictation', 'pmd-voice-m-paint', 'pmd-voice-m-asleep'];
+const MODE_CLASSES = ['pmd-voice-m-command', 'pmd-voice-m-dictation', 'pmd-voice-m-asleep'];
 function setBodyModeClass(mode: string | null): void {
   document.body.classList.remove(...MODE_CLASSES);
   if (mode) document.body.classList.add(`pmd-voice-m-${mode}`);
 }
 
-/** Quote-decoding vocabulary source: text NEAR THE CURSOR (the spec's
- *  "phrase just ahead of me" case — and a tighter region is a stronger
- *  decode constraint), plus every card tag in the document so
- *  `card <quote>` long-range jumps stay decodable. Block-separated so
- *  words never concatenate across blocks, and so n-gram phrases don't
- *  cross block boundaries. */
-function vocabularyText(view: EditorView): string {
+/** Capitalized words near the cursor plus every tag's capitalized
+ *  words — the names the speaker is likely to say (cleanup hints). */
+export function namesNear(view: EditorView): string[] {
   const { doc, selection } = view.state;
-  const docSize = doc.content.size;
-  const center = selection.head;
-  const near = doc.textBetween(
-    Math.max(0, center - VOICE_NEAR_RADIUS),
-    Math.min(docSize, center + VOICE_NEAR_RADIUS),
-    '\n',
-    ' ',
-  );
+  const near = doc.textBetween(Math.max(0, selection.from - 2500), Math.min(doc.content.size, selection.from + 2500), ' ', ' ');
   const tags: string[] = [];
   doc.descendants((node) => {
-    if (node.type.name === 'tag') {
+    if (node.type.name === 'tag' || node.type.name === 'cite_paragraph') {
       tags.push(node.textContent);
       return false;
     }
     return true;
   });
-  // Registry names ride along so `please <command name>` can decode.
-  return `${near}\n${tags.join('\n')}\n${commandNameVocabulary()}`;
+  const seen = new Set<string>();
+  for (const m of `${near} ${tags.join(' ')}`.matchAll(/\b[A-Z][a-zA-Z'’-]{2,}\b/g)) {
+    const w = m[0];
+    if (!seen.has(w)) seen.add(w);
+    if (seen.size >= 60) break;
+  }
+  return [...seen];
 }
 
-/** Doc range currently on screen, via viewport hit-testing (same
- *  technique as viewport-spellcheck) — feeds the quote picker's
- *  "identical matches onscreen" rule. */
-function editorVisibleRange(view: EditorView): { from: number; to: number } {
-  const rect = (view.dom as HTMLElement).getBoundingClientRect();
-  const left = rect.left + Math.min(40, Math.max(2, rect.width / 2));
-  const size = view.state.doc.content.size;
-  const topHit = view.posAtCoords({ left, top: 2 });
-  const botHit = view.posAtCoords({ left, top: window.innerHeight - 2 });
-  let from = topHit ? topHit.pos : 0;
-  let to = botHit ? botHit.pos : size;
-  if (from > to) [from, to] = [to, from];
-  return { from, to };
+/** A focused text input outside the editor (palette search, dialogs). */
+export function activeUiInput(): HTMLInputElement | HTMLTextAreaElement | null {
+  const el = document.activeElement;
+  if (el instanceof HTMLInputElement && (el.type === 'text' || el.type === 'search' || !el.type)) return el;
+  if (el instanceof HTMLTextAreaElement) return el;
+  return null;
+}
+
+export function typeIntoUiInput(el: HTMLInputElement | HTMLTextAreaElement, text: string): void {
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? start;
+  const before = el.value.slice(0, start);
+  const sep = before && !/\s$/.test(before) ? ' ' : '';
+  el.value = before + sep + text + el.value.slice(end);
+  const caret = (before + sep + text).length;
+  el.setSelectionRange(caret, caret);
+  el.dispatchEvent(new InputEvent('input', { bubbles: true }));
 }

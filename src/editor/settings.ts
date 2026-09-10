@@ -387,6 +387,11 @@ export const NUMBERING_SEPARATORS: readonly NumberingSeparator[] = [
  *  = follow `defaultSaveFormat`. */
 export type DocTypeFormat = 'default' | 'cmir' | 'docx';
 
+export interface VoiceCalibrationProfile {
+  aliases: Record<string, string[]>;
+  updatedAt: number;
+}
+
 export interface Settings {
   /** Width of the navigation pane in pixels. */
   navWidth: number;
@@ -888,9 +893,21 @@ export interface Settings {
   voiceDashStyle:
     | 'em' | 'em-spaced' | 'en' | 'en-spaced' | 'hyphen' | 'hyphen-spaced'
     | 'double' | 'double-spaced' | 'triple' | 'triple-spaced';
-  /** Dictation decode model: shipped standard, or the opt-in large
-   *  download (better general-English accuracy; ~5 GB RAM). */
-  voiceDictationModel: 'standard' | 'large';
+  /** Voice v2: the hold-to-dictate chord (ribbon key-string format,
+   *  e.g. "Mod-Shift-Space"). Held = dictation; released = the utterance
+   *  lands. Commands need no key. */
+  voiceDictateKey: string;
+  /** Run dictated text through a short AI cleanup (self-corrections,
+   *  fillers, punctuation, names) on the user's own key before it lands.
+   *  Off in Lite; a failure lands the raw transcript. */
+  voiceCleanupEnabled: boolean;
+  /** Which local recognition model voice uses. One choice today; the
+   *  settings row shows its download state. */
+  voiceModelEngine: 'parakeet';
+  /** Calibration profiles keyed by microphone device id ('' = default):
+   *  the recognizer's own spellings of each command word for this
+   *  speaker and mic. Never document content. */
+  voiceProfiles: Record<string, VoiceCalibrationProfile>;
   /** Whether autosave is on. When true, doc-changing edits schedule
    *  a background write-back to the file's existing on-disk
    *  location, debounced by ~5s of idle. Only fires for `.cmir`
@@ -1752,7 +1769,10 @@ const DEFAULTS: Settings = {
   voiceInputDeviceId: '',
   voiceAutoSleepSeconds: 60,
   voiceDashStyle: 'em',
-  voiceDictationModel: 'standard',
+  voiceDictateKey: 'Mod-Shift-Space',
+  voiceCleanupEnabled: true,
+  voiceModelEngine: 'parakeet',
+  voiceProfiles: {},
   // Default OFF — autosave is meaningful only when the user has
   // saved at least once (so we have a handle) AND the doc is in
   // .cmir format. We let the user opt in via the ribbon toggle
@@ -2058,7 +2078,9 @@ export interface SettingMeta {
     | 'password'
     | 'voiceInputDevice'
     | 'voiceDashStyle'
-    | 'voiceDictationModel'
+    | 'voiceModel'
+    | 'voiceHoldKey'
+    | 'voiceCalibrate'
     | 'clod'
     | 'clodCustomize'
     | 'aiCitePrompt'
@@ -2788,12 +2810,42 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'accessibility',
   },
   {
-    key: 'voiceDictationModel',
-    label: 'Dictation model',
+    key: 'voiceModelEngine',
+    label: 'Voice recognition model',
     description:
-      'The standard model — a one-time ~130 MB download — handles all commands and dictation, and is what voice needs to run at all. The large model — a one-time 1.8 GB download, ~5 GB of memory while voice is on — roughly halves dictation word errors on general English, and changes dictation only (not commands, targeting, paint, or debate jargon). Download either below, or let the first voice start fetch the standard model. Takes effect the next time voice starts.',
-    kind: 'voiceDictationModel',
+      'Voice control runs entirely on this computer. Its recognition model is a one-time download (about 640 MB) — the first voice start fetches it, or download it here ahead of a trip with no connection. Delete it to reclaim the space.',
+    kind: 'voiceModel',
     category: 'accessibility',
+    electronOnly: true,
+  },
+  {
+    key: 'voiceDictateKey',
+    label: 'Hold to dictate',
+    description:
+      'The key you hold while dictating. Hold it, speak, release: the words land at the cursor. Commands need no key — they listen whenever voice is on. A foot pedal that acts as a keyboard key works here too. Default Mod-Shift-Space.',
+    kind: 'voiceHoldKey',
+    category: 'accessibility',
+    electronOnly: true,
+    aliases: ['push to talk', 'dictation key', 'pedal'],
+  },
+  {
+    key: 'voiceCleanupEnabled',
+    label: 'Clean up dictation with AI',
+    description:
+      'Before dictated words land, a short AI pass fixes mid-sentence self-corrections, drops fillers, adds punctuation, and spells names to match the document — on your own AI key (Settings → Comments & AI). Only the transcript and nearby text are sent, never audio. Turned off, the raw transcript lands; spoken punctuation ("period", "comma") still works either way.',
+    kind: 'toggle',
+    category: 'accessibility',
+    electronOnly: true,
+  },
+  {
+    key: 'voiceProfiles',
+    label: 'Calibrate to your voice and microphone',
+    description:
+      'One minute: say each command word a couple of times through the microphone you use (and whispered, if you whisper). What the recognizer hears becomes your own spelling of each word, so commands fire for your voice specifically. Saved per microphone. Run it again any time — after a new headset, for example.',
+    kind: 'voiceCalibrate',
+    category: 'accessibility',
+    electronOnly: true,
+    aliases: ['calibration', 'train voice', 'my voice'],
   },
 
   // ─── Appearance ─────────────────────────────────────────────────
@@ -4291,6 +4343,24 @@ function sanitizeDocTypeFormat(v: unknown): DocTypeFormat {
   return v === 'cmir' || v === 'docx' || v === 'default' ? v : 'docx';
 }
 
+function sanitizeVoiceProfiles(raw: unknown): Record<string, VoiceCalibrationProfile> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, VoiceCalibrationProfile> = {};
+  for (const [device, prof] of Object.entries(raw as Record<string, unknown>)) {
+    if (!prof || typeof prof !== 'object') continue;
+    const aliasesRaw = (prof as { aliases?: unknown }).aliases;
+    const aliases: Record<string, string[]> = {};
+    if (aliasesRaw && typeof aliasesRaw === 'object') {
+      for (const [verb, list] of Object.entries(aliasesRaw as Record<string, unknown>)) {
+        if (Array.isArray(list)) aliases[verb] = list.filter((x): x is string => typeof x === 'string').slice(0, 20);
+      }
+    }
+    const updatedAt = (prof as { updatedAt?: unknown }).updatedAt;
+    out[device] = { aliases, updatedAt: typeof updatedAt === 'number' ? updatedAt : 0 };
+  }
+  return out;
+}
+
 function sanitize(s: Settings): Settings {
   return {
     navWidth: clamp(s.navWidth, 150, 800),
@@ -4477,7 +4547,10 @@ function sanitize(s: Settings): Settings {
     voiceDashStyle: VOICE_DASH_STYLES.includes(s.voiceDashStyle as Settings['voiceDashStyle'])
       ? (s.voiceDashStyle as Settings['voiceDashStyle'])
       : 'em',
-    voiceDictationModel: s.voiceDictationModel === 'large' ? 'large' : 'standard',
+    voiceDictateKey: typeof s.voiceDictateKey === 'string' ? s.voiceDictateKey : 'Mod-Shift-Space',
+    voiceCleanupEnabled: s.voiceCleanupEnabled === false ? false : true,
+    voiceModelEngine: 'parakeet',
+    voiceProfiles: sanitizeVoiceProfiles(s.voiceProfiles),
     autosaveEnabled: !!s.autosaveEnabled,
     readMode: !!s.readMode,
     hideEmphasisBordersInReadMode: !!s.hideEmphasisBordersInReadMode,

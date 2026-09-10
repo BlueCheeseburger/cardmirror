@@ -1,11 +1,9 @@
 /**
- * Voice feedback surface (SPEC-voice.md §9, §12 item 6 — feedback lands
- * with the first command, not after): a status pill showing attention/
- * mode + the last parse echo, a live input-level meter, and earcons.
- * Every state change is visible AND audible; every rejection shows what
- * was heard. Styled in the dropzone pill's visual language (styles in
- * style.css under "Voice pill"); the full tray panel is a later
- * increment.
+ * Voice feedback surface: a status pill showing listening state, the
+ * mode as a labeled badge (command / dictation / asleep), the armed pen,
+ * the last thing heard, and a live input meter; earcons for every state
+ * change; a session menu (mic picker, calibrate, stop). Styled in the
+ * dropzone pill's visual language (style.css under "Voice pill").
  */
 import { settings } from '../settings.js';
 import type { VoiceLevel, VoiceMode } from './types';
@@ -17,31 +15,20 @@ export class VoicePill {
   private audio: AudioContext | null = null;
   private menu: HTMLElement | null = null;
   private dismissMenu: (() => void) | null = null;
-
   private penEl: HTMLElement;
   private modeEl: HTMLElement;
 
-  constructor(private onStop?: () => void) {
+  constructor(private hooks: { onStop?: () => void; onCalibrate?: () => void } = {}) {
     this.el = document.createElement('div');
     this.el.className = 'pmd-voice-pill';
-    // An accessibility feature must itself be accessible:
-    // keyboard-operable button, labelled, with the echo text
-    // announced to screen readers — the same feedback contract
-    // sighted users get from the pill.
     this.el.setAttribute('role', 'button');
     this.el.setAttribute('tabindex', '0');
-    this.el.setAttribute('aria-label', 'Voice control session — opens microphone menu');
+    this.el.setAttribute('aria-label', 'Voice control session — opens the session menu');
     const dot = document.createElement('span');
     dot.className = 'pmd-voice-dot';
     dot.setAttribute('aria-hidden', 'true');
-    // Persistent mode badge — unlike the transition hint in the echo
-    // slot (overwritten by the next recognized word), this always shows
-    // the current mode as text, so mode never rests on dot hue alone
-    // (color-vision accessibility). Only `setMode()` writes it.
     this.modeEl = document.createElement('span');
     this.modeEl.className = 'pmd-voice-mode-badge';
-    // The badge, not the echo, announces mode changes to screen
-    // readers.
     this.modeEl.setAttribute('aria-live', 'polite');
     this.penEl = document.createElement('span');
     this.penEl.className = 'pmd-voice-pen';
@@ -54,8 +41,6 @@ export class VoicePill {
     this.meterFill = document.createElement('div');
     meter.appendChild(this.meterFill);
     this.el.append(dot, this.modeEl, this.penEl, this.echoEl, meter);
-    // Click/Enter/Space opens the session menu (mic picker + stop) —
-    // an accidental activation must not kill the session.
     this.el.addEventListener('click', () => this.toggleMenu());
     this.el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -66,8 +51,6 @@ export class VoicePill {
     document.body.appendChild(this.el);
   }
 
-  // ---- session menu (mic picker + stop) ----
-
   private toggleMenu(): void {
     if (this.menu) {
       this.closeMenu();
@@ -76,7 +59,7 @@ export class VoicePill {
     const menu = document.createElement('div');
     menu.className = 'pmd-voice-menu';
     menu.setAttribute('role', 'group');
-    menu.setAttribute('aria-label', 'Voice session: microphone and stop');
+    menu.setAttribute('aria-label', 'Voice session: microphone, calibration, stop');
 
     const title = document.createElement('div');
     title.className = 'pmd-voice-menu-title';
@@ -100,37 +83,48 @@ export class VoicePill {
       row.append(input, text);
       menu.appendChild(row);
     };
+    const actions = document.createElement('div');
+    actions.className = 'pmd-voice-menu-actions';
+    if (this.hooks.onCalibrate) {
+      const cal = document.createElement('button');
+      cal.type = 'button';
+      cal.className = 'pmd-voice-menu-stop pmd-voice-menu-calibrate';
+      cal.textContent = 'Calibrate to my voice…';
+      cal.addEventListener('click', () => {
+        this.closeMenu();
+        this.hooks.onCalibrate?.();
+      });
+      actions.appendChild(cal);
+    }
     const stop = document.createElement('button');
     stop.type = 'button';
     stop.className = 'pmd-voice-menu-stop';
     stop.textContent = 'Stop voice control';
     stop.addEventListener('click', () => {
       this.closeMenu();
-      this.onStop?.();
+      this.hooks.onStop?.();
     });
+    actions.appendChild(stop);
 
     addDevice('', 'System default');
-    menu.appendChild(stop);
+    menu.appendChild(actions);
     if (navigator.mediaDevices?.enumerateDevices) {
       void navigator.mediaDevices.enumerateDevices().then((devices) => {
-        if (this.menu !== menu) return; // closed while enumerating
+        if (this.menu !== menu) return;
         let n = 0;
         for (const d of devices) {
           if (d.kind !== 'audioinput' || d.deviceId === 'default') continue;
           n += 1;
           addDevice(d.deviceId, d.label || `Microphone ${n}`);
         }
-        menu.appendChild(stop); // keep the stop button last
+        menu.appendChild(actions); // keep the actions last
       });
     }
 
     document.body.appendChild(menu);
     this.menu = menu;
-
     const onDown = (e: MouseEvent): void => {
-      if (!menu.contains(e.target as Node) && !this.el.contains(e.target as Node)) {
-        this.closeMenu();
-      }
+      if (!menu.contains(e.target as Node) && !this.el.contains(e.target as Node)) this.closeMenu();
     };
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') this.closeMenu();
@@ -159,29 +153,17 @@ export class VoicePill {
   }
 
   setMode(mode: VoiceMode): void {
-    this.el.classList.remove(
-      'pmd-voice-mode-command',
-      'pmd-voice-mode-dictation',
-      'pmd-voice-mode-paint',
-      'pmd-voice-mode-asleep',
-    );
+    this.el.classList.remove('pmd-voice-mode-command', 'pmd-voice-mode-dictation', 'pmd-voice-mode-asleep');
     this.el.classList.add(`pmd-voice-mode-${mode}`);
-    this.modeEl.textContent = mode;
-    // The badge names the mode; the echo carries only guidance the
-    // badge can't (how to leave the mode). Command/dictation need
-    // none — clear instead of restating the badge.
-    const hint =
-      mode === 'asleep'
-        ? 'say "voice wake" to resume'
-        : mode === 'paint'
-          ? 'speak words to ink them'
-          : '';
+    this.modeEl.textContent = mode === 'dictation' ? 'dictating' : mode;
+    const hint = mode === 'asleep' ? 'say "voice wake" to resume' : mode === 'dictation' ? 'release the key to land it' : '';
     this.setEcho(hint, true);
   }
 
-  /** Active-pen badge (sticky state, §3.1 — always visible). */
-  setPen(name: string, color?: string): void {
-    this.penEl.textContent = color ? `${name} ${color}` : name;
+  /** Sticky-pen badge (null = no pen armed). */
+  setPen(name: string | null): void {
+    this.penEl.textContent = name ? `pen: ${name}` : '';
+    this.penEl.hidden = !name;
   }
 
   setEcho(text: string, ok: boolean): void {
@@ -189,23 +171,17 @@ export class VoicePill {
     this.echoEl.classList.toggle('pmd-voice-rejected', !ok);
   }
 
-  /** Countdown dimming in the final 10 s before auto-sleep (§2.1). */
   setAutoSleepCountdown(remainingMs: number | null): void {
     this.el.classList.toggle('pmd-voice-drowsy', remainingMs !== null);
-    this.el.style.setProperty(
-      '--voice-drowsy',
-      remainingMs === null ? '1' : String(Math.max(0.35, remainingMs / 10000)),
-    );
+    this.el.style.setProperty('--voice-drowsy', remainingMs === null ? '1' : String(Math.max(0.35, remainingMs / 10000)));
   }
 
   setLevel(level: VoiceLevel): void {
-    const pct = level.calibrating
-      ? 0
-      : Math.min(100, Math.round((level.rms / Math.max(1, level.gate * 3)) * 100));
+    // s16 RMS: quiet room ~100–300, speech at a close mic ~2000–8000.
+    const pct = Math.min(100, Math.round((level.rms / 6000) * 100));
     this.meterFill.style.width = `${pct}%`;
+    this.el.classList.toggle('pmd-voice-speech', level.speech);
   }
-
-  // ---- earcons (§9: every state change audible) ----
 
   private beep(freq: number, ms: number, type: OscillatorType = 'sine', delayMs = 0): void {
     this.audio ??= new AudioContext();
@@ -233,6 +209,8 @@ export class VoicePill {
     if (to === 'asleep') {
       this.beep(520, 80);
       this.beep(330, 110, 'sine', 90);
+    } else if (to === 'dictation') {
+      this.beep(440, 60);
     } else {
       this.beep(330, 80);
       this.beep(660, 90, 'sine', 90);

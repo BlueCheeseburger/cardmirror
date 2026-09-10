@@ -200,10 +200,14 @@ the translate action, no text is sent to a translation service.
   release exists; this reveals your IP address and the app version to GitHub
   but sends no document content. Nothing installs without your click. The web
   edition performs no update checks.
-- **Voice dictation**, if you enable it, performs a **one‑time download** of a
-  speech model from its host (`alphacephei.com`). This reveals your IP address to
-  that host but sends no document content; speech recognition then runs **entirely
-  on your device**.
+- **Voice control**, if you enable it, performs a **one‑time download** of its
+  recognition model (about 640 MB) from the sherpa‑onnx project's GitHub
+  releases. Recognition then runs entirely on your device: no audio ever leaves
+  it. If you also turn on **Clean up dictation with AI** and have an AI key
+  configured, each dictated fragment's *text* (plus a little nearby document
+  text and names from the document) is sent to your chosen AI provider for
+  cleanup — never the audio. Calibration profiles (your recognizer's spellings
+  of the command words) are stored in settings on your device.
 
 ---
 
@@ -290,7 +294,7 @@ a feature that inherently requires it, and only to the extent that feature needs
 | **OpenRouter** (+ the model operator it routes to) | AI features (opt‑in, your key, provider set to OpenRouter) | The text/images and prompt you submit |
 | **MyMemory / Google** | Translate action | The text you translate |
 | **GitHub** | Update checks (on by default, desktop only; can be turned off) | Your IP address and app version |
-| **alphacephei.com** | First‑time voice‑model download (opt‑in) | Your IP address |
+| **github.com** (k2‑fsa/sherpa‑onnx releases) | First‑time voice‑model download (opt‑in) | Your IP address |
 
 Each third party handles what it receives under its own privacy policy.
 

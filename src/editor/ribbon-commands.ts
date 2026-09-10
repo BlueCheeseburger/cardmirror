@@ -4335,6 +4335,7 @@ export type RibbonCommandId =
   | 'createFlow'
   | 'startFlowHost'
   | 'toggleVoice'
+  | 'calibrateVoice'
   | 'openCardCutter'
   | 'addCutterContext'
   | 'openCutterGuidance'
@@ -4570,6 +4571,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'createFlow',
   'startFlowHost',
   'toggleVoice',
+  'calibrateVoice',
   'openCardCutter',
   'addCutterContext',
   'openCutterGuidance',
@@ -4757,6 +4759,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   createFlow: 'Create New Flow',
   startFlowHost: 'Start Flow Connection',
   toggleVoice: 'Toggle voice control',
+  calibrateVoice: 'Calibrate voice control…',
   openCardCutter: 'Cut card with AI…',
   addCutterContext: 'Use Selection as Cutter Context',
   openCutterGuidance: 'Edit File Cutting Guidance',
@@ -5010,6 +5013,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   saveMarkedCards: ['marked cards', 'extract marked cards', 'export marked cards', 'save marked'],
   startFlowHost: ['warm flow', 'prewarm flow', 'flow connection', 'connect to flow', 'speed up flow'],
   toggleVoice: ['voice control', 'voice mode', 'dictation', 'speech', 'microphone', 'start voice', 'stop voice'],
+  calibrateVoice: ['voice calibration', 'train voice', 'calibrate microphone', 'my voice'],
   // The cutter shortcut serves double duty for its highlighting verbs, so
   // those names resolve to it too.
   openCardCutter: [
@@ -5111,6 +5115,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   createFlow: '',
   startFlowHost: '',
   toggleVoice: 'Mod-Shift-V',
+  calibrateVoice: '',
   openCardCutter: 'Mod-Alt-c',
   addCutterContext: '',
   openCutterGuidance: '',
@@ -5361,6 +5366,7 @@ export interface RibbonContext {
   startFlowHost: () => void;
   /** Toggle the voice-control session on/off (desktop only). */
   toggleVoice: () => void;
+  calibrateVoice: () => void;
   /** Open the AI card-cutter launch sheet for the current card. Gated on
    *  `cardCutterActive` — a no-op when the experiment is off. */
   openCardCutter: () => void;
@@ -5546,6 +5552,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   createFlow: () => {},
   startFlowHost: () => {},
   toggleVoice: () => {},
+  calibrateVoice: () => {},
   openCardCutter: () => {},
   addCutterContext: () => {},
   openCutterGuidance: () => {},
@@ -5903,6 +5910,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.toggleVoice();
+        return true;
+      };
+    case 'calibrateVoice':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.calibrateVoice();
         return true;
       };
     case 'openCardCutter':

@@ -5,6 +5,82 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Changed: voice control v2 — mouse targets, voice acts
+
+v1 assumed no manual input, which forced an open-ended spoken targeting
+layer (decode a quoted phrase under a dynamic grammar of near-cursor
+words, align it against the document, disambiguate with badges) on a
+2022 Kaldi recognizer; that layer was where the frustration lived, and
+the engine made it worse. v2 assumes a pointing device: the mouse
+supplies the span, voice supplies the verb.
+
+**Engine.** Vosk is gone (models, libvosk binaries, koffi binding for
+voice, the downloaded Node runtime, the fetch script). Recognition is
+sherpa-onnx (N-API addon `sherpa-onnx-node`, per-platform packages
+asar-unpacked; `scripts/fetch-sherpa-cross.sh` materializes the non-host
+ones for the mac universal build) running Parakeet TDT 0.6B v2 int8 plus
+Silero VAD, downloaded once into `userData/voice-models` from the
+sherpa-onnx GitHub releases (`voice/ipc.ts`; legacy Vosk assets are
+removed on first run). The recognizer worker (`voice/worker.ts`, bundled
+by esbuild because it shares `src/editor/voice/vocabulary.ts`) runs
+under Electron-as-Node; the VAD wrapper asks for copied segments because
+Electron forbids N-API external buffers. Measured on Apple Silicon:
+~1 s model load, 30–45 ms per single word, ~120 ms per four seconds of
+speech.
+
+**Service (`voice/service.ts`).** Two channels over one 16 kHz PCM
+stream. Commands: Silero VAD (threshold 0.35) closes a segment after
+200 ms of silence; the segment is re-read from a ring buffer with 250 ms
+pre-roll and 120 ms post-roll (the detector opens late on soft onsets —
+"line" decoded as "fine" without it), padded with 300 ms of silence
+(+3/36 words in the spike), decoded in one shot, and matched with the
+whole-utterance rule (`matchCommand`: exact word, built-in homophone
+aliases such as site→cite and low→glow, per-user aliases, one character
+off for the six-letter-plus words only). Segments over 3 s are speech,
+not commands. While speech keeps the VAD open past 1.5 s, the trailing
+1.2 s is decoded every 400 ms so a command still lands in a noisy room,
+once per span. `voice sleep` / `voice wake` remain as phrases; auto-sleep
+as before. Dictation: `setDictation(true)` buffers PCM and stops feeding
+the VAD (structural suppression), `false` decodes the whole hold once
+and emits a `dictation` event; a tap under 300 ms lands nothing.
+
+**Renderer.** `dispatch.ts` maps the twelve words onto existing ribbon
+commands (applyUnderline / applyEmphasis / applyHighlight, shrink,
+condenseDefault, setTag, applyCite, a fresh card with a real tag id,
+delete-selection, the editor's own collab-aware undo). A mark word with
+no selection arms the sticky pen; `bare` clears marks or disarms.
+`landing.ts` types dictated text through the view's `handleTextInput`
+prop chunk by chunk (words whole, every other character alone) so the
+autocorrect engine and custom expansions fire as for typing; the pen is
+set as a stored mark before typing (underline via the ribbon's typing
+toggle, emphasis/highlight directly, highlight in the ribbon's color) so
+the utterance stays one adjacent history group — a mark step applied
+afterwards opens a second undo step. `cleanup.ts` runs the transcript
+through the existing AI provider (`callLlm`, user key, Haiku-class
+budget, 2.5 s timeout, falls back to the raw transcript; off in Lite,
+setting `voiceCleanupEnabled`). `hold-key.ts` is a capture-phase
+keydown/keyup pair on the configured chord (`voiceDictateKey`, default
+Mod-Shift-Space; auto-repeat swallowed; a modifier release or a window
+blur ends the hold). `calibrate.ts` prompts each word twice (optionally
+whispered), learns the recognizer's spellings as aliases
+(`learnAliases`, collisions reported not learned) into
+`voiceProfiles[deviceId]`, and pushes the profile to the live worker.
+Settings: `voiceDictationModel` removed; `voiceDictateKey`,
+`voiceCleanupEnabled`, `voiceModelEngine`, `voiceProfiles` added, with
+Accessibility rows for the model download, the hold key, cleanup and
+calibration. New ribbon command `calibrateVoice` (unbound, Voice group).
+Removed modules: align, paint-align, scopes, please-match, and the
+targeting verbs of dispatch; plugin state shrank to listening / mode /
+pen / log / ghost.
+
+**Tests.** vocabulary (matcher, aliases, phrases, learning), service
+(fake engine + scripted VAD: pre/post-roll, rejection, too-long,
+rolling fire with dedupe, sleep/wake, auto-sleep, held dictation and
+mutual exclusion), hold key, landing (chunking, input rules, pen,
+single undo step, spoken punctuation), dispatch, atomicity.
+
 ## 1.9.0 — 2026-09-09
 
 ### Added: Word-style Repeat on Mod-Y (setting, off by default)

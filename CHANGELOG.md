@@ -5,6 +5,28 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Changed
+
+- **Voice control, rebuilt.** Voice now works the way people actually
+  edit: point with the mouse, say what to do. Twelve command words
+  (line, box, glow, bare, shrink, tag, cite, card, delete, replace,
+  condense, undo) fire whenever voice is on, no wake word, and only
+  when the word is the whole thing you said, so conversation doesn't
+  trigger anything. Dictation is a hold-to-dictate key (default
+  Mod-Shift-Space; a foot pedal works): hold, speak, release. Dictated
+  text goes through the same autocorrect rules as typing, spoken
+  punctuation still works, and an optional AI cleanup pass on your own
+  key fixes self-corrections, fillers, punctuation and names before
+  the words land. A one-minute calibration learns how the recognizer
+  hears each command word in your voice, per microphone. Recognition
+  runs on a new local model (about 640 MB, a one-time download) that
+  is far more accurate than before, including on author names, and
+  still keeps every bit of audio on your machine. Removed: spoken
+  targeting ("take", "pick", "go to"), paint mode, the large dictation
+  model download, and the "voice sleep" pen vocabulary.
+
 ## 1.9.0 — 2026-09-09
 
 ### Added

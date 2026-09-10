@@ -567,110 +567,54 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('host:speech-set', uid),
   speechGet: () => ipcRenderer.invoke('host:speech-get'),
 
-  /** Voice recognition (SPEC-voice.md §12 item 2). One session at a
-   *  time, owned by the window that started it. The renderer captures
-   *  mic audio (getUserMedia → 16 kHz mono s16le PCM) and streams it
-   *  down; recognition runs in main; typed parse events come back on
+  /** Voice control (voice v2). One session at a time, owned by the
+   *  window that started it. The renderer captures mic audio
+   *  (getUserMedia → 16 kHz mono s16le PCM) and streams it down;
+   *  recognition runs in a forked worker; typed events come back on
    *  `voice:event`, input-level reports on `voice:level`. */
-  voiceStart: (opts?: {
-    modelDir?: string;
-    rmsGate?: number;
-    minWordConf?: number;
-    autoSleepSeconds?: number;
-    dictationModel?: 'standard' | 'large';
-  }) =>
+  voiceStart: (opts?: { autoSleepSeconds?: number; profile?: { aliases?: Record<string, string[]> } | null }) =>
     ipcRenderer.invoke('host:voice-start', opts ?? {}) as Promise<{
       ok: boolean;
       error?: string;
       modelLoadMs?: number;
-      largeDictationMissing?: boolean;
     }>,
-  /** Base recognition model (~130 MB, stored in userData) — the model
-   *  voice needs to run at all. First-use download, not bundled. */
-  voiceBaseModelInfo: () =>
-    ipcRenderer.invoke('host:voice-base-model-info') as Promise<{
-      present: boolean;
-      downloading: boolean;
-    }>,
-  voiceDownloadBaseModel: () =>
-    ipcRenderer.invoke('host:voice-download-base-model') as Promise<{
-      ok: boolean;
-      error?: string;
-    }>,
-  /** Remove the installed base model from userData to reclaim space. */
-  voiceDeleteBaseModel: () =>
-    ipcRenderer.invoke('host:voice-delete-base-model') as Promise<{
-      ok: boolean;
-      error?: string;
-    }>,
-  /** Opt-in large dictation model (~1.8 GB, stored in userData). */
-  voiceDictationModelInfo: () =>
-    ipcRenderer.invoke('host:voice-dictation-model-info') as Promise<{
-      present: boolean;
-      downloading: boolean;
-    }>,
-  voiceDownloadDictationModel: () =>
-    ipcRenderer.invoke('host:voice-download-dictation-model') as Promise<{
-      ok: boolean;
-      error?: string;
-    }>,
-  /** Remove the installed large model (and its bundled-Node runtime). */
-  voiceDeleteDictationModel: () =>
-    ipcRenderer.invoke('host:voice-delete-dictation-model') as Promise<{
-      ok: boolean;
-      error?: string;
-    }>,
+  voiceStop: () => ipcRenderer.invoke('host:voice-stop'),
+  /** Fire-and-forget PCM chunk (ArrayBuffer of s16le samples). */
+  voicePushAudio: (chunk: ArrayBuffer) => ipcRenderer.send('host:voice-audio', chunk),
+  /** Held-key dictation: on = buffer audio and suppress commands; off =
+   *  transcribe the buffered utterance (arrives as a `dictation` event). */
+  voiceDictation: (on: boolean) => ipcRenderer.invoke('host:voice-dictation', on),
+  /** Per-user recognizer profile (calibration aliases) for the live session. */
+  voiceSetProfile: (profile: { aliases?: Record<string, string[]> } | null) =>
+    ipcRenderer.invoke('host:voice-profile', profile),
+  /** The recognition models (~640 MB, stored in userData) — a one-time
+   *  download, not bundled. */
+  voiceModelInfo: () =>
+    ipcRenderer.invoke('host:voice-model-info') as Promise<{ present: boolean; downloading: boolean; sizeMB: number }>,
+  voiceDownloadModel: () =>
+    ipcRenderer.invoke('host:voice-download-model') as Promise<{ ok: boolean; error?: string }>,
+  voiceDeleteModel: () =>
+    ipcRenderer.invoke('host:voice-delete-model') as Promise<{ ok: boolean; error?: string }>,
   onVoiceDownloadProgress(
-    handler: (p: {
-      model?: 'base-model' | 'large-model' | 'node-runtime';
-      pct: number;
-      receivedMB?: number;
-      extracting?: boolean;
-    }) => void,
+    handler: (p: { model?: 'model' | 'vad'; pct: number; receivedMB?: number; extracting?: boolean }) => void,
   ): () => void {
     const listener = (
       _evt: unknown,
-      payload: {
-        model?: 'base-model' | 'large-model' | 'node-runtime';
-        pct: number;
-        receivedMB?: number;
-        extracting?: boolean;
-      },
+      payload: { model?: 'model' | 'vad'; pct: number; receivedMB?: number; extracting?: boolean },
     ): void => handler(payload);
     ipcRenderer.on('voice:download-progress', listener);
     return () => ipcRenderer.removeListener('voice:download-progress', listener);
   },
-  voiceStop: () => ipcRenderer.invoke('host:voice-stop'),
-  /** Fire-and-forget PCM chunk (ArrayBuffer of s16le samples). */
-  voicePushAudio: (chunk: ArrayBuffer) =>
-    ipcRenderer.send('host:voice-audio', chunk),
-  /** Viewport/document text for quote-targeting vocabulary; debounce
-   *  caller-side (~150 ms per spec §12 item 4). */
-  voiceSetVocabulary: (docText: string) =>
-    ipcRenderer.invoke('host:voice-set-vocabulary', docText),
   /** Native clipboard ops (same paths as Mod-C/X/V). */
-  voiceClipboard: (op: 'copy' | 'cut' | 'paste') =>
-    ipcRenderer.invoke('host:voice-clipboard', op),
-  /** Native key synthesis (sendInputEvent) for voice "press <key>" —
-   *  drives real default actions, unlike DOM-dispatched events. */
-  voiceSendKey: (key: string) => ipcRenderer.invoke('host:voice-send-key', key),
+  voiceClipboard: (op: 'copy' | 'cut' | 'paste') => ipcRenderer.invoke('host:voice-clipboard', op),
   onVoiceEvent(handler: (event: unknown) => void): () => void {
     const listener = (_evt: unknown, payload: unknown): void => handler(payload);
     ipcRenderer.on('voice:event', listener);
     return () => ipcRenderer.removeListener('voice:event', listener);
   },
-  onVoiceLevel(
-    handler: (level: {
-      rms: number;
-      gate: number;
-      calibrating: boolean;
-      autoSleepRemainingMs?: number;
-    }) => void,
-  ): () => void {
-    const listener = (
-      _evt: unknown,
-      payload: { rms: number; gate: number; calibrating: boolean; autoSleepRemainingMs?: number },
-    ): void => handler(payload);
+  onVoiceLevel(handler: (level: { rms: number; speech: boolean; autoSleepRemainingMs?: number }) => void): () => void {
+    const listener = (_evt: unknown, payload: { rms: number; speech: boolean; autoSleepRemainingMs?: number }): void =>
+      handler(payload);
     ipcRenderer.on('voice:level', listener);
     return () => ipcRenderer.removeListener('voice:level', listener);
   },
