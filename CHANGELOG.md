@@ -17,7 +17,13 @@ see `DETAILED_CHANGELOG.md`.
   mean reopening all 15. In the three-pane workspace each document
   returns to the pane it was in; in single-document mode each gets its
   own window. Turn on **Settings → General → Workspace → Reopen last
-  workspace at launch** to have it happen automatically at every start.
+  workspace at launch** to have it happen automatically at every start —
+  and because unticking a document is a standing choice rather than a
+  one-off filter, the automatic reopen honours it too: untick a file
+  once and it stops coming back every launch, without having to turn
+  the whole feature off. Since launch skips the Home screen, each
+  automatic reopen leaves a note in the status bar's ⚠ chip saying what
+  it opened and where to change it.
   Closing everything before you quit clears the set — a clean quit
   means a clean start — unless you deliberately saved it with the new
   **Save Workspace** command, which keeps a working set on offer until

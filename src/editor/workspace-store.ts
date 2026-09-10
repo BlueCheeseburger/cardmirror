@@ -32,6 +32,14 @@
  * The mode (`panes` / `windows`) is recorded so a restore can honour
  * slot assignments when the user is still in three-pane mode, and
  * ignore them when they've since switched.
+ *
+ * `excluded` is the user's standing "don't bother reopening this one"
+ * list, edited by the home screen's checklist and honoured by BOTH
+ * ways of reopening (the button and the at-launch restore) — so one
+ * untick is durable rather than a per-click filter. It carries across
+ * roll-overs for paths still in the set, and is pruned of everything
+ * else so a long-gone document can't silently suppress itself years
+ * later if it comes back.
  */
 
 const LIVE_KEY = 'pmd-live-workspace';
@@ -68,6 +76,8 @@ export interface WorkspaceSnapshot {
    *  rather than it being the automatic end-of-session capture. Only
    *  effect: an empty quit doesn't clear it. */
   pinned: boolean;
+  /** Paths the user unticked. Always a subset of `docs`'s paths. */
+  excluded: string[];
 }
 
 interface LiveEntry {
@@ -162,7 +172,27 @@ function foldLive(live: Record<string, LiveEntry>): WorkspaceSnapshot | null {
     if (docs.length >= MAX_DOCS) break;
   }
   const newest = entries.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
-  return { savedAt: Date.now(), mode: newest.mode, docs, pinned: false };
+  return { savedAt: Date.now(), mode: newest.mode, docs, pinned: false, excluded: [] };
+}
+
+/** Carry the standing unticks onto a freshly folded snapshot, keeping
+ *  only the paths that are actually in it. A document the user unticked
+ *  stays unticked as sessions roll over; one that has left the set
+ *  drops its exclusion rather than lying in wait. */
+function carryExclusions(next: WorkspaceSnapshot): WorkspaceSnapshot {
+  const standing = lastWorkspace()?.excluded ?? [];
+  if (standing.length === 0) return next;
+  const paths = new Set(next.docs.map((d) => d.path));
+  return { ...next, excluded: standing.filter((p) => paths.has(p)) };
+}
+
+/** The documents a reopen should actually open: everything still
+ *  ticked. Both the home screen's button and the at-launch restore go
+ *  through this, so they can't drift apart. */
+export function selectedDocs(snapshot: WorkspaceSnapshot): WorkspaceDoc[] {
+  if (snapshot.excluded.length === 0) return snapshot.docs;
+  const excluded = new Set(snapshot.excluded);
+  return snapshot.docs.filter((d) => !excluded.has(d.path));
 }
 
 /** Record what THIS window currently has open. Docs without a string
@@ -192,11 +222,15 @@ export function lastWorkspace(): WorkspaceSnapshot | null {
   if (typeof s.savedAt !== 'number' || !Array.isArray(s.docs)) return null;
   const docs = s.docs.filter(isDoc).map(normalizeDoc).slice(0, MAX_DOCS);
   if (docs.length === 0) return null;
+  const paths = new Set(docs.map((d) => d.path));
   return {
     savedAt: s.savedAt,
     mode: s.mode === 'panes' ? 'panes' : 'windows',
     docs,
     pinned: s.pinned === true,
+    excluded: Array.isArray(s.excluded)
+      ? s.excluded.filter((p): p is string => typeof p === 'string' && paths.has(p))
+      : [],
   };
 }
 
@@ -215,8 +249,9 @@ export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
   writeJson(LIVE_KEY, {});
   let snapshot: WorkspaceSnapshot | null;
   if (folded) {
-    writeJson(LAST_KEY, folded);
-    snapshot = folded;
+    const carried = carryExclusions(folded);
+    writeJson(LAST_KEY, carried);
+    snapshot = carried;
   } else {
     const standing = lastWorkspace();
     snapshot = standing?.pinned ? standing : null;
@@ -232,10 +267,23 @@ export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
 export function saveWorkspaceNow(): WorkspaceSnapshot | null {
   const folded = foldLive(readLive());
   if (!folded) return null;
-  const pinned: WorkspaceSnapshot = { ...folded, pinned: true };
+  const pinned: WorkspaceSnapshot = { ...carryExclusions(folded), pinned: true };
   writeJson(LAST_KEY, pinned);
   publish(pinned);
   return pinned;
+}
+
+/** Replace the standing untick list (home-screen checklist edits).
+ *  No-op when there's no snapshot to attach it to. Paths outside the
+ *  snapshot are dropped, so the invariant `excluded ⊆ docs` holds. */
+export function setWorkspaceExcluded(paths: Iterable<string>): void {
+  const snapshot = lastWorkspace();
+  if (!snapshot) return;
+  const inSet = new Set(snapshot.docs.map((d) => d.path));
+  const excluded = [...new Set(paths)].filter((p) => inSet.has(p));
+  const next: WorkspaceSnapshot = { ...snapshot, excluded };
+  writeJson(LAST_KEY, next);
+  publish(next);
 }
 
 export function clearLastWorkspace(): void {

@@ -1467,9 +1467,10 @@ export interface Settings {
    *  unavailable while this is on. See SPEC-multi-pane.md. */
   multiDocWorkspace: boolean;
   /** When on, launching CardMirror reopens the documents the previous
-   *  session ended with (the same set the home screen's Last workspace
-   *  row offers). Off by default — a launch that silently reopens six
-   *  files is a surprise unless it was asked for. Desktop only:
+   *  session ended with — the ones still TICKED in the home screen's
+   *  Last workspace checklist, which is the same list the manual
+   *  Reopen honours. Off by default — a launch that silently reopens
+   *  six files is a surprise unless it was asked for. Desktop only:
    *  reopening needs on-disk paths. */
   reopenWorkspaceOnLaunch: boolean;
   /** Which UI shell the web edition uses on this device. `'auto'`
@@ -2137,7 +2138,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'reopenWorkspaceOnLaunch',
     label: 'Reopen last workspace at launch',
     description:
-      'Start CardMirror with the documents you had open when you last quit — in the same panes, or one window each in single-document mode. With this off, the same set is still one click away on the home screen under "Last workspace".',
+      'Start CardMirror with the documents you had open when you last quit — in the same panes, or one window each in single-document mode. Only the documents still ticked under "Last workspace" on the home screen are reopened, so unticking one stops it coming back at every launch. With this off, the same set is still one click away on the home screen.',
     kind: 'toggle',
     category: 'general',
     section: 'Workspace',

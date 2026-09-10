@@ -19,6 +19,8 @@ import {
   saveWorkspaceNow,
   clearLastWorkspace,
   subscribeLastWorkspace,
+  setWorkspaceExcluded,
+  selectedDocs,
 } from '../../src/editor/workspace-store.js';
 
 const LIVE_KEY = 'pmd-live-workspace';
@@ -171,6 +173,50 @@ describe('workspace store', () => {
     );
     window.dispatchEvent(new StorageEvent('storage', { key: LAST_KEY }));
     expect(seen).toEqual([1, null, 1]);
+  });
+
+  it('unticks persist across a roll-over for documents still in the set', () => {
+    report(['/w/a.cmir', '/w/b.cmir']);
+    rolloverLastWorkspace();
+    setWorkspaceExcluded(['/w/b.cmir']);
+    // Next session: both were open again at quit.
+    report(['/w/a.cmir', '/w/b.cmir']);
+    const rolled = rolloverLastWorkspace()!;
+    expect(rolled.excluded).toEqual(['/w/b.cmir']);
+    expect(selectedDocs(rolled).map((d) => d.path)).toEqual(['/w/a.cmir']);
+  });
+
+  it('drops an untick once its document leaves the set', () => {
+    report(['/w/a.cmir', '/w/b.cmir']);
+    rolloverLastWorkspace();
+    setWorkspaceExcluded(['/w/b.cmir']);
+    report(['/w/a.cmir']); // b wasn't open this time
+    expect(rolloverLastWorkspace()!.excluded).toEqual([]);
+    // And if b comes back later it is ticked again, not silently suppressed.
+    report(['/w/a.cmir', '/w/b.cmir']);
+    const back = rolloverLastWorkspace()!;
+    expect(selectedDocs(back).map((d) => d.path)).toEqual(['/w/a.cmir', '/w/b.cmir']);
+  });
+
+  it('an explicit save keeps the standing unticks', () => {
+    report(['/w/a.cmir', '/w/b.cmir']);
+    rolloverLastWorkspace();
+    setWorkspaceExcluded(['/w/b.cmir']);
+    report(['/w/a.cmir', '/w/b.cmir']);
+    expect(saveWorkspaceNow()!.excluded).toEqual(['/w/b.cmir']);
+  });
+
+  it('ignores unticks for paths outside the snapshot', () => {
+    report(['/w/a.cmir']);
+    rolloverLastWorkspace();
+    setWorkspaceExcluded(['/w/a.cmir', '/w/nowhere.cmir']);
+    expect(lastWorkspace()!.excluded).toEqual(['/w/a.cmir']);
+  });
+
+  it('selectedDocs returns everything when nothing is unticked', () => {
+    report(['/w/a.cmir', '/w/b.cmir']);
+    const snapshot = rolloverLastWorkspace()!;
+    expect(selectedDocs(snapshot)).toHaveLength(2);
   });
 
   it('survives a corrupt record', () => {

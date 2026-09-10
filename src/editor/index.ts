@@ -133,6 +133,7 @@ import {
   rolloverLastWorkspace,
   lastWorkspace,
   saveWorkspaceNow,
+  selectedDocs,
   type WorkspaceSnapshot,
 } from './workspace-store.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
@@ -1673,6 +1674,10 @@ const ribbonContext: RibbonContext = {
     const snapshot = lastWorkspace();
     if (!snapshot) {
       showToast('No saved workspace yet.');
+      return;
+    }
+    if (selectedDocs(snapshot).length === 0) {
+      showToast('Nothing ticked in your last workspace — tick a document on the home screen.');
       return;
     }
     void (async () => {
@@ -7409,8 +7414,10 @@ async function readFileForReopen(
   return file;
 }
 
-/** Reopen a saved workspace. Three-pane hands the whole set to the
- *  shell, which restores each doc into the slot it was saved from.
+/** Reopen a saved workspace — the TICKED documents only, re-derived
+ *  from the store so the home screen's button and the at-launch
+ *  restore can't drift apart. Three-pane hands the set to the shell,
+ *  which restores each doc into the slot it was saved from.
  *  Single-doc mounts the first doc in THIS window when it still holds
  *  the pristine starter, and spawns a window for each of the rest —
  *  the one-doc-per-window convention every other desktop flow follows.
@@ -7422,6 +7429,8 @@ async function restoreWorkspace(snapshot: WorkspaceSnapshot): Promise<number> {
     showToast('Reopening a workspace requires the desktop edition.');
     return 0;
   }
+  const wanted = selectedDocs(snapshot);
+  if (wanted.length === 0) return 0;
   homeScreen.hide();
   if (multiDocActive) {
     const { restoreWorkspaceIntoSlots } = await import('./multi-pane-shell.js');
@@ -7429,7 +7438,7 @@ async function restoreWorkspace(snapshot: WorkspaceSnapshot): Promise<number> {
     // three-pane mode; one taken in single-doc mode fills the slots
     // in order instead.
     return restoreWorkspaceIntoSlots(
-      snapshot.docs.map((d) => ({
+      wanted.map((d) => ({
         path: d.path,
         filename: d.filename,
         slot: snapshot.mode === 'panes' ? d.slot : null,
@@ -7439,7 +7448,7 @@ async function restoreWorkspace(snapshot: WorkspaceSnapshot): Promise<number> {
   let opened = 0;
   let missing = 0;
   let inPlaceAvailable = isPristineStarter;
-  for (const doc of snapshot.docs) {
+  for (const doc of wanted) {
     if (currentDocHandle != null && (await isSameOpenHandle(currentDocHandle, doc.path))) {
       continue;
     }
@@ -7490,6 +7499,28 @@ async function restoreWorkspace(snapshot: WorkspaceSnapshot): Promise<number> {
     );
   }
   return opened;
+}
+
+/** The at-launch restore, plus the notice that makes its one control
+ *  findable. With `reopenWorkspaceOnLaunch` on, boot never lands on the
+ *  home screen — so the checklist that decides WHAT comes back would
+ *  otherwise be somewhere the user has to go hunting for. A status-bar
+ *  notice (not a toast: nothing floats over the page, and at launch the
+ *  pointer hasn't moved, so a cursor-anchored tooltip would land in the
+ *  corner) says what happened and where to change it. */
+async function runLaunchWorkspaceRestore(snapshot: WorkspaceSnapshot): Promise<void> {
+  const opened = await restoreWorkspace(snapshot);
+  if (opened === 0) return;
+  postNotice({
+    severity: 'info',
+    title: opened === 1 ? 'Reopened 1 document' : `Reopened ${opened} documents`,
+    body:
+      'From your last workspace. To stop a document coming back at every launch, ' +
+      'untick it under Last workspace on the home screen — or turn off ' +
+      '"Reopen last workspace at launch" in Settings → General → Workspace.',
+    key: 'workspace-launch-restore',
+    toast: false,
+  });
 }
 
 /** Reopen a recent file in-place via its stored path handle.
@@ -9938,7 +9969,7 @@ if (BOOT_MULTI_DOC_WORKSPACE) {
       // Opt-in launch restore, after recovery so a recovered draft
       // keeps its slot and the restore skips that doc as already open.
       if (lastSession && settings.get('reopenWorkspaceOnLaunch')) {
-        await restoreWorkspace(lastSession);
+        await runLaunchWorkspaceRestore(lastSession);
       }
     }
   })();
@@ -10052,7 +10083,7 @@ async function initSingleDocBoot(): Promise<void> {
     // Opt-in launch restore. A mode-switch reload already reopens an
     // exact doc set of its own, so it never doubles up with this.
     if (lastSession && !modeSwitchPending && settings.get('reopenWorkspaceOnLaunch')) {
-      await restoreWorkspace(lastSession);
+      await runLaunchWorkspaceRestore(lastSession);
     }
   }
   if (isFirst) {

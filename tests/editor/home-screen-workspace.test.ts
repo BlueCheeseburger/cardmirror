@@ -9,7 +9,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { homeScreen, type HomeScreenCallbacks } from '../../src/editor/home-screen.js';
-import { saveWorkspaceNow, reportWindowWorkspace } from '../../src/editor/workspace-store.js';
+import {
+  saveWorkspaceNow,
+  reportWindowWorkspace,
+  lastWorkspace,
+} from '../../src/editor/workspace-store.js';
 
 function makeCallbacks(): HomeScreenCallbacks & { reopenWorkspace: ReturnType<typeof vi.fn> } {
   return {
@@ -61,17 +65,20 @@ describe('home screen — last workspace', () => {
     expect(openBtn().textContent).toContain('Reopen 3 documents');
   });
 
-  it('reopens only the ticked documents', () => {
+  it('persists an untick to the store, where the launch restore reads it', () => {
     const [, second] = items();
     second!.checked = false;
     second!.dispatchEvent(new Event('change'));
     expect(openBtn().textContent).toContain('Reopen 2 documents');
+    // Durable, not a per-click filter: the at-launch restore honours
+    // the same list.
+    expect(lastWorkspace()!.excluded).toEqual(['/w/b.cmir']);
     openBtn().click();
     expect(cb.reopenWorkspace).toHaveBeenCalledTimes(1);
-    expect(cb.reopenWorkspace.mock.calls[0]![0].docs.map((d: { path: string }) => d.path)).toEqual([
-      '/w/a.cmir',
-      '/w/c.cmir',
-    ]);
+    // The whole snapshot goes over; the renderer re-derives the ticks.
+    const passed = cb.reopenWorkspace.mock.calls[0]![0];
+    expect(passed.docs).toHaveLength(3);
+    expect(passed.excluded).toEqual(['/w/b.cmir']);
   });
 
   it('None clears every tick and disables Reopen; All puts them back', () => {
@@ -79,17 +86,19 @@ describe('home screen — last workspace', () => {
     expect(items().some((b) => b.checked)).toBe(false);
     expect(openBtn().disabled).toBe(true);
     expect(openBtn().textContent).toContain('Nothing selected');
+    expect(lastWorkspace()!.excluded).toHaveLength(3);
     openBtn().click();
     expect(cb.reopenWorkspace).not.toHaveBeenCalled();
 
     selectBtn('All').click();
     expect(items().every((b) => b.checked)).toBe(true);
     expect(openBtn().disabled).toBe(false);
+    expect(lastWorkspace()!.excluded).toEqual([]);
     openBtn().click();
     expect(cb.reopenWorkspace.mock.calls[0]![0].docs).toHaveLength(3);
   });
 
-  it('keeps the ticks through a re-show, and resets them for a new snapshot', () => {
+  it('keeps the ticks through a re-show, and starts a fresh set ticked', () => {
     const [first] = items();
     first!.checked = false;
     first!.dispatchEvent(new Event('change'));
@@ -97,7 +106,8 @@ describe('home screen — last workspace', () => {
     homeScreen.show();
     expect(items()[0]!.checked).toBe(false);
 
-    // A different snapshot underneath: every document starts ticked.
+    // A snapshot of different documents: nothing carries over, so
+    // every row starts ticked.
     seedWorkspace(['/w/x.cmir', '/w/y.cmir']);
     homeScreen.hide();
     homeScreen.show();

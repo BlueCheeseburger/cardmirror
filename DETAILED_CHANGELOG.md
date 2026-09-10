@@ -65,6 +65,27 @@ ticked documents, so the renderer opens exactly what it's given. The
 list scrolls past ~18rem, like the sessions list, so a 24-document
 workspace can't push the utilities off screen.
 
+Ticks are durable, not a per-click filter: the untick list (`excluded`)
+lives on the snapshot in the store, so the home screen's Reopen button
+and the at-launch restore both go through one `selectedDocs` helper and
+can't drift apart. It carries across roll-overs for paths still in the
+set — untick a document once and it stops reopening every launch — and
+is pruned of everything else, so a document that leaves the set and
+returns months later comes back ticked rather than silently suppressed.
+One wrinkle worth recording: ticking a box deliberately does NOT
+re-render the list (that would rebuild it under the user's cursor), so
+the captured snapshot's `excluded` is stale by the time Reopen is
+clicked; the button sends what's on screen rather than what it was
+rendered from. A unit test covers exactly that (it caught the bug).
+
+Because a launch restore never lands on the home screen, the checklist
+that governs it would otherwise be somewhere the user has to go hunting
+for — so each automatic reopen files a status-bar notice naming what it
+opened and where the tick boxes are. Deliberately `postNotice`, not a
+toast: nothing floats over the page (toast audit, 2026-08-17), and at
+launch the pointer hasn't moved, so a cursor-anchored tooltip would
+land in the corner.
+
 The launch restore is opt-in (`reopenWorkspaceOnLaunch`, default off —
 a launch that silently reopens six files is a surprise unless it was
 asked for) and runs AFTER startup recovery, so a recovered draft keeps

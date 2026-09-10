@@ -28,6 +28,7 @@ import {
   lastWorkspace,
   subscribeLastWorkspace,
   clearLastWorkspace,
+  setWorkspaceExcluded,
   type WorkspaceDoc,
   type WorkspaceSnapshot,
 } from './workspace-store.js';
@@ -56,11 +57,11 @@ export interface HomeScreenCallbacks {
   /** Reopen a recent file in-place. The renderer reads the
    *  handle, mounts the doc, and prunes the entry on failure. */
   openRecent: (recent: RecentFile) => void;
-  /** Reopen the documents from the last saved workspace. The snapshot
-   *  passed in carries only the documents the user left ticked, so the
-   *  renderer opens exactly what it's given. Omitted on hosts that
-   *  can't reopen by path (the web edition), in which case the
-   *  Workspace section isn't rendered at all. */
+  /** Reopen the ticked documents from the last saved workspace. The
+   *  whole snapshot is passed; the renderer re-derives the ticked set
+   *  (`selectedDocs`) so this and the at-launch restore can't drift
+   *  apart. Omitted on hosts that can't reopen by path (the web
+   *  edition), in which case the Workspace section isn't rendered. */
   reopenWorkspace?: (snapshot: WorkspaceSnapshot) => void;
   /** Open the Quick Cards manage overlay. */
   manageQuickCards: () => void;
@@ -84,12 +85,10 @@ class HomeScreen {
   private recentsEl!: HTMLDivElement;
   private workspaceSection!: HTMLElement;
   private workspaceEl!: HTMLDivElement;
-  /** Paths the user has UNticked, plus the snapshot they belong to.
-   *  Tracked as the exclusion set so a snapshot arriving with new
-   *  documents defaults them to ticked; reset when the snapshot
-   *  changes underneath us. */
-  private workspaceUnchecked = new Set<string>();
-  private workspaceSelectionFor = 0;
+  /** Set while THIS screen is writing the untick list, so the store's
+   *  change notification doesn't rebuild the list under the user's
+   *  cursor (the row states are already updated in place). */
+  private workspaceSelfWrite = false;
   private sessionsSection!: HTMLElement;
   private sessionsEl!: HTMLDivElement;
   private learnEl!: HTMLDivElement;
@@ -354,7 +353,9 @@ class HomeScreen {
     parent.appendChild(this.root);
 
     this.unsubscribe = subscribeRecents(() => this.renderRecents());
-    subscribeLastWorkspace(() => this.renderWorkspace());
+    subscribeLastWorkspace(() => {
+      if (!this.workspaceSelfWrite) this.renderWorkspace();
+    });
     this.renderWorkspace();
     learnStore.subscribe(() => this.renderLearn());
     subscribeSessionRecords(() => void this.renderSessions());
@@ -680,21 +681,28 @@ class HomeScreen {
    *  list is always visible rather than folded away — seeing what's in
    *  the set is the point, and a 15-document set restored wholesale is
    *  rarely what the user wants. All / None flip every tick at once.
-   *  The list scrolls past ~8 rows so a big workspace can't push the
-   *  rest of the home screen off the page. */
+   *  Ticks persist through the store, so they also govern what the
+   *  at-launch restore opens. The list scrolls past ~8 rows so a big
+   *  workspace can't push the rest of the home screen off the page. */
   private renderWorkspace(): void {
     if (!this.workspaceSection) return;
     const snapshot = this.callbacks?.reopenWorkspace ? lastWorkspace() : null;
     this.workspaceSection.hidden = snapshot === null;
     this.workspaceEl.replaceChildren();
     if (!snapshot) return;
-    // A different snapshot means the old exclusions are meaningless.
-    if (this.workspaceSelectionFor !== snapshot.savedAt) {
-      this.workspaceSelectionFor = snapshot.savedAt;
-      this.workspaceUnchecked.clear();
-    }
-    const selected = (): WorkspaceDoc[] =>
-      snapshot.docs.filter((d) => !this.workspaceUnchecked.has(d.path));
+    // The untick list lives in the store, not in this screen: the
+    // at-launch restore honours the same list, so one untick is
+    // durable rather than a filter that only applies to this click.
+    const unchecked = new Set(snapshot.excluded);
+    const persist = (): void => {
+      this.workspaceSelfWrite = true;
+      try {
+        setWorkspaceExcluded(unchecked);
+      } finally {
+        this.workspaceSelfWrite = false;
+      }
+    };
+    const selected = (): WorkspaceDoc[] => snapshot.docs.filter((d) => !unchecked.has(d.path));
 
     const row = document.createElement('div');
     row.className = 'pmd-home-workspace-row';
@@ -708,17 +716,21 @@ class HomeScreen {
     openBtn.append(count, name);
     openBtn.title = `Saved ${relativeTime(snapshot.savedAt)}`;
     openBtn.addEventListener('click', () => {
-      const docs = selected();
-      if (docs.length === 0) return;
-      this.callbacks?.reopenWorkspace?.({ ...snapshot, docs });
+      if (selected().length === 0) return;
+      // `snapshot` was captured when this list was built, and ticking a
+      // box deliberately does NOT re-render (that would rebuild the
+      // list under the cursor) — so its `excluded` is stale by now.
+      // Send what's on screen; the renderer filters on it.
+      this.callbacks?.reopenWorkspace?.({ ...snapshot, excluded: [...unchecked] });
     });
     row.appendChild(openBtn);
 
     const boxes: HTMLInputElement[] = [];
     const selectAll = (checked: boolean): void => {
-      this.workspaceUnchecked.clear();
-      if (!checked) for (const d of snapshot.docs) this.workspaceUnchecked.add(d.path);
+      unchecked.clear();
+      if (!checked) for (const d of snapshot.docs) unchecked.add(d.path);
       for (const b of boxes) b.checked = checked;
+      persist();
       syncSummary();
     };
     const allBtn = document.createElement('button');
@@ -760,10 +772,11 @@ class HomeScreen {
       item.title = doc.path;
       const box = document.createElement('input');
       box.type = 'checkbox';
-      box.checked = !this.workspaceUnchecked.has(doc.path);
+      box.checked = !unchecked.has(doc.path);
       box.addEventListener('change', () => {
-        if (box.checked) this.workspaceUnchecked.delete(doc.path);
-        else this.workspaceUnchecked.add(doc.path);
+        if (box.checked) unchecked.delete(doc.path);
+        else unchecked.add(doc.path);
+        persist();
         syncSummary();
       });
       boxes.push(box);
