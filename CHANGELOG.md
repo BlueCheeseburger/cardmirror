@@ -7,6 +7,8 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+## 1.8.0-bcb.4 — 2026-09-10
+
 ### Added
 
 - **A search bar in Settings**, next to the "Settings" title — searches
