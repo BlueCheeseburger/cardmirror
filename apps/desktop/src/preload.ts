@@ -441,6 +441,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  session. */
   isFirstWindow: () => ipcRenderer.invoke('host:is-first-window'),
 
+  /** Synchronous — asked from `pagehide`, where nothing can be
+   *  awaited: is the app quitting, as opposed to this one window
+   *  closing? The workspace store keeps a window's open set through
+   *  a quit and forgets it on an ordinary close. */
+  isAppQuitting: () => ipcRenderer.sendSync('host:is-app-quitting') as boolean,
+
   /** Mode-switch helper: tell main to broadcast
    *  `'mode-switch:please-close'` to every other open window and
    *  resolve once they've all closed. */

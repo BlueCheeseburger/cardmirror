@@ -65,13 +65,13 @@ describe('home screen — last workspace', () => {
     expect(openBtn().textContent).toContain('Reopen 3 documents');
   });
 
-  it('persists an untick to the store, where the launch restore reads it', () => {
+  it('persists an untick to the store, where the Reopen command reads it', () => {
     const [, second] = items();
     second!.checked = false;
     second!.dispatchEvent(new Event('change'));
     expect(openBtn().textContent).toContain('Reopen 2 documents');
-    // Durable, not a per-click filter: the at-launch restore honours
-    // the same list.
+    // Durable, not a per-click filter: the Reopen Last Workspace
+    // command honours the same list.
     expect(lastWorkspace()!.excluded).toEqual(['/w/b.cmir']);
     openBtn().click();
     expect(cb.reopenWorkspace).toHaveBeenCalledTimes(1);

@@ -21,6 +21,8 @@ import {
   subscribeLastWorkspace,
   setWorkspaceExcluded,
   selectedDocs,
+  forgetWindowWorkspace,
+  installWindowCloseForget,
 } from '../../src/editor/workspace-store.js';
 
 const LIVE_KEY = 'pmd-live-workspace';
@@ -217,6 +219,42 @@ describe('workspace store', () => {
     report(['/w/a.cmir', '/w/b.cmir']);
     const snapshot = rolloverLastWorkspace()!;
     expect(selectedDocs(snapshot)).toHaveLength(2);
+  });
+
+  it('forgetting this window drops only its own entry', () => {
+    seedLive('other', Date.now() - 1_000, ['/w/other.cmir']);
+    report(['/w/mine.cmir']);
+    forgetWindowWorkspace();
+    expect(rolloverLastWorkspace()?.docs.map((d) => d.path)).toEqual(['/w/other.cmir']);
+  });
+
+  it('a window closing on its own forgets its entry; a quitting app keeps it', () => {
+    report(['/w/a.cmir']);
+    let quitting = false;
+    const uninstall = installWindowCloseForget(() => quitting);
+    try {
+      quitting = true;
+      window.dispatchEvent(new Event('pagehide'));
+      expect(Object.keys(JSON.parse(localStorage.getItem(LIVE_KEY)!))).toHaveLength(1);
+      quitting = false;
+      window.dispatchEvent(new Event('pagehide'));
+      expect(JSON.parse(localStorage.getItem(LIVE_KEY)!)).toEqual({});
+    } finally {
+      uninstall();
+    }
+  });
+
+  it('keeps the entry when the quit question cannot be answered', () => {
+    report(['/w/a.cmir']);
+    const uninstall = installWindowCloseForget(() => {
+      throw new Error('old preload');
+    });
+    try {
+      window.dispatchEvent(new Event('pagehide'));
+      expect(Object.keys(JSON.parse(localStorage.getItem(LIVE_KEY)!))).toHaveLength(1);
+    } finally {
+      uninstall();
+    }
   });
 
   it('survives a corrupt record', () => {

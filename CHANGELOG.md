@@ -30,7 +30,9 @@ see `DETAILED_CHANGELOG.md`.
   needs files on disk — and documents you never saved aren't included;
   a file that has since moved or been deleted is skipped with a note,
   and one that's already open (here or in another window) is never
-  duplicated.
+  duplicated. Closing a window before you quit drops its document from
+  the set, so what comes back is what was open when you quit. Thanks
+  to Cora (@coralynnkc)!
 
 ## 1.9.0 — 2026-09-09
 

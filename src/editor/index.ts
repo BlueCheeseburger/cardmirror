@@ -134,8 +134,15 @@ import {
   lastWorkspace,
   saveWorkspaceNow,
   selectedDocs,
+  installWindowCloseForget,
   type WorkspaceSnapshot,
 } from './workspace-store.js';
+
+/** sessionStorage marker a mode-switch reload leaves for itself.
+ *  Declared up here because the three-pane boot block below runs
+ *  during module evaluation and reads it before the mode-switch
+ *  helpers further down would have been reached. */
+const MODE_SWITCH_MARKER_KEY = 'cardmirror:mode-switch-recovery';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
 import {
   settings,
@@ -7372,6 +7379,15 @@ async function routeInitialDocIntoWorkspace(): Promise<boolean> {
  *  on every keystroke-driven dirty-marker refresh. */
 let lastReportedWorkspaceKey = '';
 
+// A window that closes on its own — not the app quitting — is gone
+// from the next session's offer; a quit, or a kill, leaves its docs in
+// place. Main answers the quit question synchronously (`pagehide`
+// cannot await). Desktop only: the web edition records nothing.
+{
+  const closingHost = getElectronHost();
+  if (closingHost) installWindowCloseForget(() => closingHost.isAppQuitting());
+}
+
 /** Publish this single-doc window's open doc to the workspace store.
  *  No-op in three-pane mode, where the shell reports all three slots
  *  itself. Called from `updateWindowTitle` (every doc-identity change
@@ -7415,8 +7431,8 @@ async function readFileForReopen(
 }
 
 /** Reopen a saved workspace — the TICKED documents only, re-derived
- *  from the store so the home screen's button and the at-launch
- *  restore can't drift apart. Three-pane hands the set to the shell,
+ *  from the store so the home screen's button and the Reopen Last
+ *  Workspace command can't drift apart. Three-pane hands the set to the shell,
  *  which restores each doc into the slot it was saved from.
  *  Single-doc mounts the first doc in THIS window when it still holds
  *  the pristine starter, and spawns a window for each of the rest —
@@ -9932,8 +9948,10 @@ if (BOOT_MULTI_DOC_WORKSPACE) {
     // re-report whatever this window ends up holding. Nothing is
     // reopened here: launch always lands on the home screen, where the
     // Last workspace checklist is the single place that decides what
-    // comes back.
-    rolloverLastWorkspace();
+    // comes back. Never on a mode-switch reload: that is not a session
+    // boundary (the windows it closed already forgot their entries, so
+    // a roll-over here would wipe the standing offer).
+    if (sessionStorage.getItem(MODE_SWITCH_MARKER_KEY) === null) rolloverLastWorkspace();
     // If this window was spawned for an OS open (cold launch), route
     // its initial doc through the slot picker instead of booting
     // blank. Skip recovery when we did — a spawned-for-a-file window
@@ -9995,8 +10013,10 @@ async function initSingleDocBoot(): Promise<void> {
   // the live map). Later windows just keep reporting. The roll-over
   // only MINTS the snapshot — nothing is reopened at launch; the home
   // screen's Last workspace checklist is the single place that decides
-  // what comes back.
-  if (isFirst) rolloverLastWorkspace();
+  // what comes back. Never on a mode-switch reload: not a session
+  // boundary, and the windows the switch closed already forgot their
+  // entries, so a roll-over here would wipe the standing offer.
+  if (isFirst && sessionStorage.getItem(MODE_SWITCH_MARKER_KEY) === null) rolloverLastWorkspace();
   // A spawned window carries an initial-doc payload. Check regardless of THIS
   // window's own `canSpawnWindow`: a web window spawned into a plain browser tab
   // isn't itself standalone, but must still mount the doc it was opened with.
@@ -10291,8 +10311,6 @@ settings.subscribe((s, meta) => {
   if (s.multiDocWorkspace === BOOT_MULTI_DOC_WORKSPACE) return;
   void handleModeSwitch(s.multiDocWorkspace);
 });
-
-const MODE_SWITCH_MARKER_KEY = 'cardmirror:mode-switch-recovery';
 
 async function handleModeSwitch(newValue: boolean): Promise<void> {
   try {

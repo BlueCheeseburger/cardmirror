@@ -1976,8 +1976,8 @@ you say so. Your ticks are remembered between sessions, so a document you
 untick stays unticked as the set changes from one session to the next until
 you tick it again.
 
-Close every document before you quit and there's nothing to offer, so the
-section disappears — a clean quit means a clean start. To keep a particular
+Close every document (or its window) before you quit and there's nothing to
+offer, so the section disappears — a clean quit means a clean start. To keep a particular
 working set regardless, run **Save Workspace** (command bar — try "save
 session"): a saved set survives quitting with nothing open, and stays on offer
 until you open other documents and quit with those. **Reopen Last Workspace**

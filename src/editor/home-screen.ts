@@ -59,8 +59,8 @@ export interface HomeScreenCallbacks {
   openRecent: (recent: RecentFile) => void;
   /** Reopen the ticked documents from the last saved workspace. The
    *  whole snapshot is passed; the renderer re-derives the ticked set
-   *  (`selectedDocs`) so this and the at-launch restore can't drift
-   *  apart. Omitted on hosts that can't reopen by path (the web
+   *  (`selectedDocs`), the same way the Reopen Last Workspace command
+   *  does. Omitted on hosts that can't reopen by path (the web
    *  edition), in which case the Workspace section isn't rendered. */
   reopenWorkspace?: (snapshot: WorkspaceSnapshot) => void;
   /** Open the Quick Cards manage overlay. */
@@ -681,8 +681,8 @@ class HomeScreen {
    *  list is always visible rather than folded away — seeing what's in
    *  the set is the point, and a 15-document set restored wholesale is
    *  rarely what the user wants. All / None flip every tick at once.
-   *  Ticks persist through the store, so they also govern what the
-   *  at-launch restore opens. The list scrolls past ~8 rows so a big
+   *  Ticks persist through the store, so the Reopen Last Workspace
+   *  command honours them too. The list scrolls past ~8 rows so a big
    *  workspace can't push the rest of the home screen off the page. */
   private renderWorkspace(): void {
     if (!this.workspaceSection) return;
@@ -690,9 +690,10 @@ class HomeScreen {
     this.workspaceSection.hidden = snapshot === null;
     this.workspaceEl.replaceChildren();
     if (!snapshot) return;
-    // The untick list lives in the store, not in this screen: the
-    // at-launch restore honours the same list, so one untick is
-    // durable rather than a filter that only applies to this click.
+    // The untick list lives in the store, not in this screen, so one
+    // untick is durable — it survives sessions and governs the Reopen
+    // Last Workspace command too — rather than a filter that only
+    // applies to this click.
     const unchecked = new Set(snapshot.excluded);
     const persist = (): void => {
       this.workspaceSelfWrite = true;

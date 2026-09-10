@@ -21,8 +21,12 @@ rewrites its own entry whenever its open set changes (single-doc from
 change funnels through — memoized on a path|name|format key so the
 hot dirty-marker refresh doesn't hammer storage; three-pane from
 `refreshLayout`, where every open / close / send-to-slot already
-lands, plus `setFocusedFile` for Save As). Nothing clears LIVE on
-quit — a killed app leaves exactly what was open, which is the point.
+lands, plus `setFocusedFile` for Save As). A window that closes on its own drops
+its entry — `installWindowCloseForget` asks main's `quitInitiated` flag
+synchronously from `pagehide`, the one place nothing can be awaited —
+so the offer is what was open at the QUIT; a quit, or a killed app,
+leaves entries exactly as they were, which is the point. The roll-over
+is skipped on a mode-switch reload, which is not a session boundary.
 The first window of an app session folds LIVE into the LAST snapshot
 at boot (`rolloverLastWorkspace`) and empties it, so LAST is always
 "the previous session", and the roll-over runs BEFORE this window

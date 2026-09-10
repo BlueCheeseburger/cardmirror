@@ -2030,6 +2030,15 @@ ipcMain.handle('host:is-first-window', async (event) => {
   return win.id === firstWindowId;
 });
 
+/** Synchronous on purpose: a renderer asks this from `pagehide`, where
+ *  nothing can be awaited. `quitInitiated` is set in `before-quit` and
+ *  cleared when the user backs out of the confirmation, so during a
+ *  quit every closing window sees true and an ordinary window close
+ *  sees false (the workspace store keeps or forgets accordingly). */
+ipcMain.on('host:is-app-quitting', (event) => {
+  event.returnValue = quitInitiated;
+});
+
 // ─── Mode-switch: journal-and-close other windows ─────────────────
 // When the user toggles `multiDocWorkspace` in window A, every
 // OTHER open window needs to journal its current doc and close

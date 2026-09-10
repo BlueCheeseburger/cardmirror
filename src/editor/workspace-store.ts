@@ -9,9 +9,11 @@
  *  - LIVE (`pmd-live-workspace`): a map of windowId → the docs that
  *    window currently has open. Every window rewrites its OWN entry
  *    whenever its open set changes (single-doc: on handle change;
- *    three-pane: on every slot composition change). Nothing clears
- *    it on quit — a killed app leaves exactly what was open, which
- *    is the point.
+ *    three-pane: on every slot composition change). A window that
+ *    closes on its own drops its entry (`installWindowCloseForget`),
+ *    so what the next session is offered is what was open at the
+ *    QUIT; a quit — or a killed app — leaves entries exactly as they
+ *    were, which is the point.
  *
  *  - LAST (`pmd-last-workspace`): the snapshot offered to the user.
  *    The first window of an app session calls `rolloverLastWorkspace()`
@@ -34,9 +36,10 @@
  * ignore them when they've since switched.
  *
  * `excluded` is the user's standing "don't bother reopening this one"
- * list, edited by the home screen's checklist and honoured by BOTH
- * ways of reopening (the button and the at-launch restore) — so one
- * untick is durable rather than a per-click filter. It carries across
+ * list, edited by the home screen's checklist and honoured every time
+ * the set is reopened (the home-screen button or the Reopen Last
+ * Workspace command) — so one untick is durable rather than a
+ * per-click filter. It carries across
  * roll-overs for paths still in the set, and is pruned of everything
  * else so a long-gone document can't silently suppress itself years
  * later if it comes back.
@@ -187,8 +190,8 @@ function carryExclusions(next: WorkspaceSnapshot): WorkspaceSnapshot {
 }
 
 /** The documents a reopen should actually open: everything still
- *  ticked. Both the home screen's button and the at-launch restore go
- *  through this, so they can't drift apart. */
+ *  ticked. The home-screen button and the Reopen Last Workspace
+ *  command both go through this, so they can't drift apart. */
 export function selectedDocs(snapshot: WorkspaceSnapshot): WorkspaceDoc[] {
   if (snapshot.excluded.length === 0) return snapshot.docs;
   const excluded = new Set(snapshot.excluded);
@@ -212,6 +215,34 @@ export function reportWindowWorkspace(
   if (kept.length === 0) delete live[WINDOW_ID];
   else live[WINDOW_ID] = { updatedAt: Date.now(), mode, docs: kept };
   writeJson(LIVE_KEY, live);
+}
+
+/** Drop THIS window's live entry: it closed on its own, so it is not
+ *  part of what the next session should be offered. */
+export function forgetWindowWorkspace(): void {
+  const live = readLive();
+  if (!(WINDOW_ID in live)) return;
+  delete live[WINDOW_ID];
+  writeJson(LIVE_KEY, live);
+}
+
+/** Forget this window's entry when the window goes away WITHOUT the
+ *  app quitting — an ordinary close, a reload, a mode-switch close.
+ *  `isAppQuitting` is asked synchronously from `pagehide`, where
+ *  nothing can be awaited; when it says the app is quitting (or it
+ *  cannot tell), the entry stays, which is the whole feature. */
+export function installWindowCloseForget(isAppQuitting: () => boolean): () => void {
+  const onHide = (): void => {
+    let quitting = true;
+    try {
+      quitting = isAppQuitting();
+    } catch {
+      quitting = true;
+    }
+    if (!quitting) forgetWindowWorkspace();
+  };
+  window.addEventListener('pagehide', onHide);
+  return () => window.removeEventListener('pagehide', onHide);
 }
 
 /** The snapshot the user can reopen, or null when there is none. */

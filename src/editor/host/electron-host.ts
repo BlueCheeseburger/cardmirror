@@ -292,6 +292,7 @@ interface ElectronAPI {
   spawnWindow(payload: SpawnWindowPayload | null): Promise<void>;
   getInitialDoc(): Promise<SpawnWindowPayload | null>;
   isFirstWindow(): Promise<boolean>;
+  isAppQuitting?(): boolean;
   /** Report this window's workspace mode to main (multi-pane vs
    *  single-pane) so the OS "Open with…" path can reuse a multi-pane
    *  window's slot picker instead of spawning a blank window. */
@@ -978,6 +979,13 @@ export class ElectronHost implements Host {
 
   async isFirstWindow(): Promise<boolean> {
     return await api().isFirstWindow();
+  }
+
+  isAppQuitting(): boolean {
+    // An older preload lacks the channel: assume a quit, so a window's
+    // open set is never thrown away by mistake.
+    const fn = api().isAppQuitting;
+    return fn ? fn() : true;
   }
 
   async registerMultipane(isMultiPane: boolean): Promise<void> {
