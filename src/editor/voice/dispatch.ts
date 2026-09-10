@@ -134,6 +134,12 @@ export async function applyVoiceCommand(
       case 'condense':
         ok = runRibbon(view, deps, 'condenseDefault', dispatch);
         break;
+      case 'chunk':
+        ok = runRibbon(view, deps, 'selectCurrentHeading', dispatch);
+        break;
+      case 'ship':
+        ok = runRibbon(view, deps, 'sendToSpeechAtEnd', dispatch);
+        break;
       case 'tag':
         ok = runRibbon(view, deps, 'setTag', dispatch);
         break;

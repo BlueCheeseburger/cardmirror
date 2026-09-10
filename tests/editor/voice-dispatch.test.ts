@@ -1,5 +1,5 @@
 /**
- * Voice v2 dispatcher: the twelve words against the existing command
+ * Voice v2 dispatcher: the fourteen words against the existing command
  * layer. Mark words mark a selection or arm the sticky pen; `bare` clears
  * or disarms; `card` inserts a fresh card after the current one; `delete`
  * needs a selection; `undo` goes through the editor's own undo path.

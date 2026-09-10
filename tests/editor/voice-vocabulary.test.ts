@@ -15,9 +15,9 @@ import {
 } from '../../src/editor/voice/vocabulary.js';
 
 describe('voice vocabulary', () => {
-  it('has twelve acoustically spaced words', () => {
-    expect(VOICE_COMMANDS).toHaveLength(12);
-    expect(new Set(VOICE_COMMANDS).size).toBe(12);
+  it('has fourteen acoustically spaced words', () => {
+    expect(VOICE_COMMANDS).toHaveLength(14);
+    expect(new Set(VOICE_COMMANDS).size).toBe(14);
   });
 
   it('normalizes recognizer output: case, punctuation, fillers', () => {

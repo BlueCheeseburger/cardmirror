@@ -1895,7 +1895,7 @@ session doesn't transcribe the room.
 
 ### Commands
 
-Twelve words. A command fires only when the word is the whole thing you
+Fourteen words. A command fires only when the word is the whole thing you
 said — "line" fires, "the line of argument" does not — so ordinary
 conversation doesn't trigger anything. Select with the mouse first when a
 command needs a span.
@@ -1908,6 +1908,8 @@ command needs a span.
 | **bare** | clear underline, emphasis and highlight from the selection; with nothing selected, disarm the pen |
 | **shrink** | Shrink Card Text |
 | **condense** | Condense |
+| **chunk** | Select Current Heading |
+| **ship** | Send to Speech (At End) |
 | **tag** | apply the Tag style to the selection or the current paragraph |
 | **cite** | apply the Cite style to the selection |
 | **card** | insert a new card after the current one and land in its tag |
