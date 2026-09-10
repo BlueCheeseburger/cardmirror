@@ -7,6 +7,98 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+### Added: search bar in the Settings dialog (`settings-ui.ts`, `style.css`)
+
+Feature request: search across every setting's name and description
+at once, highlighting matched words, instead of hunting through tabs.
+Not yet merged — out on its own review branch (`feature/settings-search`)
+so it can be tried live via a mockup before landing.
+
+The search box lives in `.pmd-settings-header-left`, a new flex wrapper
+around the existing `<h2>Settings</h2>` title — `justify-content:
+space-between` on the header still pins the close button to the right,
+but the wrapper keeps the box immediately next to the title rather
+than floating in the middle of the header the way a bare third flex
+child would.
+
+Matching reuses `SETTING_METADATA` (the same source `quick-card-search-ui.ts`'s
+command-palette settings search already reads) and the exact same
+filter predicate `render()` uses to decide which rows exist per host
+(`electronOnly`/`windowsOnly`/`webOnly`/`revealWhen`) — a query never
+surfaces a row that wouldn't otherwise be in the dialog at all. A
+setting matches when every whitespace-separated query token appears
+(case-insensitively) in its label, description, section name, or any
+of its `aliases` (the same alias list the palette uses, e.g. "dark
+mode" finding "Theme") joined into one haystack — same multi-token AND
+rule the palette already uses.
+
+**Design: reuse the real rows, don't clone them.** A setting row's
+control is LIVE, bound directly to `settings` — and several `kind`s
+(readers, color slots, custom-dash, …) instantiate a whole standalone
+editor widget via a `buildXEditor()` helper on first render. Cloning
+`renderEntry(meta)` a second time for search results would either
+duplicate that live binding harmlessly (toggle rows: two checkboxes
+both reading/writing the same key, kept in sync by the existing
+`settings.subscribe` reflection each already has) or, for the complex
+custom-editor kinds, risk two live instances of something that may
+carry singleton-ish internal assumptions untested for that case. So
+search doesn't clone anything: `render()` still builds every category
+panel up front exactly as before (already true pre-feature — "We
+build all of them up-front so the refreshDependents pass can find
+rows under inactive tabs too"), and a matching query **moves** —
+`appendChild`, which reparents a live DOM node without losing its
+listeners or internal state — each matched row out of its home panel
+into one shared `.pmd-settings-search-results` panel, grouped under a
+`<h3 class="pmd-settings-section-title">` naming which tab it's really
+in (the tab strip itself is hidden while searching, so this is the
+only surviving context for that). Clearing the query moves every row
+straight back.
+
+**Restoring exact original order.** Right after `render()` builds each
+category panel, `SettingsModal` snapshots its children
+(`Array.from(panel.childNodes)`, a point-in-time copy — mutating the
+live panel afterward doesn't change the snapshot) into a new
+`panelOriginalChildren` map. `exitSearch()` (fired when the query goes
+empty) calls `panel.replaceChildren(...original)` per category,
+which both restores every row to its exact original position AND
+correctly re-slots the two async/lazily-populated exceptions
+(`buildBenchmarkSection`/plugins-panel content) since the snapshot
+holds element REFERENCES, not clones — whatever landed inside them
+asynchronously after `render()` returned is still there when they're
+reinserted.
+
+**Highlighting, and un-highlighting.** `highlightRowText(row, meta,
+tokens)` rebuilds a row's `.pmd-settings-row-title`/`.pmd-settings-row-desc`
+spans from the SAME text `SETTING_METADATA` (or `descriptionFn()`)
+would render normally, wrapping each token match in `<mark
+class="pmd-settings-search-hit">` (`paintHighlight`, sorted longest-
+token-first so a short token can't carve up a longer overlapping
+match). A row whose only match was via its section name or an alias —
+neither shown to the user — simply renders unmarked, which is correct:
+there's nothing in the visible text to point at. `exitSearch()` resets
+EVERY row's title/description back to plain text via
+`unhighlightRow()` (looked up fresh from `SETTING_METADATA` by the
+row's own `data-setting-key`, not by trying to diff/undo the mark
+tags) — a flat ~90-row pass, cheap, and it only runs once per query
+clear.
+
+`.pmd-settings-search-hit`'s yellow uses the app's real theme
+mechanism (`:root[data-theme='dark']`, set by `applyTheme()` in
+`index.ts`) rather than a `prefers-color-scheme` media query — the
+correct pattern for this app (confirmed: 20 existing rules use the
+attribute selector vs. 2 stray `prefers-color-scheme` blocks
+elsewhere in `style.css`, both added in a prior turn this session and
+themselves arguably due for the same fix, left alone here as out of
+scope).
+
+No automated test: `settings-ui.ts` transitively imports `index.ts`
+(via `benchmark-ui.ts`'s `attachClickBelowToEnd`, which reaches for a
+DOM element only the full `index.html` app shell provides) and
+crashes in a bare jsdom environment — confirmed by trying; no existing
+test in the suite imports this module directly for the same reason.
+Verification for this feature is the live mockup instead, per the
+user's own request.
+
 ### Fixed: save success now flashes only Save, not Autosave (`index.ts`, `multi-pane-shell.ts`)
 
 Field report: `flashSaveSuccess()` (single-doc) and

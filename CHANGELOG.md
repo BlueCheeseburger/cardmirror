@@ -7,6 +7,15 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **A search bar in Settings**, next to the "Settings" title — searches
+  every setting's name and description across every tab at once,
+  highlights the matched words in yellow, and shows only the matches
+  (grouped by tab) while you're typing. Clear the box to go back to
+  browsing normally. Not yet merged to `main` — out on its own branch
+  pending review.
+
 ### Fixed
 
 - **A successful save (manual or autosave) now flashes only the Save
