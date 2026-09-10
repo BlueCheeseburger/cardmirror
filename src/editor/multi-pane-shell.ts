@@ -74,7 +74,7 @@ import {
   formatNumber,
   type ReadAloudCounts,
 } from './word-count.js';
-import { liveContainerSegment, remainingReadSegment } from './live-read-time.js';
+import { liveContainerSegment, primaryReadSegment, remainingReadSegment } from './live-read-time.js';
 import { openWordCount } from './word-count-ui.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
 import {
@@ -1218,35 +1218,29 @@ class Slot {
     // regardless of any selection (the Σ button covers selection counts
     // on demand).
     const hasSel = settings.get('liveSelectionWordCount') && !sel.empty;
-    let counts: ReadAloudCounts;
+    let primary: string | null = null;
     if (hasSel) {
-      counts = countReadAloudSplit(rec.view.state.doc, sel.from, sel.to);
-    } else if (this.wcDocCache && this.wcDocCache.doc === rec.view.state.doc) {
-      counts = this.wcDocCache.counts;
-    } else {
-      counts = countReadAloudSplit(rec.view.state.doc);
-      this.wcDocCache = { doc: rec.view.state.doc, counts };
+      primary = primaryReadSegment(countReadAloudSplit(rec.view.state.doc, sel.from, sel.to), {
+        selection: true,
+        selectionLabel: 'Sel',
+      });
+    } else if (settings.get('liveDocWordCount')) {
+      let counts: ReadAloudCounts;
+      if (this.wcDocCache && this.wcDocCache.doc === rec.view.state.doc) {
+        counts = this.wcDocCache.counts;
+      } else {
+        counts = countReadAloudSplit(rec.view.state.doc);
+        this.wcDocCache = { doc: rec.view.state.doc, counts };
+      }
+      primary = primaryReadSegment(counts, { selection: false, selectionLabel: 'Sel' });
     }
-    const words = totalWords(counts);
-    const readers = settings.get('readers').slice(0, 2);
-    // "Doc:" label while the container segment is enabled, mirroring
-    // single-pane; bare number when off (the pre-feature look).
-    const head = hasSel
-      ? `Sel: ${formatNumber(words)}`
-      : settings.get('liveContainerReadTime')
-        ? `Doc: ${formatNumber(words)}`
-        : formatNumber(words);
-    const parts = [head];
-    for (const r of readers) {
-      parts.push(`${r.name}: ${formatReadTimeFor(counts, r)}`);
-    }
+    // Whole-doc readout off and nothing selected: no doc walk, the
+    // footer belongs to the other segments (mirroring single-pane).
     // Pipe-joined in scope order — whole doc, enclosing container,
     // what's left — each independently optional, mirroring single-pane.
-    const segments = [
-      parts.join(' · '),
-      liveContainerSegment(rec.view.state),
-      remainingReadSegment(rec.view.state),
-    ].filter((s): s is string => s !== null);
+    const segments = [primary, liveContainerSegment(rec.view.state), remainingReadSegment(rec.view.state)].filter(
+      (s): s is string => s !== null,
+    );
     this.wcEl.textContent = segments.join(' | ');
   }
 

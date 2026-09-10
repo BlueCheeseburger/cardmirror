@@ -1121,6 +1121,13 @@ count is cached per container, so moving the cursor doesn't re-count
 anything). Turning it off restores the plain whole-doc readout exactly
 as it was.
 
+The whole-document number itself can go too: **Settings → General →
+"Live word count for the whole document"** (on by default) turns off the
+first readout, leaving the bar to whichever of the others you keep — handy
+on a narrow window with room for only the specific counts. A live selection
+still shows while that setting is on, and the Word Count button (Σ) always
+has the whole-document count on demand.
+
 A third readout — **what's left to read** — is available and **off by
 default**: turn on **Settings → General → "Live read time for what is
 left to read"** and the bar appends everything still ahead of your
@@ -2312,6 +2319,10 @@ headers shown inside each tab.
   words-per-minute rate. The first two show live in the status bar; all
   appear in the Word Count dialog
   (see [Read-time estimates](#read-time-estimates)).
+- **Live word count for the whole document** — on by default. Off drops
+  the bar's first readout (the whole document's count and read times) so
+  a narrow window can show only the specific counts you keep on. The Word
+  Count button (Σ) still gives the whole-document count on demand.
 - **Live word count for the current selection** — off by default. When
   on, the status bar's count and read time follow your selection as you
   change it; leave it off on very large docs if you notice drag lag.

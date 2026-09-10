@@ -967,6 +967,15 @@ export interface Settings {
    */
   liveSelectionWordCount: boolean;
   /**
+   * The live readout's first segment: the whole document's read-aloud
+   * word count with each reader's time. On by default. Off frees the
+   * bottom bar for the other live readouts (selection, enclosing
+   * container, what's left) — for a narrow window that only has room
+   * for the specific ones. The Word Count button still shows the
+   * whole-doc count on demand.
+   */
+  liveDocWordCount: boolean;
+  /**
    * Append the smallest enclosing container's read time (card /
    * analytic unit / block section) to the live word-count readout —
    * or the selection's when one exists. Cursor moves within a
@@ -1772,6 +1781,7 @@ const DEFAULTS: Settings = {
     { name: 'Reader 2', wpm: 250 },
   ],
   liveSelectionWordCount: false,
+  liveDocWordCount: true,
   liveContainerReadTime: true,
   liveRemainingReadTime: false,
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
@@ -2258,6 +2268,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Word counts',
     mobile: true,
+  },
+  {
+    key: 'liveDocWordCount',
+    label: 'Live word count for the whole document',
+    description:
+      "On by default. The bottom bar's first readout: the whole document's read-aloud word count with each reader's time. Turn it off to give the bar to the other live readouts — the selection, the enclosing card / block, and what's left — when a narrow window only has room for the specific ones. The Word Count button (Σ) still shows the whole-document count on demand.",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Word counts',
+    aliases: ['whole document word count', 'doc word count', 'hide word count', 'total word count'],
   },
   {
     key: 'liveSelectionWordCount',
@@ -4492,6 +4512,7 @@ function sanitize(s: Settings): Settings {
     gestureZoom: !!s.gestureZoom,
     readers: sanitizeReaders(s.readers),
     liveSelectionWordCount: s.liveSelectionWordCount === true,
+    liveDocWordCount: s.liveDocWordCount === false ? false : true,
     // Default-on: preserve `false` only when explicitly set, so
     // installs upgrading from before this setting existed get it on.
     liveContainerReadTime: s.liveContainerReadTime === false ? false : true,

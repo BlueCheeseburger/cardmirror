@@ -41,6 +41,12 @@ see `DETAILED_CHANGELOG.md`.
   Receive pill rows, and the new command) has a **Read mode** button
   that shows only the marked text, the way read mode does in a
   document. It stays on for later previews until you turn it off.
+- **Live word count for the whole document** is now a setting (on by
+  default, under Word counts). Off drops the bottom bar's first
+  readout so a narrow window can show only the specific live counts —
+  the selection, the enclosing card / block, what's left — that you
+  keep on. The Word Count button (Σ) still has the whole-document
+  count on demand.
 
 ## 1.9.0 — 2026-09-09
 

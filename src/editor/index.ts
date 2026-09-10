@@ -348,7 +348,7 @@ import {
   formatNumber,
   type ReadAloudCounts,
 } from './word-count.js';
-import { liveContainerSegment, remainingReadSegment } from './live-read-time.js';
+import { liveContainerSegment, primaryReadSegment, remainingReadSegment } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import {
   installGlobalErrorSurface,
@@ -5008,44 +5008,42 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
   // off, the bar always shows the whole-doc count regardless of any
   // selection — the Word Count button covers selection counts on demand.
   const hasSelection = settings.get('liveSelectionWordCount') && !sel.empty;
-  let counts: ReadAloudCounts;
+  let primary: string | null = null;
   if (hasSelection) {
     // Selection read time: count only the selected range (O(range)).
     // Leaves the cached whole-doc count untouched.
-    counts = countReadAloudSplit(view.state.doc, sel.from, sel.to);
-  } else if (opts?.selectionOnly && lastWholeDocWords !== null) {
-    // Selection just collapsed to a cursor on a selection-only
-    // transaction: the whole-doc count can't have changed, so reuse the
-    // cache instead of re-walking the doc on every cursor move.
-    counts = lastWholeDocWords;
+    primary = primaryReadSegment(countReadAloudSplit(view.state.doc, sel.from, sel.to), {
+      selection: true,
+      selectionLabel: 'Selection',
+    });
+  } else if (settings.get('liveDocWordCount')) {
+    let counts: ReadAloudCounts;
+    if (opts?.selectionOnly && lastWholeDocWords !== null) {
+      // Selection just collapsed to a cursor on a selection-only
+      // transaction: the whole-doc count can't have changed, so reuse the
+      // cache instead of re-walking the doc on every cursor move.
+      counts = lastWholeDocWords;
+    } else {
+      counts = countReadAloudSplit(view.state.doc);
+      lastWholeDocWords = counts;
+    }
+    primary = primaryReadSegment(counts, { selection: false, selectionLabel: 'Selection' });
   } else {
-    counts = countReadAloudSplit(view.state.doc);
-    lastWholeDocWords = counts;
+    // Whole-doc readout off and nothing selected: no O(doc) walk at all —
+    // the bar belongs to whichever of the other segments are on. Drop the
+    // cache too: edits made while the readout is off never recount, and
+    // the settings subscription's selection-only refresh would otherwise
+    // resurface a stale number the moment it is turned back on.
+    lastWholeDocWords = null;
   }
-  const words = totalWords(counts);
 
-  const readers = settings.get('readers').slice(0, 2);
-  // With the container segment enabled the whole-doc side gets a "Doc:"
-  // label so the two sides read symmetrically ("Doc: … | Card: …");
-  // with it off, the readout is exactly the pre-feature bare number.
-  const head = hasSelection
-    ? `Selection: ${formatNumber(words)}`
-    : settings.get('liveContainerReadTime')
-      ? `Doc: ${formatNumber(words)}`
-      : formatNumber(words);
-  const parts = [head];
-  for (const r of readers) {
-    parts.push(`${r.name}: ${formatReadTimeFor(counts, r)}`);
-  }
   // Segments are pipe-joined in scope order — whole doc, the enclosing
   // container, what's left — and each is independently optional, so the
   // join filters rather than nesting conditionals (container off with
   // remaining on reads "Doc: … | Left: …").
-  const segments = [
-    parts.join(' · '),
-    liveContainerSegment(view.state),
-    remainingReadSegment(view.state),
-  ].filter((s): s is string => s !== null);
+  const segments = [primary, liveContainerSegment(view.state), remainingReadSegment(view.state)].filter(
+    (s): s is string => s !== null,
+  );
   wordCountText.textContent = segments.join(' | ');
 }
 
