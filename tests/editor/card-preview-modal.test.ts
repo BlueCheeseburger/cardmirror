@@ -23,11 +23,11 @@ vi.mock('../../src/editor/toast.js', () => ({
   },
 }));
 
-import { openCardPreview, docFromSliceJson, copiedLabel } from '../../src/editor/card-preview-modal.js';
+import { openCardPreview, docFromSliceJson, copiedLabel, previewReadModeOn, setPreviewReadMode } from '../../src/editor/card-preview-modal.js';
 import { isAnyOverlayOpen } from '../../src/editor/overlay-stack.js';
 import { DropzoneController } from '../../src/editor/dropzone-ui.js';
 import { dropzoneStore } from '../../src/editor/dropzone-store.js';
-import { ReceivePillController } from '../../src/editor/pairing/receive-pill-ui.js';
+import { ReceivePillController, previewMostRecentReceived, NOTHING_RECEIVED_MESSAGE } from '../../src/editor/pairing/receive-pill-ui.js';
 import { inboxStore } from '../../src/editor/pairing/inbox-store.js';
 import { settings } from '../../src/editor/settings.js';
 
@@ -204,5 +204,57 @@ describe('the Preview button on the rows', () => {
     } finally {
       settings.set('pairingEnabled', false);
     }
+  });
+});
+
+describe('read mode in the preview', () => {
+  afterEach(() => setPreviewReadMode(false));
+  const host = (): HTMLElement => dialog()!.querySelector<HTMLElement>('.pmd-recover-preview-editor')!;
+  const readBtn = (): HTMLButtonElement => dialog()!.querySelector<HTMLButtonElement>('.pmd-card-preview-readmode')!;
+  const closePreview = (): void => document.querySelector<HTMLButtonElement>('.pmd-card-preview-close')!.click();
+
+  it('is off by default, flips the pane into read mode, and stays on for the next preview until turned off', () => {
+    openCardPreview({ title: 'One', sliceJson: sliceJson(card('Tag', 'body')) });
+    expect(host().classList.contains('pmd-read-mode')).toBe(false);
+    expect(readBtn().getAttribute('aria-pressed')).toBe('false');
+    readBtn().click();
+    expect(host().classList.contains('pmd-read-mode')).toBe(true);
+    expect(readBtn().getAttribute('aria-pressed')).toBe('true');
+    expect(previewReadModeOn()).toBe(true);
+    closePreview();
+
+    openCardPreview({ title: 'Two', sliceJson: sliceJson(card('Tag', 'body')) });
+    expect(host().classList.contains('pmd-read-mode'), 'a later preview opens in read mode').toBe(true);
+    readBtn().click();
+    expect(previewReadModeOn()).toBe(false);
+    closePreview();
+
+    openCardPreview({ title: 'Three', sliceJson: sliceJson(card('Tag', 'body')) });
+    expect(host().classList.contains('pmd-read-mode'), 'turned off: back to the full view').toBe(false);
+  });
+});
+
+describe('previewMostRecentReceived (the Preview Received Card command)', () => {
+  const store = inboxStore as unknown as { items: unknown[] };
+  afterEach(() => {
+    store.items = [];
+  });
+
+  it('toasts when nothing has been received and opens nothing', () => {
+    store.items = [];
+    expect(previewMostRecentReceived()).toBe(false);
+    expect(toasts).toContain(NOTHING_RECEIVED_MESSAGE);
+    expect(dialog()).toBeNull();
+  });
+
+  it('opens the newest received card in the preview, with the sender in the subtitle', () => {
+    const item = (id: string, tag: string, when: number) => ({
+      id, label: tag, type: 'card', sliceJson: sliceJson(card(tag, `${tag} body`)), senderName: 'Cora', senderCode: 'AB12', receivedAt: when, read: true,
+    });
+    store.items = [item('r1', 'Older tag', Date.now() - 60_000), item('r2', 'Newer tag', Date.now())]; // newest last
+    expect(previewMostRecentReceived()).toBe(true);
+    expect(dialog()!.querySelector('.pmd-bulk-header h2')!.textContent).toBe('Newer tag');
+    expect(dialog()!.querySelector('.pmd-card-preview-subtitle')!.textContent).toContain('Cora');
+    expect(dialog()!.querySelector('.ProseMirror')!.textContent).toContain('Newer tag body');
   });
 });

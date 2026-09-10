@@ -31,6 +31,27 @@ export interface CardPreviewOptions {
 
 export const CARD_PREVIEW_UNREADABLE_MESSAGE = 'This card could not be previewed.';
 
+/** The preview's own read-mode switch. Remembered across previews (and
+ *  restarts): turn it on once and every later preview opens in read
+ *  mode until it is turned off — a browsing setting, not a per-preview
+ *  one. Independent of the document's read mode. */
+const READ_MODE_KEY = 'pmd-card-preview-read-mode';
+export function previewReadModeOn(): boolean {
+  try {
+    return localStorage.getItem(READ_MODE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+export function setPreviewReadMode(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(READ_MODE_KEY, '1');
+    else localStorage.removeItem(READ_MODE_KEY);
+  } catch {
+    /* storage unavailable: the switch lasts this preview only */
+  }
+}
+
 /** The document a stored slice previews as: the slice fitted into an
  *  otherwise empty document (an open-edged slice — a copy that started
  *  mid-card — is closed by the fitter, the way an insert closes it). */
@@ -129,9 +150,27 @@ export function openCardPreview(opts: CardPreviewOptions): boolean {
   body.appendChild(pane);
   dialog.appendChild(body);
   previewView = mountDocPreview(pane, doc);
+  // Read mode is the same CSS the panes use (`.pmd-read-mode` on the
+  // editor host), so the preview shows exactly what the document would.
+  const editorHost = pane.querySelector<HTMLElement>('.pmd-recover-preview-editor');
+  const applyReadMode = (on: boolean): void => {
+    editorHost?.classList.toggle('pmd-read-mode', on);
+    readBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    readBtn.title = on ? 'Show everything (read mode is on)' : 'Show only the marked text';
+  };
 
   const actions = document.createElement('div');
   actions.className = 'pmd-bulk-actions pmd-card-preview-actions';
+  const readBtn = document.createElement('button');
+  readBtn.type = 'button';
+  readBtn.className = 'pmd-bulk-btn pmd-card-preview-readmode';
+  readBtn.textContent = 'Read mode';
+  readBtn.addEventListener('click', () => {
+    const on = readBtn.getAttribute('aria-pressed') !== 'true';
+    setPreviewReadMode(on);
+    applyReadMode(on);
+  });
+  applyReadMode(previewReadModeOn());
   const copyBtn = document.createElement('button');
   copyBtn.type = 'button';
   copyBtn.className = 'pmd-bulk-btn pmd-card-preview-copy';
@@ -161,7 +200,7 @@ export function openCardPreview(opts: CardPreviewOptions): boolean {
   doneBtn.className = 'pmd-bulk-btn pmd-bulk-btn-primary pmd-card-preview-close';
   doneBtn.textContent = 'Close';
   doneBtn.addEventListener('click', close);
-  actions.append(copyBtn, doneBtn);
+  actions.append(readBtn, copyBtn, doneBtn);
   dialog.appendChild(actions);
 
   // Escape closes; every other key aimed at the dialog's own surfaces (the

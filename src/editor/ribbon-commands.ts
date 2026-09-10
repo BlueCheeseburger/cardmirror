@@ -4384,6 +4384,7 @@ export type RibbonCommandId =
   | 'sendToRecipient'
   | 'insertReceivedAtCursor'
   | 'insertReceivedAtEnd'
+  | 'previewReceived'
   // Select / copy the cursor's enclosing structure (the current card /
   // analytic_unit / heading + its subtree), reusing the send-to-*
   // bounds logic but keyed off the cursor — any active selection is
@@ -4621,6 +4622,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'sendToRecipient',
   'insertReceivedAtCursor',
   'insertReceivedAtEnd',
+  'previewReceived',
   'selectCurrentHeading',
   'deleteCurrentHeading',
   'toggleNumberRole',
@@ -4810,6 +4812,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   sendToRecipient: 'Send to Recipient…',
   insertReceivedAtCursor: 'Insert Received Card (At Cursor)',
   insertReceivedAtEnd: 'Insert Received Card (At End)',
+  previewReceived: 'Preview Received Card',
   selectCurrentHeading: 'Select Current Heading',
   deleteCurrentHeading: 'Delete Current Heading',
   toggleNumberRole: 'Number: Toggle Number Role',
@@ -4946,6 +4949,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   addColumnAfter: ['add column right'],
   insertReceivedAtCursor: ['add received card at cursor'],
   insertReceivedAtEnd: ['add received card at end'],
+  previewReceived: ['preview last received', 'preview most recent received', 'look at received card', 'show received card'],
   moveContainerUp: ['move up', 'move card up', 'move section up', 'reorder up', 'shift up'],
   moveContainerDown: ['move down', 'move card down', 'move section down', 'reorder down', 'shift down'],
   goHome: ['start screen', 'welcome screen', 'dashboard'],
@@ -5179,6 +5183,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   sendToRecipient: '',
   insertReceivedAtCursor: 'Mod-p',
   insertReceivedAtEnd: 'Mod-Alt-p',
+  previewReceived: '',
   selectCurrentHeading: 'Alt-a',
   deleteCurrentHeading: '',
   toggleNumberRole: 'Mod-Alt-1',
@@ -5424,6 +5429,9 @@ export interface RibbonContext {
    *  active doc — at the cursor, or at the end of the doc. */
   insertReceivedAtCursor: () => void;
   insertReceivedAtEnd: () => void;
+  /** Open the most-recently-received card in the preview without
+   *  inserting it. */
+  previewReceived: () => void;
   /** Select / copy the cursor's enclosing structure (the current
    *  card / analytic_unit / heading + subtree). Keyed off the cursor;
    *  any active selection is ignored. */
@@ -5585,6 +5593,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   sendToRecipient: () => {},
   insertReceivedAtCursor: () => {},
   insertReceivedAtEnd: () => {},
+  previewReceived: () => {},
   sendToSpeechAtEnd: () => {},
   selectCurrentHeading: () => {},
   deleteCurrentHeading: () => {},
@@ -6214,6 +6223,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.insertReceivedAtEnd();
+        return true;
+      };
+    case 'previewReceived':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.previewReceived();
         return true;
       };
     case 'selectCurrentHeading':

@@ -60,6 +60,7 @@ import { DropzoneController } from './dropzone-ui.js';
 import { mountPairingPills, initPairingWiring } from './pairing/pairing-wiring.js';
 import {
   setReceivedInsertNavHook, insertMostRecentReceived, RECEIVE_NEEDS_DOC_MESSAGE } from './pairing/inbox-insert.js';
+import { previewMostRecentReceived } from './pairing/receive-pill-ui.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { sendViewToRecipient } from './pairing/send-to-recipient.js';
 import { installExternalConsent } from './external-consent-ui.js';
@@ -2084,6 +2085,11 @@ const ribbonContext: RibbonContext = {
       return;
     }
     if (view) insertMostRecentReceived(view, true);
+  },
+  // Look without inserting: no destination document is involved, so
+  // this one works with the home screen up too.
+  previewReceived: () => {
+    previewMostRecentReceived();
   },
   // Source-only operations on the focused view — no cross-doc
   // destination, so unlike send-to-* they need no multi-doc routing

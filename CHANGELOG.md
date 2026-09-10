@@ -33,6 +33,14 @@ see `DETAILED_CHANGELOG.md`.
   duplicated. Closing a window before you quit drops its document from
   the set, so what comes back is what was open when you quit. Thanks
   to Cora (@coralynnkc)!
+- **Preview Received Card.** A command that opens the most recently
+  received card in the preview window without inserting it — the
+  keyboard twin of Insert Received Card. Unbound by default; give it a
+  key under Settings → Keyboard shortcuts.
+- **Read mode in the preview.** The card preview (Dropzone shelf and
+  Receive pill rows, and the new command) has a **Read mode** button
+  that shows only the marked text, the way read mode does in a
+  document. It stays on for later previews until you turn it off.
 
 ## 1.9.0 — 2026-09-09
 

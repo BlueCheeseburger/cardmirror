@@ -37,7 +37,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'sendToStarred',
       'sendToRecipient',
       'insertReceivedAtCursor',
-      'insertReceivedAtEnd',
+      'insertReceivedAtEnd', 'previewReceived',
     ],
   },
   {

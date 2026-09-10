@@ -1227,7 +1227,9 @@ or parking a card you know you need but are not sure where to put yet.
 **Preview** on a shelf row opens the cards full-size in a read-only view,
 with a nav pane beside them, so you can check what you parked without
 inserting it; **Copy to clipboard** there copies the cards for pasting
-anywhere, and **Close** (or Esc) puts the preview away.
+anywhere, and **Close** (or Esc) puts the preview away. A **Read mode**
+button in the preview shows only the marked text, and it stays on for later
+previews until you turn it off.
 
 ### Saving a send doc
 
@@ -1340,6 +1342,11 @@ row shows the card's label, who sent it, and when. From a row:
   instead of arriving fully expanded.
 - **Mod-P** inserts the most recently received card at the cursor, and
   **Mod-Alt-P** appends it, without opening the pill (both rebindable).
+- **Preview Received Card** opens the most recent one in the preview
+  without inserting it — unbound by default; give it a key under
+  Settings → Keyboard shortcuts. The preview's **Read mode** button shows
+  only the marked text and stays on for later previews until you turn it
+  off.
 
 The flash is configurable — **Flash the Receive pill on a new card**: once,
 every 10 seconds until you open the pill, or off.

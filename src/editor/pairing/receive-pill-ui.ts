@@ -519,7 +519,7 @@ export class ReceivePillController {
 
 /** Prefer your local nickname for the sender, then their self-declared
  *  name, then a short form of their code. */
-function resolveSender(item: InboxItem): string {
+export function resolveSender(item: InboxItem): string {
   if (item.senderCode) {
     const partner = settings
       .get('pairingPartners')
@@ -531,7 +531,7 @@ function resolveSender(item: InboxItem): string {
   return 'Unknown sender';
 }
 
-function relTime(ts: number): string {
+export function relTime(ts: number): string {
   const sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
   if (sec < 45) return 'just now';
   const min = Math.round(sec / 60);
@@ -540,4 +540,23 @@ function relTime(ts: number): string {
   if (hr < 24) return `${hr}h ago`;
   const day = Math.round(hr / 24);
   return `${day}d ago`;
+}
+
+/** Open the most-recently-received card in the preview (the same
+ *  preview a row's Preview button opens) without inserting anything —
+ *  the keyboard twin of Insert Received Card. False when the inbox is
+ *  empty or the payload cannot be rebuilt (the preview toasts for the
+ *  latter itself). Works with the home screen up: nothing is written. */
+export const NOTHING_RECEIVED_MESSAGE = 'Nothing received yet.';
+export function previewMostRecentReceived(): boolean {
+  const item = inboxStore.list().at(-1);
+  if (!item) {
+    showToast(NOTHING_RECEIVED_MESSAGE);
+    return false;
+  }
+  return openCardPreview({
+    title: item.label,
+    subtitle: `${resolveSender(item)} · ${relTime(item.receivedAt)}`,
+    sliceJson: item.sliceJson,
+  });
 }
