@@ -7,12 +7,98 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+### Fixed: cross-window doc-uid collision could mark a second, un-marked doc as the speech doc (`multi-pane-shell.ts`)
+
+Field report (2026-09-10): user marked exactly one document as the
+active speech doc, then opened a second window — and a document in
+that second window, never marked by the user, also showed the mic
+marker. Two documents, two windows, both flagged as "the" speech doc.
+
+Root cause: `newDocUid()` generated multi-pane doc ids from a plain
+module-scope counter (`doc-${nextDocUid++}`, starting at 1). Every
+Electron window is its own renderer process with its own JS module
+instance, so a second window's counter restarts at 1 too — its first
+pane gets `doc-1`, identical to the first window's `doc-1` if that
+was the first pane created there. The speech-doc registry is
+uid-keyed and per-window-local for view resolution
+(`speech-doc-registry.ts`'s `views: Map<uid, EditorView>`): main
+process broadcasts one global winning uid, and each renderer resolves
+`getSpeechView()` by looking up ITS OWN local view map for that uid.
+When the new window's colliding pane registered itself under the same
+uid main already had marked, that window's local lookup resolved to
+ITS OWN (unrelated) view for that uid — and `refreshSpeechChips()`
+(`multi-pane-shell.ts:3512`) had no way to distinguish a genuine match
+from an accidental id collision; it just compares `slot.visible?.view
+=== speechView` by object reference, which was satisfied by the wrong
+view.
+
+This was never a "can two docs both be the designated speech doc"
+architecture bug — main process, the registry, and the per-change full
+recompute in `refreshSpeechChips` are all correctly single-valued by
+construction. It was an id-generation bug: two logically DIFFERENT
+documents ended up sharing the identical uid string. `newDocUid()`
+already had a comment claiming multi-doc records "have their own
+newDocUid pool" to avoid colliding with the single-doc path's
+`newSessionDocUid()` — true within one process, but silent about the
+cross-process case, since a plain incrementing counter has no way to
+know about other processes at all.
+
+Fixed by matching `newSessionDocUid()`'s own scheme (random + timestamp)
+instead of a sequential counter, so ids are unique across processes,
+not just within one:
+
+```ts
+function newDocUid(): string {
+  return `doc-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+}
+```
+
+No format was baked into journal/recovery parsing (`doc-\d+` isn't
+matched or sorted anywhere — confirmed via grep), so the id shape
+change is safe.
+
+### Fixed: ribbon's right-click "Name/Rename Window" menu rendered under the ribbon (`style.css`)
+
+Field report (2026-09-10, same screenshot as above): right-clicking
+the ribbon to name a window opened a menu the user couldn't see or
+click — its top portion rendered behind the ribbon.
+
+`#ribbon` is `position: fixed; top: 0; z-index: 200`. The rename menu
+(`.pmd-nav-context-menu`, shared by every menu built on
+`positionFloatingMenu()` — image/link/text-selection/spellcheck/
+nav-panel/ribbon-rename) was `z-index: 50`. `positionFloatingMenu`
+only clamps against the BOTTOM `#status-bar` (see its own doc comment)
+— it has no equivalent top clamp, and doesn't need one for any of the
+OTHER menus sharing this class, since none of them open at a click
+point inside the ribbon's own bounds. The ribbon-rename menu is the
+one exception: `initRibbonRenameMenu` opens it directly from the
+ribbon's own `contextmenu` event, so its (x, y) is guaranteed to sit
+inside `#ribbon`'s fixed region — and at z=50 vs. the ribbon's z=200,
+the ribbon painted over it.
+
+Raised `.pmd-nav-context-menu` to `z-index: 210` (just above the
+ribbon). Harmless for the other five call sites — none of them ever
+open inside the ribbon's screen region, so this is a no-op for them.
+
+### Fixed: named window's title bar kept a redundant "— CardMirror" suffix (`index.ts`)
+
+`updateWindowTitle()`'s `currentWindowName` branch rendered
+`` `${currentWindowName} — CardMirror` `` — once a window has an
+explicit user-chosen name, the app-name suffix is just noise repeating
+what the icon/taskbar entry already conveys. Now sets
+`document.title = currentWindowName` directly, no suffix. (The other
+two branches — multi-doc filename list, single focused-doc filename —
+are unchanged; they still carry the suffix, since they're not an
+explicit user-chosen label.) `labelForChooser` in `main.ts` already
+strips `` / — CardMirror$/`` when building the "which window?" file-open
+chooser; that regex is now a no-op for named windows instead of doing
+real work, which is harmless — it still matches correctly for the
+unnamed-window titles that still carry the suffix.
+
 ### Added: search bar in the Settings dialog (`settings-ui.ts`, `style.css`)
 
 Feature request: search across every setting's name and description
 at once, highlighting matched words, instead of hunting through tabs.
-Not yet merged — out on its own review branch (`feature/settings-search`)
-so it can be tried live via a mockup before landing.
 
 The search box lives in `.pmd-settings-header-left`, a new flex wrapper
 around the existing `<h2>Settings</h2>` title — `justify-content:

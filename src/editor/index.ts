@@ -7804,7 +7804,7 @@ function updateWindowTitle(): void {
   const focused = activeFile();
   pushSingleDocInfo();
   if (currentWindowName) {
-    document.title = `${currentWindowName} — CardMirror`;
+    document.title = currentWindowName;
   } else if (multiDocActive && multiDocGetAllFilenames) {
     const names = multiDocGetAllFilenames()
       .filter((n): n is string => !!n)
