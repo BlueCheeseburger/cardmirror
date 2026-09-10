@@ -8,6 +8,9 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **A successful save now flashes only the Save button**, not the
+>   Autosave toggle too — and the update-progress pill no longer
+>   resizes as the percent climbs. (main)
 > - **A "Shrink" button in the Card menu** — collapses everything in a
 >   card except underlined/emphasized text down to 8pt in one click,
 >   Verbatim-style. Was already a keyboard shortcut (Mod-8); now also

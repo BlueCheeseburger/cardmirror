@@ -1352,8 +1352,10 @@ class Slot {
     this.chipSaveBtn.title = `Save "${rec.filename}"`;
   }
 
-  /** Same ✓ flash a manual Save gets, scoped to THIS slot's chip
-   *  buttons — called after `forRecord`'s autosave write is confirmed.
+  /** Same ✓ flash a manual Save gets, scoped to THIS slot's Save chip
+   *  button — called after `forRecord`'s autosave write is confirmed.
+   *  The Autosave chip never flashes: it's an on/off toggle, not a
+   *  per-write event, so the checkmark always lands on Save alone.
    *  Guarded on `this.visible === forRecord`: if the user has since
    *  switched this slot's stack to a different doc, the completing
    *  save belongs to a record that's no longer shown here, so there's
@@ -1361,7 +1363,6 @@ class Slot {
   flashChipSaveSuccess(forRecord: DocRecord): void {
     if (this.visible !== forRecord) return;
     flashSavedGlyph(this.chipSaveBtn);
-    if (forRecord.autosaveEnabled) flashSavedGlyph(this.chipAutosaveBtn);
   }
 
   /** Paint this slot footer's co-editing indicator from its VISIBLE record's

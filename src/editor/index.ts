@@ -8769,21 +8769,21 @@ export function flashSavedGlyph(el: HTMLElement): void {
   flashTimers.set(el, id);
 }
 
-/** Flash the save button (always) and the autosave button (when
- *  on). Both manual saves and autosaves call this. In multi-pane mode
- *  the shared ribbon buttons are hidden, so this redirects to whichever
- *  pane is currently focused — every Save entry point in that mode
- *  focuses its target pane before getting here, so "focused" reliably
- *  means "the doc that was just saved." */
+/** Flash the save button. Both manual saves and autosaves call this —
+ *  the checkmark always lands on Save, never on the Autosave toggle
+ *  (that button reflects an on/off setting, not a per-write event; a
+ *  flash on it read as "autosave itself just changed" rather than
+ *  "your doc was written"). In multi-pane mode the shared ribbon
+ *  buttons are hidden, so this redirects to whichever pane is
+ *  currently focused — every Save entry point in that mode focuses
+ *  its target pane before getting here, so "focused" reliably means
+ *  "the doc that was just saved." */
 export function flashSaveSuccess(): void {
   if (multiDocActive && multiDocFlashFocusedChip) {
     multiDocFlashFocusedChip();
     return;
   }
   flashSavedGlyph(exportBtn);
-  if (autosaveBtn && autosaveStateForActive()) {
-    flashSavedGlyph(autosaveBtn);
-  }
 }
 
 // ─── Autosave + crash-recovery journal ────────────────────────────

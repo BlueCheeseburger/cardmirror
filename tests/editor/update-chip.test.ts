@@ -70,6 +70,10 @@ describe('update chip', () => {
     expect(el.textContent).toBe('Downloading update 1.8.0-bcb.3 — 48%');
     expect(el.style.getPropertyValue('--pmd-update-pct')).toBe('48%');
     expect(el.title).toContain('48%');
+    // The percent lives in its own fixed-width span so the pill's overall
+    // width doesn't jitter as the digit count changes (0% → 100%).
+    const pctEl = el.querySelector('.pmd-update-chip-pct');
+    expect(pctEl?.textContent).toBe('48%');
 
     // Clamped to [0, 100] — a stray out-of-range tick shouldn't overflow the bar.
     renderUpdateChip(el, { state: 'downloading', version: '1.8.0-bcb.3', pct: 137 });
