@@ -3985,7 +3985,8 @@ export function hiddenInLite(meta: SettingMeta): boolean {
   if (meta.category === 'pairing' || meta.category === 'plugins') return true;
   const k = meta.key as string;
   if (/^(ai|clod|anthropic|openrouter)/i.test(k)) return true;
-  return k === 'voiceDictationModel';
+  // Lite is local-only: no model download, no AI cleanup of dictation.
+  return k === 'voiceModelEngine' || k === 'voiceCleanupEnabled';
 }
 
 export function toggleableSettingMetas(env: ToggleEnv): SettingMeta[] {

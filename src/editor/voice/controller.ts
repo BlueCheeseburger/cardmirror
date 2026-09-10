@@ -112,7 +112,10 @@ export class VoiceController {
       return;
     }
     const view = this.deps.getView();
-    if (!view) return;
+    if (!view) {
+      showToast('Open a document first, then turn voice on', { durationMs: 1800 });
+      return;
+    }
 
     this.pill ??= new VoicePill({
       onStop: () => {

@@ -80,6 +80,7 @@ function resolveNodeBinary(): string | null {
 }
 
 function stopSession(): void {
+  if (worker) console.log('voice: session stopped');
   worker?.kill();
   worker = null;
   ownerWebContentsId = null;
@@ -156,6 +157,7 @@ export function registerVoiceIpc(): void {
     }
     if (worker) stopSession();
     if (!modelPresent()) return { ok: false, error: 'voice-model-missing' };
+    console.log(`voice: starting worker (${resolveWorkerPath()})`);
 
     const nodeBin = resolveNodeBinary();
     const child = fork(resolveWorkerPath(), [], {
@@ -187,10 +189,12 @@ export function registerVoiceIpc(): void {
       child.send(start);
     });
     if (!started.ok) {
+      console.error(`voice: worker failed to start: ${started.error}`);
       if (worker === child) stopSession();
       else child.kill();
       return started;
     }
+    console.log(`voice: worker ready in ${started.modelLoadMs ?? '?'} ms`);
 
     child.on('message', (m: { type: string; event?: unknown; level?: unknown; error?: string }) => {
       if (sender.isDestroyed()) return;

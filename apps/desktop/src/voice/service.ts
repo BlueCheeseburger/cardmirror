@@ -251,6 +251,9 @@ export class VoiceService {
     }
     const text = this.opts.engine.decode(pad(samples)).trim();
     const tParse = this.now();
+    // Noise the VAD opened on but the recognizer heard nothing in: no
+    // event at all (an empty "(not a command)" echo is just churn).
+    if (!text) return;
     const verb = matchCommand(text, this.profile);
     if (verb) {
       this.opts.onEvent({ ...base, raw: text, tParse, kind: 'command', verb });
