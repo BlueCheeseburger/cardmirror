@@ -7,6 +7,34 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+## 1.8.0-bcb.4.1 — 2026-09-10
+
+### Fixed: settings search dropped matched rows on a second or re-typed query (`settings-ui.ts`)
+
+Field report (2026-09-10): searching settings for text that appears
+in a setting's description — e.g. "Each reader" from the Readers
+setting's description paragraph — returned "No settings match" even
+though the setting was clearly visible and the text was there.
+
+Root cause: `applySearch()` reparents matching rows from their home
+category panels into a shared results panel. On a subsequent search
+(or when the same query fires a second `input` event), the code
+called `resultsPanel.replaceChildren()` to reset the view BEFORE
+putting those rows back. `replaceChildren()` detaches every child
+from the DOM — including the rows moved there by the previous
+search — leaving them parentless. `this.dialog.querySelector()`
+then returned `null` for every previously-matched row (detached nodes
+are invisible to `querySelector`), and the loop silently skipped them,
+producing a zero-match result.
+
+Fixed by restoring every category panel from its `panelOriginalChildren`
+snapshot BEFORE clearing `resultsPanel`. DOM reparenting is automatic —
+appending a node to a new parent removes it from the old one — so
+`panel.replaceChildren(...original)` pulls the rows back out of
+`resultsPanel` first, leaving `resultsPanel` holding only the
+newly-created section headings and empty-state paragraphs (which
+`replaceChildren()` then clears safely).
+
 ## 1.8.0-bcb.4 — 2026-09-10
 
 ### Fixed: cross-window doc-uid collision could mark a second, un-marked doc as the speech doc (`multi-pane-shell.ts`)
