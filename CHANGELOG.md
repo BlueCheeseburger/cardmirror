@@ -7,6 +7,14 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **A search bar in Settings**, next to the "Settings" title — searches
+  every setting's name and description across every tab at once,
+  highlights the matched words in yellow, and shows only the matches
+  (grouped by tab) while you're typing. Clear the box to go back to
+  browsing normally.
+
 ### Fixed
 
 - **Opening a second window could wrongly mark one of ITS docs as the

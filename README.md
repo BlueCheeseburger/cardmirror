@@ -13,7 +13,10 @@
 >   doc-id collision, not an architecture bug — ids weren't unique
 >   across windows); the ribbon's right-click "Name/Rename Window" menu
 >   no longer renders underneath the ribbon itself; a named window's
->   title bar drops the redundant "— CardMirror" suffix. (open PR)
+>   title bar drops the redundant "— CardMirror" suffix. (main)
+> - **A search bar in Settings**, next to the title — searches every
+>   setting's name and description at once and highlights the matches.
+>   (main)
 > - **A successful save now flashes only the Save button**, not the
 >   Autosave toggle too — and the update-progress pill no longer
 >   resizes as the percent climbs. (main)
