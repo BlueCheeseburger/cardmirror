@@ -2797,7 +2797,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'voiceInputDeviceId',
     label: 'Voice control microphone',
     description:
-      'Which microphone the voice session (Ctrl-Shift-V) listens to. "System default" follows the OS setting. Device names appear after the first voice session grants microphone access. Desktop only.',
+      'Which microphone the voice session (Alt-Shift-V) listens to. "System default" follows the OS setting. Device names appear after the first voice session grants microphone access. Desktop only.',
     kind: 'voiceInputDevice',
     category: 'accessibility',
   },

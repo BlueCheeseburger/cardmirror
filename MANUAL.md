@@ -1881,7 +1881,7 @@ recognition model**.
 
 ### Turning it on
 
-**Ctrl-Shift-V** (Mod-Shift-V; rebindable) turns the microphone on. A
+**Alt-Shift-V** (Option-Shift-V on a Mac; rebindable) turns the microphone on. A
 **status pill** appears at the bottom right showing whether CardMirror is
 listening, the current **mode** as a labeled badge (command / dictating /
 asleep), the armed **pen**, what it last heard, and a live input meter.
@@ -2886,7 +2886,7 @@ these to extend the selection.
 ### Voice control (desktop)
 | Shortcut | Action |
 |----------|--------|
-| Ctrl-Shift-V | Start / stop a voice control session |
+| Alt-Shift-V | Start / stop a voice control session |
 
 The full, current list is always in the app: press **📖** in the ribbon.
 

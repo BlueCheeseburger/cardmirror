@@ -259,7 +259,7 @@ export class VoiceController {
 
   beginDictation(): void {
     if (!this.active) {
-      showToast('Turn voice control on first (Ctrl-Shift-V)', { durationMs: 1800 });
+      showToast('Turn voice control on first (Alt-Shift-V)', { durationMs: 1800 });
       return;
     }
     if (this.holding) return;

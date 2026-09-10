@@ -9,6 +9,9 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
+- **Voice control's shortcut is now Alt-Shift-V** (Option-Shift-V on a
+  Mac). Ctrl/Cmd-Shift-V is "paste and match style" in too many other
+  apps to sit on the microphone. Rebindable, as before.
 - **Voice control, rebuilt.** Voice now works the way people actually
   edit: point with the mouse, say what to do. Thirteen command words
   (line, box, glow, bare, shrink, tag, cite, card, chunk, ship, delete,

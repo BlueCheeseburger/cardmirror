@@ -5114,7 +5114,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   pullFromFlow: '',
   createFlow: '',
   startFlowHost: '',
-  toggleVoice: 'Mod-Shift-V',
+  toggleVoice: 'Alt-Shift-V',
   calibrateVoice: '',
   openCardCutter: 'Mod-Alt-c',
   addCutterContext: '',
@@ -6727,6 +6727,13 @@ export function ribbonKeyStringFor(e: KeyboardEvent): string {
     // binding. Normalize to PM's "Space" name so the global key
     // handler matches space bindings even when the editor is unfocused.
     parts.push('Space');
+  } else if (e.altKey && /^Key[A-Z]$/.test(e.code)) {
+    // With Option held, macOS reports the layout's dead/special
+    // character as e.key ("◊" for Option-Shift-V, "å" for Option-A),
+    // so an Alt chord on a letter would never match its binding
+    // outside the editor. Name the letter from e.code instead — the
+    // same keyCode fallback prosemirror-keymap uses inside it.
+    parts.push(e.code.slice(3).toLowerCase());
   } else if (e.key.length === 1) {
     // Single characters are matched case-insensitively, like
     // prosemirror-keymap does inside the editor: bindings are
