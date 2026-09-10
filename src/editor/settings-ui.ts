@@ -809,6 +809,16 @@ class SettingsModal {
     for (const panel of Object.values(this.categoryPanels)) {
       if (panel) panel.hidden = true;
     }
+    // Restore rows to their home panels before clearing resultsPanel.
+    // On a second (or re-typed) search, rows from the previous result
+    // are currently inside resultsPanel; replaceChildren() below would
+    // detach them from the DOM entirely, making querySelector return null
+    // and causing every previously-matched row to disappear from search.
+    for (const { id } of visibleCategoryTabs()) {
+      const panel = this.categoryPanels[id];
+      const original = this.panelOriginalChildren[id];
+      if (panel && original) panel.replaceChildren(...original);
+    }
     resultsPanel.replaceChildren();
     resultsPanel.hidden = false;
 
