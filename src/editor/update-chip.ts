@@ -42,7 +42,14 @@ export function renderUpdateChip(el: HTMLButtonElement, s: UpdateChipState | nul
     const pct = Math.max(0, Math.min(100, Math.round(s.pct)));
     el.setAttribute('data-state', 'downloading');
     el.style.setProperty('--pmd-update-pct', `${pct}%`);
-    el.textContent = `Downloading update ${s.version} — ${pct}%`;
+    // The percent is a separate, fixed-width span (`.pmd-update-chip-pct`,
+    // sized in style.css to fit "100%") so the pill doesn't grow/shrink
+    // as the digit count changes across the 0–100 climb — only this one
+    // span's text changes per tick, the prefix stays put.
+    const pctEl = document.createElement('span');
+    pctEl.className = 'pmd-update-chip-pct';
+    pctEl.textContent = `${pct}%`;
+    el.replaceChildren(`Downloading update ${s.version} — `, pctEl);
     el.title = `Downloading update ${s.version}: ${pct}% complete`;
     return;
   }

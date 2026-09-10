@@ -5,6 +5,56 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed: save success now flashes only Save, not Autosave (`index.ts`, `multi-pane-shell.ts`)
+
+Field report: `flashSaveSuccess()` (single-doc) and
+`Slot.flashChipSaveSuccess()` (multi-pane) both flashed the ✓ glyph
+on TWO buttons whenever autosave was enabled — the Save button AND
+the Autosave toggle. This was deliberate at the time (a prior turn's
+"three-pane autosave now flashes the Save button on success" fix
+extended the existing single-doc dual-flash to multi-pane for
+parity), but the user asked for it to be Save-only: the Autosave
+button is an on/off setting, not a per-write event, and flashing it
+on every autosave tick read as "autosave itself changed" rather than
+"your doc was written."
+
+Removed the `if (autosaveEnabled) flashSavedGlyph(autosaveBtn)` branch
+from both functions — `flashSaveSuccess()` now unconditionally
+`flashSavedGlyph(exportBtn)`s and returns; `flashChipSaveSuccess()`
+now unconditionally flashes `chipSaveBtn` only. `autosaveBtn`/
+`chipAutosaveBtn` still get their normal `aria-pressed`/effective-
+state styling from the existing toggle logic elsewhere — only the
+success-flash call site changed. No test asserted the old dual-flash
+behavior (confirmed via grep), so nothing needed updating there.
+
+### Fixed: update-progress pill no longer resizes per tick (`update-chip.ts`, `style.css`)
+
+Field report: the downloading-state pill's overall width visibly
+jittered as `pct` climbed (`"Downloading update 1.8.0-bcb.3 — 0%"` vs
+`"…— 100%"` differ by 2 characters), since the whole label was one
+plain-text string with no fixed dimensions.
+
+`renderUpdateChip`'s downloading branch now builds the label as a text
+node (`"Downloading update {version} — "`) plus a separate `<span
+class="pmd-update-chip-pct">` holding just `"{pct}%"`, via
+`el.replaceChildren(...)` (accepts a plain string as text-node
+shorthand, same as `append`/`prepend`). New CSS:
+`.pmd-update-chip-pct { width: 2.6em; text-align: right;
+font-variant-numeric: tabular-nums; }` — fixed at "100%"'s width
+regardless of the actual digit count, right-aligned so shorter values
+sit flush against where the widest value would end, and
+`tabular-nums` so even same-width digit swaps (42%→58%) don't shift
+by a sub-pixel amount. The `ready`/`available` branches are untouched
+(still plain `el.textContent = ...`) — `el.textContent`'s existing
+exact-string test assertions still pass unchanged since it
+concatenates all descendant text regardless of DOM shape.
+
+New assertion in the existing downloading-state test in
+`tests/editor/update-chip.test.ts`: `el.querySelector('.pmd-update-chip-pct')`
+holds exactly the percent text.
+
 ## 1.8.0-bcb.3.1 — 2026-09-09
 
 ### Added: "Shrink" exposed as a Card-menu item (`index.ts`)
