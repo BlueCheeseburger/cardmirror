@@ -66,32 +66,26 @@ list scrolls past ~18rem, like the sessions list, so a 24-document
 workspace can't push the utilities off screen.
 
 Ticks are durable, not a per-click filter: the untick list (`excluded`)
-lives on the snapshot in the store, so the home screen's Reopen button
-and the at-launch restore both go through one `selectedDocs` helper and
-can't drift apart. It carries across roll-overs for paths still in the
-set — untick a document once and it stops reopening every launch — and
-is pruned of everything else, so a document that leaves the set and
-returns months later comes back ticked rather than silently suppressed.
-One wrinkle worth recording: ticking a box deliberately does NOT
-re-render the list (that would rebuild it under the user's cursor), so
-the captured snapshot's `excluded` is stale by the time Reopen is
-clicked; the button sends what's on screen rather than what it was
-rendered from. A unit test covers exactly that (it caught the bug).
+lives on the snapshot in the store, carried across roll-overs for paths
+still in the set and pruned of everything else — so a document that
+leaves the set and returns months later comes back ticked rather than
+silently suppressed. One wrinkle worth recording: ticking a box
+deliberately does NOT re-render the list (that would rebuild it under
+the user's cursor), so the captured snapshot's `excluded` is stale by
+the time Reopen is clicked; the button sends what's on screen rather
+than what it was rendered from. A unit test covers exactly that (it
+caught the bug).
 
-Because a launch restore never lands on the home screen, the checklist
-that governs it would otherwise be somewhere the user has to go hunting
-for — so each automatic reopen files a status-bar notice naming what it
-opened and where the tick boxes are. Deliberately `postNotice`, not a
-toast: nothing floats over the page (toast audit, 2026-08-17), and at
-launch the pointer hasn't moved, so a cursor-anchored tooltip would
-land in the corner.
+Nothing reopens at launch. An at-launch restore was built first, behind
+an opt-in setting, and then removed after field use: with it on you
+never land on the home screen, so the checklist that decides WHAT comes
+back is somewhere you have to go hunting for — and a status-bar notice
+pointing at it was a workaround for a design that shouldn't need one.
+The roll-over now only MINTS the snapshot; the home screen is the single
+place that decides what reopens, which is also what a blank launch has
+always shown. `reopenWorkspaceOnLaunch` is gone with it.
 
-The launch restore is opt-in (`reopenWorkspaceOnLaunch`, default off —
-a launch that silently reopens six files is a surprise unless it was
-asked for) and runs AFTER startup recovery, so a recovered draft keeps
-this window and the restore skips it as already open. It never fires on
-a mode-switch reload, which reopens an exact doc set of its own. The
-feature is gated on the Electron host throughout: the web edition can't
+The feature is gated on the Electron host throughout: the web edition can't
 serialize a `FileSystemFileHandle`, exactly as in `recents-store.ts`,
 so docs with no string path are never recorded and the Home screen
 section is omitted rather than shown dead.

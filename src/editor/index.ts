@@ -7501,28 +7501,6 @@ async function restoreWorkspace(snapshot: WorkspaceSnapshot): Promise<number> {
   return opened;
 }
 
-/** The at-launch restore, plus the notice that makes its one control
- *  findable. With `reopenWorkspaceOnLaunch` on, boot never lands on the
- *  home screen — so the checklist that decides WHAT comes back would
- *  otherwise be somewhere the user has to go hunting for. A status-bar
- *  notice (not a toast: nothing floats over the page, and at launch the
- *  pointer hasn't moved, so a cursor-anchored tooltip would land in the
- *  corner) says what happened and where to change it. */
-async function runLaunchWorkspaceRestore(snapshot: WorkspaceSnapshot): Promise<void> {
-  const opened = await restoreWorkspace(snapshot);
-  if (opened === 0) return;
-  postNotice({
-    severity: 'info',
-    title: opened === 1 ? 'Reopened 1 document' : `Reopened ${opened} documents`,
-    body:
-      'From your last workspace. To stop a document coming back at every launch, ' +
-      'untick it under Last workspace on the home screen — or turn off ' +
-      '"Reopen last workspace at launch" in Settings → General → Workspace.',
-    key: 'workspace-launch-restore',
-    toast: false,
-  });
-}
-
 /** Reopen a recent file in-place via its stored path handle.
  *  Prunes the entry if the file is gone / unreadable. */
 async function openRecentInPlace(recent: RecentFile): Promise<void> {
@@ -9951,8 +9929,11 @@ if (BOOT_MULTI_DOC_WORKSPACE) {
     // Roll the previous session's open set into the offerable
     // snapshot BEFORE anything mounts (the roll-over empties the live
     // map, so a doc reported first would be swept back out), then
-    // re-report whatever this window ends up holding.
-    const lastSession = rolloverLastWorkspace();
+    // re-report whatever this window ends up holding. Nothing is
+    // reopened here: launch always lands on the home screen, where the
+    // Last workspace checklist is the single place that decides what
+    // comes back.
+    rolloverLastWorkspace();
     // If this window was spawned for an OS open (cold launch), route
     // its initial doc through the slot picker instead of booting
     // blank. Skip recovery when we did — a spawned-for-a-file window
@@ -9966,11 +9947,6 @@ if (BOOT_MULTI_DOC_WORKSPACE) {
       // auto-reopened docs hide it via the slot-populated hook.
       homeScreen.show();
       await runStartupRecovery();
-      // Opt-in launch restore, after recovery so a recovered draft
-      // keeps its slot and the restore skips that doc as already open.
-      if (lastSession && settings.get('reopenWorkspaceOnLaunch')) {
-        await runLaunchWorkspaceRestore(lastSession);
-      }
     }
   })();
 } else {
@@ -10016,8 +9992,11 @@ async function initSingleDocBoot(): Promise<void> {
   }
   // Only the first window rolls the previous session's set over, and
   // it does so before its own doc is reported (the roll-over empties
-  // the live map). Later windows just keep reporting.
-  const lastSession = isFirst ? rolloverLastWorkspace() : null;
+  // the live map). Later windows just keep reporting. The roll-over
+  // only MINTS the snapshot — nothing is reopened at launch; the home
+  // screen's Last workspace checklist is the single place that decides
+  // what comes back.
+  if (isFirst) rolloverLastWorkspace();
   // A spawned window carries an initial-doc payload. Check regardless of THIS
   // window's own `canSpawnWindow`: a web window spawned into a plain browser tab
   // isn't itself standalone, but must still mount the doc it was opened with.
@@ -10080,11 +10059,6 @@ async function initSingleDocBoot(): Promise<void> {
     // no-recovery launch lands on the hub rather than a blank doc.
     homeScreen.show();
     await runStartupRecovery();
-    // Opt-in launch restore. A mode-switch reload already reopens an
-    // exact doc set of its own, so it never doubles up with this.
-    if (lastSession && !modeSwitchPending && settings.get('reopenWorkspaceOnLaunch')) {
-      await runLaunchWorkspaceRestore(lastSession);
-    }
   }
   if (isFirst) {
     const electron = getElectronHost();

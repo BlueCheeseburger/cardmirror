@@ -1970,14 +1970,11 @@ untick the ones you don't want, or use **All** / **None** to flip the whole
 list. In the three-pane workspace each document goes back to the pane it was
 in; in single-document mode each gets its own window.
 
-Turn on **Settings → General → Workspace → Reopen last workspace at launch**
-and CardMirror opens that set for you at every start, without stopping at the
-Home screen. It opens the **ticked** documents only: unticking one is a
-standing choice, so a file you've unticked stops coming back at launch (and
-stays unticked as the set changes from session to session) until you tick it
-again. Because launch skips the Home screen, each automatic reopen files a
-note in the status bar's ⚠ chip saying what it opened and where the tick
-boxes live.
+CardMirror never reopens documents behind your back: a launch with no file
+lands on the Home screen, where the list is waiting, and nothing opens until
+you say so. Your ticks are remembered between sessions, so a document you
+untick stays unticked as the set changes from one session to the next until
+you tick it again.
 
 Close every document before you quit and there's nothing to offer, so the
 section disappears — a clean quit means a clean start. To keep a particular

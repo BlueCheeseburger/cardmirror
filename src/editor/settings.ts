@@ -1466,13 +1466,6 @@ export interface Settings {
    *  page reload to (re)build the editor shell. Comments are
    *  unavailable while this is on. See SPEC-multi-pane.md. */
   multiDocWorkspace: boolean;
-  /** When on, launching CardMirror reopens the documents the previous
-   *  session ended with — the ones still TICKED in the home screen's
-   *  Last workspace checklist, which is the same list the manual
-   *  Reopen honours. Off by default — a launch that silently reopens
-   *  six files is a surprise unless it was asked for. Desktop only:
-   *  reopening needs on-disk paths. */
-  reopenWorkspaceOnLaunch: boolean;
   /** Which UI shell the web edition uses on this device. `'auto'`
    *  picks the mobile shell on coarse-pointer screens narrower than
    *  1024px (resolved once per load — rotating mid-session doesn't
@@ -1883,7 +1876,6 @@ const DEFAULTS: Settings = {
   googleTranslateApiKey: '',
   prependTranslationMarker: true,
   multiDocWorkspace: false,
-  reopenWorkspaceOnLaunch: false,
   mobileLayout: 'auto',
   multiDocLayoutMode: 'compact',
   quickCardActiveTags: [],
@@ -2133,16 +2125,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Workspace',
     aliases: ['split view', 'split screen', 'multi pane', 'multi-doc'],
-  },
-  {
-    key: 'reopenWorkspaceOnLaunch',
-    label: 'Reopen last workspace at launch',
-    description:
-      'Start CardMirror with the documents you had open when you last quit — in the same panes, or one window each in single-document mode. Only the documents still ticked under "Last workspace" on the home screen are reopened, so unticking one stops it coming back at every launch. With this off, the same set is still one click away on the home screen.',
-    kind: 'toggle',
-    category: 'general',
-    section: 'Workspace',
-    aliases: ['restore session', 'reopen documents', 'restore workspace', 'session restore', 'reopen tabs'],
   },
   {
     key: 'multiDocLayoutMode',
@@ -4766,7 +4748,6 @@ function sanitize(s: Settings): Settings {
       typeof s.googleTranslateApiKey === 'string' ? s.googleTranslateApiKey.trim() : '',
     prependTranslationMarker: s.prependTranslationMarker === false ? false : true,
     multiDocWorkspace: !!s.multiDocWorkspace,
-    reopenWorkspaceOnLaunch: !!s.reopenWorkspaceOnLaunch,
     mobileLayout:
       s.mobileLayout === 'mobile' || s.mobileLayout === 'desktop'
         ? s.mobileLayout

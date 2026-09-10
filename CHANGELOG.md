@@ -16,14 +16,11 @@ see `DETAILED_CHANGELOG.md`.
   whole list, so coming back to a 15-document workspace doesn't have to
   mean reopening all 15. In the three-pane workspace each document
   returns to the pane it was in; in single-document mode each gets its
-  own window. Turn on **Settings → General → Workspace → Reopen last
-  workspace at launch** to have it happen automatically at every start —
-  and because unticking a document is a standing choice rather than a
-  one-off filter, the automatic reopen honours it too: untick a file
-  once and it stops coming back every launch, without having to turn
-  the whole feature off. Since launch skips the Home screen, each
-  automatic reopen leaves a note in the status bar's ⚠ chip saying what
-  it opened and where to change it.
+  own window. Nothing is reopened behind your back — a launch with no
+  file lands on the Home screen as it always has, and the set waits
+  there until you click. Ticks are remembered between sessions, so a
+  document you untick stays unticked as the set changes from one
+  session to the next.
   Closing everything before you quit clears the set — a clean quit
   means a clean start — unless you deliberately saved it with the new
   **Save Workspace** command, which keeps a working set on offer until
