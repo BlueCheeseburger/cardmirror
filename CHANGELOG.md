@@ -13,11 +13,22 @@ see `DETAILED_CHANGELOG.md`.
   every setting's name and description across every tab at once,
   highlights the matched words in yellow, and shows only the matches
   (grouped by tab) while you're typing. Clear the box to go back to
-  browsing normally. Not yet merged to `main` — out on its own branch
-  pending review.
+  browsing normally.
 
 ### Fixed
 
+- **Opening a second window could wrongly mark one of ITS docs as the
+  active speech document too**, even though only one doc anywhere had
+  actually been marked — a uid-collision bug (every window's per-pane
+  doc ids restarted from `doc-1`, so a second window's first pane
+  could collide with the first window's already-marked doc's id).
+  Doc ids are now unique across windows.
+- **Right-clicking the ribbon to name/rename a window opened a menu
+  you couldn't see or click** — it rendered underneath the ribbon
+  itself, since the click that opens it is necessarily inside the
+  ribbon's own bounds.
+- **A named window's title bar no longer has a redundant "— CardMirror"
+  suffix** — it's just the name you gave it.
 - **A successful save (manual or autosave) now flashes only the Save
   button's checkmark, not the Autosave toggle's** — the Autosave
   button reflects an on/off setting, not "a write just happened," so
