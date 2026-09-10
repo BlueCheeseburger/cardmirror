@@ -46,6 +46,17 @@ function makeView(bodyText = 'alpha') {
 const deps: DispatchDeps = { ribbonCtx: undefined as unknown as RibbonContext, ui: { echo() {}, hint() {} } };
 
 describe('dictation landing', () => {
+  it('dictating with text selected replaces the selection (no replace verb needed)', () => {
+    const view = makeView('alpha bravo charlie');
+    const bodyStart = 1 + view.state.doc.child(0).child(0).nodeSize + 1;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, bodyStart + 6, bodyStart + 11)));
+    expect(view.state.doc.textBetween(view.state.selection.from, view.state.selection.to)).toBe('bravo');
+    landDictation(view, { utteranceId: 1, pen: null, deps, text: 'delta' });
+    expect(view.state.doc.child(0).child(1).textContent).toBe('alpha delta charlie');
+    undo(view.state, view.dispatch);
+    expect(view.state.doc.child(0).child(1).textContent, 'one undo step restores the selection text').toBe('alpha bravo charlie');
+  });
+
   it('chunks words whole and every other character alone', () => {
     expect(typingChunks('hello, world---end')).toEqual(['hello', ',', ' ', 'world', '-', '-', '-', 'end']);
   });

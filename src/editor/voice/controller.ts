@@ -162,9 +162,6 @@ export class VoiceController {
       ribbonCtx: this.deps.ribbonCtx,
       ui,
       undo: this.deps.undo,
-      armReplace: () => {
-        this.pill?.setEcho('hold the dictation key and say the replacement', true);
-      },
     };
 
     this.unsubscribers.push(

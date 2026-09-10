@@ -34,7 +34,6 @@ export interface DispatchDeps {
   undo?: () => boolean;
   /** Start a held dictation programmatically — `replace` deletes the
    *  selection and hands the next dictation the space. Optional. */
-  armReplace?: () => void;
 }
 
 /** Mark names each pen can have produced. */
@@ -168,16 +167,6 @@ export async function applyVoiceCommand(
           ok = false;
         } else {
           dispatch(deleteSelectionKeepingLeadingCursor(view.state));
-        }
-        break;
-      case 'replace':
-        if (sel.empty) {
-          deps.ui.hint('select the text to replace, then say replace');
-          ok = false;
-        } else {
-          dispatch(deleteSelectionKeepingLeadingCursor(view.state));
-          deps.armReplace?.();
-          echoText = `${event.raw} — dictate the replacement`;
         }
         break;
       default:

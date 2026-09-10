@@ -1,5 +1,5 @@
 /**
- * Voice v2 dispatcher: the fourteen words against the existing command
+ * Voice v2 dispatcher: the thirteen words against the existing command
  * layer. Mark words mark a selection or arm the sticky pen; `bare` clears
  * or disarms; `card` inserts a fresh card after the current one; `delete`
  * needs a selection; `undo` goes through the editor's own undo path.
@@ -70,7 +70,7 @@ describe('voice dispatch', () => {
     expect(view.state.selection.$from.parent.type.name).toBe('tag');
   });
 
-  it('delete and replace need a selection; delete removes it', async () => {
+  it('delete needs a selection and removes it', async () => {
     const { view, bodyStart } = makeView();
     hints.length = 0;
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, bodyStart)));

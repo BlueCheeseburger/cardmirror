@@ -1895,7 +1895,7 @@ session doesn't transcribe the room.
 
 ### Commands
 
-Fourteen words. A command fires only when the word is the whole thing you
+Thirteen words. A command fires only when the word is the whole thing you
 said — "line" fires, "the line of argument" does not — so ordinary
 conversation doesn't trigger anything. Select with the mouse first when a
 command needs a span.
@@ -1914,7 +1914,6 @@ command needs a span.
 | **cite** | apply the Cite style to the selection |
 | **card** | insert a new card after the current one and land in its tag |
 | **delete** | delete the selection |
-| **replace** | delete the selection and wait for your dictated replacement |
 | **undo** | undo, exactly like Ctrl-Z |
 
 Every voice action is a single undo step, so a spoken `undo` and Ctrl-Z
@@ -1926,7 +1925,7 @@ Dictation uses a **hold-to-dictate key** (default **Mod-Shift-Space**,
 changeable under Settings → Accessibility → Hold to dictate). Hold it,
 speak, release: the words land at the cursor. A foot pedal that acts as a
 keyboard key works the same way. While the key is held, command words are
-ignored — say "delete the paragraph" in a dictation and it types.
+ignored — say "delete the paragraph" in a dictation and it types. With text selected, dictating replaces it.
 
 Dictated text goes through the same autocorrect rules as typing, so `---`
 becomes an em dash and your expansions fire. Spoken punctuation works

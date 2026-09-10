@@ -3,7 +3,7 @@
  * §6.1). Shared by the desktop recognizer worker (bundled) and the
  * renderer (calibration, tests). Pure: no DOM, no Node.
  *
- * Fourteen words, chosen for acoustic distance, each mapped to an existing
+ * Thirteen words, chosen for acoustic distance, each mapped to an existing
  * editor command by the dispatcher. A command fires only when the WHOLE
  * utterance is one vocabulary word (after trimming fillers): "line"
  * fires; "the line of argument" does not — that rule, not a grammar, is
@@ -23,7 +23,6 @@ export const VOICE_COMMANDS = [
   'chunk',
   'ship',
   'undo',
-  'replace',
   'delete',
 ] as const;
 export type VoiceVerb = (typeof VOICE_COMMANDS)[number];
@@ -42,7 +41,6 @@ export const VOICE_COMMAND_LABELS: Record<VoiceVerb, string> = {
   chunk: 'select heading',
   ship: 'send to speech',
   undo: 'undo',
-  replace: 'replace',
   delete: 'delete',
 };
 
@@ -68,7 +66,6 @@ export const BUILT_IN_ALIASES: Record<VoiceVerb, readonly string[]> = {
   chunk: ['chunks', 'chuck', 'junk', 'trunk', 'chunky'],
   ship: ['ships', 'shipped', 'chip', 'sip', 'shep'],
   undo: ['undue', 'and do', 'un do', 'ondo'],
-  replace: ['replaced', 're place', 'replays'],
   delete: ['deleted', 'the lead', 'delet', 'dilate'],
 };
 

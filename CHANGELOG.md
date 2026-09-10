@@ -10,9 +10,9 @@ see `DETAILED_CHANGELOG.md`.
 ### Changed
 
 - **Voice control, rebuilt.** Voice now works the way people actually
-  edit: point with the mouse, say what to do. Fourteen command words
+  edit: point with the mouse, say what to do. Thirteen command words
   (line, box, glow, bare, shrink, tag, cite, card, chunk, ship, delete,
-  replace, condense, undo) fire whenever voice is on, no wake word, and only
+  condense, undo) fire whenever voice is on, no wake word, and only
   when the word is the whole thing you said, so conversation doesn't
   trigger anything. Dictation is a hold-to-dictate key (default
   Mod-Shift-Space; a foot pedal works): hold, speak, release. Dictated

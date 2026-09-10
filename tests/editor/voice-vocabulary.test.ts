@@ -15,9 +15,9 @@ import {
 } from '../../src/editor/voice/vocabulary.js';
 
 describe('voice vocabulary', () => {
-  it('has fourteen acoustically spaced words', () => {
-    expect(VOICE_COMMANDS).toHaveLength(14);
-    expect(new Set(VOICE_COMMANDS).size).toBe(14);
+  it('has thirteen acoustically spaced words', () => {
+    expect(VOICE_COMMANDS).toHaveLength(13);
+    expect(new Set(VOICE_COMMANDS).size).toBe(13);
   });
 
   it('normalizes recognizer output: case, punctuation, fillers', () => {
@@ -38,7 +38,7 @@ describe('voice vocabulary', () => {
 
   it('allows one character off for the longer words only', () => {
     expect(matchCommand('condensed')).toBe('condense');
-    expect(matchCommand('replase')).toBe('replace');
+    expect(matchCommand('shrinl')).toBe('shrink');
     expect(matchCommand('lint')).toBeNull(); // short words stay exact
     expect(matchCommand('bag')).toBeNull();
   });
