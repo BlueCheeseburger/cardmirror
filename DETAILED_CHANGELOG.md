@@ -7,6 +7,8 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+## 1.8.0-bcb.4 — 2026-09-10
+
 ### Fixed: cross-window doc-uid collision could mark a second, un-marked doc as the speech doc (`multi-pane-shell.ts`)
 
 Field report (2026-09-10): user marked exactly one document as the
