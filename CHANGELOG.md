@@ -5,6 +5,35 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Added
+
+- **Last workspace — reopen what you had open last time.** CardMirror
+  now remembers the documents open when you last quit and lists them on
+  the Home screen under **Last workspace**, each with a tick box:
+  **Reopen** opens the ticked ones, and **All** / **None** flip the
+  whole list, so coming back to a 15-document workspace doesn't have to
+  mean reopening all 15. In the three-pane workspace each document
+  returns to the pane it was in; in single-document mode each gets its
+  own window. Nothing is reopened behind your back — a launch with no
+  file lands on the Home screen as it always has, and the set waits
+  there until you click. Ticks are remembered between sessions, so a
+  document you untick stays unticked as the set changes from one
+  session to the next.
+  Closing everything before you quit clears the set — a clean quit
+  means a clean start — unless you deliberately saved it with the new
+  **Save Workspace** command, which keeps a working set on offer until
+  you quit with other documents open. **Reopen Last Workspace**
+  restores it without going via the Home screen, and **Forget** drops
+  it. (Both commands are unbound by default.) Desktop only — reopening
+  needs files on disk — and documents you never saved aren't included;
+  a file that has since moved or been deleted is skipped with a note,
+  and one that's already open (here or in another window) is never
+  duplicated. Closing a window before you quit drops its document from
+  the set, so what comes back is what was open when you quit. Thanks
+  to Cora (@coralynnkc)!
+
 ## 1.9.0 — 2026-09-09
 
 ### Added
