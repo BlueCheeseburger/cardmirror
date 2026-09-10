@@ -5,6 +5,18 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed
+
+- **A successful save (manual or autosave) now flashes only the Save
+  button's checkmark, not the Autosave toggle's** — the Autosave
+  button reflects an on/off setting, not "a write just happened," so
+  flashing it alongside every autosave tick read as noise.
+- **The update-progress pill no longer changes width as the percent
+  climbs** (e.g. "7%" vs "100%") — the percent now sits in a
+  fixed-width slot instead of resizing the whole pill on every tick.
+
 ## 1.8.0-bcb.3.1 — 2026-09-09
 
 ### Added

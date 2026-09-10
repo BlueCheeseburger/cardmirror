@@ -2353,6 +2353,18 @@ body:not(.pmd-multi-doc) #app {
 #update-chip[data-state='downloading']:hover {
   color: var(--pmd-c-accent);
 }
+/* Fixed-width percent readout so the pill's own width doesn't jitter
+   as the digit count grows across the 0–100 climb (1 digit up to 3) —
+   sized to fit "100%", right-aligned so shorter values ("0%"/"7%")
+   stay flush against where the widest value would end. Tabular figures
+   so even digit-for-digit swaps within the same width (e.g. 42%→58%)
+   don't shift by a fraction of a pixel. */
+.pmd-update-chip-pct {
+  display: inline-block;
+  width: 2.6em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
 .status-segment {
   display: flex;
