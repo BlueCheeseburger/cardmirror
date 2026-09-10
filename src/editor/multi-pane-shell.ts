@@ -74,7 +74,7 @@ import {
   formatNumber,
   type ReadAloudCounts,
 } from './word-count.js';
-import { liveContainerSegment, primaryReadSegment, remainingReadSegment } from './live-read-time.js';
+import { liveContainerSegment, orderWordCountSegments, primaryReadSegment, remainingReadSegment } from './live-read-time.js';
 import { openWordCount } from './word-count-ui.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
 import {
@@ -1236,11 +1236,14 @@ class Slot {
     }
     // Whole-doc readout off and nothing selected: no doc walk, the
     // footer belongs to the other segments (mirroring single-pane).
-    // Pipe-joined in scope order — whole doc, enclosing container,
-    // what's left — each independently optional, mirroring single-pane.
-    const segments = [primary, liveContainerSegment(rec.view.state), remainingReadSegment(rec.view.state)].filter(
-      (s): s is string => s !== null,
-    );
+    // Pipe-joined in the user's order (this pane's read mode picks
+    // which), each independently optional, mirroring single-pane.
+    const order = settings.get(rec.readMode ? 'wordCountOrderReadMode' : 'wordCountOrder');
+    const segments = orderWordCountSegments(order, {
+      doc: primary,
+      container: liveContainerSegment(rec.view.state),
+      remaining: remainingReadSegment(rec.view.state),
+    });
     this.wcEl.textContent = segments.join(' | ');
   }
 
@@ -2211,6 +2214,8 @@ class MultiPaneShell {
     // setActiveView is the path that drives `refreshReadModeBtn`,
     // so we route through it to keep the ribbon button in sync.
     setActiveView(rec.view);
+    // The footer's readout order depends on this pane's read mode.
+    this.focusedSlot?.refreshWordCount();
   }
 
   /** Zoom the focused pane's body by a delta (per-pane). The zoom commands /

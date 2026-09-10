@@ -7,6 +7,7 @@
  * settings store immediately.
  */
 
+import { WORD_COUNT_ORDERS, type WordCountOrder } from './word-count-order.js';
 import { confirmDialog, promptForRouteChoice } from './text-prompt.js';
 import { isLiteBuild } from './lite.js';
 import { entryConflictWarnings } from './custom-autocorrect-plugin.js';
@@ -1005,6 +1006,10 @@ class SettingsModal {
     } else if (meta.kind === 'enterAfterStyle') {
       row.appendChild(text);
       row.appendChild(buildEnterAfterStyleEditor());
+      return row;
+    } else if (meta.kind === 'wordCountOrder') {
+      row.appendChild(text);
+      row.appendChild(buildWordCountOrderEditor());
       return row;
     } else if (meta.kind === 'colorOverrides') {
       row.appendChild(text);
@@ -4951,6 +4956,46 @@ type EnterAfterStyleKey =
   | 'enterAfterTag'
   | 'enterAfterAnalytic'
   | 'enterAfterUndertag';
+/** Two selects under one row — the order while editing and the order
+ *  in read mode — over the same six permutations. */
+function buildWordCountOrderEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-display-sizes-editor pmd-word-count-order-editor';
+  const fields: { key: 'wordCountOrder' | 'wordCountOrderReadMode'; label: string }[] = [
+    { key: 'wordCountOrder', label: 'While editing' },
+    { key: 'wordCountOrderReadMode', label: 'In read mode' },
+  ];
+  const selects: [typeof fields[number]['key'], HTMLSelectElement][] = [];
+  for (const f of fields) {
+    const row = document.createElement('div');
+    row.className = 'pmd-display-size-row';
+    const label = document.createElement('label');
+    label.className = 'pmd-display-size-label';
+    label.textContent = f.label;
+    row.appendChild(label);
+    const select = document.createElement('select');
+    select.className = 'pmd-body-font-select';
+    for (const o of WORD_COUNT_ORDERS) {
+      const opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.label;
+      select.appendChild(opt);
+    }
+    select.value = settings.get(f.key);
+    select.addEventListener('change', () => {
+      settings.set(f.key, select.value as WordCountOrder);
+    });
+    row.appendChild(select);
+    wrap.appendChild(row);
+    selects.push([f.key, select]);
+  }
+  const unsub = settings.subscribe(() => {
+    for (const [key, select] of selects) select.value = settings.get(key);
+  });
+  registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
 function buildEnterAfterStyleEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-display-sizes-editor pmd-enter-style-editor';

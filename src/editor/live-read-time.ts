@@ -123,6 +123,15 @@ function countCached(doc: PMNode, from: number, to: number): ReadAloudCounts {
  *  the feature is off or nothing applies. Callers join it to the
  *  primary readout with " | " — and label their whole-doc side "Doc:"
  *  while this feature is on, so the two sides read symmetrically. */
+export {
+  DEFAULT_WORD_COUNT_ORDER,
+  WORD_COUNT_ORDERS,
+  isWordCountOrder,
+  orderWordCountSegments,
+  type WordCountOrder,
+  type WordCountSegmentId,
+} from './word-count-order.js';
+
 /** The bar's FIRST segment: the whole document — or, with
  *  `liveSelectionWordCount` on and a range selected, the selection.
  *  Null when the whole-doc readout is turned off (`liveDocWordCount`)

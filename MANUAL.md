@@ -1128,6 +1128,13 @@ on a narrow window with room for only the specific counts. A live selection
 still shows while that setting is on, and the Word Count button (Σ) always
 has the whole-document count on demand.
 
+The readouts' left-to-right order is yours too: **Settings → General →
+"Order of the live word counts"** offers every arrangement of Doc, Card,
+and Left, with one order **while editing** and another **in read mode** —
+a reader often wants what's left first and the whole-document number last,
+an editor the reverse. Readouts you have turned off simply drop out of the
+order. In the three-pane workspace each pane follows its own read mode.
+
 A third readout — **what's left to read** — is available and **off by
 default**: turn on **Settings → General → "Live read time for what is
 left to read"** and the bar appends everything still ahead of your
@@ -2323,6 +2330,9 @@ headers shown inside each tab.
   the bar's first readout (the whole document's count and read times) so
   a narrow window can show only the specific counts you keep on. The Word
   Count button (Σ) still gives the whole-document count on demand.
+- **Order of the live word counts** — the left-to-right order of the
+  bar's readouts (Doc, Card, Left), with one order while editing and
+  another in read mode.
 - **Live word count for the current selection** — off by default. When
   on, the status bar's count and read time follow your selection as you
   change it; leave it off on very large docs if you notice drag lag.

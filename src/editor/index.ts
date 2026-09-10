@@ -348,7 +348,7 @@ import {
   formatNumber,
   type ReadAloudCounts,
 } from './word-count.js';
-import { liveContainerSegment, primaryReadSegment, remainingReadSegment } from './live-read-time.js';
+import { liveContainerSegment, orderWordCountSegments, primaryReadSegment, remainingReadSegment } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import {
   installGlobalErrorSurface,
@@ -5037,13 +5037,16 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
     lastWholeDocWords = null;
   }
 
-  // Segments are pipe-joined in scope order — whole doc, the enclosing
-  // container, what's left — and each is independently optional, so the
-  // join filters rather than nesting conditionals (container off with
-  // remaining on reads "Doc: … | Left: …").
-  const segments = [primary, liveContainerSegment(view.state), remainingReadSegment(view.state)].filter(
-    (s): s is string => s !== null,
-  );
+  // Segments are pipe-joined in the user's order — one order while
+  // editing, another in read mode — and each is independently optional,
+  // so the join filters rather than nesting conditionals (container off
+  // with remaining on reads "Doc: … | Left: …").
+  const order = settings.get(settings.get('readMode') ? 'wordCountOrderReadMode' : 'wordCountOrder');
+  const segments = orderWordCountSegments(order, {
+    doc: primary,
+    container: liveContainerSegment(view.state),
+    remaining: remainingReadSegment(view.state),
+  });
   wordCountText.textContent = segments.join(' | ');
 }
 

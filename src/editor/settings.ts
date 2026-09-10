@@ -8,6 +8,7 @@
  * config can layer on later as its own module without colliding.
  */
 
+import { DEFAULT_WORD_COUNT_ORDER, isWordCountOrder, type WordCountOrder } from './word-count-order.js';
 import { isWordHighlightName, isHex6 } from './color-palette.js';
 import { sanitizeAcronymPattern, type AcronymPattern } from './acronym-patterns.js';
 import type { IconName } from './icons.js';
@@ -992,6 +993,11 @@ export interface Settings {
    * doc, so a cursor move only counts the child it lands in.
    */
   liveRemainingReadTime: boolean;
+  /** Left-to-right order of the live readouts while editing (see
+   *  `WordCountOrder` in live-read-time.ts). */
+  wordCountOrder: WordCountOrder;
+  /** …and while the document is in read mode. */
+  wordCountOrderReadMode: WordCountOrder;
   /**
    * Per-style font sizes (in points). See DisplaySizes for details.
    * Each field becomes a CSS custom property on `#editor`.
@@ -1784,6 +1790,8 @@ const DEFAULTS: Settings = {
   liveDocWordCount: true,
   liveContainerReadTime: true,
   liveRemainingReadTime: false,
+  wordCountOrder: 'doc-container-remaining',
+  wordCountOrderReadMode: 'doc-container-remaining',
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
   displayParagraphSpacing: { ...DEFAULT_PARAGRAPH_SPACING },
   displayTypography: { ...DEFAULT_DISPLAY_TYPOGRAPHY },
@@ -2065,6 +2073,7 @@ export interface SettingMeta {
     | 'timerPrepLabel'
     | 'timerPosition'
     | 'enterAfterStyle'
+    | 'wordCountOrder'
     | 'password'
     | 'voiceInputDevice'
     | 'voiceDashStyle'
@@ -2307,6 +2316,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Word counts',
     aliases: ['time left', 'remaining read time', 'words left', 'unread words'],
+  },
+  {
+    key: 'wordCountOrder',
+    label: 'Order of the live word counts',
+    description:
+      "Left-to-right order of the bottom bar's readouts — the whole document (Doc), the enclosing card / block (Card), and what's left (Left). One order while editing and another in read mode: a reader often wants what's left first, an editor the whole document. Readouts you have turned off simply drop out of the order.",
+    kind: 'wordCountOrder',
+    category: 'general',
+    section: 'Word counts',
+    aliases: ['word count order', 'readout order', 'bar order', 'read mode word count order'],
   },
   {
     key: 'findRememberLastQuery',
@@ -4517,6 +4536,8 @@ function sanitize(s: Settings): Settings {
     // installs upgrading from before this setting existed get it on.
     liveContainerReadTime: s.liveContainerReadTime === false ? false : true,
     liveRemainingReadTime: s.liveRemainingReadTime === true,
+    wordCountOrder: isWordCountOrder(s.wordCountOrder) ? s.wordCountOrder : DEFAULT_WORD_COUNT_ORDER,
+    wordCountOrderReadMode: isWordCountOrder(s.wordCountOrderReadMode) ? s.wordCountOrderReadMode : DEFAULT_WORD_COUNT_ORDER,
     displaySizes: sanitizeDisplaySizes(s.displaySizes),
     displayParagraphSpacing: sanitizeParagraphSpacing(s.displayParagraphSpacing),
     underlineFollowsFontColor: s.underlineFollowsFontColor === true,

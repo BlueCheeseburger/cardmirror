@@ -47,6 +47,12 @@ see `DETAILED_CHANGELOG.md`.
   the selection, the enclosing card / block, what's left — that you
   keep on. The Word Count button (Σ) still has the whole-document
   count on demand.
+- **Order of the live word counts.** A setting for the left-to-right
+  order of the bar's readouts — Doc, Card, Left in any arrangement —
+  with one order while editing and another in read mode, since a
+  reader often wants what's left first and an editor the whole
+  document. Each pane in the three-pane workspace follows its own read
+  mode.
 
 ## 1.9.0 — 2026-09-09
 
