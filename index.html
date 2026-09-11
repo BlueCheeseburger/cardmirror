@@ -341,6 +341,10 @@
            active (the lazily-loaded collab-ui module owns its text). -->
       <div id="collab-chip" class="status-segment" hidden
            title="Collaboration session status"></div>
+      <!-- PolicyDebateFlow connection chip: hidden unless the
+           integration is enabled in Settings. Click to disconnect
+           when connected, or open Settings to connect when off. -->
+      <button id="pf-flow-chip" class="status-segment" type="button" hidden></button>
       <div class="status-spacer"></div>
       <!-- Update chip (install-on-confirm): hidden until the desktop main
            process reports a staged or available update. Clicking installs

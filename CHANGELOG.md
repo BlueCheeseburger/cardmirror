@@ -8,16 +8,23 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## 1.10.0-bcb.2 — 2026-09-11
+## 1.10.0-bcb.2.1 — 2026-09-11
 
 ### Added
 
-- **Send taglines to PolicyDebateFlow.** Connect PolicyDebateFlow in Settings
-  (Settings → PolicyDebateFlow — paste the pairing code it gives you) and press
-  Shift-`` ` `` with your cursor on a card to send it — tagline plus cite —
-  straight into your open flow. It lands in the next empty cell and the flow's
-  focus moves down one row automatically, so you can send a whole case without
-  switching windows. Desktop only.
+- **Settings is reachable from the home screen** — a Settings button now
+  sits alongside (or in place of) "← Back to document" on the home screen,
+  so settings are reachable without a document open.
+- **PolicyDebateFlow status chip.** A "Flow · Connected" / "Flow · Off" button
+  in the status bar shows your connection at a glance — click it to disconnect,
+  or to jump to Settings when it's off. It updates automatically if the
+  connection is dropped from either side, no need to check Settings.
+
+### Fixed
+
+- **Send taglines to PolicyDebateFlow never actually fired.** Shift-`` ` `` was
+  registered but silently did nothing — the keyboard shortcut is now wired up
+  correctly.
 
 ---
 
@@ -88,7 +95,10 @@ pairing code it gives you) and press Shift-` with your cursor on a
 tagline to send it — tagline plus cite — straight into your open
 flow. It lands in the next empty cell and the flow's focus moves down
 one row automatically, so you can send a whole case without ever
-switching windows.
+switching windows. A status-bar chip shows Connected/Off at a
+glance — click it to disconnect, or to jump to Settings when it's
+off — and updates on its own if the connection drops from either
+side.
 
 ---
 
