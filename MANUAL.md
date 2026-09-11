@@ -1905,6 +1905,13 @@ Keyboard shortcuts**. They appear only on Windows.
 
 ## 15. Voice control
 
+> **Experimental — and, in 1.10.0, commands are unreliable.** Dictation works
+> well. The single-word commands do not yet: the recognizer decodes an open
+> vocabulary, so a one-word utterance often comes back as some other word
+> and nothing fires. Calibration helps only a little. A keyword-spotting pass
+> for the command channel is planned for the next release; until then, treat
+> the commands as a preview and the dictation key as the working part.
+
 **(Desktop only.)** Voice control lets you work a document with your
 voice and a mouse: point with the mouse, say what to do. It was built for
 people with RSI and similar strain injuries, where sustained typing is

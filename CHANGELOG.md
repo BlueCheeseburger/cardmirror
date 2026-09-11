@@ -5,7 +5,7 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 1.10.0 — 2026-09-10
 
 ### Added
 
@@ -90,6 +90,12 @@ see `DETAILED_CHANGELOG.md`.
   still keeps every bit of audio on your machine. Removed: spoken
   targeting ("take", "pick", "go to"), paint mode, the large dictation
   model download, and the old pen vocabulary.
+  **Known limitation in this release:** dictation is solid, but the
+  single-word commands are missed far more often than they should be —
+  the recognizer decodes an open vocabulary and a one-word utterance
+  often comes back as some other word. Voice control stays
+  experimental; a keyword-spotting pass for the command channel is
+  planned for the next release.
 
 ## 1.9.0 — 2026-09-09
 
