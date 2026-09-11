@@ -16,7 +16,7 @@ Upstream release details are in the sections below under
 
 See [CHANGELOG.md § 1.10.0-bcb.2](./CHANGELOG.md#1100-bcb2--2026-09-11) for the
 user-facing summary. Full implementation details in
-[Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-settingsts-settings-uitsribbom-commandsts-ribbon-groupsts)
+[Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-settingsts-settings-uits-ribbon-commandsts-ribbon-groupsts)
 below.
 
 ---
