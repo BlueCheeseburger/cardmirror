@@ -1613,9 +1613,17 @@ body.pmd-multi-doc .pmd-pill-tray-right {
   .pmd-disk-badge[data-state='kept-copy'] .pmd-pill-icon { color: #c9b8f5; }
 }
 /* The pill overlaps the editor's bottom-right corner: give the last
-   lines the same runway the left tray gets (single-doc; panes scroll
-   independently and the pill covers only a corner of the rightmost). */
+   lines the same runway the left tray gets, so scrolling to the end
+   still shows the bottom-most text. Single-doc pads #editor; three-pane
+   pads only the rightmost visible pane (tagged
+   `pmd-pane-cloud-pill-anchored` by positionRightTray — the pill sits
+   over that pane's corner). Both gated on the pill actually showing
+   (`pmd-disk-pill-active`); keep the value in sync with the left
+   tray's `pmd-pill-tray-active` rules. */
 html.pmd-disk-pill-active body:not(.pmd-multi-doc) #editor .ProseMirror {
+  padding-bottom: 4.5rem;
+}
+html.pmd-disk-pill-active .pmd-pane-cloud-pill-anchored .pmd-pane-editor .ProseMirror {
   padding-bottom: 4.5rem;
 }
 body.pmd-multi-doc #doc-name-chip { display: none; }
@@ -2684,6 +2692,42 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Favorites: starred sections pinned above the filter (self-ref-favorites.ts). */
+.pmd-selfref-picker-favorites {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid var(--pmd-c-border-soft);
+}
+.pmd-selfref-picker-favorites[hidden] { display: none; }
+.pmd-selfref-picker-favorites-title {
+  padding: 0 12px 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-selfref-picker-fav { padding-left: 12px; }
+.pmd-selfref-picker-star {
+  margin-left: auto;
+  flex: none;
+  width: 1.5em;
+  text-align: center;
+  border-radius: 3px;
+  font-size: 0.95em;
+  line-height: 1.2;
+  opacity: 0.4;
+  cursor: pointer;
+}
+.pmd-selfref-picker-star[hidden] { display: none; }
+.pmd-selfref-picker-star:hover { opacity: 1; background: var(--pmd-c-hover); }
+.pmd-selfref-picker-star-on { opacity: 1; color: var(--pmd-c-accent); }
+/* A disabled row (the cursor's own section) can still be starred for later. */
+.pmd-selfref-picker-row-disabled .pmd-selfref-picker-star { cursor: pointer; opacity: 0.55; }
+.pmd-selfref-picker-row-disabled .pmd-selfref-picker-star-on { opacity: 1; }
 
 /* Custom autocorrect table (Settings → Editing → Typing). */
 .pmd-autocorrect-editor {
@@ -4021,6 +4065,39 @@ body.pmd-override-shading [data-shading] {
   text-decoration-color: var(--pmd-c-band-fg-dark);
 }
 
+/* Underlines follow font color (Appearance → Document typography; OFF by
+   default). The line is painted by the element that declares it — the
+   outer underline / emphasis / underlined-cite span, or the hat / block
+   heading itself — in THAT element's color, so colored words get a
+   body-colored line (the classic look). Word does the opposite: its
+   colorless underlines take the run's color. With the flag on, a
+   colored run (`[data-color]` = the font_color mark's span; the 000000
+   "automatic" run inherits and needs nothing) nested inside any of
+   those re-declares the same underline on its own span, painting the
+   line in its own color over the outer one — the band technique above.
+   The dark-mode dark-band override changes the run's DISPLAYED color
+   and currentColor follows it, so nothing turns invisible. */
+:root.pmd-underline-follows-color .ProseMirror
+  :is(.pmd-underline, .pmd-emphasis, u) [data-color]:not([data-color="000000"]),
+:root.pmd-underline-follows-color.pmd-cite-underlined .ProseMirror
+  .pmd-cite [data-color]:not([data-color="000000"]) {
+  text-decoration: underline;
+  text-decoration-thickness: var(--pmd-underline-size, auto);
+  text-decoration-color: currentColor;
+}
+:root.pmd-underline-follows-color .ProseMirror .pmd-block [data-color]:not([data-color="000000"]) {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+}
+:root.pmd-underline-follows-color .ProseMirror .pmd-hat [data-color]:not([data-color="000000"]) {
+  text-decoration: underline double;
+  text-decoration-color: currentColor;
+}
+:root.pmd-underline-follows-color.pmd-hat-underline-single .ProseMirror
+  .pmd-hat [data-color]:not([data-color="000000"]) {
+  text-decoration: underline;
+}
+
 /* Shading is an arbitrary RGB background, so we can't enumerate the
    16 well-known highlight cases above. Instead `font_color`'s
    sibling logic in `src/schema/marks.ts` emits
@@ -4448,24 +4525,20 @@ html.pmd-home-active #speech-doc-banner {
      if it must. */
 }
 
-/* Recent Workspaces — remembered sets of docs from a multi-pane window
-   that closed together. Sits above Recent (same row shape as Sessions,
-   scrolls past ~6 rows for the same reason). Hidden via [hidden] when
-   the store is empty. */
-.pmd-home-workspaces-section {
+/* Last workspace — above Recent: a Reopen button over the checklist of
+   documents the previous session ended with. Rows borrow the recent
+   row's chip / name / path scaffolding, so a path still left-truncates
+   to keep its tail visible. The list scrolls past ~8 rows (like the
+   sessions list) so a 24-document workspace can't push the utilities
+   off screen. */
+.pmd-home-workspace-section {
   margin-bottom: 1.1rem;
 }
-.pmd-home-workspaces {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 16rem;
-  overflow-y: auto;
-}
-.pmd-home-workspace {
+.pmd-home-workspace-row {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  margin-bottom: 0.25rem;
 }
 .pmd-home-workspace-open {
   appearance: none;
@@ -4473,7 +4546,7 @@ html.pmd-home-active #speech-doc-banner {
   font: inherit;
   cursor: pointer;
   background: transparent;
-  border: 1px solid transparent;
+  border: 1px solid var(--pmd-c-border);
   border-radius: 6px;
   padding: 0.5rem 0.6rem;
   display: flex;
@@ -4483,8 +4556,56 @@ html.pmd-home-active #speech-doc-banner {
   flex: 1 1 auto;
   min-width: 0;
 }
-.pmd-home-workspace-open:hover {
+.pmd-home-workspace-open:hover:not(:disabled) {
   background: var(--pmd-c-hover);
+}
+.pmd-home-workspace-open:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.pmd-home-workspace-select {
+  appearance: none;
+  font: inherit;
+  font-size: 0.78rem;
+  background: transparent;
+  border: none;
+  color: var(--pmd-c-text-muted);
+  cursor: pointer;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+.pmd-home-workspace-select:hover:not(:disabled) {
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text);
+}
+.pmd-home-workspace-select:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.pmd-home-workspace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+.pmd-home-workspace-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--pmd-c-text);
+}
+.pmd-home-workspace-item:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-home-workspace-item input {
+  flex: 0 0 auto;
+  margin: 0;
+  cursor: pointer;
 }
 
 /* Collaboration sessions — dedicated section below Recent. Scrolls
@@ -13423,40 +13544,80 @@ body.pmd-timer-popout-page .pmd-timer-display {
   text-decoration-skip-ink: none;
 }
 
-/* ── Voice pill ─────────────────────────────────────────────
-   Status pill for the voice session (SPEC-voice.md §9): mode dot +
-   parse echo + input-level meter. Same visual language as the
-   dropzone pill (.pmd-dropzone-bar): 30px bar, soft surface, instant
-   state flips, bottom-anchored above the status bar — but right
-   corner, mirroring the dropzone's left. */
+/* ── Voice card ─────────────────────────────────────────────
+   Floating status card for the voice session: mode dot + badge in a
+   drag handle, the armed pen and the parse echo beneath, a full-width
+   input meter along the bottom. Same surface language as the dropzone
+   pill (.pmd-dropzone-bar), but a free-floating square: drag the
+   header anywhere and the spot is remembered (voice/ui.ts). With no
+   remembered spot it sits at the right edge above the corner chips. */
 .pmd-voice-pill {
   position: fixed;
-  bottom: calc(var(--status-bar-height) + 0.5rem);
+  bottom: calc(var(--status-bar-height) + 3.25rem);
   right: 0.5rem;
   z-index: 220; /* same band as the dropzone pill */
   display: none;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0 0.55rem;
-  height: 30px;
-  max-width: 420px;
+  flex-direction: column;
+  width: 172px;
+  min-height: 112px;
+  padding: 0 0 0.35rem;
   font: inherit;
   font-size: 0.78rem;
   color: var(--pmd-c-text-muted);
   background: var(--pmd-c-surface-soft);
   border: 1px solid var(--pmd-c-border-soft);
-  border-radius: 6px;
-  box-shadow: 0 2px 6px var(--pmd-c-shadow-fade);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--pmd-c-shadow-fade);
   user-select: none;
-  cursor: pointer;
   transition: none; /* instant state morphs, matching the dropzone bar */
-}
-
-body.pmd-multi-doc .pmd-voice-pill {
-  bottom: calc(var(--status-bar-height) + var(--pmd-pane-footer-height) + 0.5rem);
 }
 .pmd-voice-pill.pmd-voice-on {
   display: flex;
+}
+.pmd-voice-card-dragging {
+  box-shadow: 0 6px 18px var(--pmd-c-shadow-fade);
+  cursor: grabbing;
+}
+.pmd-voice-card-handle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.55rem;
+  border-bottom: 1px solid var(--pmd-c-divider-faint);
+  cursor: grab;
+  touch-action: none;
+}
+.pmd-voice-card-dragging .pmd-voice-card-handle {
+  cursor: grabbing;
+}
+.pmd-voice-card-menu-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--pmd-c-text-muted);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 0.3rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.pmd-voice-card-menu-btn:hover {
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text);
+}
+.pmd-voice-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.4rem 0.55rem;
+  min-height: 3.2rem;
+  flex: 1 1 auto;
+}
+.pmd-voice-card-body .pmd-voice-pen {
+  align-self: flex-start;
 }
 .pmd-voice-dot {
   width: 9px;
@@ -13490,23 +13651,24 @@ body.pmd-multi-doc .pmd-voice-pill {
   background: var(--pmd-c-success-soft);
   color: var(--pmd-c-success);
 }
-.pmd-voice-pill.pmd-voice-mode-paint .pmd-voice-mode-badge {
-  background: var(--pmd-c-warning-soft);
-  color: var(--pmd-c-warning);
-}
+
 .pmd-voice-pill.pmd-voice-mode-asleep .pmd-voice-mode-badge {
   color: var(--pmd-c-text-faint);
 }
 .pmd-voice-echo {
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-height: 1.3;
+  word-break: break-word;
 }
 .pmd-voice-echo.pmd-voice-rejected {
   color: var(--pmd-c-error);
 }
 .pmd-voice-meter {
-  width: 36px;
+  display: block;
+  margin: 0 0.55rem;
   height: 4px;
   border-radius: 2px;
   flex: 0 0 auto;
@@ -13538,106 +13700,29 @@ body.pmd-multi-doc .pmd-voice-pill {
   border-radius: 999px;
   padding: 0 0.4rem;
 }
-.pmd-voice-pill.pmd-voice-mode-paint .pmd-voice-dot { background: var(--pmd-c-warning); }
-/* Quote-disambiguation badges (§4.1): numbered chips on candidate
-   matches, dismissed by pick/cancel/any other command. */
-.pmd-voice-candidate {
-  background: var(--pmd-c-accent-soft);
-  border-radius: 2px;
-}
-.pmd-voice-candidate-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.05rem;
-  height: 1.05rem;
-  margin-right: 2px;
-  border-radius: 999px;
-  background: var(--pmd-c-accent);
-  color: var(--pmd-c-text-on-accent);
-  font-size: 0.7rem;
-  font-weight: 700;
-  vertical-align: text-bottom;
-  user-select: none;
-}
-/* Ordinal badges in the nav panel (§4.2.1) — pure CSS counters, one
-   per structural type, visible only while voice is listening, so
-   "card <number>" / "block <number>" always resolve against numbers
-   the user can see. Each type counts independently. */
-body.pmd-voice-listening .pmd-nav-list {
-  counter-reset: pmd-voice-card pmd-voice-pocket pmd-voice-hat
-    pmd-voice-block pmd-voice-analytic;
-}
-body.pmd-voice-listening .pmd-nav-item.pmd-nav-type-tag .pmd-nav-label::before {
-  counter-increment: pmd-voice-card;
-  content: counter(pmd-voice-card);
-}
-body.pmd-voice-listening .pmd-nav-item.pmd-nav-type-pocket .pmd-nav-label::before {
-  counter-increment: pmd-voice-pocket;
-  content: counter(pmd-voice-pocket);
-}
-body.pmd-voice-listening .pmd-nav-item.pmd-nav-type-hat .pmd-nav-label::before {
-  counter-increment: pmd-voice-hat;
-  content: counter(pmd-voice-hat);
-}
-body.pmd-voice-listening .pmd-nav-item.pmd-nav-type-block .pmd-nav-label::before {
-  counter-increment: pmd-voice-block;
-  content: counter(pmd-voice-block);
-}
-body.pmd-voice-listening .pmd-nav-item.pmd-nav-type-analytic .pmd-nav-label::before {
-  counter-increment: pmd-voice-analytic;
-  content: counter(pmd-voice-analytic);
-}
-body.pmd-voice-listening .pmd-nav-item .pmd-nav-label::before {
-  display: inline-block;
-  min-width: 1rem;
-  margin-right: 0.3rem;
-  border-radius: 999px;
-  background: var(--pmd-c-accent-soft);
-  color: var(--pmd-c-accent);
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-align: center;
-}
-/* Speak-to-target reach: the near-cursor span whose words feed the
-   recognizer's quote vocabulary. Deliberately near-subliminal — it
-   should read as "warmth around the cursor," not highlighting. */
-:root {
-  --pmd-c-voice-reach: rgba(37, 99, 235, 0.045);
-}
-:root[data-theme="dark"] {
-  --pmd-c-voice-reach: rgba(96, 145, 240, 0.07);
-}
-.pmd-voice-reach {
-  background: var(--pmd-c-voice-reach);
-}
-/* Karaoke paint (§6): provisional ink — visibly tentative, distinct
-   from committed pen marks — and the reading-head indicator. */
-.pmd-voice-paint-provisional {
-  background: var(--pmd-c-accent-soft);
-  box-shadow: inset 0 -2px 0 var(--pmd-c-accent);
-}
-.pmd-voice-paint-head {
-  display: inline-block;
-  width: 2px;
-  height: 1em;
-  margin: 0 1px -0.15em 1px;
-  background: var(--pmd-c-warning);
-  animation: pmd-voice-head-pulse 1s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .pmd-voice-paint-head { animation: none; }
-}
-@keyframes pmd-voice-head-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
+
+/* Speech detected: the meter's fill brightens while the VAD hears speech. */
+.pmd-voice-pill.pmd-voice-speech .pmd-voice-meter > div { background: var(--pmd-c-accent); }
+.pmd-voice-menu-actions { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.pmd-voice-holdkey-editor { display: flex; align-items: center; gap: 0.5rem; }
+.pmd-voice-holdkey-current { padding: 0.15rem 0.45rem; border: 1px solid var(--pmd-c-border-soft); border-radius: 4px; background: var(--pmd-c-hover); }
+.pmd-voice-calibrate-editor { display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-start; }
+/* Calibration dialog (voice/calibrate.ts). */
+.pmd-voice-calibrate { min-width: 420px; max-width: min(560px, 92vw); }
+.pmd-voice-calibrate-intro { margin: 0; font-size: 0.85rem; color: var(--pmd-c-text-muted); line-height: 1.4; }
+.pmd-voice-calibrate-option { font-size: 0.85rem; display: flex; align-items: center; gap: 0.3rem; }
+.pmd-voice-calibrate-prompt { text-align: center; padding: 0.75rem 0; min-height: 7rem; display: flex; flex-direction: column; gap: 0.3rem; align-items: center; }
+.pmd-voice-calibrate-word { font-size: 2.4rem; font-weight: 700; letter-spacing: 0.02em; }
+.pmd-voice-calibrate-role { font-size: 0.85rem; color: var(--pmd-c-text-muted); }
+.pmd-voice-calibrate-progress { font-size: 0.78rem; color: var(--pmd-c-text-faint); }
+.pmd-voice-calibrate-heard { font-size: 0.9rem; min-height: 1.4em; }
+.pmd-voice-calibrate-report { font-size: 0.82rem; color: var(--pmd-c-text-secondary); text-align: left; }
+.pmd-voice-calibrate-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+
 /* Voice pill session menu: mic picker + stop. Same panel language as
    the open dropzone shelf. */
 .pmd-voice-menu {
-  position: fixed;
-  right: 0.5rem;
-  bottom: calc(var(--status-bar-height) + 0.5rem + 36px);
+  position: fixed; /* left/top set by the card (voice/ui.ts placeMenu) */
   z-index: 221;
   min-width: 220px;
   padding: 0.4rem;
@@ -15204,8 +15289,10 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 }
 
 /* Session-invite rows act, they don't insert: a compact Join button in
-   the accent color where the drag affordance would be. */
-.pmd-receive-row-join {
+   the accent color where the drag affordance would be. The same look
+   serves the Preview button every shelf and inbox card row carries. */
+.pmd-receive-row-join,
+.pmd-row-preview {
   flex: 0 0 auto;
   border: 1px solid var(--pmd-c-accent);
   border-radius: 4px;
@@ -15216,9 +15303,15 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   padding: 2px 8px;
   cursor: pointer;
 }
-.pmd-receive-row-join:hover {
+.pmd-receive-row-join:hover,
+.pmd-row-preview:hover {
   background: var(--pmd-c-accent);
   color: var(--pmd-c-bg, #fff);
+}
+
+.pmd-card-preview-pane {
+  flex: 1;
+  min-height: 0;
 }
 
 
@@ -16042,6 +16135,48 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 .pmd-recover-preview-editor .ProseMirror {
   padding: 1rem 1.25rem;
   min-height: 0;
+}
+
+/* Card preview (shelf / Receive rows): the wide two-pane recover dialog's
+   chrome with the preview alone filling the body — the real nav pane on
+   the left, the rendered cards on the right — and Copy / Close below. */
+/* The preview's Read mode toggle: a plain button that reads as pressed
+   while on (same active tint the ribbon's inline-format buttons use). */
+.pmd-card-preview-readmode[aria-pressed="true"] {
+  background: var(--pmd-c-button-active);
+  box-shadow: inset 0 0 0 1px var(--pmd-c-border);
+}
+
+.pmd-card-preview-dialog {
+  width: min(1200px, 94vw);
+  max-width: min(1200px, 94vw);
+  height: min(900px, 92vh);
+}
+.pmd-card-preview-dialog:focus {
+  outline: none; /* armed focus (armDialogFocus), no ring */
+}
+.pmd-card-preview-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1;
+  margin-right: 0.75rem; /* breathing room before the × */
+}
+/* The title takes whatever room is left and is the only thing that
+   truncates; the sender · time line never shrinks. */
+.pmd-card-preview-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pmd-card-preview-subtitle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-muted);
 }
 
 /* Session-history flavor of the two-pane dialog: group rows keep

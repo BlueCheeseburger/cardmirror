@@ -4320,6 +4320,9 @@ export type RibbonCommandId =
   | 'toggleAutoScroll'
   | 'toggleReaderView'
   | 'openContainingFolder'
+  | 'saveWorkspace'
+  | 'reopenWorkspace'
+  | 'arrangeWindows'
   | 'toggleCommentsVisible'
   | 'addCommentToSelection'
   | 'addNoteToSelection'
@@ -4338,6 +4341,7 @@ export type RibbonCommandId =
   | 'createFlow'
   | 'startFlowHost'
   | 'toggleVoice'
+  | 'calibrateVoice'
   | 'openCardCutter'
   | 'addCutterContext'
   | 'openCutterGuidance'
@@ -4367,6 +4371,7 @@ export type RibbonCommandId =
   | 'save'
   | 'saveAs'
   | 'saveSendDoc'
+  | 'saveReadDoc'
   | 'saveMarkedCards'
   | 'toggleAutosave'
   | 'newSpeechDocument'
@@ -4385,6 +4390,7 @@ export type RibbonCommandId =
   | 'sendToRecipient'
   | 'insertReceivedAtCursor'
   | 'insertReceivedAtEnd'
+  | 'previewReceived'
   // Select / copy the cursor's enclosing structure (the current card /
   // analytic_unit / heading + its subtree), reusing the send-to-*
   // bounds logic but keyed off the cursor — any active selection is
@@ -4556,6 +4562,9 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'toggleAutoScroll',
   'toggleReaderView',
   'openContainingFolder',
+  'saveWorkspace',
+  'reopenWorkspace',
+  'arrangeWindows',
   'toggleCommentsVisible',
   'addCommentToSelection',
   'addNoteToSelection',
@@ -4574,6 +4583,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'createFlow',
   'startFlowHost',
   'toggleVoice',
+  'calibrateVoice',
   'openCardCutter',
   'addCutterContext',
   'openCutterGuidance',
@@ -4603,6 +4613,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'save',
   'saveAs',
   'saveSendDoc',
+  'saveReadDoc',
   'saveMarkedCards',
   'toggleAutosave',
   'newSpeechDocument',
@@ -4621,6 +4632,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'sendToRecipient',
   'insertReceivedAtCursor',
   'insertReceivedAtEnd',
+  'previewReceived',
   'selectCurrentHeading',
   'deleteCurrentHeading',
   'toggleNumberRole',
@@ -4744,6 +4756,9 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   toggleAutoScroll: 'Toggle Auto-Scroll (Paced to Reading Speed)',
   toggleReaderView: 'Toggle Reading View',
   openContainingFolder: 'Open Containing Folder',
+  saveWorkspace: 'Save Workspace',
+  reopenWorkspace: 'Reopen Last Workspace',
+  arrangeWindows: 'Arrange Windows',
   toggleCommentsVisible: 'Show / Hide Comments',
   addCommentToSelection: 'Add Comment to Selection',
   addNoteToSelection: 'Add Note to Selection',
@@ -4762,6 +4777,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   createFlow: 'Create New Flow',
   startFlowHost: 'Start Flow Connection',
   toggleVoice: 'Toggle voice control',
+  calibrateVoice: 'Calibrate voice control…',
   openCardCutter: 'Cut card with AI…',
   addCutterContext: 'Use Selection as Cutter Context',
   openCutterGuidance: 'Edit File Cutting Guidance',
@@ -4791,6 +4807,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   save: 'Save',
   saveAs: 'Save As…',
   saveSendDoc: 'Save Send Doc',
+  saveReadDoc: 'Save Read Doc',
   saveMarkedCards: 'Save Marked Cards',
   toggleAutosave: 'Toggle Autosave',
   newSpeechDocument: 'New Speech Document',
@@ -4809,6 +4826,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   sendToRecipient: 'Send to Recipient…',
   insertReceivedAtCursor: 'Insert Received Card (At Cursor)',
   insertReceivedAtEnd: 'Insert Received Card (At End)',
+  previewReceived: 'Preview Received Card',
   selectCurrentHeading: 'Select Current Heading',
   deleteCurrentHeading: 'Delete Current Heading',
   toggleNumberRole: 'Number: Toggle Number Role',
@@ -4927,6 +4945,9 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   ],
   toggleReaderView: ['reading view', 'reader view', 'paginated view', 'read view', 'book view', 'columns'],
   openContainingFolder: ['reveal in finder', 'show in folder', 'show in explorer', 'reveal file', 'file location', 'containing folder'],
+  saveWorkspace: ['save session', 'save open documents', 'remember open documents', 'save tabs'],
+  reopenWorkspace: ['restore session', 'reopen session', 'open previous session', 'reopen last session', 'restore workspace', 'reopen documents', 'reopen tabs'],
+  arrangeWindows: ['window arranger', 'arrange for speech', 'tile windows', 'speech doc side by side', 'split screen', 'organize windows'],
   toggleAutosave: ['enable autosave', 'disable autosave', 'turn on autosave', 'turn off autosave'],
   markActiveAsSpeech: ['toggle speech doc', 'set speech document'],
   // vague / Word-flavored labels
@@ -4953,6 +4974,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   addColumnAfter: ['add column right'],
   insertReceivedAtCursor: ['add received card at cursor'],
   insertReceivedAtEnd: ['add received card at end'],
+  previewReceived: ['preview last received', 'preview most recent received', 'look at received card', 'show received card'],
   moveContainerUp: ['move up', 'move card up', 'move section up', 'reorder up', 'shift up'],
   moveContainerDown: ['move down', 'move card down', 'move section down', 'reorder down', 'shift down'],
   goHome: ['start screen', 'welcome screen', 'dashboard'],
@@ -5021,9 +5043,11 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   toggleSubRole: ['substructure', 'sub number', 'sub letter', 'numbering', 'sublist', 'letter'],
   toggleNumRestart: ['restart numbering', 'start over', 'renumber', 'continue numbering', 'number restart'],
   saveSendDoc: ['send doc', 'export send doc', 'send version'],
+  saveReadDoc: ['read doc', 'export read doc', 'read version', 'save read'],
   saveMarkedCards: ['marked cards', 'extract marked cards', 'export marked cards', 'save marked'],
   startFlowHost: ['warm flow', 'prewarm flow', 'flow connection', 'connect to flow', 'speed up flow'],
   toggleVoice: ['voice control', 'voice mode', 'dictation', 'speech', 'microphone', 'start voice', 'stop voice'],
+  calibrateVoice: ['voice calibration', 'train voice', 'calibrate microphone', 'my voice'],
   // The cutter shortcut serves double duty for its highlighting verbs, so
   // those names resolve to it too.
   openCardCutter: [
@@ -5104,6 +5128,9 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   toggleAutoScroll: '',
   toggleReaderView: '',
   openContainingFolder: '',
+  saveWorkspace: '',
+  reopenWorkspace: '',
+  arrangeWindows: '',
   toggleCommentsVisible: '',
   addCommentToSelection: '',
   addNoteToSelection: 'Mod-Shift-n',
@@ -5125,7 +5152,8 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   pullFromFlow: '',
   createFlow: '',
   startFlowHost: '',
-  toggleVoice: 'Mod-Shift-V',
+  toggleVoice: 'Alt-Shift-V',
+  calibrateVoice: '',
   openCardCutter: 'Mod-Alt-c',
   addCutterContext: '',
   openCutterGuidance: '',
@@ -5162,6 +5190,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   save: 'Mod-s',
   saveAs: 'Mod-Shift-s',
   saveSendDoc: 'Mod-Alt-s',
+  saveReadDoc: '',
   saveMarkedCards: 'Mod-Alt-m',
   toggleAutosave: '',
   insertLiveZone: '',
@@ -5184,6 +5213,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   sendToRecipient: '',
   insertReceivedAtCursor: 'Mod-p',
   insertReceivedAtEnd: 'Mod-Alt-p',
+  previewReceived: '',
   selectCurrentHeading: 'Alt-a',
   deleteCurrentHeading: '',
   toggleNumberRole: 'Mod-Alt-1',
@@ -5348,6 +5378,11 @@ export interface RibbonContext {
   toggleAutoScroll: () => void;
   toggleReaderView: () => void;
   openContainingFolder: () => void;
+  saveWorkspace: () => void;
+  reopenWorkspace: () => void;
+  /** Arrange Windows: speech doc on one side, everything else on the
+   *  other (three-pane: into slots). Desktop only. */
+  arrangeWindows: () => void;
   openShortcutsReference: () => void;
   toggleCommentsVisible: () => void;
   addCommentToSelection: () => void;
@@ -5377,6 +5412,7 @@ export interface RibbonContext {
   startFlowHost: () => void;
   /** Toggle the voice-control session on/off (desktop only). */
   toggleVoice: () => void;
+  calibrateVoice: () => void;
   /** Open the AI card-cutter launch sheet for the current card. Gated on
    *  `cardCutterActive` — a no-op when the experiment is off. */
   openCardCutter: () => void;
@@ -5399,6 +5435,7 @@ export interface RibbonContext {
   save: () => void;
   saveAs: () => void;
   saveSendDoc: () => void;
+  saveReadDoc: () => void;
   saveMarkedCards: () => void;
   toggleAutosave: () => void;
   /** Speech-doc commands (Verbatim's `Paperless.SendToSpeech` family).
@@ -5427,6 +5464,9 @@ export interface RibbonContext {
    *  active doc — at the cursor, or at the end of the doc. */
   insertReceivedAtCursor: () => void;
   insertReceivedAtEnd: () => void;
+  /** Open the most-recently-received card in the preview without
+   *  inserting it. */
+  previewReceived: () => void;
   /** Select / copy the cursor's enclosing structure (the current
    *  card / analytic_unit / heading + subtree). Keyed off the cursor;
    *  any active selection is ignored. */
@@ -5543,6 +5583,9 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   toggleAutoScroll: () => {},
   toggleReaderView: () => {},
   openContainingFolder: () => {},
+  saveWorkspace: () => {},
+  reopenWorkspace: () => {},
+  arrangeWindows: () => {},
   openShortcutsReference: () => {},
   toggleCommentsVisible: () => {},
   addCommentToSelection: () => {},
@@ -5562,6 +5605,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   createFlow: () => {},
   startFlowHost: () => {},
   toggleVoice: () => {},
+  calibrateVoice: () => {},
   openCardCutter: () => {},
   addCutterContext: () => {},
   openCutterGuidance: () => {},
@@ -5573,6 +5617,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   save: () => {},
   saveAs: () => {},
   saveSendDoc: () => {},
+  saveReadDoc: () => {},
   saveMarkedCards: () => {},
   toggleAutosave: () => {},
   newSpeechDocument: () => {},
@@ -5586,6 +5631,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   sendToRecipient: () => {},
   insertReceivedAtCursor: () => {},
   insertReceivedAtEnd: () => {},
+  previewReceived: () => {},
   sendToSpeechAtEnd: () => {},
   selectCurrentHeading: () => {},
   deleteCurrentHeading: () => {},
@@ -5807,6 +5853,24 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         ctx.openContainingFolder();
         return true;
       };
+    case 'saveWorkspace':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.saveWorkspace();
+        return true;
+      };
+    case 'reopenWorkspace':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.reopenWorkspace();
+        return true;
+      };
+    case 'arrangeWindows':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.arrangeWindows();
+        return true;
+      };
     case 'toggleCommentsVisible':
       return (_state, dispatch) => {
         if (!dispatch) return true;
@@ -5924,6 +5988,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.toggleVoice();
+        return true;
+      };
+    case 'calibrateVoice':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.calibrateVoice();
         return true;
       };
     case 'openCardCutter':
@@ -6054,6 +6124,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.saveSendDoc();
+        return true;
+      };
+    case 'saveReadDoc':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.saveReadDoc();
         return true;
       };
     case 'saveMarkedCards':
@@ -6211,6 +6287,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.insertReceivedAtEnd();
+        return true;
+      };
+    case 'previewReceived':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.previewReceived();
         return true;
       };
     case 'selectCurrentHeading':
@@ -6658,11 +6740,14 @@ export function primaryKeyFor(
 export function buildRibbonKeymap(
   overrides: Partial<Record<string, string | string[]>> = {},
   ctx: RibbonContext = DEFAULT_RIBBON_CONTEXT,
+  /** Wrap each bound command (the Repeat recorder tags runs by id). */
+  wrap?: (id: string, cmd: Command) => Command,
 ): Record<string, Command> {
   const out: Record<string, Command> = {};
   for (const id of RIBBON_COMMAND_IDS) {
     const spec = overrides[id] ?? DEFAULT_RIBBON_KEYS[id];
-    const cmd = commandFor(id, ctx);
+    const raw = commandFor(id, ctx);
+    const cmd = wrap ? wrap(id, raw) : raw;
     for (const key of keysArray(spec)) {
       if (!key) continue;
       out[key] = cmd;
@@ -6754,6 +6839,13 @@ export function ribbonKeyStringFor(e: KeyboardEvent): string {
     // names the physical key regardless of what it composes, so use it
     // to normalize back to the literal backtick every time.
     parts.push('`');
+  } else if (e.altKey && /^Key[A-Z]$/.test(e.code)) {
+    // With Option held, macOS reports the layout's dead/special
+    // character as e.key ("◊" for Option-Shift-V, "å" for Option-A),
+    // so an Alt chord on a letter would never match its binding
+    // outside the editor. Name the letter from e.code instead — the
+    // same keyCode fallback prosemirror-keymap uses inside it.
+    parts.push(e.code.slice(3).toLowerCase());
   } else if (e.key.length === 1) {
     // Single characters are matched case-insensitively, like
     // prosemirror-keymap does inside the editor: bindings are

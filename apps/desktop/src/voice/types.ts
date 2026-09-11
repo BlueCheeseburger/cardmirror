@@ -1,100 +1,84 @@
 /**
- * Typed parse-event contract between the main-process recognition
- * service and the renderer voice layer (SPEC-voice.md §10, §12 item 2).
- * The renderer never sees raw audio or raw transcription streams —
- * only these events — which keeps the renderer plugin testable with
- * synthetic event streams.
+ * Typed event contract between the recognizer worker and the renderer
+ * voice layer (voice v2). The renderer never sees raw audio — only
+ * these events — which keeps the renderer testable with synthetic
+ * event streams.
  */
-
-export type VoiceMode = 'command' | 'dictation' | 'paint' | 'asleep';
-
-/** Arguments extracted from a parsed command utterance. */
-export interface CommandArgs {
-  /** Pen name for pen/again-but commands. */
-  pen?: string;
-  /** Highlight color when specified. */
-  color?: string;
-  /** Count for cursor-relative moves and `card <n>` / `pick <n>`. */
-  n?: number;
-  /** Direction for cursor-relative moves. */
-  dir?: 'left' | 'right' | 'up' | 'down';
-  /** Unit for cursor-relative moves. */
-  unit?: 'words' | 'lines';
-  /** Structural target (card, tag, cite, body, analytic, unit, …). */
-  target?: string;
-  /** Spoken-text quote tail, when the verb takes one. */
-  quote?: string;
+/** Per-user recognizer profile (mirrors `VoiceProfile` in
+ *  src/editor/voice/vocabulary.ts — kept separate so this file stays
+ *  inside the desktop tsconfig's rootDir). */
+export interface VoiceProfile {
+  /** Per-user spellings learned by calibration, keyed by verb. */
+  aliases?: Record<string, string[]>;
 }
+
+export type VoiceMode = 'command' | 'dictation' | 'asleep';
 
 export interface VoiceEventBase {
   /** Monotonic per-session utterance id — also the undo-grouping key. */
   utteranceId: number;
   mode: VoiceMode;
-  /** What the recognizer heard, for tray echo ("what did it think I said?"). */
+  /** What the recognizer heard, for the pill echo and calibration. */
   raw: string;
-  /** ms timestamps (performance.now() epoch of the main process). */
+  /** ms timestamps (performance.now() epoch of the worker). */
   tEndOfSpeech: number;
   tParse: number;
 }
 
 export type VoiceEvent = VoiceEventBase &
   (
-    | { kind: 'command'; verb: string; args: CommandArgs }
-    | {
-        kind: 'rejection';
-        reason: 'out-of-grammar' | 'low-confidence' | 'invalid-utterance';
-      }
-    | { kind: 'dictation'; text: string }
-    /** Streaming in-progress transcript while a dictation utterance is
-     *  open — render as provisional ghost text, never as document
-     *  content. An empty text clears the ghost. */
-    | { kind: 'dictation-partial'; text: string }
-    /** Streaming in-progress transcript while a PAINT utterance is open
-     *  — drives provisional ink (§6). Empty text clears. */
-    | { kind: 'paint-partial'; text: string }
+    | { kind: 'command'; verb: string }
+    /** Speech that was not a command word (the whole-utterance rule). */
+    | { kind: 'rejection'; reason: 'out-of-vocabulary' | 'too-long' }
+    /** A held-key dictation utterance, transcribed after release. */
+    | { kind: 'dictation'; text: string; durationMs: number }
     | { kind: 'mode'; from: VoiceMode; to: VoiceMode; trigger: string }
   );
 
-/** Out-of-band session-terminated notice (worker crash/exit) — sent by
- *  the host layer, not the service; carries no utterance context. */
+/** Out-of-band session-terminated notice (worker crash/exit). */
 export interface VoiceEndedEvent {
   kind: 'ended';
   reason: string;
 }
 
-/** Throttled input-level report for the tray meter (§10 audio-input affordance). */
+/** Throttled input report for the pill meter. */
 export interface VoiceLevelEvent {
   rms: number;
-  gate: number;
-  calibrating: boolean;
-  /** Present only in the final 10 s before idle auto-sleep (§2.1) —
-   *  drives the pill's countdown dimming. */
+  /** The neural VAD currently hears speech. */
+  speech: boolean;
+  /** Present only in the final 10 s before idle auto-sleep. */
   autoSleepRemainingMs?: number;
 }
 
 export interface VoiceStartOptions {
-  /** Directory containing the vosk model (defaults resolved by the host). */
-  modelDir?: string;
-  /** Override the voice-activity gate; omit for ambient auto-calibration. */
-  rmsGate?: number;
-  /** Per-word confidence threshold for grammar parses (default 0.7). */
-  minWordConf?: number;
-  /** Idle seconds before auto-sleep (§2.1). 0 disables; default 60. */
+  /** Idle seconds before auto-sleep. 0 disables; default 60. */
   autoSleepSeconds?: number;
-  /** Which model decodes open dictation: the shipped standard model or
-   *  the opt-in large download. */
-  dictationModel?: 'standard' | 'large';
+  profile?: VoiceProfile | null;
 }
 
 export interface VoiceStartResult {
   ok: boolean;
   error?: string;
   modelLoadMs?: number;
-  /** Large dictation was requested but isn't downloaded — session runs
-   *  on the standard model. */
-  largeDictationMissing?: boolean;
-  /** Large dictation is downloaded but no real Node runtime is
-   *  available to host it (Electron's allocator can't) — session runs
-   *  on the standard model. */
-  largeDictationUnsupported?: boolean;
 }
+
+/** Worker ⇄ host protocol. */
+export type WorkerInbound =
+  | {
+      type: 'start';
+      modelDir: string;
+      vadModelPath: string;
+      autoSleepSeconds?: number;
+      profile?: VoiceProfile | null;
+      threads?: number;
+    }
+  | { type: 'audio'; chunk: ArrayBuffer }
+  | { type: 'dictation'; on: boolean; autoEndAfterMs?: number }
+  | { type: 'profile'; profile: VoiceProfile | null }
+  | { type: 'calibrating'; on: boolean };
+
+export type WorkerOutbound =
+  | { type: 'started'; modelLoadMs: number }
+  | { type: 'error'; error: string }
+  | { type: 'event'; event: VoiceEvent }
+  | { type: 'level'; level: VoiceLevelEvent };

@@ -31,6 +31,9 @@ export interface CollabPluginSource {
   ownsUndo(): boolean;
   undo: Command;
   redo: Command;
+  /** Whether `redo` has anything to redo — Mod-Y falls through to
+   *  Word-style Repeat (repeat-last-action.ts) only when it does not. */
+  canRedo(): boolean;
 }
 
 let tagger: ((tr: Transaction) => void) | null = null;

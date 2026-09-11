@@ -7,7 +7,9 @@
  * settings store immediately.
  */
 
+import { WORD_COUNT_ORDERS, type WordCountOrder } from './word-count-order.js';
 import { confirmDialog, promptForRouteChoice } from './text-prompt.js';
+import { requestVoiceCalibration } from './voice/hooks.js';
 import { isLiteBuild } from './lite.js';
 import { entryConflictWarnings } from './custom-autocorrect-plugin.js';
 import {
@@ -47,6 +49,7 @@ import {
   ZOOM_MAX_PCT,
   type StyleAlignments,
   type StyleAlignment,
+  applyNumberingSeparator,
 } from './settings.js';
 import { CATEGORY_TABS, visibleCategoryTabs, type SettingsTarget } from './settings-categories.js';
 import { generateGroupId, normalizePairingCode } from './pairing/pairing-ids.js';
@@ -77,7 +80,7 @@ import { applyTimerProfile } from './timer-profile.js';
 import { showToast } from './toast.js';
 import { setIcon, CUSTOM_BUTTON_ICONS, type IconName } from './icons';
 import { availableRibbonCommandIds } from './ribbon-availability.js';
-import { commandLabelFor, RIBBON_COMMAND_LABELS, type RibbonCommandId } from './ribbon-commands.js';
+import { commandLabelFor, RIBBON_COMMAND_LABELS, type RibbonCommandId, ribbonKeyStringFor, formatKeyForDisplay } from './ribbon-commands.js';
 import { settingCommandOptions } from './setting-commands.js';
 import {
   FILE_OBJECT_KINDS,
@@ -1106,9 +1109,17 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildVoiceDashStyleEditor());
       return row;
-    } else if (meta.kind === 'voiceDictationModel') {
+    } else if (meta.kind === 'voiceModel') {
       row.appendChild(text);
-      row.appendChild(buildVoiceDictationModelEditor());
+      row.appendChild(buildVoiceModelEditor());
+      return row;
+    } else if (meta.kind === 'voiceHoldKey') {
+      row.appendChild(text);
+      row.appendChild(buildVoiceHoldKeyEditor());
+      return row;
+    } else if (meta.kind === 'voiceCalibrate') {
+      row.appendChild(text);
+      row.appendChild(buildVoiceCalibrateEditor());
       return row;
     } else if (meta.kind === 'speechDocFormat') {
       row.appendChild(text);
@@ -1121,6 +1132,10 @@ class SettingsModal {
     } else if (meta.kind === 'saveFormat') {
       row.appendChild(text);
       row.appendChild(buildSaveFormatEditor());
+      return row;
+    } else if (meta.kind === 'docTypeFormat') {
+      row.appendChild(text);
+      row.appendChild(buildDocTypeFormatEditor(meta.key as 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'));
       return row;
     } else if (meta.kind === 'aiProvider') {
       row.appendChild(text);
@@ -1137,6 +1152,10 @@ class SettingsModal {
     } else if (meta.kind === 'sendDocDestination') {
       row.appendChild(text);
       row.appendChild(buildSendDocDestinationEditor());
+      return row;
+    } else if (meta.kind === 'readDocDestination') {
+      row.appendChild(text);
+      row.appendChild(buildDestinationEditor('readDocDestination', 'pmd-read-doc-dest'));
       return row;
     } else if (meta.kind === 'markedCardsDestination') {
       row.appendChild(text);
@@ -1217,6 +1236,14 @@ class SettingsModal {
     } else if (meta.kind === 'enterAfterStyle') {
       row.appendChild(text);
       row.appendChild(buildEnterAfterStyleEditor());
+      return row;
+    } else if (meta.kind === 'wordCountOrder') {
+      row.appendChild(text);
+      row.appendChild(buildWordCountOrderEditor());
+      return row;
+    } else if (meta.kind === 'arrangeSpeechSide') {
+      row.appendChild(text);
+      row.appendChild(buildArrangeSpeechSideEditor());
       return row;
     } else if (meta.kind === 'colorOverrides') {
       row.appendChild(text);
@@ -3896,17 +3923,6 @@ function buildPairingReceiveFlashEditor(): HTMLElement {
 
 /** The trailing glyph each separator renders — mirrors `FORMAT_SEP` in the
  *  numbering plugin, so the dropdown labels read exactly as the numbers will. */
-const NUMBERING_SEP_GLYPH: Record<NumberingSeparator, string> = {
-  period: '.',
-  paren: ')',
-  dash: ' -',
-  colon: ':',
-  emdash: '—',
-  endash: '–',
-  doublehyphen: '--',
-  triplehyphen: '---',
-};
-
 /** A separator picker for one numbering level. `sample` is the leading glyph the
  *  options preview against ("1" for numbers, "a" for substructure). */
 function buildSeparatorSelect(
@@ -3918,7 +3934,7 @@ function buildSeparatorSelect(
   for (const sep of NUMBERING_SEPARATORS) {
     const opt = document.createElement('option');
     opt.value = sep;
-    opt.textContent = `${sample}${NUMBERING_SEP_GLYPH[sep]}`;
+    opt.textContent = applyNumberingSeparator(sample, sep);
     if (sep === settings.get(key)) opt.selected = true;
     select.appendChild(opt);
   }
@@ -4572,104 +4588,17 @@ function buildCreateReferenceDelimiterEditor(): HTMLElement {
   return select;
 }
 
-function buildVoiceDictationModelEditor(): HTMLElement {
+function buildVoiceModelEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-multi-doc-layout-mode-editor';
   const api = (window as unknown as {
     electronAPI?: {
-      voiceBaseModelInfo(): Promise<{ present: boolean; downloading: boolean }>;
-      voiceDownloadBaseModel(): Promise<{ ok: boolean; error?: string }>;
-      voiceDeleteBaseModel(): Promise<{ ok: boolean; error?: string }>;
-      voiceDictationModelInfo(): Promise<{ present: boolean; downloading: boolean }>;
-      voiceDownloadDictationModel(): Promise<{ ok: boolean; error?: string }>;
-      voiceDeleteDictationModel(): Promise<{ ok: boolean; error?: string }>;
-      onVoiceDownloadProgress(
-        h: (p: { model?: string; pct: number; extracting?: boolean }) => void,
-      ): () => void;
+      voiceModelInfo(): Promise<{ present: boolean; downloading: boolean; sizeMB: number }>;
+      voiceDownloadModel(): Promise<{ ok: boolean; error?: string }>;
+      voiceDeleteModel(): Promise<{ ok: boolean; error?: string }>;
+      onVoiceDownloadProgress(h: (p: { model?: string; pct: number; receivedMB?: number; extracting?: boolean }) => void): () => void;
     };
   }).electronAPI;
-
-  // Radio choice first (which model voice uses), then the download
-  // controls for each below.
-  const groupName = `pmd-voice-dict-model-${Math.random().toString(36).slice(2, 8)}`;
-  for (const o of [
-    { value: 'standard' as const, label: 'Standard' },
-    { value: 'large' as const, label: 'Large — better general-English dictation' },
-  ]) {
-    const row = document.createElement('label');
-    row.className = 'pmd-multi-doc-layout-mode-row';
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = groupName;
-    input.checked = o.value === settings.get('voiceDictationModel');
-    input.addEventListener('change', () => {
-      if (input.checked) settings.set('voiceDictationModel', o.value);
-    });
-    const labelText = document.createElement('span');
-    labelText.textContent = o.label;
-    row.append(input, labelText);
-    wrap.appendChild(row);
-  }
-
-  // Base (standard) model: the one voice needs to run at all. First-use
-  // download, pre-fetchable here (useful before going somewhere with no
-  // wifi).
-  if (api?.voiceBaseModelInfo) {
-    const baseStatus = document.createElement('div');
-    baseStatus.className = 'pmd-voice-model-status';
-    const baseButton = document.createElement('button');
-    baseButton.type = 'button';
-    baseButton.className = 'pmd-voice-model-download';
-    const baseDeleteBtn = document.createElement('button');
-    baseDeleteBtn.type = 'button';
-    baseDeleteBtn.className = 'pmd-voice-model-delete';
-    baseDeleteBtn.textContent = 'Delete standard model';
-    baseDeleteBtn.style.display = 'none';
-    wrap.append(baseStatus, baseButton, baseDeleteBtn);
-    const refreshBase = async (): Promise<void> => {
-      const info = await api.voiceBaseModelInfo();
-      if (info.present) {
-        baseStatus.textContent = 'Standard model downloaded ✓';
-        baseButton.style.display = 'none';
-        baseDeleteBtn.style.display = '';
-      } else {
-        baseStatus.textContent = info.downloading
-          ? 'Downloading standard model…'
-          : 'Standard model not downloaded.';
-        baseButton.style.display = info.downloading ? 'none' : '';
-        baseButton.textContent = 'Download standard model (~130 MB)';
-        baseDeleteBtn.style.display = 'none';
-      }
-    };
-    void refreshBase();
-    baseDeleteBtn.addEventListener('click', () => {
-      void confirmDialog(
-        "Delete the standard voice model? Voice control won't work until you download it again.",
-        { okLabel: 'Delete' },
-      ).then((go) => {
-        if (!go) return;
-        baseDeleteBtn.style.display = 'none';
-        baseStatus.textContent = 'Deleting…';
-        void api.voiceDeleteBaseModel().then((res) => {
-          if (!res.ok) baseStatus.textContent = `Delete failed: ${res.error ?? 'unknown'}`;
-          void refreshBase();
-        });
-      });
-    });
-    baseButton.addEventListener('click', () => {
-      baseButton.style.display = 'none';
-      const unsub = api.onVoiceDownloadProgress((p) => {
-        if (p.model && p.model !== 'base-model') return;
-        baseStatus.textContent = p.extracting ? 'Extracting…' : `Downloading… ${p.pct}%`;
-      });
-      void api.voiceDownloadBaseModel().then((res) => {
-        unsub();
-        if (!res.ok) baseStatus.textContent = `Download failed: ${res.error ?? 'unknown'}`;
-        void refreshBase();
-      });
-    });
-  }
-
   const status = document.createElement('div');
   status.className = 'pmd-voice-model-status';
   const button = document.createElement('button');
@@ -4678,64 +4607,113 @@ function buildVoiceDictationModelEditor(): HTMLElement {
   const deleteButton = document.createElement('button');
   deleteButton.type = 'button';
   deleteButton.className = 'pmd-voice-model-delete';
-  deleteButton.textContent = 'Delete large model';
+  deleteButton.textContent = 'Delete model';
   deleteButton.style.display = 'none';
   wrap.append(status, button, deleteButton);
-
   const refresh = async (): Promise<void> => {
-    if (!api) {
+    if (!api?.voiceModelInfo) {
       status.textContent = 'Desktop only.';
       button.style.display = 'none';
-      deleteButton.style.display = 'none';
       return;
     }
-    const info = await api.voiceDictationModelInfo();
+    const info = await api.voiceModelInfo();
     if (info.present) {
-      status.textContent = 'Large model downloaded ✓';
+      status.textContent = 'Recognition model downloaded ✓';
       button.style.display = 'none';
       deleteButton.style.display = '';
     } else {
-      status.textContent = info.downloading ? 'Downloading…' : 'Large model not downloaded.';
+      status.textContent = info.downloading ? 'Downloading…' : 'Recognition model not downloaded.';
       button.style.display = info.downloading ? 'none' : '';
-      button.textContent = 'Download large model (1.8 GB)';
+      button.textContent = `Download speech engine and model (~${info.sizeMB} MB)`;
       deleteButton.style.display = 'none';
     }
   };
   void refresh();
-
-  deleteButton.addEventListener('click', () => {
-    if (!api) return;
-    void confirmDialog(
-      'Delete the large dictation model (1.8 GB)? Voice will fall back to the standard model.',
-      { okLabel: 'Delete' },
-    ).then((go) => {
-      if (!go) return;
-      deleteButton.style.display = 'none';
-      status.textContent = 'Deleting…';
-      void api.voiceDeleteDictationModel().then((res) => {
-        if (!res.ok) status.textContent = `Delete failed: ${res.error ?? 'unknown'}`;
-        void refresh();
-      });
-    });
-  });
-
   button.addEventListener('click', () => {
     if (!api) return;
     button.style.display = 'none';
     const unsub = api.onVoiceDownloadProgress((p) => {
-      // Shared progress channel — ignore base-model / node-runtime ticks.
-      if (p.model && p.model !== 'large-model') {
-        if (p.model === 'node-runtime') status.textContent = 'Downloading runtime…';
-        return;
-      }
-      status.textContent = p.extracting ? 'Extracting…' : `Downloading… ${p.pct}%`;
+      status.textContent = p.extracting ? 'Extracting…' : `Downloading ${p.model === 'engine' ? 'speech engine' : p.model === 'vad' ? 'voice detector' : 'model'}… ${p.pct}%`;
     });
-    void api.voiceDownloadDictationModel().then((res) => {
+    void api.voiceDownloadModel().then((res) => {
       unsub();
       if (!res.ok) status.textContent = `Download failed: ${res.error ?? 'unknown'}`;
       void refresh();
     });
   });
+  deleteButton.addEventListener('click', () => {
+    if (!api) return;
+    void confirmDialog("Delete the voice recognition model? Voice control won't work until you download it again.", { okLabel: 'Delete' }).then((go) => {
+      if (!go) return;
+      deleteButton.style.display = 'none';
+      status.textContent = 'Deleting…';
+      void api.voiceDeleteModel().then((res) => {
+        if (!res.ok) status.textContent = `Delete failed: ${res.error ?? 'unknown'}`;
+        void refresh();
+      });
+    });
+  });
+  return wrap;
+}
+
+/** Hold-to-dictate chord: a capture pill like the keybindings editor's. */
+function buildVoiceHoldKeyEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-voice-holdkey-editor';
+  const current = document.createElement('code');
+  current.className = 'pmd-voice-holdkey-current';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pmd-settings-btn';
+  btn.textContent = 'Change…';
+  const render = (): void => {
+    current.textContent = formatKeyForDisplay(settings.get('voiceDictateKey')) || '(none)';
+  };
+  render();
+  btn.addEventListener('click', () => {
+    btn.textContent = 'Press a key… (Esc cancels)';
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        done();
+        return;
+      }
+      if (e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta') return;
+      e.preventDefault();
+      e.stopPropagation();
+      settings.set('voiceDictateKey', ribbonKeyStringFor(e));
+      done();
+    };
+    const done = (): void => {
+      document.removeEventListener('keydown', onKey, true);
+      btn.textContent = 'Change…';
+      render();
+    };
+    document.addEventListener('keydown', onKey, true);
+  });
+  wrap.append(current, btn);
+  return wrap;
+}
+
+function buildVoiceCalibrateEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-voice-calibrate-editor';
+  const status = document.createElement('div');
+  status.className = 'pmd-voice-model-status';
+  const device = settings.get('voiceInputDeviceId') || '';
+  const prof = settings.get('voiceProfiles')[device];
+  const learned = prof ? Object.values(prof.aliases).reduce((n, l) => n + l.length, 0) : 0;
+  status.textContent = prof?.updatedAt
+    ? `Calibrated ${new Date(prof.updatedAt).toLocaleDateString()} · ${learned} learned spelling${learned === 1 ? '' : 's'} for this microphone`
+    : 'Not calibrated for this microphone yet.';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pmd-settings-btn';
+  btn.textContent = 'Calibrate…';
+  btn.addEventListener('click', () => {
+    if (!requestVoiceCalibration()) showToast('Open a document first, then calibrate from the voice pill or here.', { durationMs: 2600 });
+  });
+  wrap.append(status, btn);
   return wrap;
 }
 
@@ -5259,6 +5237,46 @@ type EnterAfterStyleKey =
   | 'enterAfterTag'
   | 'enterAfterAnalytic'
   | 'enterAfterUndertag';
+/** Two selects under one row — the order while editing and the order
+ *  in read mode — over the same six permutations. */
+function buildWordCountOrderEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-display-sizes-editor pmd-word-count-order-editor';
+  const fields: { key: 'wordCountOrder' | 'wordCountOrderReadMode'; label: string }[] = [
+    { key: 'wordCountOrder', label: 'While editing' },
+    { key: 'wordCountOrderReadMode', label: 'In read mode' },
+  ];
+  const selects: [typeof fields[number]['key'], HTMLSelectElement][] = [];
+  for (const f of fields) {
+    const row = document.createElement('div');
+    row.className = 'pmd-display-size-row';
+    const label = document.createElement('label');
+    label.className = 'pmd-display-size-label';
+    label.textContent = f.label;
+    row.appendChild(label);
+    const select = document.createElement('select');
+    select.className = 'pmd-body-font-select';
+    for (const o of WORD_COUNT_ORDERS) {
+      const opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.label;
+      select.appendChild(opt);
+    }
+    select.value = settings.get(f.key);
+    select.addEventListener('change', () => {
+      settings.set(f.key, select.value as WordCountOrder);
+    });
+    row.appendChild(select);
+    wrap.appendChild(row);
+    selects.push([f.key, select]);
+  }
+  const unsub = settings.subscribe(() => {
+    for (const [key, select] of selects) select.value = settings.get(key);
+  });
+  registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
 function buildEnterAfterStyleEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-display-sizes-editor pmd-enter-style-editor';
@@ -5312,6 +5330,37 @@ function buildEnterAfterStyleEditor(): HTMLElement {
 
 /** Two-button segmented control for which ribbon edge the timer
  *  panel occupies. Same visual language as the prep-label control. */
+/** Two-button segmented control: which side of the screen Arrange
+ *  Windows gives the speech doc. Same visual language as the timer
+ *  position control. */
+function buildArrangeSpeechSideEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-theme-editor';
+  const options: { value: Settings['arrangeSpeechSide']; label: string }[] = [
+    { value: 'left', label: 'Speech doc on the left' },
+    { value: 'right', label: 'Speech doc on the right' },
+  ];
+  for (const o of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-theme-editor-btn';
+    btn.textContent = o.label;
+    btn.dataset['value'] = o.value;
+    btn.addEventListener('click', () => settings.set('arrangeSpeechSide', o.value));
+    wrap.appendChild(btn);
+  }
+  function refresh(): void {
+    const cur = settings.get('arrangeSpeechSide');
+    for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
+      btn.setAttribute('aria-pressed', btn.dataset['value'] === cur ? 'true' : 'false');
+    }
+  }
+  refresh();
+  const unsub = settings.subscribe(refresh);
+  registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
 function buildTimerPositionEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-theme-editor';
@@ -5974,6 +6023,39 @@ function buildSaveFormatEditor(): HTMLElement {
   return wrap;
 }
 
+/** Per-type format for the silent Send / Read / Marked saves: .docx
+ *  (default), .cmir, or follow the new-document format. Same chrome as the
+ *  default-format editor above. */
+function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-multi-doc-layout-mode-editor pmd-doc-type-format-editor';
+  const options: { value: 'default' | 'docx' | 'cmir'; label: string }[] = [
+    { value: 'docx', label: '.docx — Word / Verbatim-compatible (default)' },
+    { value: 'cmir', label: '.cmir — CardMirror native' },
+    { value: 'default', label: 'Same as new documents' },
+  ];
+  const groupName = `pmd-doc-type-format-${key}-${Math.random().toString(36).slice(2, 8)}`;
+  for (const o of options) {
+    const row = document.createElement('label');
+    row.className = 'pmd-multi-doc-layout-mode-row';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = groupName;
+    input.value = o.value;
+    input.checked = o.value === settings.get(key);
+    input.addEventListener('change', () => {
+      if (input.checked) settings.set(key, o.value);
+    });
+    row.appendChild(input);
+    const labelText = document.createElement('span');
+    labelText.className = 'pmd-multi-doc-layout-mode-row-label';
+    labelText.textContent = o.label;
+    row.appendChild(labelText);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
 function buildAiProviderEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-multi-doc-layout-mode-editor';
@@ -6191,10 +6273,10 @@ function buildMarkedCardsDestinationEditor(): HTMLElement {
   return buildDestinationEditor('markedCardsDestination', 'pmd-marked-cards-dest');
 }
 
-/** Same/fixed-folder radio for a save destination setting (Send Doc, Marked
- *  Cards). `key` is the setting; `idPrefix` keeps the radio group distinct. */
+/** Same/fixed-folder radio for a save destination setting (Send Doc, Read
+ *  Doc, Marked Cards). `key` is the setting; `idPrefix` keeps the radio group distinct. */
 function buildDestinationEditor(
-  key: 'sendDocDestination' | 'markedCardsDestination',
+  key: 'sendDocDestination' | 'readDocDestination' | 'markedCardsDestination',
   idPrefix: string,
 ): HTMLElement {
   const wrap = document.createElement('div');

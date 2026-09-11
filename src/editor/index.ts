@@ -8,11 +8,13 @@
  */
 
 import { EditorState, Plugin, Selection, TextSelection, type Command } from 'prosemirror-state';
+import { serializeRangesForClipboard } from './clipboard-slice.js';
 import { EditorView } from 'prosemirror-view';
 import { keymap } from 'prosemirror-keymap';
-import { history, redo, undo } from 'prosemirror-history';
+import { history, redo, undo, redoDepth } from 'prosemirror-history';
+import { repeatLastActionPlugin, repeatLastAction, noteCommandRun } from './repeat-last-action.js';
 import { baseKeymap } from 'prosemirror-commands';
-import { Node as PMNode, type Mark, DOMSerializer } from 'prosemirror-model';
+import { Node as PMNode, type Mark } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
 import { fromDocxFull, toDocx, serializeNative, serializeNativeAsync, parseNative, parseNativeSalvage, NativeDamagedError, readDocIdFromBytes, stampDocId, setSaveHealListener } from '../index.js';
 import { transformForExport, countMarkedCards } from '../export/transform-for-export.js';
@@ -60,6 +62,7 @@ import { DropzoneController } from './dropzone-ui.js';
 import { mountPairingPills, initPairingWiring } from './pairing/pairing-wiring.js';
 import {
   setReceivedInsertNavHook, insertMostRecentReceived, RECEIVE_NEEDS_DOC_MESSAGE } from './pairing/inbox-insert.js';
+import { previewMostRecentReceived } from './pairing/receive-pill-ui.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { sendViewToRecipient } from './pairing/send-to-recipient.js';
 import { installExternalConsent } from './external-consent-ui.js';
@@ -123,6 +126,9 @@ import {
 } from './scroll-anchor.js';
 import { voicePlugin } from './voice/plugin.js';
 import { VoiceController } from './voice/controller.js';
+import { installHoldToDictate } from './voice/hold-key.js';
+import { openVoiceCalibration } from './voice/calibrate.js';
+import { setVoiceCalibrationOpener } from './voice/hooks.js';
 import { openCardEditor } from './learn-create-ui.js';
 import { openLearnManage } from './learn-manage-ui.js';
 import { openBulkConvert, runConvertSingleFileWeb } from './bulk-convert-ui.js';
@@ -132,6 +138,21 @@ import { openClean, runCleanSingleFileWeb } from './clean-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
 import { recordRecent, removeRecent, listRecents, type RecentFile } from './recents-store.js';
 import { recordRecentWorkspace, type RecentWorkspace } from './recent-workspaces-store.js';
+import {
+  reportWindowWorkspace,
+  rolloverLastWorkspace,
+  lastWorkspace,
+  saveWorkspaceNow,
+  selectedDocs,
+  installWindowCloseForget,
+  type WorkspaceSnapshot,
+} from './workspace-store.js';
+
+/** sessionStorage marker a mode-switch reload leaves for itself.
+ *  Declared up here because the three-pane boot block below runs
+ *  during module evaluation and reads it before the mode-switch
+ *  helpers further down would have been reached. */
+const MODE_SWITCH_MARKER_KEY = 'cardmirror:mode-switch-recovery';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
 import {
   settings,
@@ -149,8 +170,7 @@ import {
   ZOOM_MAX_PCT,
   CHROME_SCALE_MIN_PCT,
   CHROME_SCALE_MAX_PCT,
-  migrateAutoUpdateOptOut,
-} from './settings.js';
+  migrateAutoUpdateOptOut, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { viewportSpellcheckPlugin } from './viewport-spellcheck.js';
@@ -338,7 +358,7 @@ import {
   formatNumber,
   type ReadAloudCounts,
 } from './word-count.js';
-import { liveContainerSegment, remainingReadSegment } from './live-read-time.js';
+import { liveContainerSegment, orderWordCountSegments, primaryReadSegment, remainingReadSegment } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import {
   installGlobalErrorSurface,
@@ -778,12 +798,9 @@ function deleteCurrentHeadingIn(sourceView: EditorView): void {
 async function copyCurrentHeadingIn(sourceView: EditorView): Promise<void> {
   const range = resolveCursorStructureRange(sourceView);
   if (!range) return;
-  const slice = sourceView.state.doc.slice(range.from, range.to);
-  const serializer = DOMSerializer.fromSchema(sourceView.state.schema);
-  const tmp = document.createElement('div');
-  tmp.appendChild(serializer.serializeFragment(slice.content));
-  const html = tmp.innerHTML;
-  const text = slice.content.textBetween(0, slice.content.size, '\n', '\n');
+  // The shared clipboard path (live views materialize; same-doc pastes keep
+  // their links) — the bare serializer here pasted dangling live views.
+  const { html, text } = serializeRangesForClipboard(sourceView, [range]);
   // Shared host-first / retrying path — and every outcome surfaces
   // (see clipboard-write.ts for the silent-failure history).
   if (await writeClipboardHtml(html, text)) showToast('Copied!');
@@ -1037,6 +1054,7 @@ let multiDocNewDocWithPicker: (() => Promise<void> | void) | null = null;
 /** When the multi-pane shell is active, this delegates the
  *  read-mode ribbon button to the shell's per-pane toggle. */
 let multiDocToggleReadMode: (() => void) | null = null;
+let multiDocArrangeForSpeech: ((side: 'left' | 'right', speechPct: number) => boolean) | null = null;
 let multiDocToggleAutosave: (() => void) | null = null;
 /** Assigned by `wireColorPanel(...)` further below. Referenced by the
  *  `togglePaintbrushHighlight` / `togglePaintbrushShading` ribbon
@@ -1284,6 +1302,7 @@ export function enableMultiDocMode(opts: {
   restoreWorkspaceFromPaths?: (
     entries: { handle: string; filename: string; format: 'cmir' | 'docx' | null }[],
   ) => Promise<void>;
+  arrangeForSpeech?: (side: 'left' | 'right', speechPct: number) => boolean;
 }): void {
   multiDocActive = true;
   multiDocOnFileOpen = opts.onFileOpen;
@@ -1297,6 +1316,7 @@ export function enableMultiDocMode(opts: {
   multiDocZoomResetHook = opts.zoomFocusedReset ?? null;
   multiDocNewSpeechDocument = opts.newSpeechDocument ?? null;
   multiDocMarkActiveAsSpeech = opts.markActiveAsSpeech ?? null;
+  multiDocArrangeForSpeech = opts.arrangeForSpeech ?? null;
   multiDocSendToSpeechAtCursor = opts.sendToSpeechAtCursor ?? null;
   multiDocSendToSpeechAtEnd = opts.sendToSpeechAtEnd ?? null;
   multiDocSendToDropzone = opts.sendToDropzone ?? null;
@@ -1761,6 +1781,70 @@ const ribbonContext: RibbonContext = {
     if (view) openWordCount(view);
   },
   toggleReaderView: () => toggleReaderViewCommand(),
+  saveWorkspace: () => {
+    if (!getElectronHost()) {
+      showToast('Saving a workspace requires the desktop edition.');
+      return;
+    }
+    if (!settings.get('lastWorkspaceEnabled')) {
+      showToast(LAST_WORKSPACE_OFF_MESSAGE);
+      return;
+    }
+    const saved = saveWorkspaceNow();
+    if (!saved) {
+      showToast('Nothing to save — no saved documents are open.');
+      return;
+    }
+    showToast(
+      saved.docs.length === 1
+        ? 'Workspace saved (1 document).'
+        : `Workspace saved (${saved.docs.length} documents).`,
+    );
+  },
+  arrangeWindows: () => {
+    const side = settings.get('arrangeSpeechSide');
+    const speechPct = settings.get('arrangeSpeechPct');
+    if (multiDocActive) {
+      // Three-pane: slots, not windows.
+      if (multiDocArrangeForSpeech && !multiDocArrangeForSpeech(side, speechPct)) {
+        showToast('Nothing to arrange — open a document first.');
+      }
+      return;
+    }
+    void (async () => {
+      const result = await getElectronHost()?.arrangeWindows({ side, speechPct });
+      if (!result) {
+        showToast('Arranging windows requires the desktop edition.');
+        return;
+      }
+      if (!result.speechFound) {
+        showToast('No speech doc yet — every window went to the docs side. Mark a speech doc first.');
+      }
+    })();
+  },
+  reopenWorkspace: () => {
+    if (!getElectronHost()) {
+      showToast('Reopening a workspace requires the desktop edition.');
+      return;
+    }
+    if (!settings.get('lastWorkspaceEnabled')) {
+      showToast(LAST_WORKSPACE_OFF_MESSAGE);
+      return;
+    }
+    const snapshot = lastWorkspace();
+    if (!snapshot) {
+      showToast('No saved workspace yet.');
+      return;
+    }
+    if (selectedDocs(snapshot).length === 0) {
+      showToast('Nothing ticked in your last workspace — tick a document on the home screen.');
+      return;
+    }
+    void (async () => {
+      const opened = await restoreWorkspace(snapshot);
+      if (opened === 0) showToast('Every document in that workspace is already open.');
+    })();
+  },
   openContainingFolder: () => {
     const host = getElectronHost();
     if (!host) {
@@ -1956,6 +2040,9 @@ const ribbonContext: RibbonContext = {
   toggleVoice: () => {
     void getVoiceController().toggle();
   },
+  calibrateVoice: () => {
+    void openVoiceCalibration(getVoiceController());
+  },
   openCardCutter: () => {
     if (view) void openCutLaunchSheet(view);
   },
@@ -2081,6 +2168,9 @@ const ribbonContext: RibbonContext = {
   saveSendDoc: () => {
     void runSaveSendDocFlow();
   },
+  saveReadDoc: () => {
+    void runSaveReadDocFlow();
+  },
   saveMarkedCards: () => {
     void runSaveMarkedCardsFlow();
   },
@@ -2163,6 +2253,11 @@ const ribbonContext: RibbonContext = {
       return;
     }
     if (view) insertMostRecentReceived(view, true);
+  },
+  // Look without inserting: no destination document is involved, so
+  // this one works with the home screen up too.
+  previewReceived: () => {
+    previewMostRecentReceived();
   },
   // Source-only operations on the focused view — no cross-doc
   // destination, so unlike send-to-* they need no multi-doc routing
@@ -2576,7 +2671,26 @@ settingsBtn.addEventListener('click', () => {
  */
 export function runRibbon(id: AnyCommandId): void {
   if (!view) return;
-  getRibbonCommand(id, ribbonContext)(view.state, view.dispatch.bind(view), view);
+  recordCommandRun(id, getRibbonCommand(id, ribbonContext))(view.state, view.dispatch.bind(view), view);
+}
+
+/** Wrap a ribbon command so Word-style Repeat (repeat-last-action.ts)
+ *  remembers it by id when it changed the document. Async commands that
+ *  change the doc later (dialogs) are not recorded — the check runs when
+ *  the command returns. */
+function recordCommandRun(id: string, cmd: Command): Command {
+  return (state, dispatch, v) => {
+    if (!dispatch || !v) return cmd(state, dispatch, v);
+    const before = v.state.doc;
+    noteCommandRun(id, 'begin');
+    let ran: boolean;
+    try {
+      ran = cmd(state, dispatch, v);
+    } finally {
+      noteCommandRun(id, 'end', v, v.state.doc !== before);
+    }
+    return ran;
+  };
 }
 
 /**
@@ -3629,6 +3743,16 @@ function applyDisplayTypography(t: DisplayTypography): void {
   document.documentElement.style.setProperty('--pmd-emphasis-box-size', `${t.emphasisBoxSize}pt`);
 }
 
+/** Appearance → "Underlines follow font color": a root predicate class the
+ *  stylesheet reads (`:root.pmd-underline-follows-color`, style.css) to
+ *  re-declare the underline on colored runs inside underline / emphasis /
+ *  underlined-cite spans and inside hat / block headings, so the line
+ *  paints in the run's own color. Root-level so every pane and the ribbon
+ *  preview see it. */
+function applyUnderlineFollowsFontColor(on: boolean): void {
+  document.documentElement.classList.toggle('pmd-underline-follows-color', on);
+}
+
 /** Resolve the user's theme preference + the "apply theme to
  *  document" toggle into `data-theme` / `data-theme-doc`
  *  attributes on the document root. Light is the absence of a
@@ -4025,6 +4149,7 @@ settings.subscribe((s) => {
   applyChromeScale(s.chromeScalePct);
   applyDisplaySizes(s.displaySizes);
   applyDisplayTypography(s.displayTypography);
+  applyUnderlineFollowsFontColor(s.underlineFollowsFontColor);
   applyStyleAlignments(s.styleAlignments);
   applyMaxTextWidth(s.maxTextWidthPx, s.maxTextWidthAlign);
   applyDisplayColors(s.displayColors);
@@ -4066,6 +4191,13 @@ settings.subscribe((s) => {
   // reuse the cache" path (it still counts a live selection, which is
   // O(range) and cheap).
   refreshWordCount({ selectionOnly: true });
+  // Last workspace turned on mid-session: report this window's doc now
+  // (the report hook is memoized and would otherwise wait for a change).
+  if (s.lastWorkspaceEnabled !== lastWorkspaceEnabledSeen) {
+    lastWorkspaceEnabledSeen = s.lastWorkspaceEnabled;
+    lastReportedWorkspaceKey = '';
+    reportSingleDocWorkspace();
+  }
   refreshFontSizeDisplay();
   refreshCursorColorDisplay();
   if (
@@ -4467,6 +4599,7 @@ applyZoom(liveZoomPct);
 applyChromeScale(settings.get('chromeScalePct'));
 applyDisplaySizes(settings.get('displaySizes'));
 applyDisplayTypography(settings.get('displayTypography'));
+applyUnderlineFollowsFontColor(settings.get('underlineFollowsFontColor'));
 applyStyleAlignments(settings.get('styleAlignments'));
 applyMaxTextWidth(settings.get('maxTextWidthPx'), settings.get('maxTextWidthAlign'));
 applyDisplayColors(settings.get('displayColors'));
@@ -4604,6 +4737,7 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<AnyCommandId>([
   'closeDocOrWindow',
   // Voice toggle flips a session, not a doc — works with no pane focused.
   'toggleVoice',
+  'calibrateVoice',
   // Pre-warming the Flow host spawns a process; no doc required.
   'startFlowHost',
   // Collaboration-session lifecycle operates on the app shell (state
@@ -4637,6 +4771,7 @@ function runViewlessRibbon(id: AnyCommandId): void {
     case 'insertInDocCopy': ribbonContext.insertInDocCopy(); return;
     case 'manageQuickCards': ribbonContext.manageQuickCards(); return;
     case 'toggleVoice': ribbonContext.toggleVoice(); return;
+    case 'calibrateVoice': ribbonContext.calibrateVoice(); return;
     case 'startFlowHost': ribbonContext.startFlowHost(); return;
     case 'collabStartSession': ribbonContext.collabStartSession(); return;
     case 'collabJoinSession': ribbonContext.collabJoinSession(); return;
@@ -5176,44 +5311,45 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
   // off, the bar always shows the whole-doc count regardless of any
   // selection — the Word Count button covers selection counts on demand.
   const hasSelection = settings.get('liveSelectionWordCount') && !sel.empty;
-  let counts: ReadAloudCounts;
+  let primary: string | null = null;
   if (hasSelection) {
     // Selection read time: count only the selected range (O(range)).
     // Leaves the cached whole-doc count untouched.
-    counts = countReadAloudSplit(view.state.doc, sel.from, sel.to);
-  } else if (opts?.selectionOnly && lastWholeDocWords !== null) {
-    // Selection just collapsed to a cursor on a selection-only
-    // transaction: the whole-doc count can't have changed, so reuse the
-    // cache instead of re-walking the doc on every cursor move.
-    counts = lastWholeDocWords;
+    primary = primaryReadSegment(countReadAloudSplit(view.state.doc, sel.from, sel.to), {
+      selection: true,
+      selectionLabel: 'Selection',
+    });
+  } else if (settings.get('liveDocWordCount')) {
+    let counts: ReadAloudCounts;
+    if (opts?.selectionOnly && lastWholeDocWords !== null) {
+      // Selection just collapsed to a cursor on a selection-only
+      // transaction: the whole-doc count can't have changed, so reuse the
+      // cache instead of re-walking the doc on every cursor move.
+      counts = lastWholeDocWords;
+    } else {
+      counts = countReadAloudSplit(view.state.doc);
+      lastWholeDocWords = counts;
+    }
+    primary = primaryReadSegment(counts, { selection: false, selectionLabel: 'Selection' });
   } else {
-    counts = countReadAloudSplit(view.state.doc);
-    lastWholeDocWords = counts;
+    // Whole-doc readout off and nothing selected: no O(doc) walk at all —
+    // the bar belongs to whichever of the other segments are on. Drop the
+    // cache too: edits made while the readout is off never recount, and
+    // the settings subscription's selection-only refresh would otherwise
+    // resurface a stale number the moment it is turned back on.
+    lastWholeDocWords = null;
   }
-  const words = totalWords(counts);
 
-  const readers = settings.get('readers').slice(0, 2);
-  // With the container segment enabled the whole-doc side gets a "Doc:"
-  // label so the two sides read symmetrically ("Doc: … | Card: …");
-  // with it off, the readout is exactly the pre-feature bare number.
-  const head = hasSelection
-    ? `Selection: ${formatNumber(words)}`
-    : settings.get('liveContainerReadTime')
-      ? `Doc: ${formatNumber(words)}`
-      : formatNumber(words);
-  const parts = [head];
-  for (const r of readers) {
-    parts.push(`${r.name}: ${formatReadTimeFor(counts, r)}`);
-  }
-  // Segments are pipe-joined in scope order — whole doc, the enclosing
-  // container, what's left — and each is independently optional, so the
-  // join filters rather than nesting conditionals (container off with
-  // remaining on reads "Doc: … | Left: …").
-  const segments = [
-    parts.join(' · '),
-    liveContainerSegment(view.state),
-    remainingReadSegment(view.state),
-  ].filter((s): s is string => s !== null);
+  // Segments are pipe-joined in the user's order — one order while
+  // editing, another in read mode — and each is independently optional,
+  // so the join filters rather than nesting conditionals (container off
+  // with remaining on reads "Doc: … | Left: …").
+  const order = settings.get(settings.get('readMode') ? 'wordCountOrderReadMode' : 'wordCountOrder');
+  const segments = orderWordCountSegments(order, {
+    doc: primary,
+    container: liveContainerSegment(view.state),
+    remaining: remainingReadSegment(view.state),
+  });
   wordCountText.textContent = segments.join(' | ');
 }
 
@@ -5650,6 +5786,10 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // mobile shell; a no-op everywhere else (the active flag is set
     // once at boot, before any view mounts).
     mobilePlugin,
+    // Word-style Repeat's recorder — ahead of every keymap and the paste
+    // plugin so its hooks see typing, Backspace/Delete and paste first
+    // (they record and return false). Inert unless `repeatWithModY`.
+    repeatLastActionPlugin(),
     // Cut in place — ahead of the undo keymap (Cmd-Z while a cut is
     // pending clears the mark, not the last edit) and of the paste
     // plugin (our own payload pasted in the same document is a MOVE).
@@ -5659,10 +5799,10 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // guarantee once remote transactions interleave. Outside a session,
     // the plain history stack as always.
     ...(collabPluginSourceFor(targetUid)?.ownsUndo()
-      ? [keymap({ 'Mod-z': collabUndo, 'Mod-y': collabRedo, 'Mod-Shift-z': collabRedo })]
+      ? [keymap({ 'Mod-z': collabUndo, 'Mod-y': collabRedoOrRepeat, 'Mod-Shift-z': collabRedo })]
       : [
           history(),
-          keymap({ 'Mod-z': readModeAwareUndo, 'Mod-y': readModeAwareRedo, 'Mod-Shift-z': readModeAwareRedo }),
+          keymap({ 'Mod-z': readModeAwareUndo, 'Mod-y': redoOrRepeat, 'Mod-Shift-z': readModeAwareRedo }),
         ]),
     // Tag/analytic boundary editing rules (ARCHITECTURE.md §14.3).
     // These run before baseKeymap so they get first crack at
@@ -5725,7 +5865,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     }),
     keymap(buildMacroKeymap(settings.get('keyboardMacros'))),
     keymap(
-      buildRibbonKeymap(settings.get('ribbonKeyOverrides'), ribbonContext),
+      buildRibbonKeymap(settings.get('ribbonKeyOverrides'), ribbonContext, recordCommandRun),
     ),
     // Word-style nav: Ctrl+Left/Right (units), Ctrl+Up/Down
     // (paragraphs, asymmetric Ctrl+Up), PageUp/PageDown
@@ -5908,14 +6048,59 @@ const collabUndo: Command = (state, dispatch, viewArg) =>
 const collabRedo: Command = (state, dispatch, viewArg) =>
   collabPluginSourceFor(activeDocIdentity().sessionUid)?.redo(state, dispatch, viewArg) ?? false;
 
+// ─── Mod-Y: Redo, else Word-style Repeat (setting `repeatWithModY`) ────
+// Redo always wins while there is something to redo; with the stack
+// empty and the setting on, Mod-Y re-runs the last editing action at
+// the selection (see repeat-last-action.ts). Mod-Shift-Z stays Redo.
+// Read mode: a no-op that still claims the key (nothing may edit).
+/** Feed one more press of `key` through the app's own key handlers
+ *  (tag-boundary rules, node-select guards); false if none claimed it. */
+function replayKeyDown(v: EditorView, key: 'Backspace' | 'Delete'): boolean {
+  const event = new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true });
+  return v.someProp('handleKeyDown', (f) => f(v, event)) === true;
+}
+const runRepeat = (v: EditorView | undefined): boolean =>
+  !!v && repeatLastAction(v, (id) => runRibbonCommandById(id as AnyCommandId), replayKeyDown);
+const redoOrRepeat: Command = (state, dispatch, viewArg) => {
+  if (!settings.get('repeatWithModY') || redoDepth(state) > 0) return readModeAwareRedo(state, dispatch, viewArg);
+  if (readModePlugin.getState(state)?.on) return true;
+  return runRepeat(viewArg);
+};
+const collabRedoOrRepeat: Command = (state, dispatch, viewArg) => {
+  const src = collabPluginSourceFor(activeDocIdentity().sessionUid);
+  if (!settings.get('repeatWithModY') || !src || src.canRedo()) return collabRedo(state, dispatch, viewArg);
+  if (readModePlugin.getState(state)?.on) return true;
+  return runRepeat(viewArg);
+};
+
 let voiceController: VoiceController | null = null;
 function getVoiceController(): VoiceController {
   voiceController ??= new VoiceController({
     getView: getActiveView,
     ribbonCtx: ribbonContext,
+    // The editor's own undo path — the CRDT undo manager inside a live
+    // session, plain history otherwise — so a spoken `undo` ≡ Mod-Z.
+    undo: () => {
+      const v = getActiveView();
+      if (!v) return false;
+      const cmd = collabPluginSourceFor(activeDocIdentity().sessionUid)?.ownsUndo() ? collabUndo : readModeAwareUndo;
+      return cmd(v.state, v.dispatch.bind(v), v);
+    },
+    onCalibrate: () => void openVoiceCalibration(getVoiceController()),
   });
   return voiceController;
 }
+setVoiceCalibrationOpener(() => void openVoiceCalibration(getVoiceController()));
+// Hold-to-dictate: the chord is a setting; the listener is global so a
+// pedal or key works whatever has focus while a session is on.
+installHoldToDictate({
+  getKey: () => settings.get('voiceDictateKey'),
+  getMode: () => (settings.get('voiceDictateToggle') ? 'toggle' : 'hold'),
+  isDictating: () => getVoiceController().isDictating(),
+  isActive: () => getVoiceController().isActive,
+  begin: () => getVoiceController().beginDictation(),
+  end: () => getVoiceController().endDictation(),
+});
 
 function mountView(doc: PMNode, threads: Thread[] = []): void {
   if (view) {
@@ -6320,6 +6505,7 @@ function setCurrentDocHandle(next: unknown | null): void {
   if (prev === next) return;
   if (typeof prev === 'string' && prev) releaseDocPath(prev);
   if (typeof next === 'string' && next) void registerDocPath(next);
+  reportSingleDocWorkspace();
 }
 /** On-disk format of the current single-doc file. Drives whether
  *  "Save" routes through `toDocx` or `serializeNative`. `null` for
@@ -7100,7 +7286,15 @@ const homeCallbacks: HomeScreenCallbacks = {
   openRecent: (recent: RecentFile) => {
     void openRecentInPlace(recent);
   },
-  reopenWorkspace: (ws: RecentWorkspace) => reopenWorkspaceFromHome(ws),
+  // Reopen-by-path is desktop-only (the web edition can't persist
+  // file handles), so the home screen omits the section without it.
+  ...(getElectronHost()
+    ? {
+        reopenWorkspace: (snapshot: WorkspaceSnapshot): void => {
+          void restoreWorkspace(snapshot);
+        },
+      }
+    : {}),
   resumeSession: (roomId: string) => {
     void (async (): Promise<void> => {
       // Duplicate guards BEFORE any spawn, so a redundant click never mints
@@ -7548,6 +7742,151 @@ async function routeInitialDocIntoWorkspace(): Promise<boolean> {
   return true;
 }
 
+/** Last workspace tuple this window published, so the report hook can
+ *  sit on the (hot) window-title path without hammering localStorage
+ *  on every keystroke-driven dirty-marker refresh. */
+const LAST_WORKSPACE_OFF_MESSAGE = 'Turn on "Remember my last workspace" (Settings → General → Workspace) first.';
+let lastReportedWorkspaceKey = '';
+let lastWorkspaceEnabledSeen = settings.get('lastWorkspaceEnabled');
+
+// A window that closes on its own — not the app quitting — is gone
+// from the next session's offer; a quit, or a kill, leaves its docs in
+// place. Main answers the quit question synchronously (`pagehide`
+// cannot await). Desktop only: the web edition records nothing.
+{
+  const closingHost = getElectronHost();
+  if (closingHost) installWindowCloseForget(() => closingHost.isAppQuitting());
+}
+
+/** Publish this single-doc window's open doc to the workspace store.
+ *  No-op in three-pane mode, where the shell reports all three slots
+ *  itself. Called from `updateWindowTitle` (every doc-identity change
+ *  funnels through it) and from `setCurrentDocHandle`. */
+function reportSingleDocWorkspace(): void {
+  if (multiDocActive) return;
+  const path = typeof currentDocHandle === 'string' ? currentDocHandle : null;
+  const key = `${path ?? ''}|${currentDocFilename ?? ''}|${currentDocFormat ?? ''}`;
+  if (key === lastReportedWorkspaceKey) return;
+  lastReportedWorkspaceKey = key;
+  reportWindowWorkspace('windows', [
+    { path, filename: currentDocFilename, format: currentDocFormat },
+  ]);
+}
+
+/** Read a file for a reopen-by-path flow (recents, workspace restore).
+ *  Returns null when the file is gone. A genuinely-empty file (stat
+ *  size 0) is substituted with blank-document bytes, the same way the
+ *  Open dialog's `resolveOpenedFile` does — these paths bypass it. */
+async function readFileForReopen(
+  path: string,
+): Promise<Awaited<ReturnType<NonNullable<ReturnType<typeof getElectronHost>>['readFileAtPath']>>> {
+  const electron = getElectronHost();
+  if (!electron) return null;
+  let file: Awaited<ReturnType<typeof electron.readFileAtPath>>;
+  try {
+    file = await electron.readFileAtPath(path);
+  } catch {
+    return null;
+  }
+  if (!file) return null;
+  if (opensAsBlank(file)) {
+    file = {
+      ...file,
+      bytes: await blankDocumentBytes(file.format, makeBlankNewDoc(), {
+        defaultFont: settings.get('bodyFont'),
+      }),
+    };
+  }
+  return file;
+}
+
+/** Reopen a saved workspace — the TICKED documents only, re-derived
+ *  from the store so the home screen's button and the Reopen Last
+ *  Workspace command can't drift apart. Three-pane hands the set to the shell,
+ *  which restores each doc into the slot it was saved from.
+ *  Single-doc mounts the first doc in THIS window when it still holds
+ *  the pristine starter, and spawns a window for each of the rest —
+ *  the one-doc-per-window convention every other desktop flow follows.
+ *  Docs already open (here or in another window) are skipped rather
+ *  than duplicated. Resolves with how many actually opened. */
+async function restoreWorkspace(snapshot: WorkspaceSnapshot): Promise<number> {
+  const electron = getElectronHost();
+  if (!electron) {
+    showToast('Reopening a workspace requires the desktop edition.');
+    return 0;
+  }
+  const wanted = selectedDocs(snapshot);
+  if (wanted.length === 0) return 0;
+  homeScreen.hide();
+  if (multiDocActive) {
+    const { restoreWorkspaceIntoSlots } = await import('./multi-pane-shell.js');
+    // Slot assignments only mean something for a snapshot taken in
+    // three-pane mode; one taken in single-doc mode fills the slots
+    // in order instead.
+    return restoreWorkspaceIntoSlots(
+      wanted.map((d) => ({
+        path: d.path,
+        filename: d.filename,
+        slot: snapshot.mode === 'panes' ? d.slot : null,
+      })),
+    );
+  }
+  let opened = 0;
+  let missing = 0;
+  let inPlaceAvailable = isPristineStarter;
+  for (const doc of wanted) {
+    if (currentDocHandle != null && (await isSameOpenHandle(currentDocHandle, doc.path))) {
+      continue;
+    }
+    let takenByOther = false;
+    try {
+      takenByOther = (await electron.openPathCheck(doc.path)).takenByOther;
+    } catch {
+      /* old preload — fall through and let the open proceed */
+    }
+    if (takenByOther) continue;
+    const file = await readFileForReopen(doc.path);
+    if (!file) {
+      missing += 1;
+      continue;
+    }
+    try {
+      if (inPlaceAvailable) {
+        inPlaceAvailable = false;
+        await loadFileInPlace({
+          filename: file.name,
+          bytes: file.bytes,
+          handle: file.handle,
+          format: file.format,
+        });
+      } else if (electron.canSpawnWindow) {
+        await electron.spawnWindow({
+          filename: file.name,
+          bytes: file.bytes,
+          handle: file.handle,
+          format: file.format,
+          uid: null,
+        });
+      } else {
+        break; // nowhere left to put the rest
+      }
+      opened += 1;
+    } catch (err) {
+      if (err instanceof OpenCancelledError) continue; // password box dismissed
+      console.error(`Reopening "${doc.filename}" failed:`, err);
+      missing += 1;
+    }
+  }
+  if (missing > 0) {
+    showToast(
+      missing === 1
+        ? "1 document couldn't be reopened — it may have moved or been deleted."
+        : `${missing} documents couldn't be reopened — they may have moved or been deleted.`,
+    );
+  }
+  return opened;
+}
+
 /** Reopen a recent file in-place via its stored path handle.
  *  Prunes the entry if the file is gone / unreadable. */
 async function openRecentInPlace(recent: RecentFile): Promise<void> {
@@ -7736,6 +8075,13 @@ function activeFile(): { filename: string | null; handle: unknown | null; format
   if (multiDocActive && multiDocGetFocusedFile) {
     const f = multiDocGetFocusedFile();
     if (f) return { filename: f.filename, handle: f.handle, format: f.format };
+    // No focused document (focused slot empty, or none focused after a
+    // close): say so. The single-doc variables below are never cleared
+    // in three-pane mode and still name whatever last went through a
+    // single-pane path — the pre-mode-switch doc — so falling back to
+    // them made the cloud pill (and Save) act on a document nobody was
+    // looking at.
+    return { filename: null, handle: null, format: null };
   }
   return { filename: currentDocFilename, handle: currentDocHandle, format: currentDocFormat };
 }
@@ -7803,6 +8149,7 @@ function pushSingleDocInfo(): void {
 function updateWindowTitle(): void {
   const focused = activeFile();
   pushSingleDocInfo();
+  reportSingleDocWorkspace();
   if (currentWindowName) {
     document.title = currentWindowName;
   } else if (multiDocActive && multiDocGetAllFilenames) {
@@ -8172,29 +8519,42 @@ async function runSaveAsFlowInner(): Promise<boolean> {
   }
 }
 
-/**
- * Save a Send Doc silently — the keyboard-bindable automation of the
- * Save-As dialog's "Send Doc" preset. A send doc drops comments,
- * analytics, and undertags (full, non-read-mode export). The
- * destination comes from settings: `sendDocDestination` chooses between
- * the source file's own folder (`sameFolder`) and a fixed folder
- * (`sendDocFolder`); the format follows `defaultSaveFormat`; the `SEND_`
- * prefix honors `prefixPresetSaveFilenames` (same as the preset).
+/** One silent preset export — the keyboard-bindable automation of a Save-As
+ *  preset (Send Doc, Read Doc). The destination comes from the type's own
+ *  settings: `destinationKey` chooses between the source file's own folder
+ *  (`sameFolder`) and a fixed folder (`folderKey`); the format follows
+ *  `formatKey` (`default` = `defaultSaveFormat`; the Save As dialog is
+ *  untouched); the prefix honors `prefixPresetSaveFilenames` (same as the
+ *  preset).
  *
- * Falls back to the OS Save-As dialog when the silent destination can't
- * be resolved — a never-saved doc in same-folder mode, an unset fixed
- * folder, a name collision with the source file, or a non-Electron host.
+ *  Falls back to the OS Save-As dialog when the silent destination can't be
+ *  resolved — a never-saved doc in same-folder mode, an unset fixed folder, a
+ *  name collision with the source file, or a non-Electron host.
  *
- * Like the preset, this is a lossy export: the working document keeps
- * its own identity, dirty state, and recovery journal. Returns `true`
- * when bytes hit disk, `false` on cancel / error.
- */
-export async function runSaveSendDocFlow(): Promise<boolean> {
+ *  Like the preset, this is a lossy export: the working document keeps its
+ *  own identity, dirty state, and recovery journal. Returns `true` when bytes
+ *  hit disk, `false` on cancel / error. */
+interface SilentExportSpec {
+  /** For the failure alert ("Send doc save failed: …"). */
+  label: string;
+  formatKey: 'sendDocFormat' | 'readDocFormat';
+  prefixKey: 'sendDocPrefix' | 'readDocPrefix';
+  destinationKey: 'sendDocDestination' | 'readDocDestination';
+  folderKey: 'sendDocFolder' | 'readDocFolder';
+  /** The preset's own export options (save-as-ui.ts). */
+  exportOptions: {
+    includeComments: boolean;
+    includeAnalytics: boolean;
+    includeUndertags: boolean;
+    readMode: boolean;
+  };
+}
+async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
   const file = activeFile();
-  const format: 'cmir' | 'docx' = settings.get('defaultSaveFormat');
+  const format: 'cmir' | 'docx' = effectiveDocTypeFormat(spec.formatKey);
   const base = basenameWithoutExt(file.filename ?? 'untitled');
   const filename =
-    (settings.get('prefixPresetSaveFilenames') ? settings.get('sendDocPrefix') : '') +
+    (settings.get('prefixPresetSaveFilenames') ? settings.get(spec.prefixKey) : '') +
     `${base}.${format}`;
 
   // Resolve the silent destination. Fixed-folder mode needs a configured path;
@@ -8205,19 +8565,13 @@ export async function runSaveSendDocFlow(): Promise<boolean> {
   // land the export on the source's exact path.
   const sourceHandle =
     typeof file.handle === 'string' && file.handle ? file.handle : null;
-  const fixedFolderMode = settings.get('sendDocDestination') === 'fixedFolder';
-  const folder = fixedFolderMode ? settings.get('sendDocFolder') || null : null;
+  const fixedFolderMode = settings.get(spec.destinationKey) === 'fixedFolder';
+  const folder = fixedFolderMode ? settings.get(spec.folderKey) || null : null;
   const destResolvable = fixedFolderMode ? folder !== null : sourceHandle !== null;
 
   try {
-    // Send Doc filtering — drop comments / analytics / undertags. Lossy
-    // export → no docId embedded (stays a clean copy).
-    const bytes = await serializeForSave(format, {
-      includeComments: false,
-      includeAnalytics: false,
-      includeUndertags: false,
-      readMode: false,
-    });
+    // Lossy export → no docId embedded (stays a clean copy).
+    const bytes = await serializeForSave(format, spec.exportOptions);
 
     const electron = getElectronHost();
     let result: { name: string; handle?: unknown } | null = null;
@@ -8256,10 +8610,56 @@ export async function runSaveSendDocFlow(): Promise<boolean> {
     markNonPristineStarter();
     return true;
   } catch (err) {
-    console.error('Send doc save failed:', err);
-    void alertDialog(`Send doc save failed: ${err instanceof Error ? err.message : err}`);
+    console.error(`${spec.label} save failed:`, err);
+    void alertDialog(`${spec.label} save failed: ${err instanceof Error ? err.message : err}`);
     return false;
   }
+}
+
+/**
+ * Save a Send Doc silently — the keyboard-bindable automation of the
+ * Save-As dialog's "Send Doc" preset. A send doc drops comments,
+ * analytics, and undertags (full, non-read-mode export). Settings:
+ * `sendDocDestination` / `sendDocFolder` / `sendDocFormat` / `SEND_` prefix.
+ */
+export async function runSaveSendDocFlow(): Promise<boolean> {
+  return runSilentExportFlow({
+    label: 'Send doc',
+    formatKey: 'sendDocFormat',
+    prefixKey: 'sendDocPrefix',
+    destinationKey: 'sendDocDestination',
+    folderKey: 'sendDocFolder',
+    // Send Doc filtering — drop comments / analytics / undertags.
+    exportOptions: {
+      includeComments: false,
+      includeAnalytics: false,
+      includeUndertags: false,
+      readMode: false,
+    },
+  });
+}
+
+/**
+ * Save a Read Doc silently — the automation of the Save-As dialog's "Read
+ * Doc" preset (the read-mode view: what is read aloud, with comments,
+ * analytics, and undertags stripped). Added for symmetry with Save Send
+ * Doc; unbound by default. Settings: `readDocDestination` /
+ * `readDocFolder` / `readDocFormat` / `READ_` prefix.
+ */
+export async function runSaveReadDocFlow(): Promise<boolean> {
+  return runSilentExportFlow({
+    label: 'Read doc',
+    formatKey: 'readDocFormat',
+    prefixKey: 'readDocPrefix',
+    destinationKey: 'readDocDestination',
+    folderKey: 'readDocFolder',
+    exportOptions: {
+      includeComments: false,
+      includeAnalytics: false,
+      includeUndertags: false,
+      readMode: true,
+    },
+  });
 }
 
 /**
@@ -8267,7 +8667,8 @@ export async function runSaveSendDocFlow(): Promise<boolean> {
  * dialog's "Marked Cards" preset. Extracts only the cards containing a reading
  * marker (flat — no headings, no analytics). Destination comes from settings:
  * `markedCardsDestination` chooses the source file's folder (`sameFolder`) or a
- * fixed folder (`markedCardsFolder`); the format follows `defaultSaveFormat`;
+ * fixed folder (`markedCardsFolder`); the format follows `markedDocFormat`
+ * (`default` = `defaultSaveFormat`);
  * the `MARKED_` prefix honors `prefixPresetSaveFilenames`. Same dialog fallbacks
  * and derived-export semantics (working doc untouched) as Save Send Doc. No-ops
  * with a toast when nothing is marked. Returns `true` when bytes hit disk.
@@ -8279,7 +8680,7 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
     return false;
   }
   const file = activeFile();
-  const format: 'cmir' | 'docx' = settings.get('defaultSaveFormat');
+  const format: 'cmir' | 'docx' = effectiveDocTypeFormat('markedDocFormat');
   const base = basenameWithoutExt(file.filename ?? 'untitled');
   const filename =
     (settings.get('prefixPresetSaveFilenames') ? settings.get('markedDocPrefix') : '') +
@@ -10104,6 +10505,14 @@ function positionRightTray(): void {
   if (document.body.classList.contains('pmd-multi-doc')) {
     const bodies = document.querySelectorAll<HTMLElement>('.pmd-pane:not([hidden]) .pmd-pane-body');
     scroller = bodies[bodies.length - 1] ?? null;
+    // Tag the pane the pill sits over (the rightmost visible one) so CSS
+    // can give just that pane's editor a bottom runway while the pill is
+    // showing — the mirror of `pmd-pane-pill-anchored` for the left tray.
+    const anchorPane = scroller?.closest('.pmd-pane') ?? null;
+    document.querySelectorAll('.pmd-pane-cloud-pill-anchored').forEach((stale) => {
+      if (stale !== anchorPane) stale.classList.remove('pmd-pane-cloud-pill-anchored');
+    });
+    anchorPane?.classList.add('pmd-pane-cloud-pill-anchored');
   } else {
     let el: HTMLElement | null = document.getElementById('editor');
     while (el && el !== document.body) {
@@ -10195,11 +10604,22 @@ if (BOOT_MULTI_DOC_WORKSPACE) {
     // window), and wire the forward channel.
     void getElectronHost()?.registerMultipane(true);
     installExternalOpenListener();
+    // Roll the previous session's open set into the offerable
+    // snapshot BEFORE anything mounts (the roll-over empties the live
+    // map, so a doc reported first would be swept back out), then
+    // re-report whatever this window ends up holding. Nothing is
+    // reopened here: launch always lands on the home screen, where the
+    // Last workspace checklist is the single place that decides what
+    // comes back. Never on a mode-switch reload: that is not a session
+    // boundary (the windows it closed already forgot their entries, so
+    // a roll-over here would wipe the standing offer).
+    if (sessionStorage.getItem(MODE_SWITCH_MARKER_KEY) === null) rolloverLastWorkspace();
     // If this window was spawned for an OS open (cold launch), route
     // its initial doc through the slot picker instead of booting
     // blank. Skip recovery when we did — a spawned-for-a-file window
     // isn't the place to surface unrelated drafts (matches single-doc).
     const routedInitialDoc = await routeInitialDocIntoWorkspace();
+    m.reportShellWorkspace();
     if (!routedInitialDoc) {
       // A "reopen this workspace" home-screen click stashes its target
       // paths here (see reopenWorkspaceFromHome) right before switching
@@ -10254,6 +10674,28 @@ if (BOOT_MULTI_DOC_WORKSPACE) {
  *  If no payload, mount the starter and run normal recovery. */
 async function initSingleDocBoot(): Promise<void> {
   const host = getHost();
+  // Firstness is settled before anything else so the workspace
+  // roll-over below runs even on the OS-open path (which returns
+  // early with a spawn payload). Otherwise a launch that started by
+  // double-clicking a file in Finder would never roll the previous
+  // session over, and the next roll-over would fold two sessions'
+  // docs together. The main-process answer is a pure comparison —
+  // asking early costs nothing and never changes.
+  let isFirst = true;
+  try {
+    isFirst = await host.isFirstWindow();
+  } catch (err) {
+    console.warn('isFirstWindow failed; defaulting to true:', err);
+  }
+  // Only the first window rolls the previous session's set over, and
+  // it does so before its own doc is reported (the roll-over empties
+  // the live map). Later windows just keep reporting. The roll-over
+  // only MINTS the snapshot — nothing is reopened at launch; the home
+  // screen's Last workspace checklist is the single place that decides
+  // what comes back. Never on a mode-switch reload: not a session
+  // boundary, and the windows the switch closed already forgot their
+  // entries, so a roll-over here would wipe the standing offer.
+  if (isFirst && sessionStorage.getItem(MODE_SWITCH_MARKER_KEY) === null) rolloverLastWorkspace();
   // A spawned window carries an initial-doc payload. Check regardless of THIS
   // window's own `canSpawnWindow`: a web window spawned into a plain browser tab
   // isn't itself standalone, but must still mount the doc it was opened with.
@@ -10291,12 +10733,6 @@ async function initSingleDocBoot(): Promise<void> {
   // overlay: when it's covering the editor (fresh launches that land on
   // Home), keystrokes belong to it, not to the doc underneath.
   if (!homeScreen.isVisible()) view?.focus();
-  let isFirst = true;
-  try {
-    isFirst = await getHost().isFirstWindow();
-  } catch (err) {
-    console.warn('isFirstWindow failed; defaulting to true:', err);
-  }
   // A mode-switch reload must run recovery in THIS window no matter
   // what: it's the switch's surviving window, but frequently NOT the
   // app session's first window — every single→multi switch closes
@@ -10307,6 +10743,12 @@ async function initSingleDocBoot(): Promise<void> {
     sessionStorage.getItem(MODE_SWITCH_MARKER_KEY) !== null;
   if (modeSwitchPending) {
     console.log(`[cardmirror] modeswitch: single-pane boot, isFirst=${isFirst}`);
+  }
+  if (isFirst) {
+    // Re-report after the roll-over emptied the live map, so this
+    // window is represented again straight away.
+    lastReportedWorkspaceKey = '';
+    reportSingleDocWorkspace();
   }
   if (isFirst || modeSwitchPending) {
     // Launched with no file → show the home screen over the
@@ -10553,8 +10995,6 @@ settings.subscribe((s, meta) => {
   if (s.multiDocWorkspace === BOOT_MULTI_DOC_WORKSPACE) return;
   void handleModeSwitch(s.multiDocWorkspace);
 });
-
-const MODE_SWITCH_MARKER_KEY = 'cardmirror:mode-switch-recovery';
 
 async function handleModeSwitch(newValue: boolean): Promise<void> {
   try {

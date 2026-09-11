@@ -343,7 +343,8 @@ means the default: the count restarts at that block.
 
 Tune how they look in **Settings → Appearance → Card numbering**: independent
 formats for the number and its substructure, the separator between them (period,
-dash, colon, and more), whether the substructure is capitalized and whether it's
+dash, colon, square brackets, and more), whether the substructure is capitalized and
+whether it's
 bold, the number color, and how far each is indented — all display settings that
 change how the numbers *look*, never the content. Numbers are exported to Word if
 you save as .docx.
@@ -1159,6 +1160,20 @@ count is cached per container, so moving the cursor doesn't re-count
 anything). Turning it off restores the plain whole-doc readout exactly
 as it was.
 
+The whole-document number itself can go too: **Settings → General →
+"Live word count for the whole document"** (on by default) turns off the
+first readout, leaving the bar to whichever of the others you keep — handy
+on a narrow window with room for only the specific counts. A live selection
+still shows while that setting is on, and the Word Count button (Σ) always
+has the whole-document count on demand.
+
+The readouts' left-to-right order is yours too: **Settings → General →
+"Order of the live word counts"** offers every arrangement of Doc, Card,
+and Left, with one order **while editing** and another **in read mode** —
+a reader often wants what's left first and the whole-document number last,
+an editor the reverse. Readouts you have turned off simply drop out of the
+order. In the three-pane workspace each pane follows its own read mode.
+
 A third readout — **what's left to read** — is available and **off by
 default**: turn on **Settings → General → "Live read time for what is
 left to read"** and the bar appends everything still ahead of your
@@ -1245,6 +1260,26 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   visible, and — like the buttons — a press in one window drives the clocks in
   every window.
 
+### Arranging windows around the speech doc
+
+**Arrange Windows** (Speech group; unbound by default — give it a key under
+Settings → Keyboard shortcuts) does what Verbatim's Window Arranger did: the
+speech doc's window takes one side of the screen and every other CardMirror
+window takes the other side, all full height, the others stacked exactly on
+top of one another so you flip between them without hunting. The window you
+ran it from stays in front. **Settings → General → Workspace** sets which side
+the speech doc takes (right, like Verbatim, by default) and its share of the
+width (50% by default). With no speech doc marked, every window goes to the
+docs side and a note says so.
+
+In the three-pane workspace the same command works on slots instead of
+windows: the speech doc moves into the slot on the chosen side, every other
+document stacks into the middle slot with the one you were reading on top,
+the far slot empties, and the two share the width by the same percentage.
+Opening a third document, expanding a slot, or emptying one hands the widths
+back to the normal layout. Desktop only — a browser cannot place its own
+windows, so the command does not appear in the web edition.
+
 ### Send-to-speech and the dropzone
 
 Assemble a speech document by sending cards into it:
@@ -1262,6 +1297,12 @@ Assemble a speech document by sending cards into it:
 The **dropzone** is a holding shelf: press **Mod-`` ` ``** to send a card
 there and pull it back later — useful for parking common evidence temporarily,
 or parking a card you know you need but are not sure where to put yet.
+**Preview** on a shelf row opens the cards full-size in a read-only view,
+with a nav pane beside them, so you can check what you parked without
+inserting it; **Copy to clipboard** there copies the cards for pasting
+anywhere, and **Close** (or Esc) puts the preview away. A **Read mode**
+button in the preview shows only the marked text, and it stays on for later
+previews until you turn it off.
 
 ### Saving a send doc
 
@@ -1274,11 +1315,12 @@ or in one keystroke with **Save Send Doc (Mod-Alt-S)**.
 ### Saving marked cards
 
 To send a copy of just the cards you marked in your speech, use **Save Marked Cards** 
-— it pulls just those cards out and saves them on their own, in your default format. 
+— it pulls just those cards out and saves them on their own, in the format you set 
+for marked cards (Settings → Files → *Marked Cards format*; `.docx` by default). 
 Two ways in: a **Marked Doc** button in the Save As dialog, and a **Save Marked Cards** 
 command (default **Mod-Alt-M**, rebindable) that saves silently to a destination you 
 choose under Settings → *Marked Cards destination* (the source file's folder, or a 
-fixed folder), using the `MARKED_` filename prefix and your default format — mirroring 
+fixed folder), using the `MARKED_` filename prefix and the Marked Cards format — mirroring 
 Save Send Doc. It keeps cards only (analytics and headings are dropped); if nothing is marked,
 it does nothing and tells you so.
 
@@ -1365,10 +1407,19 @@ row shows the card's label, who sent it, and when. From a row:
   copies — the card stays in the pill until you ✕ it. A bundled
   multi-selection send shows a **×N** count and is taken as one piece —
   click, drag, and ✕ all act on the whole bundle.
+- **Preview** opens the card (or the whole bundle) full-size in a read-only
+  view with a nav pane, so you can see what someone sent before it goes
+  anywhere; **Copy to clipboard** there copies the cards for pasting, and
+  **Close** (or Esc) dismisses it.
 - Inserted cards fold in the nav pane to your current outline depth
   instead of arriving fully expanded.
 - **Mod-P** inserts the most recently received card at the cursor, and
   **Mod-Alt-P** appends it, without opening the pill (both rebindable).
+- **Preview Received Card** opens the most recent one in the preview
+  without inserting it — unbound by default; give it a key under
+  Settings → Keyboard shortcuts. The preview's **Read mode** button shows
+  only the marked text and stays on for later previews until you turn it
+  off.
 
 The flash is configurable — **Flash the Receive pill on a new card**: once,
 every 10 seconds until you open the pill, or off.
@@ -1395,7 +1446,7 @@ idle — it's gone and participants retain local copies.
 **Invite from your recipients:** click the **Send** pill and press the
 invite button on a recipient or group row. That starts a session on the
 current document and sends the invite; the recipient
-gets a **SESSION** row in their Receive pill and clicks **Join**.
+gets a **SES** (session) row in their Receive pill and clicks **Join**.
 **Invite Starred Partner to Session** does the same for your starred target
 in one keystroke. Anyone in a session can invite others, not just the host.
 Inviting requires the person's code in *your* Recipients list.
@@ -1512,7 +1563,11 @@ connected to its source. There are two flavors, and the difference is simple —
 - **Insert Live View** / **Insert Linked Copy from This Document** — pick a
   section of the current document. The picker is a collapsible outline of your
   headings with a filter box — type a few letters to narrow it, use the arrow
-  keys, press Enter to pick.
+  keys, press Enter to pick. A section you reach for often can be **starred**
+  (the ☆ on its row): starred sections sit under **Favorites** at the top of
+  the picker, one click with no search, and the arrow keys visit them first.
+  Favorites are remembered per file on this computer; a document that hasn't
+  been saved yet keeps them until it is closed.
 - **Insert Linked Copy from a File** — open the Search Everything palette, dive
   into the source file, land on a heading — or on a card's tag, to copy just
   that one card — and press **Mod-Enter**. The source
@@ -1888,92 +1943,124 @@ Keyboard shortcuts**. They appear only on Windows.
 
 ## 15. Voice control
 
-**(Desktop only. Experimental.)** Press **Ctrl-Shift-V** to start a
-hands-free editing session and work a card by voice — read text aloud to
-ink it, dictate tags and cites, and move around the document without
-touching the keyboard. Recognition runs **entirely on your own machine** —
-no audio ever leaves it, with or without a network connection.
+> **Experimental — and, in 1.10.0, commands are unreliable.** Dictation works
+> well. The single-word commands do not yet: the recognizer decodes an open
+> vocabulary, so a one-word utterance often comes back as some other word
+> and nothing fires. Calibration helps only a little. A keyword-spotting pass
+> for the command channel is planned for the next release; until then, treat
+> the commands as a preview and the dictation key as the working part.
 
-The speech model is a **one-time ~130 MB download** rather than part of
-the installer, so the app itself stays small for the many people who never
-use voice. The first time you turn voice on, CardMirror asks to download it
-and notifies you when it's ready (you can keep working meanwhile — it does
-not start listening on its own). If you'll be somewhere without a
-connection, download it ahead of time under **Settings → Accessibility →
-Dictation accuracy model**.
+**(Desktop only.)** Voice control lets you work a document with your
+voice and a mouse: point with the mouse, say what to do. It was built for
+people with RSI and similar strain injuries, where sustained typing is
+what hurts and occasional pointing is fine. Recognition runs **entirely on
+your own machine** — no audio ever leaves it, with or without a network
+connection — except for the optional AI cleanup described below, which
+sends text, never audio.
 
-This is early, experimental software; expect rough edges, particularly
-pertaining to the voice recognition model, and keep the keyboard within
-reach. On macOS, voice requires Apple Silicon.
+The speech engine and its recognition model are a **one-time download of
+about 650 MB** (10 MB of engine, 640 MB of model), not part of the
+installer, so the app stays small for the many people who never use voice.
+The first time you turn voice on, CardMirror asks to download them and
+tells you when they're ready. If you'll be somewhere without a connection,
+download it ahead of time under **Settings → Accessibility → Voice
+recognition model**.
 
-### Starting a session
+### Turning it on
 
-**Ctrl-Shift-V** turns the microphone on. A **status pill** appears
-showing whether CardMirror is listening, the current **mode** as a
-labeled badge (command / dictation / paint / asleep — always visible, so
-you never have to read the mode from the dot's color alone), the active
-**pen**, what it last heard, and a live mic level. Click the pill to
-choose which microphone to use. To park the mic without ending the session, say **`voice sleep`**; say
-**`voice wake`** to start listening again. The mic also **auto-sleeps**
-after a stretch of silence (configurable) so a forgotten session doesn't
-keep transcribing the room — the pill dims as a warning before it does.
+**Alt-Shift-V** (Option-Shift-V on a Mac; rebindable) turns the microphone on. A
+**status pill** appears at the bottom right showing whether CardMirror is
+listening, the current **mode** as a labeled badge (command / dictating /
+asleep), the armed **pen**, what it last heard, and a live input meter.
+Click the pill for a menu: pick a microphone, calibrate, or stop.
+
+While voice is on, CardMirror is always listening for **command words** —
+there is no wake word and no key to hold. To park the mic without ending
+the session, say **`sleep`** and **`wake`** to resume; it also
+**auto-sleeps** after a stretch of silence (configurable) so a forgotten
+session doesn't transcribe the room.
 
 ### Commands
 
-Every command starts with a spoken verb. A few you'll use constantly:
+Fourteen words. A command fires only when the word is the whole thing you
+said — "line" fires, "the line of argument" does not — so ordinary
+conversation doesn't trigger anything. Select with the mouse first when a
+command needs a span.
 
-- **`pen highlight`** (or `pen underline`, `pen emphasis`, `pen cite`) sets
-  the active pen — the mark that `mark` and paint apply. The pen sticks
-  until you change it.
-- **`take <words you can see>`** selects exactly those words on screen;
-  **`mark`** then applies the pen, or **`mark <words>`** does both at once.
-- **`next card`** / **`go back`** move you around; **`condense`** and
-  **`shrink`** run the usual card commands.
+| Say | Does |
+|---|---|
+| **line** | underline the selection — or, with nothing selected, arm the underline pen for your next dictation (say it again to disarm) |
+| **box** | emphasis, the same way |
+| **glow** | highlight in the ribbon's current color, the same way |
+| **bare** | clear underline, emphasis and highlight from the selection; with nothing selected, disarm the pen |
+| **shrink** | Shrink Card Text |
+| **condense** | Condense |
+| **chunk** | Select Current Heading |
+| **ship** | Send to Speech (At End) |
+| **return** | Enter — a new paragraph at the cursor, following the same rules as the key (a styled paragraph after a heading if you have one set) |
+| **tag** | apply the Tag style to the selection or the current paragraph |
+| **cite** | apply the Cite style to the selection |
+| **card** | insert a new card after the current one and land in its tag |
+| **delete** | delete the selection |
+| **undo** | undo, exactly like Ctrl-Z |
 
-When words you speak appear more than once on screen, numbered badges pop
-up over each match — say **`pick two`** to choose.
-
-### Paint mode
-
-Say **`paint`** and then simply **read the card aloud**: the words you read
-are inked with the active pen as you go, the voice-native way to highlight
-or underline a card. Switch pens mid-pass (`pen highlight`), skip ahead
-without marking, and say **`stop paint`** when you're done.
+Every voice action is a single undo step, so a spoken `undo` and Ctrl-Z
+always agree.
 
 ### Dictation
 
-Say **`start typing`** to dictate at the cursor and **`stop typing`** to
-stop; while you talk, words stream in as gray preview text before they
-land. Dictation understands spoken punctuation (`period`, `comma`,
-`question mark`, quotes), a configurable **dash** word, and capitalizes
-sentences for you. To dictate a word that's also a command, prefix it with
-**`literal`** (so `literal stop typing` types the words instead of
-exiting).
+Dictation uses a **dictation key** (default **Alt-Shift-Space** — Option-Shift-Space
+on a Mac — changeable under Settings → Accessibility → Dictation key). Hold it,
+speak, release: the words land at the cursor. A foot pedal that acts as a
+keyboard key works the same way. While the key is held, command words are
+ignored — say "delete the paragraph" in a dictation and it types. With text
+selected, dictating replaces it. Text lands at each pause, so a long passage
+appears sentence by sentence rather than all at once when you let go. Say
+**"new paragraph"** (or "new line") inside a dictation to break the paragraph
+there; the next sentence starts capitalized and any armed pen carries over.
 
-### Precise targeting
+If holding a key is not an option — a mouse macro that can only send a
+keystroke, or a hand that cannot hold — turn on **Press to start and stop
+dictation** in the same settings section. One press starts, the next press
+stops, and a run of silence stops it too (**Stop dictation after silence**,
+default six seconds), so a session you forgot about never transcribes the
+room. The pill plays the same sound either way when the mic goes back to
+listening for commands.
 
-Targeting composes, so you can be specific without reaching for the mouse:
+Dictated text goes through the same autocorrect rules as typing, so `---`
+becomes an em dash and your expansions fire. Spoken punctuation works
+(`period`, `comma`, `question mark`, quotes), a configurable **dash** word,
+and sentences are capitalized for you. If a pen is armed (say `line` with
+nothing selected), the dictated words are underlined as they land.
 
-- **Ordinals count inside their natural container.** `take second
-  sentence` is the second sentence of this paragraph; `go to third card`
-  is the third card in this block.
-- **`mark every tag`** marks every tag in the block in a single step.
-- **`take head card`** / **`take tail paragraph`** select to a scope's
-  start or end.
-- **`take from <words> to <words>`** spans two spoken anchors.
+**AI cleanup.** With an AI key configured (Settings → Comments & AI), a
+short cleanup pass runs before dictated text lands: it resolves
+mid-sentence self-corrections ("actually, make that…"), drops fillers,
+adds punctuation, and spells names to match the document. Only the
+transcript and a little nearby text are sent — never audio. Turn it off
+under Accessibility → Clean up dictation with AI; the raw transcript lands
+instead. It is off in CardMirror Lite.
 
-### Undo
+### Calibrate to your voice
 
-Every voice action is a single undo step, and voice undo (**`scratch
-that`**) and **Ctrl-Z** always agree — so you can take back a voice action
-with the keyboard, or vice versa, and never lose your place.
+Voices, accents and headsets vary. **Calibrate** (from the pill menu, the
+command bar, or Settings → Accessibility) takes about a minute: say each
+command word a couple of times through the microphone you use, and, if you
+whisper in quiet rooms, once more whispered. Whatever the recognizer hears
+becomes your own spelling of each word, so commands fire for your voice
+specifically. Profiles are saved per microphone. Run it again after a new
+headset.
+
+**Microphone tips.** The closer the mic, the quieter you can speak — a
+headset or a mic within a couple of inches lets you whisper commands at a
+shared table. Wireless earbuds tend to compress audio and add delay;
+prefer a wired headset or the laptop mic up close.
 
 ### Options
 
-Voice settings live under **Settings → Accessibility**. They include an
-optional **large dictation model** — a one-time 1.8 GB download that uses
-around 5 GB of memory while it's on and roughly halves general-English
-dictation errors (it doesn't change command recognition).
+Voice settings live under **Settings → Accessibility**: microphone,
+auto-sleep, the dictated dash, the hold-to-dictate key, AI cleanup,
+calibration, and the model download.
 
 ---
 
@@ -1987,6 +2074,29 @@ file manager onto any CardMirror window — the editor, the navigation pane, or 
 home screen — to open it, exactly like File → Open (including the unsaved-changes
 prompt, and focusing a copy that's already open). Other file types are ignored,
 and dragging cards around inside the editor is unaffected.
+
+**Reopening your last set of documents.** Turn on **Settings → General →
+Workspace → Remember my last workspace** (off by default) and CardMirror
+remembers which files you had open when you last quit and lists them on the Home screen under
+**Last workspace**, each with a tick box. **Reopen** opens the ticked ones —
+untick the ones you don't want, or use **All** / **None** to flip the whole
+list. In the three-pane workspace each document goes back to the pane it was
+in; in single-document mode each gets its own window.
+
+CardMirror never reopens documents behind your back: a launch with no file
+lands on the Home screen, where the list is waiting, and nothing opens until
+you say so. Your ticks are remembered between sessions, so a document you
+untick stays unticked as the set changes from one session to the next until
+you tick it again.
+
+Close every document (or its window) before you quit and there's nothing to
+offer, so the section disappears — a clean quit means a clean start. To keep a particular
+working set regardless, run **Save Workspace** (command bar — try "save
+session"): a saved set survives quitting with nothing open, and stays on offer
+until you open other documents and quit with those. **Reopen Last Workspace**
+restores it without going via the Home screen, and **Forget** drops it.
+Documents that have never been saved aren't included — there's no file to
+reopen — and one that has moved or been deleted is skipped with a note.
 
 **Password-protected Word files.** If you open a `.docx` that Word encrypted
 with a password, CardMirror asks for the password and opens it. Saving writes
@@ -2105,14 +2215,20 @@ copy:
 
 **Save Send Doc (Mod-Alt-S)** does the Send Doc export in one keystroke,
 no dialog. Two Settings → Files options control where it goes (the
-source file's folder, or a fixed folder you pick).
+source file's folder, or a fixed folder you pick), and a third, **Send Doc
+format**, which format it writes (`.docx` by default, `.cmir`, or the same
+as your new documents) — the Save As dialog keeps its own format choice.
+**Save Read Doc** is the same command for the Read Doc preset (the
+read-mode view of the document). It has no shortcut by default — run it
+from the command bar or bind a key — and has its own destination, folder,
+and format settings beside the Send Doc ones.
 
 The filename prefixes for the preset saves — **Send Doc**, **Read Doc**, and
 **Marked Doc** (defaults `SEND_`, `READ_`, `MARKED_`) — are configurable under
 Settings → Files; change any of them, or leave one empty for no prefix. They
-apply to both the Save As preset buttons and the one-keystroke Save Send Doc /
-[Save Marked Cards](#saving-marked-cards) commands, gated on the existing
-"Prefix preset saves" toggle.
+apply to both the Save As preset buttons and the silent Save Send Doc /
+Save Read Doc / [Save Marked Cards](#saving-marked-cards) commands, gated on
+the existing "Prefix preset saves" toggle.
 
 ### Crash recovery
 
@@ -2287,6 +2403,13 @@ headers shown inside each tab.
   lines. Off by default. Display-only, like the rest of read mode — the
   document isn't touched (that's what
   [Condense](#condense-pilcrows-and-case) does).
+- **Mod-Y repeats the last action** — Word's Repeat. When on, Mod-Y with
+  nothing left to redo does the last editing action again at the cursor:
+  types the last thing you typed, applies the same formatting to the
+  new selection, deletes one more character after a Backspace or
+  Delete, pastes the same thing again, or re-runs the last command.
+  Redo still comes first whenever there is something to redo, and
+  Mod-Shift-Z stays plain Redo. Off by default.
 - **Read mode: keep entire cite** — when on, read mode shows the whole of
   any cite that has read-aloud text in it — qualifications, source, date
   and all — instead of only its cite-marked and highlighted words. A cite
@@ -2299,6 +2422,13 @@ headers shown inside each tab.
   words-per-minute rate. The first two show live in the status bar; all
   appear in the Word Count dialog
   (see [Read-time estimates](#read-time-estimates)).
+- **Live word count for the whole document** — on by default. Off drops
+  the bar's first readout (the whole document's count and read times) so
+  a narrow window can show only the specific counts you keep on. The Word
+  Count button (Σ) still gives the whole-document count on demand.
+- **Order of the live word counts** — the left-to-right order of the
+  bar's readouts (Doc, Card, Left), with one order while editing and
+  another in read mode.
 - **Live word count for the current selection** — off by default. When
   on, the status bar's count and read time follow your selection as you
   change it; leave it off on very large docs if you notice drag lag.
@@ -2360,8 +2490,8 @@ file search scans, and how much version history to keep.
 **Send / Read / Marked docs**
 
 - **Prefix preset saves** — when on, the Save As Send Doc / Read Doc /
-  Marked Doc presets and the silent Save Send Doc / Save Marked Cards commands
-  prepend a filename prefix.
+  Marked Doc presets and the silent Save Send Doc / Save Read Doc / Save
+  Marked Cards commands prepend a filename prefix.
 - **Send Doc / Read Doc / Marked Doc filename prefix** — the prefix each
   preset uses (defaults `SEND_` / `READ_` / `MARKED_`); change any, or leave one
   empty for no prefix.
@@ -2370,11 +2500,20 @@ file search scans, and how much version history to keep.
   (see [Saving a send doc](#saving-a-send-doc)).
 - **Send Doc folder** *(desktop)* — the fixed folder used when the
   destination above is "Fixed folder."
+- **Send Doc format** — the format Save Send Doc writes: `.docx`
+  (default), `.cmir`, or the same as new documents. The Save As dialog is
+  unaffected.
+- **Read Doc destination / folder / format** *(destination and folder:
+  desktop)* — the same three options for the Save Read Doc command (unbound
+  by default; run it from the command bar or give it a key).
 - **Marked Cards destination** *(desktop)* — whether Save Marked Cards writes
   beside the source file or into a fixed folder (see
   [Saving marked cards](#saving-marked-cards)).
 - **Marked Cards folder** *(desktop)* — the fixed folder used when the Marked
   Cards destination is "Fixed folder."
+- **Marked Cards format** — the format Save Marked Cards writes: `.docx`
+  (default), `.cmir`, or the same as new documents. The Save As dialog is
+  unaffected.
 
 **File search**
 
@@ -2457,6 +2596,10 @@ How things look. None of these change the file — only your view (see
   cites), and whether substructure letters are bolded.
   The font-size editor above it has a reset button that restores every
   style's default size.
+- **Underlines follow font color** — off by default: an underline stays
+  the body text color whatever color the words are, including the
+  underline of hats and blocks. On draws it in the text's color, the way
+  Word does. Display-only; the file and exports are unchanged.
 - **Body font** — the editor's content font, including dyslexia-friendly
   options.
 - **Line spacing** — the line-height multiplier, per paragraph type.
@@ -2870,7 +3013,7 @@ these to extend the selection.
 ### Voice control (desktop)
 | Shortcut | Action |
 |----------|--------|
-| Ctrl-Shift-V | Start / stop a voice control session |
+| Alt-Shift-V | Start / stop a voice control session |
 
 The full, current list is always in the app: press **📖** in the ribbon.
 

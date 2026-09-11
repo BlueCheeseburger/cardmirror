@@ -22,6 +22,7 @@ import {
   findEnclosingContainer,
   liveContainerSegment,
   remainingReadSegment,
+  primaryReadSegment,
 } from '../../src/editor/live-read-time.js';
 import { countReadAloudSplit, totalWords } from '../../src/editor/word-count.js';
 import { settings } from '../../src/editor/settings.js';
@@ -70,6 +71,7 @@ function textOfRange(state: EditorState, c: { from: number; to: number }): strin
 
 afterEach(() => {
   settings.set('liveContainerReadTime', true);
+  settings.set('liveDocWordCount', true);
   settings.set('liveRemainingReadTime', false);
   settings.set('liveSelectionWordCount', false);
   settings.set('readers', [
@@ -340,5 +342,35 @@ describe('remainingReadSegment', () => {
     settings.set('liveContainerReadTime', false);
     expect(liveContainerSegment(state)).toBeNull();
     expect(remainingReadSegment(state)).toMatch(/^Left: /);
+  });
+});
+
+describe('primaryReadSegment (the whole-document readout)', () => {
+  const doc = schema.nodes['doc']!.createChecked(null, [card('Tag one', 'alpha bravo charlie'), card('Tag two', 'delta echo')]);
+  const counts = () => countReadAloudSplit(doc);
+
+  it('labels the whole-doc side "Doc:" only while the container segment is on', () => {
+    expect(primaryReadSegment(counts(), { selection: false, selectionLabel: 'Selection' })).toMatch(/^Doc: \d/);
+    settings.set('liveContainerReadTime', false);
+    expect(primaryReadSegment(counts(), { selection: false, selectionLabel: 'Selection' })).toMatch(/^\d/);
+  });
+
+  it('turning the whole-doc readout off drops the segment entirely', () => {
+    settings.set('liveDocWordCount', false);
+    expect(primaryReadSegment(counts(), { selection: false, selectionLabel: 'Selection' })).toBeNull();
+    expect(primaryReadSegment(counts(), { selection: false, selectionLabel: 'Sel' })).toBeNull();
+  });
+
+  it('a live selection still shows with the whole-doc readout off', () => {
+    settings.set('liveDocWordCount', false);
+    expect(primaryReadSegment(counts(), { selection: true, selectionLabel: 'Selection' })).toMatch(/^Selection: \d/);
+    expect(primaryReadSegment(counts(), { selection: true, selectionLabel: 'Sel' })).toMatch(/^Sel: \d/);
+  });
+
+  it('carries the first two readers, like every other segment', () => {
+    const seg = primaryReadSegment(counts(), { selection: false, selectionLabel: 'Selection' })!;
+    expect(seg).toContain('Reader 1:');
+    expect(seg).toContain('Reader 2:');
+    expect(seg.split(' · ')).toHaveLength(3);
   });
 });

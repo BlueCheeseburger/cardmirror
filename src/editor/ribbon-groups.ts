@@ -18,7 +18,7 @@ export interface RibbonGroup {
 export const RIBBON_GROUPS: RibbonGroup[] = [
   {
     title: 'File',
-    commands: ['newDocument', 'openFile', 'save', 'saveAs', 'saveSendDoc', 'saveMarkedCards', 'toggleAutosave', 'openContainingFolder', 'goHome'],
+    commands: ['newDocument', 'openFile', 'save', 'saveAs', 'saveSendDoc', 'saveReadDoc', 'saveMarkedCards', 'toggleAutosave', 'openContainingFolder', 'saveWorkspace', 'reopenWorkspace', 'goHome'],
   },
   {
     title: 'Speech',
@@ -27,7 +27,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'markActiveAsSpeech',
       'sendToSpeechAtCursor',
       'sendToSpeechAtEnd',
-      'selectSpeechDoc',
+      'selectSpeechDoc', 'arrangeWindows',
     ],
   },
   {
@@ -37,7 +37,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'sendToStarred',
       'sendToRecipient',
       'insertReceivedAtCursor',
-      'insertReceivedAtEnd',
+      'insertReceivedAtEnd', 'previewReceived',
     ],
   },
   {
@@ -260,7 +260,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
   },
   {
     title: 'Voice',
-    commands: ['toggleVoice'],
+    commands: ['toggleVoice', 'calibrateVoice'],
   },
   {
     title: 'Card cutter',

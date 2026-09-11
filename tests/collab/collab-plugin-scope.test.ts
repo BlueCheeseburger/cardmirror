@@ -26,6 +26,7 @@ function fakeSource(ownerUid: string, marker: Plugin): CollabPluginSource {
     ownerUid,
     plugins: () => [marker],
     ownsUndo: () => true,
+  canRedo: () => false,
     undo: () => false,
     redo: () => false,
   };

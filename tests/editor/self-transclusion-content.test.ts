@@ -74,6 +74,33 @@ describe('content-node live view — core', () => {
     view.destroy();
   });
 
+  it('LETS a document-wide transaction through even when a step lands inside the view (bulk operations), re-deriving the view', () => {
+    // Condense / replace-all / repair paragraph integrity build ONE transaction
+    // of per-range steps; one step inside a view used to sink the whole batch.
+    const view = mount([block('Src', 'src'), card('Alpha', 'alpha'), block('Home', 'home'), createSelfRefNode(schema, 'src', '↳ Src')]);
+    const { pos, node } = selfRefNode(view);
+    let insidePos = -1;
+    node.descendants((n, off) => {
+      if (insidePos < 0 && n.type.name === 'card_body') insidePos = pos + 1 + off + 1;
+      return insidePos < 0;
+    });
+    let sourceBodyPos = -1;
+    view.state.doc.descendants((n, p) => {
+      if (sourceBodyPos < 0 && n.type.name === 'card_body') sourceBodyPos = p + 1;
+      return sourceBodyPos < 0;
+    });
+    expect(insidePos).toBeGreaterThan(sourceBodyPos);
+    // Higher position first so the earlier one stays valid — the same batch
+    // shape a replace-all produces.
+    const tr = view.state.tr.insertText('X', insidePos).insertText('Y', sourceBodyPos);
+    view.dispatch(tr);
+    const src = view.state.doc.child(1).child(1).textContent;
+    expect(src, 'the outside step landed').toBe('Yalpha');
+    expect(bodyText(view), 'the view re-derived from the source, not from the in-view step').toContain('Yalpha');
+    expect(bodyText(view)).not.toContain('X');
+    view.destroy();
+  });
+
   it('the populated view stays OPAQUE to collectHeadings (no derived children as outline/drag entries)', () => {
     // The plugin re-derives the view's children (id-less mirror). collectHeadings
     // (which feeds the outline AND drag drop-slots) must treat the view as one
