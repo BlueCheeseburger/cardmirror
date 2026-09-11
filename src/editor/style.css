@@ -4711,6 +4711,17 @@ html.pmd-home-active #speech-doc-banner {
   background: var(--pmd-c-hover);
   color: var(--pmd-c-text);
 }
+/* A recently-closed multi-pane workspace, interleaved into the unified
+   Recent list (home-screen.ts's renderRecents()) alongside plain recent
+   files — same row-level layout as a session row (open button + a
+   dismiss "✕"), reusing .pmd-home-workspace-open / .pmd-home-recent-*
+   for the chip/name/meta scaffolding so a workspace row reads the same
+   size as a file row instead of being squeezed into its own section. */
+.pmd-home-recent-workspace {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
 .pmd-home-recents-empty {
   margin: 0.25rem 0;
   color: var(--pmd-c-text-muted);

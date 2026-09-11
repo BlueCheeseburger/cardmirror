@@ -10,6 +10,7 @@ import {
   listRecentWorkspaces,
   recordRecentWorkspace,
   removeRecentWorkspace,
+  clearRecentWorkspaces,
   subscribeRecentWorkspaces,
   type RecentWorkspace,
   type RecentWorkspaceDoc,
@@ -68,6 +69,16 @@ describe('recent workspaces store', () => {
     const id = listRecentWorkspaces()[0]!.id;
     removeRecentWorkspace(id);
     expect(listRecentWorkspaces()).toEqual([]);
+  });
+
+  it('clearRecentWorkspaces empties the list and notifies locally', () => {
+    recordRecentWorkspace(docs('/w/a.cmir', '/w/b.cmir'));
+    let last: RecentWorkspace[] | null = null;
+    const unsubscribe = subscribeRecentWorkspaces((items) => (last = items));
+    clearRecentWorkspaces();
+    expect(listRecentWorkspaces()).toEqual([]);
+    expect(last).toEqual([]);
+    unsubscribe();
   });
 
   it('a storage event for our key re-notifies subscribers (cross-window write)', () => {

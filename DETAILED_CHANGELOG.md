@@ -10,7 +10,45 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## 1.10.0-bcb.2.1 — 2026-09-11
+## 1.10.0-bcb.2.2 — 2026-09-11
+
+### Fixed: Recent Workspaces never rendered; merged into a unified Recent list (`home-screen.ts`, `recent-workspaces-store.ts`, `style.css`)
+
+`recent-workspaces-store.ts` (the "reopen these N docs as the
+workspace they were" suggestion, 1.10.0) and `home-screen.ts`'s
+`workspaceRow()`/`renderWorkspaces()` were both fully implemented,
+but `renderWorkspaces()` guarded on `this.workspacesSection`, a field
+that was declared and never assigned — no code in `mount()` ever
+created or appended a "Recent Workspaces" section element. Every call
+was a silent no-op; the feature was completely invisible since its
+introduction.
+
+Rather than wire up the missing section, folded workspace rows
+directly into the existing Recent list (`renderRecents()`): it now
+builds one array from `listRecents()` and `listRecentWorkspaces()`,
+tags each with its own timestamp (`lastOpenedAt` / `closedAt`), sorts
+newest-first, and renders the mix — a `recentRow()` button for a file,
+a `workspaceRow()` for a workspace (its own "N DOCS" chip, joined
+filenames, "closed Xm ago", and a "✕" to dismiss via
+`removeRecentWorkspace`). A workspace suggestion now gets exactly the
+same row weight as a file instead of being squeezed into (or in this
+case, silently dropped from) a separate section.
+
+The dead `workspacesSection`/`workspacesEl` fields and
+`renderWorkspaces()` are removed. `workspaceRow()`'s wrapper class was
+renamed `pmd-home-workspace` → `pmd-home-recent-workspace` (the old
+name was unstyled in `style.css` and collided with the unrelated "Last
+workspace" snapshot section's container, which reuses the same class
+for a different element) and given its own flex-row rule, mirroring
+`.pmd-home-session`.
+
+The home screen now also subscribes to `recent-workspaces-store.ts`
+(`subscribeRecentWorkspaces`), so a workspace closing in another
+window updates an already-open home screen the same way a recent-file
+write already did. The "Clear" button on the unified list now calls a
+new `clearRecentWorkspaces()` export alongside `clearRecents()`, so it
+empties both underlying stores together — consistent with the fact
+that, visually, they're now one list.
 
 ### Added: Settings button on the home screen (`home-screen.ts`, `style.css`)
 
