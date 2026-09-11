@@ -19,6 +19,12 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   and merged into the Recent list: a workspace suggestion now appears right
   alongside recently opened single files, sorted by recency, instead of
   competing for its own separate space.
+- **The PolicyDebateFlow status chip now pauses instead of disconnecting.**
+  Clicking it while connected used to revoke your token outright — which
+  can't be undone with a click, since reconnecting needs a whole new pairing
+  code. It now just pauses the connection locally (click again to resume);
+  the real disconnect (which does revoke the token) stays in Settings →
+  PolicyDebateFlow's Disconnect button.
 
 ---
 

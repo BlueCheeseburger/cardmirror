@@ -994,8 +994,8 @@ function updatePlainPasteIndicator(armed: boolean): void {
   if (updateChipEl && chipHost) initUpdateChip(updateChipEl, chipHost);
 }
 // PolicyDebateFlow connection chip — desktop only, same gate as the
-// update chip; the underlying integration itself is also gated on
-// policyDebateFlowEnabled (checked inside initFlowChip's render()).
+// update chip; whether it's actually shown (a token is paired) is
+// decided inside initFlowChip's own render().
 {
   const flowChipEl = document.getElementById('pf-flow-chip') as HTMLButtonElement | null;
   if (flowChipEl && getElectronHost()) {

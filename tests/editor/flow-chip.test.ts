@@ -1,19 +1,21 @@
 // @vitest-environment jsdom
 
 /**
- * PolicyDebateFlow status-bar chip: hidden unless the integration is
- * enabled, reads "Flow · Connected" / "Flow · Off" from the stored
- * token, clicking Connected revokes + clears, clicking Off opens
- * Settings, and a 401 from a background pf-presence poll clears the
- * token and flips the chip without the user clicking anything.
+ * PolicyDebateFlow status-bar chip: hidden until a token is paired,
+ * reads "Flow · Connected" / "Flow · Off" from
+ * (policyDebateFlowEnabled, policyDebateFlowToken). Clicking toggles
+ * policyDebateFlowEnabled ONLY — a purely local pause/resume that never
+ * touches the token or the network (the real disconnect, revoking the
+ * token, lives only in Settings). The one exception: with no token at
+ * all, clicking opens Settings instead, since there's nothing local to
+ * toggle. A 401 from the background pf-presence poll (which only runs
+ * while "Connected") clears the token and flips the chip without the
+ * user clicking anything.
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../src/editor/toast.js', () => ({ showToast: vi.fn() }));
-
-const { revokeFlowToken } = vi.hoisted(() => ({ revokeFlowToken: vi.fn(() => Promise.resolve()) }));
-vi.mock('../../src/editor/flow-send.js', () => ({ revokeFlowToken }));
 
 import { initFlowChip } from '../../src/editor/flow-chip.js';
 import { settings } from '../../src/editor/settings.js';
@@ -25,8 +27,6 @@ function makeEl(): HTMLButtonElement {
   document.body.appendChild(el);
   return el;
 }
-
-const tick = (): Promise<void> => new Promise((r) => setTimeout(r));
 
 beforeEach(() => {
   settings.set('policyDebateFlowEnabled', false);
@@ -41,14 +41,14 @@ afterEach(() => {
 });
 
 describe('flow chip', () => {
-  it('stays hidden when PolicyDebateFlow is disabled', () => {
+  it('stays hidden when never paired (disabled, no token)', () => {
     const el = makeEl();
     const cleanup = initFlowChip(el, () => {});
     expect(el.hidden).toBe(true);
     cleanup();
   });
 
-  it('shows "Flow · Off" when enabled with no token, "Flow · Connected" with one', () => {
+  it('shows "Flow · Off" when enabled with no token, "Flow · Connected" once a token is set', () => {
     settings.set('policyDebateFlowEnabled', true);
     const el = makeEl();
     const cleanup = initFlowChip(el, () => {});
@@ -62,31 +62,57 @@ describe('flow chip', () => {
     cleanup();
   });
 
-  it('clicking while off calls openSettings, not revoke', () => {
+  it('shows "Flow · Off" (paused) — not hidden — when a token exists but enabled is false', () => {
+    settings.set('policyDebateFlowToken', 'tok123');
+    settings.set('policyDebateFlowEnabled', false);
+    const el = makeEl();
+    const cleanup = initFlowChip(el, () => {});
+    expect(el.hidden).toBe(false);
+    expect(el.textContent).toBe('Flow · Off');
+    expect(el.getAttribute('data-pf-state')).toBe('off');
+    cleanup();
+  });
+
+  it('clicking while never paired (no token) calls openSettings, sets nothing', () => {
     settings.set('policyDebateFlowEnabled', true);
     const el = makeEl();
     const openSettings = vi.fn();
     const cleanup = initFlowChip(el, openSettings);
     el.click();
     expect(openSettings).toHaveBeenCalledTimes(1);
-    expect(revokeFlowToken).not.toHaveBeenCalled();
+    expect(settings.get('policyDebateFlowEnabled')).toBe(true);
     cleanup();
   });
 
-  it('clicking while connected revokes the token and clears it locally', () => {
+  it('clicking while connected pauses locally — enabled flips false, token is untouched', () => {
     settings.set('policyDebateFlowEnabled', true);
     settings.set('policyDebateFlowToken', 'tok123');
     const el = makeEl();
     const cleanup = initFlowChip(el, () => {});
     el.click();
-    expect(revokeFlowToken).toHaveBeenCalledWith('tok123');
-    expect(settings.get('policyDebateFlowToken')).toBe('');
-    expect(showToast).toHaveBeenCalledWith('Disconnected from PolicyDebateFlow');
+    expect(settings.get('policyDebateFlowEnabled')).toBe(false);
+    expect(settings.get('policyDebateFlowToken')).toBe('tok123');
+    expect(showToast).toHaveBeenCalledWith('PolicyDebateFlow paused');
     expect(el.textContent).toBe('Flow · Off');
     cleanup();
   });
 
-  it('a 401 on the background presence poll clears the token and flips to Off', async () => {
+  it('clicking while paused resumes locally — enabled flips true, token is untouched', () => {
+    settings.set('policyDebateFlowToken', 'tok123');
+    settings.set('policyDebateFlowEnabled', false);
+    const el = makeEl();
+    const openSettings = vi.fn();
+    const cleanup = initFlowChip(el, openSettings);
+    el.click();
+    expect(settings.get('policyDebateFlowEnabled')).toBe(true);
+    expect(settings.get('policyDebateFlowToken')).toBe('tok123');
+    expect(showToast).toHaveBeenCalledWith('PolicyDebateFlow resumed');
+    expect(openSettings).not.toHaveBeenCalled();
+    expect(el.textContent).toBe('Flow · Connected');
+    cleanup();
+  });
+
+  it('a 401 on the background presence poll clears the token and falls back to the bootstrap "Off" state', async () => {
     vi.useFakeTimers();
     settings.set('policyDebateFlowEnabled', true);
     settings.set('policyDebateFlowToken', 'tok123');
@@ -103,6 +129,11 @@ describe('flow chip', () => {
       expect.objectContaining({ headers: { Authorization: 'Bearer tok123' } }),
     );
     expect(settings.get('policyDebateFlowToken')).toBe('');
+    // enabled is untouched by the 401 handler; with no token left this
+    // is the same "never paired" state as before ever connecting —
+    // still visible (not hidden), showing Off with click-to-reconnect
+    // via Settings, same as the bootstrap case.
+    expect(el.hidden).toBe(false);
     expect(el.textContent).toBe('Flow · Off');
 
     cleanup();
@@ -125,6 +156,22 @@ describe('flow chip', () => {
 
     await vi.advanceTimersByTimeAsync(30_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('does not poll while paused', async () => {
+    vi.useFakeTimers();
+    settings.set('policyDebateFlowToken', 'tok123');
+    settings.set('policyDebateFlowEnabled', false);
+    const fetchMock = vi.fn(() => Promise.resolve({ status: 200 } as Response));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const el = makeEl();
+    const cleanup = initFlowChip(el, () => {});
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).not.toHaveBeenCalled();
 
     cleanup();
     vi.unstubAllGlobals();
