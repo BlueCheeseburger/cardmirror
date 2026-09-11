@@ -1,21 +1,241 @@
 # Detailed Changelog
 
 In-depth release notes for CardMirror. Each entry covers the
-behavior, rationale, and (where useful) the implementation context
-behind a change. For a shorter, jargon-free summary of what's new
-in each release, see `CHANGELOG.md`.
+behavior, rationale, and implementation context behind a change.
+For a shorter, jargon-free summary of each release, see
+[CHANGELOG.md](./CHANGELOG.md).
 
-## 1.10.0-bcb.1 — 2026-09-11
+For this fork's own features, the implementation details are in
+[Fork Changes](#fork-changes) at the top of this file.
+Upstream release details are in the sections below under
+[Upstream Releases](#upstream-releases).
 
-### Fixed: keybind editor — Escape and Ctrl+key on Mac
+## Fork Changes
 
-**ESC while capturing a keybinding** previously closed the entire Settings dialog, because the keydown event reached the dialog's own escape handler. The fix intercepts ESC in the capture pill's keydown handler and calls `cancelCapture()` before the event can bubble up, so only the pill is dismissed.
+*Implementation details for the eight features this fork has added on top
+of upstream CardMirror, ranked by user impact. For the user-facing
+summary of each feature, see [CHANGELOG.md § Fork Changes](./CHANGELOG.md#fork-changes).*
 
-**Ctrl+key on Mac** was displayed as ⌘key (Cmd) in keybinding chips, because both `e.ctrlKey` and `e.metaKey` were mapped to `'Cmd'`. The fix distinguishes them: `e.ctrlKey` → `'Ctrl'`, `e.metaKey` → `'Cmd'`, with separate display strings `⌃` and `⌘` respectively. Stored bindings created under the old behavior that recorded `Cmd` when Ctrl was pressed will need to be re-set.
+---
 
-### From upstream
+### 1. Independent multi-window three-pane workspace
 
-See CHANGELOG.md's [1.10.0-bcb.1 entry](CHANGELOG.md#1100-bcb1--2026-09-11) for the user-facing summary. The detailed rationale for each upstream change is in the [## 1.10.0](#1100--2026-09-10) and [## 1.9.0](#190--2026-09-09) sections below.
+**Introduced in 1.6.0-bcb.1. Extended in 1.6.0-bcb.3 (ribbon toggle,
+new-window option) and 1.8.0-bcb.2 (New Document and external open now
+prompt for destination).**
+
+Before this fork, all Electron windows shared the same `multiDocWorkspace`
+setting. The change made each window boot and manage its own three-pane
+shell independently, holding its own `MultiPaneShell` instance and its own
+`settings` subscription that never writes across to another window.
+
+The ribbon toggle (`#three-pane-toggle-btn`) fires
+`settings.set('multiDocWorkspace', !...)`, and the existing
+`settings.subscribe` mode-switch handler (the confirm-dialog / journal /
+reload sequence already added for the initial multi-window work) handles
+the rest — the button is intentionally a thin trigger, not new state
+machinery. A new `pmd-icon-three-pane` CSS icon (three vertical pane
+outlines, matching the existing SVG-outline style) was added to
+`icons.css`.
+
+`MultiPaneShell.promptForSlot` gained an `opts: { allowNewWindow?: boolean }`
+parameter and a widened return type (`SlotId | 'new-window' | null`). When
+`getHost().canSpawnWindow` is true (Electron only) and the caller opts in,
+the slot picker shows a fourth "New window" button. `onFileOpen` (ribbon
+Open) passes this option; the other two callers (collab join, new speech
+doc) do not. "New window" builds a `SpawnWindowPayload` from the
+`OpenedFile` and calls `getHost().spawnWindow(...)`, booting the new window
+into three-pane mode via the existing spawned-window boot path.
+
+`newDocWithPicker()` and `promptForWindowChoice()` in `multi-pane-shell.ts`
+and `main.ts` handle the New-Document and external-file-open cases for
+multi-window: both show the same slot picker when in three-pane mode,
+routing to the right pane rather than always landing in the last-focused
+window.
+
+### 2. Per-pane cloud-sync badge (`disk-conflict.ts`, `multi-pane-shell.ts`, `index.ts`, `style.css`)
+
+**Introduced in 1.8.0-bcb.3.**
+
+The underlying state (`byHandle: Map<string, DocDiskInfo>`) was already
+correctly per-document. Only the rendering side needed to become per-pane.
+
+The existing singleton (`installDiskBadge` / `refreshDiskBadge`) was left
+completely untouched — still used as-is for the single-doc window.
+Additions:
+
+- **`notifyDiskStateChanged()`**: every `note*` mutation calls this instead
+  of `refreshDiskBadge()` directly. It calls `refreshDiskBadge()` internally
+  (byte-for-byte the same singleton behavior) and also notifies a new
+  `paneRefreshListeners: Set<() => void>` that per-pane badges subscribe into.
+- **`resolveBadgeClick(handle, name, info, deps)`**: the three-way conflict
+  decision (reload / keep mine / keep both) extracted from the singleton's
+  private `onBadgeClick` so both paths share one implementation.
+- **`PROVIDER_ICON: Record<CloudProvider, string>`**: small brand-colored
+  SVG marks (Dropbox / OneDrive / Google Drive / iCloud; `other` reuses
+  the existing generic stroke-cloud glyph).
+- **`createPaneDiskBadge(deps, parent): PaneDiskBadgeHandle`**: mounts one
+  compact `<button class="pmd-pane-disk-badge">` into the pane's own footer,
+  subscribes into `paneRefreshListeners`, returns `{el, refresh, destroy}`.
+  Provider icon is shown instead of the generic cloud glyph; the text label
+  is hidden in the `synced` state (`.pmd-pane-disk-badge[data-state='synced']
+  .pmd-pane-disk-badge-label { display: none }`). `changed`/`kept-copy` keep
+  a short label since those states need to say more than the icon alone.
+
+`Slot` gained a `private diskBadge: PaneDiskBadgeHandle` with deps scoped
+entirely to `this.visible` — no focus dependency at all. `keepMineAsCopy` /
+`overwrite` call new shell methods `keepMineAsCopyForHandle` /
+`overwriteForHandle`, both resolving the target pane via `findRecordByHandle`
+before focusing it and calling the newly-exported
+`saveActiveAsConflictedCopy` / `saveActiveForcingDisk` from `index.ts`.
+
+`index.ts`'s `updateWindowTitle()` now only calls `ensureDiskBadge()` /
+`refreshDiskBadge()` when `!multiDocActive`. `style.css`'s
+`body.pmd-multi-doc .pmd-pill-tray-right` changed from repositioning the
+old shared tray to `display: none`, so a tray installed before a
+single-doc → multi-pane mode-switch stays hidden.
+
+Seven new tests in `tests/editor/disk-conflict-pane-badge.test.ts`.
+All 8 pre-existing `disk-conflict.test.ts` tests pass unchanged.
+
+### 3. Google Gemini as a third AI provider
+
+**Introduced in 1.6.0-bcb.1.**
+
+Google Gemini is wired in alongside the existing Anthropic Claude and
+OpenRouter providers. The provider selection, API-key storage, and
+model-list fetch all follow the same extension points the existing two
+providers already used. See the individual PRs on this fork's repository
+for the specific files changed.
+
+### 4. Paced auto-scroll
+
+**Introduced in 1.6.0-bcb.1.**
+
+A module-level scroll loop reads the current reading-speed setting (wpm),
+computes a per-frame pixel delta, and applies it via `scrollBy`. Dense
+highlighted-text regions (measured by mark density in the visible viewport)
+slow the computed delta; plain text speeds it back up. The ribbon
+auto-scroll button starts and stops the loop; the loop halts automatically
+on any user scroll input so it doesn't fight manual navigation.
+
+### 5. Settings search (`settings-ui.ts`, `style.css`)
+
+**Introduced in 1.8.0-bcb.4. Bug-fixed in 1.8.0-bcb.4.1.**
+
+The search box lives in `.pmd-settings-header-left`, a new flex wrapper
+around the existing `<h2>Settings</h2>` title.
+
+Matching reuses `SETTING_METADATA` (same source as the command-palette
+settings search) and the exact same filter predicate `render()` uses for
+host-specific rows — a query never surfaces a row that wouldn't be in the
+dialog at all. A setting matches when every whitespace-separated query token
+appears (case-insensitively) in its label, description, section name, or any
+of its `aliases` — multi-token AND logic, same as the palette.
+
+**Design: reuse the real rows, don't clone them.** `render()` still builds
+every category panel up front, and a matching query **moves** —
+`appendChild`, which reparents a live DOM node without losing its listeners
+or state — each matched row into a shared `.pmd-settings-search-results`
+panel. Clearing the query moves every row straight back.
+
+**Restoring original order.** Right after `render()`, the modal snapshots
+each panel's children (`panelOriginalChildren`). `exitSearch()` calls
+`panel.replaceChildren(...original)` per category, which restores rows to
+their exact position and correctly re-slots async-populated content (the
+snapshot holds element references, not clones).
+
+**Highlighting.** `highlightRowText(row, meta, tokens)` rebuilds
+`.pmd-settings-row-title` / `.pmd-settings-row-desc` spans from the same
+text `SETTING_METADATA` would render, wrapping each match in
+`<mark class="pmd-settings-search-hit">`. `exitSearch()` resets every row
+via `unhighlightRow()`, looked up fresh from `SETTING_METADATA` by the row's
+`data-setting-key`. `.pmd-settings-search-hit` uses the app's real
+`data-theme` attribute mechanism rather than `prefers-color-scheme`.
+
+**Bug fixed in 1.8.0-bcb.4.1:** `applySearch()` called
+`resultsPanel.replaceChildren()` to reset BEFORE restoring rows, detaching
+previously-matched rows from the DOM, making them invisible to
+`querySelector` and silently dropping them on a second query. Fixed by
+restoring each category panel from its `panelOriginalChildren` snapshot
+BEFORE clearing `resultsPanel`.
+
+### 6. Window naming (`apps/desktop/src/main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`)
+
+**Introduced in 1.8.0-bcb.3.**
+
+Persistence lives in the main process so names survive renderer reloads
+(mode-switch, settings changes): `main.ts` gained a
+`windowNames: Map<number, string>` keyed by `BrowserWindow.id`, cleaned up
+in the existing `win.on('closed', ...)` handler. Two IPC handlers
+(`host:window-name-set` / `host:window-name-get`) mirror the existing
+`host:speech-set` / `host:speech-get` shape. `preload.ts` bridges both as
+`windowNameSet` / `windowNameGet`; `electron-host.ts` adds the matching
+methods (Electron-only, reached via `getElectronHost()`, not part of the
+shared `Host` interface).
+
+`index.ts` fetches the name once at boot via `getElectronHost()?.windowNameGet()`
+into `currentWindowName`. `updateWindowTitle()` checks it first — uses the
+name as the full title with no suffix — before falling back to the existing
+doc-name-derived logic. The context menu (`openRibbonContextMenu`) uses the
+shared `positionFloatingMenu` / `registerOpenContextMenu` primitives and
+the existing `.pmd-nav-context-menu` / `.pmd-nav-context-item` CSS.
+
+A follow-up fix in 1.8.0-bcb.4 raised `.pmd-nav-context-menu` to
+`z-index: 210` (above the ribbon's `z-index: 200`) so the menu is
+visible when opened from a click inside the ribbon's own bounds.
+
+### 7. Autosave for .docx files
+
+**Introduced in 1.6.0-bcb.1.**
+
+The existing autosave path was gated on `.cmir` files only; this fork
+lifted that gate. The zip worker that prepares `.docx` writes is given a
+time-boxed fallback: if the background worker thread stops responding
+within a set interval, the main thread takes over and completes the save,
+then logs the fallback. The ribbon's Save button now distinguishes
+"saving in progress" from "paused" (e.g. a document with a live view or
+linked copy Word can't hold open), matching the visual feedback users
+already had for `.cmir` autosave.
+
+### 8. Ctrl/Cmd+K hyperlink toggle (`link-context-menu-plugin.ts`, `ribbon-commands.ts`, `text-prompt.ts`)
+
+**Introduced in 1.6.0-bcb.3.1. Extended in 1.8.0-bcb.1 (auto-fill URL from selection).**
+
+New `toggleLink` ribbon command, default-bound to `Mod-k`. Three cases:
+
+- Collapsed cursor inside an existing link → removes just that link's
+  contiguous run, found via `findLinkRunAtPos` (extracted from `findLinkAt`
+  by splitting out coordinates→position from position→link-run walk).
+- Non-empty selection touching a link anywhere in range → removes the link
+  mark from the selection (`nodesBetween` scan + `removeMark`).
+- Non-empty selection with no link → `promptForLink` (new dialog in
+  `text-prompt.ts`, mirroring `promptForText`'s construction with a second
+  input) asks for display text (pre-filled from selection) and a URL.
+  Leaving the text field unedited adds the link mark over the existing
+  selection; changing it replaces the selected text with new link-marked text.
+
+Two bugs caught and fixed via testing in a real Electron build:
+1. `toggleLink` was added to `RIBBON_COMMAND_IDS` but not to
+   `ribbon-groups.ts`'s `RIBBON_GROUPS`, tripping a startup consistency
+   assertion.
+2. A double-click word-select sometimes grabs a trailing space. The dialog's
+   `.trim()` comparison to decide "did the user change the text" false-positived,
+   taking the destructive replace-text branch. Fixed by trimming whitespace out
+   of the actual link range up front (`linkFrom`/`linkTo`).
+
+The 1.8.0-bcb.1 extension: when the selection looks like a URL (starts with
+`https://`, `www.`, or a recognized TLD like `.com`/`.org`), `promptForLink`'s
+URL field is pre-filled with that selection, so you don't have to paste the
+same URL twice.
+
+---
+
+## Upstream Releases
+
+*The sections below are upstream CardMirror's own detailed release notes,
+synced into this fork. For the user-facing short summary of each upstream
+release, see [CHANGELOG.md § Upstream Releases](./CHANGELOG.md#upstream-releases).*
 
 ## 1.10.0 — 2026-09-10
 
@@ -397,1256 +617,6 @@ no focused slot after a close). Those variables are never cleared in
 three-pane mode and still named the pre-switch document, so the pill,
 and Save, could act on a document nobody was looking at. The lookup
 now reports no active document in that case.
-
-## 1.8.0-bcb.4.1 — 2026-09-10
-
-### Fixed: settings search dropped matched rows on a second or re-typed query (`settings-ui.ts`)
-
-Field report (2026-09-10): searching settings for text that appears
-in a setting's description — e.g. "Each reader" from the Readers
-setting's description paragraph — returned "No settings match" even
-though the setting was clearly visible and the text was there.
-
-Root cause: `applySearch()` reparents matching rows from their home
-category panels into a shared results panel. On a subsequent search
-(or when the same query fires a second `input` event), the code
-called `resultsPanel.replaceChildren()` to reset the view BEFORE
-putting those rows back. `replaceChildren()` detaches every child
-from the DOM — including the rows moved there by the previous
-search — leaving them parentless. `this.dialog.querySelector()`
-then returned `null` for every previously-matched row (detached nodes
-are invisible to `querySelector`), and the loop silently skipped them,
-producing a zero-match result.
-
-Fixed by restoring every category panel from its `panelOriginalChildren`
-snapshot BEFORE clearing `resultsPanel`. DOM reparenting is automatic —
-appending a node to a new parent removes it from the old one — so
-`panel.replaceChildren(...original)` pulls the rows back out of
-`resultsPanel` first, leaving `resultsPanel` holding only the
-newly-created section headings and empty-state paragraphs (which
-`replaceChildren()` then clears safely).
-
-## 1.8.0-bcb.4 — 2026-09-10
-
-### Fixed: cross-window doc-uid collision could mark a second, un-marked doc as the speech doc (`multi-pane-shell.ts`)
-
-Field report (2026-09-10): user marked exactly one document as the
-active speech doc, then opened a second window — and a document in
-that second window, never marked by the user, also showed the mic
-marker. Two documents, two windows, both flagged as "the" speech doc.
-
-Root cause: `newDocUid()` generated multi-pane doc ids from a plain
-module-scope counter (`doc-${nextDocUid++}`, starting at 1). Every
-Electron window is its own renderer process with its own JS module
-instance, so a second window's counter restarts at 1 too — its first
-pane gets `doc-1`, identical to the first window's `doc-1` if that
-was the first pane created there. The speech-doc registry is
-uid-keyed and per-window-local for view resolution
-(`speech-doc-registry.ts`'s `views: Map<uid, EditorView>`): main
-process broadcasts one global winning uid, and each renderer resolves
-`getSpeechView()` by looking up ITS OWN local view map for that uid.
-When the new window's colliding pane registered itself under the same
-uid main already had marked, that window's local lookup resolved to
-ITS OWN (unrelated) view for that uid — and `refreshSpeechChips()`
-(`multi-pane-shell.ts:3512`) had no way to distinguish a genuine match
-from an accidental id collision; it just compares `slot.visible?.view
-=== speechView` by object reference, which was satisfied by the wrong
-view.
-
-This was never a "can two docs both be the designated speech doc"
-architecture bug — main process, the registry, and the per-change full
-recompute in `refreshSpeechChips` are all correctly single-valued by
-construction. It was an id-generation bug: two logically DIFFERENT
-documents ended up sharing the identical uid string. `newDocUid()`
-already had a comment claiming multi-doc records "have their own
-newDocUid pool" to avoid colliding with the single-doc path's
-`newSessionDocUid()` — true within one process, but silent about the
-cross-process case, since a plain incrementing counter has no way to
-know about other processes at all.
-
-Fixed by matching `newSessionDocUid()`'s own scheme (random + timestamp)
-instead of a sequential counter, so ids are unique across processes,
-not just within one:
-
-```ts
-function newDocUid(): string {
-  return `doc-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
-}
-```
-
-No format was baked into journal/recovery parsing (`doc-\d+` isn't
-matched or sorted anywhere — confirmed via grep), so the id shape
-change is safe.
-
-### Fixed: ribbon's right-click "Name/Rename Window" menu rendered under the ribbon (`style.css`)
-
-Field report (2026-09-10, same screenshot as above): right-clicking
-the ribbon to name a window opened a menu the user couldn't see or
-click — its top portion rendered behind the ribbon.
-
-`#ribbon` is `position: fixed; top: 0; z-index: 200`. The rename menu
-(`.pmd-nav-context-menu`, shared by every menu built on
-`positionFloatingMenu()` — image/link/text-selection/spellcheck/
-nav-panel/ribbon-rename) was `z-index: 50`. `positionFloatingMenu`
-only clamps against the BOTTOM `#status-bar` (see its own doc comment)
-— it has no equivalent top clamp, and doesn't need one for any of the
-OTHER menus sharing this class, since none of them open at a click
-point inside the ribbon's own bounds. The ribbon-rename menu is the
-one exception: `initRibbonRenameMenu` opens it directly from the
-ribbon's own `contextmenu` event, so its (x, y) is guaranteed to sit
-inside `#ribbon`'s fixed region — and at z=50 vs. the ribbon's z=200,
-the ribbon painted over it.
-
-Raised `.pmd-nav-context-menu` to `z-index: 210` (just above the
-ribbon). Harmless for the other five call sites — none of them ever
-open inside the ribbon's screen region, so this is a no-op for them.
-
-### Fixed: named window's title bar kept a redundant "— CardMirror" suffix (`index.ts`)
-
-`updateWindowTitle()`'s `currentWindowName` branch rendered
-`` `${currentWindowName} — CardMirror` `` — once a window has an
-explicit user-chosen name, the app-name suffix is just noise repeating
-what the icon/taskbar entry already conveys. Now sets
-`document.title = currentWindowName` directly, no suffix. (The other
-two branches — multi-doc filename list, single focused-doc filename —
-are unchanged; they still carry the suffix, since they're not an
-explicit user-chosen label.) `labelForChooser` in `main.ts` already
-strips `` / — CardMirror$/`` when building the "which window?" file-open
-chooser; that regex is now a no-op for named windows instead of doing
-real work, which is harmless — it still matches correctly for the
-unnamed-window titles that still carry the suffix.
-
-### Added: search bar in the Settings dialog (`settings-ui.ts`, `style.css`)
-
-Feature request: search across every setting's name and description
-at once, highlighting matched words, instead of hunting through tabs.
-
-The search box lives in `.pmd-settings-header-left`, a new flex wrapper
-around the existing `<h2>Settings</h2>` title — `justify-content:
-space-between` on the header still pins the close button to the right,
-but the wrapper keeps the box immediately next to the title rather
-than floating in the middle of the header the way a bare third flex
-child would.
-
-Matching reuses `SETTING_METADATA` (the same source `quick-card-search-ui.ts`'s
-command-palette settings search already reads) and the exact same
-filter predicate `render()` uses to decide which rows exist per host
-(`electronOnly`/`windowsOnly`/`webOnly`/`revealWhen`) — a query never
-surfaces a row that wouldn't otherwise be in the dialog at all. A
-setting matches when every whitespace-separated query token appears
-(case-insensitively) in its label, description, section name, or any
-of its `aliases` (the same alias list the palette uses, e.g. "dark
-mode" finding "Theme") joined into one haystack — same multi-token AND
-rule the palette already uses.
-
-**Design: reuse the real rows, don't clone them.** A setting row's
-control is LIVE, bound directly to `settings` — and several `kind`s
-(readers, color slots, custom-dash, …) instantiate a whole standalone
-editor widget via a `buildXEditor()` helper on first render. Cloning
-`renderEntry(meta)` a second time for search results would either
-duplicate that live binding harmlessly (toggle rows: two checkboxes
-both reading/writing the same key, kept in sync by the existing
-`settings.subscribe` reflection each already has) or, for the complex
-custom-editor kinds, risk two live instances of something that may
-carry singleton-ish internal assumptions untested for that case. So
-search doesn't clone anything: `render()` still builds every category
-panel up front exactly as before (already true pre-feature — "We
-build all of them up-front so the refreshDependents pass can find
-rows under inactive tabs too"), and a matching query **moves** —
-`appendChild`, which reparents a live DOM node without losing its
-listeners or internal state — each matched row out of its home panel
-into one shared `.pmd-settings-search-results` panel, grouped under a
-`<h3 class="pmd-settings-section-title">` naming which tab it's really
-in (the tab strip itself is hidden while searching, so this is the
-only surviving context for that). Clearing the query moves every row
-straight back.
-
-**Restoring exact original order.** Right after `render()` builds each
-category panel, `SettingsModal` snapshots its children
-(`Array.from(panel.childNodes)`, a point-in-time copy — mutating the
-live panel afterward doesn't change the snapshot) into a new
-`panelOriginalChildren` map. `exitSearch()` (fired when the query goes
-empty) calls `panel.replaceChildren(...original)` per category,
-which both restores every row to its exact original position AND
-correctly re-slots the two async/lazily-populated exceptions
-(`buildBenchmarkSection`/plugins-panel content) since the snapshot
-holds element REFERENCES, not clones — whatever landed inside them
-asynchronously after `render()` returned is still there when they're
-reinserted.
-
-**Highlighting, and un-highlighting.** `highlightRowText(row, meta,
-tokens)` rebuilds a row's `.pmd-settings-row-title`/`.pmd-settings-row-desc`
-spans from the SAME text `SETTING_METADATA` (or `descriptionFn()`)
-would render normally, wrapping each token match in `<mark
-class="pmd-settings-search-hit">` (`paintHighlight`, sorted longest-
-token-first so a short token can't carve up a longer overlapping
-match). A row whose only match was via its section name or an alias —
-neither shown to the user — simply renders unmarked, which is correct:
-there's nothing in the visible text to point at. `exitSearch()` resets
-EVERY row's title/description back to plain text via
-`unhighlightRow()` (looked up fresh from `SETTING_METADATA` by the
-row's own `data-setting-key`, not by trying to diff/undo the mark
-tags) — a flat ~90-row pass, cheap, and it only runs once per query
-clear.
-
-`.pmd-settings-search-hit`'s yellow uses the app's real theme
-mechanism (`:root[data-theme='dark']`, set by `applyTheme()` in
-`index.ts`) rather than a `prefers-color-scheme` media query — the
-correct pattern for this app (confirmed: 20 existing rules use the
-attribute selector vs. 2 stray `prefers-color-scheme` blocks
-elsewhere in `style.css`, both added in a prior turn this session and
-themselves arguably due for the same fix, left alone here as out of
-scope).
-
-No automated test: `settings-ui.ts` transitively imports `index.ts`
-(via `benchmark-ui.ts`'s `attachClickBelowToEnd`, which reaches for a
-DOM element only the full `index.html` app shell provides) and
-crashes in a bare jsdom environment — confirmed by trying; no existing
-test in the suite imports this module directly for the same reason.
-Verification for this feature is the live mockup instead, per the
-user's own request.
-
-### Fixed: save success now flashes only Save, not Autosave (`index.ts`, `multi-pane-shell.ts`)
-
-Field report: `flashSaveSuccess()` (single-doc) and
-`Slot.flashChipSaveSuccess()` (multi-pane) both flashed the ✓ glyph
-on TWO buttons whenever autosave was enabled — the Save button AND
-the Autosave toggle. This was deliberate at the time (a prior turn's
-"three-pane autosave now flashes the Save button on success" fix
-extended the existing single-doc dual-flash to multi-pane for
-parity), but the user asked for it to be Save-only: the Autosave
-button is an on/off setting, not a per-write event, and flashing it
-on every autosave tick read as "autosave itself changed" rather than
-"your doc was written."
-
-Removed the `if (autosaveEnabled) flashSavedGlyph(autosaveBtn)` branch
-from both functions — `flashSaveSuccess()` now unconditionally
-`flashSavedGlyph(exportBtn)`s and returns; `flashChipSaveSuccess()`
-now unconditionally flashes `chipSaveBtn` only. `autosaveBtn`/
-`chipAutosaveBtn` still get their normal `aria-pressed`/effective-
-state styling from the existing toggle logic elsewhere — only the
-success-flash call site changed. No test asserted the old dual-flash
-behavior (confirmed via grep), so nothing needed updating there.
-
-### Fixed: update-progress pill no longer resizes per tick (`update-chip.ts`, `style.css`)
-
-Field report: the downloading-state pill's overall width visibly
-jittered as `pct` climbed (`"Downloading update 1.8.0-bcb.3 — 0%"` vs
-`"…— 100%"` differ by 2 characters), since the whole label was one
-plain-text string with no fixed dimensions.
-
-`renderUpdateChip`'s downloading branch now builds the label as a text
-node (`"Downloading update {version} — "`) plus a separate `<span
-class="pmd-update-chip-pct">` holding just `"{pct}%"`, via
-`el.replaceChildren(...)` (accepts a plain string as text-node
-shorthand, same as `append`/`prepend`). New CSS:
-`.pmd-update-chip-pct { width: 2.6em; text-align: right;
-font-variant-numeric: tabular-nums; }` — fixed at "100%"'s width
-regardless of the actual digit count, right-aligned so shorter values
-sit flush against where the widest value would end, and
-`tabular-nums` so even same-width digit swaps (42%→58%) don't shift
-by a sub-pixel amount. The `ready`/`available` branches are untouched
-(still plain `el.textContent = ...`) — `el.textContent`'s existing
-exact-string test assertions still pass unchanged since it
-concatenates all descendant text regardless of DOM shape.
-
-New assertion in the existing downloading-state test in
-`tests/editor/update-chip.test.ts`: `el.querySelector('.pmd-update-chip-pct')`
-holds exactly the percent text.
-
-## 1.8.0-bcb.3.1 — 2026-09-09
-
-### Added: "Shrink" exposed as a Card-menu item (`index.ts`)
-
-Field request: a button equivalent to Verbatim's "Shrink" — collapse
-everything in a card EXCEPT underlined/emphasized text down small, so
-pasting an article paragraph and underlining the parts worth reading
-leaves the rest visually de-emphasized. This already existed as the
-`shrink` ribbon command (`ribbon-commands.ts`'s `shrinkText`, bound to
-`Mod-8`): its own header comment already describes exactly this
-behavior — text NOT carrying `underline_mark`/`underline_direct`/
-`emphasis_mark` (`SHRINK_EXEMPT_MARK_NAMES`) cycles down to 8pt
-(`SHRINK_NORMAL_TO_SMALL_PT`) while exempt text keeps its size — it
-just had no clickable surface, only the keyboard shortcut and the
-command palette.
-
-Added a new "Shrink" section (one item, labeled "Shrink") to the
-"Card" dropdown menu's section list in `index.ts` (`cardMenuBtn`'s
-click handler → `openDocMenu`), after the existing "Highlighting"
-section, keeping the alphabetical-by-title convention the surrounding
-comment already documents (Condense, Excerpt, Highlighting, Shrink).
-The item routes through `runRibbon('shrink')`, the same dispatch path
-`Mod-8` already uses — no new command, no new wiring, just a new menu
-entry point onto existing, already-tested logic.
-
-## 1.8.0-bcb.3 — 2026-09-09
-
-### Added: "Locate…" for a moved/deleted Recent file (`index.ts`)
-
-`openRecentInPlace`'s missing-file branch used to just
-`showToast(...)` and `removeRecent(handle)` unconditionally — no way
-to actually get at the file after it moved, even though the user can
-usually find it in Finder in two clicks. Now shows a
-`promptForRouteChoice` with "Locate…" (browses via
-`electron.openFile({filters: OPEN_FILE_FILTERS})`, then proceeds
-through the SAME multi-pane/spawn-window/load-in-place logic the
-function already had, just with the located file's info) and "Remove
-from Recents" (the old behavior, now explicit). Dismissing the dialog
-leaves the stale entry alone rather than silently deleting it. The
-located file re-adds itself to Recents naturally, through the same
-`recordRecent` calls every other open path already goes through — no
-special-casing needed there.
-
-### Added: readingsoft.com link in the readers editor (`settings-ui.ts`)
-
-`buildReadersEditor()` gained a `<a>` (via the existing `buildDocLink`
-helper, already used for the Manual/Privacy/Terms links) reading
-"Test your reading speed ↗", pointing at `READING_SPEED_TEST_URL =
-'https://readingsoft.com/'`. Third-party site, no telemetry/affiliation.
-
-### Fixed: Option+backtick captured as "Alt-Unidentified" (`ribbon-commands.ts`)
-
-Field report: rebinding a shortcut to Option+\` on macOS showed
-"⌥Unidentified" in the keybindings editor instead of "⌥\`". Root
-cause: Option held on the backtick key is a dead-key prefix on macOS
-(Option-\` + a letter composes an accented character, e.g. à), so the
-browser can't resolve a single character synchronously and reports
-`e.key === 'Unidentified'` — `ribbonKeyStringFor`'s fallback branch
-pushed that string verbatim as the key name, producing a binding
-nothing could ever match. Fixed by special-casing `e.code ===
-'Backquote'` to push the literal `` ` `` regardless of what `e.key`
-says, mirroring the existing Digit/Space special-cases in the same
-function for the same reason (a physical key whose `e.key` value is
-unreliable). `macOSReservedKeyWarningForEvent`'s own key-normalization
-got the same case for consistency, though it's not currently load-bearing
-there.
-
-Also added `Mod-\`` (Move to Next Window) to `MACOS_RESERVED_SHORTCUTS`
-— a separate field report from the same session: pressing Cmd+\` while
-capturing a binding did nothing at all, silently. This one is hard OS-
-reserved (unlike the Option case above, the keydown never reaches ANY
-app, so `onKey` has nothing to capture) — the table entry is there for
-documentation/correctness, not because the warning path can actually
-fire for it.
-
-### Added: custom dash can convert "--" and "---" independently, at once (`settings.ts`, `custom-dash-plugin.ts`, `settings-ui.ts`, `custom-autocorrect-plugin.ts`)
-
-Previously an intentional either/or choice (documented in
-`Settings['customDashTrigger']`'s own comment): a `--`-triggered rule
-fires eagerly on the second hyphen, before it can know whether a third
-is coming that should have made it `---` instead — so the two
-triggers "can't coexist." The user asked to lift that limitation
-(Word's usual behavior: both convert, independently, each to its own
-style).
-
-Kept the existing `customDashEnabled`/`customDashTrigger`/
-`customDashStyle` fields meaning EXACTLY what they meant before (zero
-migration, zero behavior change when the new field is off) and added
-`customDashOtherEnabled`/`customDashOtherStyle`, layering a SECOND
-rule that always targets whichever trigger `customDashTrigger` ISN'T
-— so the two can never both target the same one, and the UI can't be
-misconfigured into redundancy.
-
-- **`custom-dash-plugin.ts`**: rewritten around a shared
-  `makeDashRule({trigger, style, enabled})` builder, instantiated
-  twice (primary + secondary, pointed at each other's complementary
-  trigger). `tripleRuleActive()` checks whether a `---`-targeting rule
-  is active from EITHER slot; a `--`-targeting rule defers to the
-  character typed right after the pair (instead of firing on the
-  second hyphen) only when that's true — otherwise unchanged, eager,
-  single-keystroke firing. The deferred branch's `triggers()`
-  broadens from "only `-`" to "any single character" ONLY while
-  deferred mode could apply, keeping the common case cheap. Same run-
-  guard (no conversion mid-longer-hyphen-run) applies to both the
-  eager and deferred paths.
-- **`settings.ts`**: new fields + sanitizers, defaults `false`/`'en'`.
-  Comment on `customDashTrigger` updated — the two no longer "can't
-  coexist," they're just independently toggleable.
-- **`settings-ui.ts`**: `buildCustomDashEditor` now returns two stacked
-  rows instead of one; the second's label ("Also replace \"--\"
-  with…") tracks the first's trigger dropdown live, so it always names
-  the complement.
-- **`custom-autocorrect-plugin.ts`**: `entryConflictWarnings` gained an
-  optional `customDashOtherEnabled` field so its "can never fire while
-  Custom dash uses the X trigger" check considers BOTH active triggers
-  when checking a custom-autocorrect entry's reachability, not just
-  the primary one.
-- **`tests/editor/custom-dash.test.ts`**: 8 new tests covering the
-  dual-trigger interaction (3rd hyphen still completes `---`; a
-  non-hyphen character completes the deferred `--`; Backspace-revert
-  for the deferred case; the run-guard still holding; role-symmetry
-  when `--` is configured as the PRIMARY trigger and `---` the
-  secondary). All 12 pre-existing tests pass unchanged, confirming the
-  single-trigger path truly didn't change.
-
-### Fixed: amber speech-doc tint hidden by the focused-pane blue fill (`style.css`)
-
-Two rounds of field reports about "two active speech docs at once" and
-"marking one un-marks the other unexpectedly" turned out to describe
-CORRECT behavior once traced end to end (the cross-window registry is
-genuinely a single value, broadcast to every window — confirmed
-architecturally sound, twice). The actual, real gap: `.pmd-pane-speech
-.pmd-pane-chip`'s amber tint was guarded `:not(.pmd-pane-focused)` — by
-design, so the amber wouldn't clash with the focused pane's own blue
-fill — meaning a pane you were ACTIVELY working in never showed the
-amber "this is the speech doc" tint at all, only the 🎤 emoji (which
-has no such guard). The user read "blue, no amber" as "got un-marked,"
-when it was actually "marked AND focused," a state the UI never
-visually distinguished from "focused, not marked."
-
-Fixed the other way the user actually asked for: amber now wins over
-blue instead of losing to it. `.pmd-pane-speech .pmd-pane-chip` /
-`.pmd-pane-chip-name` had their `:not(.pmd-pane-focused)` guards
-dropped — they tie in specificity with the blue-focused rules
-(`.pmd-pane-focused .pmd-pane-chip` at line ~1390, `.pmd-pane-chip-name`
-at ~11499) and win on source order (later in the file), the same
-technique the ORIGINAL guarded rule's own comment already documented
-for the reverse case. Every OTHER blue-focused rule that colors a chip
-BUTTON (close/stack/nav/expand/save/autosave — resting, hover, AND
-pressed-state variants, ~10 rules total) needed the opposite treatment:
-`:not(.pmd-pane-speech)` added so they stop applying once amber wins,
-letting each button fall back to its plain default coloring — already
-proven readable against the amber background, since it's the exact
-same coloring an unfocused speech pane's buttons have always used.
-Also un-guarded the two existing "beige pressed-box instead of the
-generic grey one" amber overrides (expand/nav pressed, autosave
-pressed) so they apply consistently regardless of focus too.
-
-### Fixed: Send to Speech silently did nothing on a non-sendable cursor position (`speech-doc-send.ts`)
-
-`sendToSpeech`'s `const slice = takeSendSlice(sourceView); if (!slice)
-return;` — a bare, feedback-free return whenever the cursor isn't
-inside anything `resolveSendRange` considers sendable (a card, a
-heading, or an explicit selection): an empty line, or between
-structural units. Same silent-no-op shape as the self-send guard fixed
-earlier this session, in the same function. Field report: "I can't
-send to the active speech doc, it just doesn't do anything." Added a
-`showToast` explaining why, matching the self-send fix's precedent.
-
-### Fixed: filenames with a Finder-typed "/" showed the raw on-disk ":" (`platform.ts`, `index.ts`, `multi-pane-shell.ts`, `home-screen.ts`)
-
-Field report with screenshots: a file Finder displays as
-"1nc-9/8.docx" appeared in CardMirror's per-pane chip as
-"1nc-9:8.docx". Root cause is a genuine macOS Finder quirk, not a
-CardMirror bug per se: classic Mac OS used ":" as its path separator,
-and macOS still stores a filename that way on disk whenever a user
-types a literal "/" into it in Finder (APFS/HFS+'s own separator) —
-Finder translates ":" back to "/" for DISPLAY only; the raw filename
-read off disk (as every open/recent/chip label in this app is) still
-has the colon.
-
-New `displayFilename(name)` in `platform.ts` (`isMacPlatform() ?
-name.replace(/:/g, '/') : name` — no-op off macOS, where the quirk
-doesn't exist) applied at every place a bare filename string is shown
-to the user: the multi-pane chip name (both `mountVisible` and
-`refreshChipFilename`), the stack-switcher dropdown's row names, the
-single-doc chip + OS window title (`updateWindowTitle`, both the
-single-doc and multi-pane-title-join branches), and the home screen's
-Recents rows + Recent-Workspaces rows (including their tooltips).
-Deliberately NOT applied to any actual path/handle used for file I/O
-(e.g. `recent.handle`, which legitimately uses "/" as a real path
-separator and must keep the true on-disk colon-containing name for
-reads/writes/comparisons) — display-only, everywhere.
-
-### Added: right-click the ribbon to name/rename the window (`apps/desktop/src/main.ts`, `apps/desktop/src/preload.ts`, `src/editor/host/electron-host.ts`, `index.ts`)
-
-Desktop-only feature request: multiple windows open at once (e.g. one
-holding the speech doc, others for research) are hard to tell apart
-from just their doc-derived titles/taskbar entries. Right-clicking
-anywhere on the ribbon now opens a small context menu — "Name This
-Window…" (or "Rename Window…" / "Clear Window Name" once already
-named) — backed by a `promptForText` dialog.
-
-Persistence lives in the main process, not the renderer, so a name
-survives a renderer reload (mode-switch, a reloading settings change):
-`apps/desktop/src/main.ts` gained a `windowNames: Map<number,
-string>` keyed by `BrowserWindow.id`, cleaned up in the existing
-`win.on('closed', ...)` handler, plus two IPC handlers
-(`host:window-name-set`/`host:window-name-get`) mirroring the existing
-`host:speech-set`/`host:speech-get` shape exactly. `preload.ts` bridges
-both as `windowNameSet`/`windowNameGet`; `electron-host.ts` adds the
-same two methods to `ElectronHost`, one-for-one with its existing
-`speechSet`/`speechGet` (not part of the shared `Host` interface in
-`types.ts` — Electron-only, reached via `getElectronHost()`, same as
-the speech-doc bridge).
-
-`index.ts`: a module-level `currentWindowName`, fetched once at boot
-via `getElectronHost()?.windowNameGet()` (no-op on the browser host).
-`updateWindowTitle()` checks it FIRST — `${currentWindowName} —
-CardMirror` — before falling back to the existing doc-name-derived
-title logic; the per-pane/single-doc filename chip is untouched (it
-identifies the document, not the window, so keeps showing the real
-filename). The context menu itself (`openRibbonContextMenu` and
-friends) follows the same local-menu-plus-shared-primitives pattern
-`nav-panel.ts` already uses for its heading context menu: a private
-`RibbonContextMenuItem` type and open/close state local to `index.ts`,
-built on the shared `positionFloatingMenu` / `registerOpenContextMenu`
-/ `clearOpenContextMenu` primitives, reusing the existing
-`.pmd-nav-context-menu`/`.pmd-nav-context-item` CSS (already fully
-generic despite the name). The ribbon-wide `contextmenu` listener
-checks `e.defaultPrevented` first so it doesn't also fire on top of
-the one existing per-element handler inside the ribbon (a
-formatting-panel button's "select all of style" right-click).
-
-### Added: per-pane cloud-sync badge in multi-pane mode (`disk-conflict.ts`, `multi-pane-shell.ts`, `index.ts`, `style.css`)
-
-Field report: with two or three panes open, the cloud pill only ever
-appeared once, in the window's fixed bottom-right corner, following
-whichever pane was FOCUSED — so it was never clear whose disk state it
-was reporting on when panes disagreed (one synced, one changed on
-disk). The pill's rendering (`installDiskBadge`/`render`/`refreshDiskBadge`
-in `disk-conflict.ts`) was a module-level singleton by construction —
-exactly one tray, one badge element, module-level closure variables.
-The underlying STATE it reads (`byHandle: Map<string, DocDiskInfo>`,
-keyed by on-disk handle) was already correctly per-document and shared
-by both layouts (`registerDocPath`/`releaseDocPath` populate it the
-same way regardless of layout) — only the rendering side needed to
-become per-pane.
-
-Left the existing singleton (`installDiskBadge`/`refreshDiskBadge`/
-`__resetDiskConflictForTests`, and the exported `DiskBadgeDeps` type)
-completely untouched — still used as-is for the single-doc window's
-one shared tray, so no existing behavior or test changed. Added
-alongside it:
-
-- **`notifyDiskStateChanged()`**: every `note*` mutation
-  (`noteDocRegistered`, `noteDiskChanged`, `noteSavedInPlace`,
-  `noteKeptCopy`, `noteReloaded`, `noteDocReleased`) now calls this
-  instead of `refreshDiskBadge()` directly. It still calls
-  `refreshDiskBadge()` internally (so the singleton's behavior is
-  byte-for-byte the same) and additionally notifies a new
-  `paneRefreshListeners: Set<() => void>` that per-pane badges
-  subscribe into.
-- **`resolveBadgeClick(handle, name, info, deps)`**: the three-way
-  disk-conflict decision (reload / keep mine / keep both) and the
-  synced/kept-copy reveal shortcuts, extracted out of the singleton's
-  private `onBadgeClick` so both the single-doc tray and the new
-  per-pane badges share one implementation instead of two copies that
-  could drift.
-- **`PROVIDER_ICON: Record<CloudProvider, string>`**: small brand-
-  colored SVG marks (Dropbox / OneDrive / Google Drive / iCloud;
-  `other` reuses the existing generic stroke-cloud glyph) — simplified,
-  not pixel-accurate logos, but enough to tell providers apart at a
-  glance without reading text.
-- **`createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement):
-  PaneDiskBadgeHandle`**: mounts one compact `<button
-  class="pmd-pane-disk-badge">` into `parent`, subscribes its own
-  `render` closure into `paneRefreshListeners`, and returns
-  `{el, refresh, destroy}`. Same underlying state/logic as the
-  singleton (`byHandle` lookups, `resolveBadgeClick` for clicks,
-  `startClock`/`stopClock` for the `changed` state's live-updating
-  relative-time text) but visually distinct per the user's ask: the
-  provider's own icon instead of a generic cloud + "Cloud" text, and
-  the text label is dropped entirely for the resting `synced` state
-  (`.pmd-pane-disk-badge[data-state='synced'] .pmd-pane-disk-badge-label
-  { display: none; }`) — `changed`/`kept-copy` keep a short label
-  ("2m ago" / "Copy") since those need to say more than "which
-  provider."
-
-`multi-pane-shell.ts`'s `Slot` class gained a `private diskBadge:
-PaneDiskBadgeHandle`, constructed in the footer right after the
-copresence indicator (before `+New`/`+Open`, so the row reads word
-count → copresence → disk badge → file actions) with deps scoped
-entirely to `this.visible` — no focus dependency at all, unlike the
-ribbon/status-bar commands multi-pane mode otherwise routes through
-"the focused doc":
-
-- `getActive`/`isDirty`/`isSuppressed` read `this.visible?.handle` /
-  `.dirty` / `.readMode` directly (`DocRecord` already tracks `readMode`
-  and `dirty` per-document, the same per-doc story as autosave state) —
-  no shell involvement needed. `isSuppressed` also checks
-  `getTimerState().poppedOut` for parity with the single-doc badge.
-- `isSessionHost` reuses `collabCopresenceFor(this.visible.uid)`,
-  already resolved per-record.
-- `reloadFromDisk` calls the shell's existing `reloadFromDisk(handle)`
-  (already multi-pane-aware, resolves the target pane by handle via
-  `findRecordByHandle` — this one already existed, explicitly commented
-  "Pill action 'Keep their changes' for the pane holding `handle`").
-- `keepMineAsCopy`/`overwrite` call two NEW shell methods,
-  `keepMineAsCopyForHandle`/`overwriteForHandle`: both resolve the
-  target pane via `findRecordByHandle`, `slot.showRecord(record)` +
-  `this.focusSlot(slot)` to bring it into focus (same "commands route
-  via the focused doc" pattern `promptSaveAllForQuit` already uses),
-  then call the newly-exported `saveActiveAsConflictedCopy`/
-  `saveActiveForcingDisk` from `index.ts` (previously private — the
-  only change needed there besides also exporting `openFileByPath`,
-  reused as-is for `openOriginal` since it was already multi-pane-aware
-  via `routeOpenedFile`).
-- `mountVisible()` (the single choke point `push`/`showRecord`/stack-
-  switch all route through) gained a `this.diskBadge.refresh()` call,
-  and `toggleFocusedReadMode()` gained `this.focusedSlot?.refreshDiskBadge()`
-  (a new public one-line wrapper on `Slot`) so entering/leaving read
-  mode un-suppresses the badge immediately instead of on the next
-  unrelated `note*` event.
-
-`index.ts`'s `updateWindowTitle()` now only calls `ensureDiskBadge()`/
-`refreshDiskBadge()` (the single-doc tray) when `!multiDocActive`.
-Belt-and-suspenders: `style.css`'s `body.pmd-multi-doc .pmd-pill-tray-right`
-rule changed from repositioning the old shared tray above the pane
-footer to `display: none`, so even a tray installed before a mode-
-switch (single-doc → multi-pane without a reload) stays hidden rather
-than showing the old ambiguous "follows the focused pane" pill
-alongside the new per-pane ones.
-
-New `tests/editor/disk-conflict-pane-badge.test.ts` (7 tests): hidden
-for local/unregistered; provider icon with no label while synced;
-relative-time / "Copy" labels for changed/kept-copy; two panes with
-two different handles stay independent; click resolves through
-`resolveBadgeClick` (reveal on a synced click); `destroy()`
-unsubscribes; `isSuppressed` freezes and `refresh()` catches it up.
-All 8 pre-existing `disk-conflict.test.ts` tests pass unchanged,
-confirming the single-doc tray truly didn't change.
-
-### Added: update chip shows download progress (`update-chip.ts`, `electron-host.ts`, `preload.ts`, `apps/desktop/src/main.ts`, `style.css`)
-
-Feature request: the status-bar update chip (`update-chip.ts`) went
-straight from hidden to `'ready'`/`'available'` with nothing in
-between — a multi-minute download on a slow connection looked
-identical to "nothing is happening," with no way to tell it was
-actually working.
-
-Added a third chip state, `'downloading'`, carrying a `pct: number`
-alongside the existing `version: string`:
-
-```ts
-export type UpdateChipState =
-  | { state: 'downloading'; version: string; pct: number }
-  | { state: 'available'; version: string }
-  | { state: 'ready'; version: string };
-```
-
-- **`apps/desktop/src/main.ts`**: `autoUpdater.on('update-available',
-  ...)` now sets the chip to `{ state: 'downloading', pct: 0 }`
-  immediately (both the Windows/Linux `autoDownload` path and mac's
-  explicit `downloadUpdate()` call) instead of waiting for the first
-  progress tick, which can lag a moment on a slow start. A new
-  `autoUpdater.on('download-progress', ...)` handler updates `pct` on
-  every tick, guarded to only advance a chip already in the
-  `'downloading'` state — so a stray late tick can't stomp on a chip
-  that already moved to `'ready'` or fell back to `'available'` (the
-  mac staging-failure path). The `host:update-chip-action` click
-  handler now no-ops while `'downloading'` (there's nothing to act on
-  yet — restart-install and open-release-page both apply only once the
-  chip has moved past it).
-- **`update-chip.ts`**: `renderUpdateChip` handles the new state by
-  setting a `data-state="downloading"` attribute and a
-  `--pmd-update-pct` CSS custom property (clamped to `[0, 100]`,
-  rounded) on the button, plus text like `"Downloading update 1.8.0 —
-  47%"`. The `'ready'`/`'available'` branches are untouched — same
-  `el.textContent = ...` as before, so the existing exact-string tests
-  didn't need updating.
-- **`style.css`**: `#update-chip[data-state='downloading']` paints a
-  `linear-gradient` with a hard edge at `--pmd-update-pct` — a
-  translucent (`color-mix(in srgb, var(--pmd-c-accent) 30%,
-  transparent)`) fill on the left of the edge, `transparent` past it —
-  so the pill visibly fills left-to-right as the percent climbs. Kept
-  translucent rather than the hover state's solid accent specifically
-  so the text stays legible on both sides of the edge without needing
-  per-zone text color. No transition on the gradient stop (ticks can
-  arrive many times a second on a fast connection; an animated chase
-  would look worse, not smoother). `:hover` is overridden back to the
-  resting accent color while downloading — the pill isn't actionable
-  yet, so it shouldn't invite a click the way the solid white-on-accent
-  hover normally does.
-- **`electron-host.ts`** / **`preload.ts`**: both `getUpdateChipState`/
-  `onUpdateChip` signatures widened to the new three-state union —
-  `electron-host.ts` imports `UpdateChipState` from `update-chip.ts`
-  directly; `preload.ts` (a separate package with no import path into
-  `src/editor/`) keeps its own mirrored `UpdateChipStateIpc`, same
-  convention as its other Ipc-suffixed wire types.
-
-New test in `tests/editor/update-chip.test.ts`: renders `pct: 0` and
-`pct: 47.6` (rounds to 48%), confirms a `pct: 137` overshoot clamps to
-100% instead of overflowing the bar, and confirms advancing to
-`'ready'` clears both `data-state` and the custom property. All 4
-pre-existing tests pass unchanged.
-
-## 1.8.0-bcb.2 — 2026-09-08
-
-### Added: New Document and external file-open both prompt for a destination in multi-pane mode (`index.ts`, `multi-pane-shell.ts`, `apps/desktop/src/main.ts`)
-
-Field report: with a three-pane workspace holding one doc, "New
-Document" always spawned a whole new window (a deliberate 2026-09
-decision — "clicking New while already working in a workspace more
-plausibly means give me a fresh one than add a doc here"). That
-reasoning didn't hold once the workspace had an empty pane sitting
-right there: an empty pane's `paneEl` stays `hidden` until something's
-loaded into it (`applyExpandedState`'s `stack.length > 0` visibility
-rule), so the only "new doc" affordance actually visible was the
-occupied pane's own "+ New" footer button — which stacks a second doc
-into THAT pane specifically (`newDocIntoSlot(this.id)`, by design, for
-building a stack on purpose) rather than reaching an empty one. The
-user had no ribbon/keyboard path to the empty pane at all.
-
-- **`multi-pane-shell.ts`**: new `newDocWithPicker()` shows the same
-  inline `promptForSlot(..., { allowNewWindow: true })` dialog Open
-  already uses — lists every slot (with "(empty)" for the free ones)
-  plus "New Window" — then routes to `newDocIntoSlot(choice)` or spawns
-  a window, matching `onFileOpen`'s existing pattern exactly.
-- **`index.ts`**: `enableMultiDocMode` gained an `onNewDocWithPicker`
-  hook (`multiDocNewDocWithPicker`); `onNewDocClicked`'s multi-pane
-  branch calls it instead of unconditionally calling
-  `host.spawnWindow(null)`. The home screen's "New" tile is unaffected
-  — it still calls `newDocIntoFirstEmptySlot()` directly (no picker,
-  since the workspace being empty there means nothing's ambiguous).
-
-Second report, same investigation: opening a file from Finder/Dock
-with two three-pane windows open always routed to whichever window was
-last focused (`pickMultiPaneTarget` in `apps/desktop/src/main.ts`),
-even when a DIFFERENT window had a free slot and was the one actually
-meant — focus alone can't disambiguate once 2+ multi-pane windows
-exist.
-
-- **`apps/desktop/src/main.ts`**: `pickMultiPaneTarget` is now async
-  and, with 2+ live multi-pane windows, shows a native
-  `dialog.showMessageBox` ("Open \"file\" in:") listing each window by
-  its title (already a `·`-joined list of its open docs' filenames —
-  see `updateWindowTitle` in the renderer) plus "New Window", instead
-  of silently preferring the focused one. Exactly one candidate still
-  skips the dialog (unchanged fast path); zero candidates still falls
-  through to spawning a fresh window (unchanged).
-
-### Fixed: Send to Speech no-op'd silently when the source and speech doc were the same view (`speech-doc-send.ts`)
-
-Field report, exact repro: window 1 already had a doc marked as the
-speech doc. In window 2 — a single-doc three-pane window — the user
-marked that window's own (only) doc as the speech doc via the menu bar
-(Speech → Mark/Unmark Current Doc as Active Speech Doc), then tried
-Send to Speech. Nothing happened, in either window. The cross-window
-registry (`speech-doc-registry.ts` / main's `speechRegistration`) was
-never actually the problem — it's a single value in the main process,
-broadcast to every window on every change, and correctly moved from
-window 1's doc to window 2's doc when the user marked it. The real
-issue: `sendToSpeech`'s same-window branch (`speech-doc-send.ts:387`)
-already had a guard for `sourceView === localView` — sending FROM the
-speech doc TO itself, which Verbatim handles by inserting a `~ Marked
-HH:MM ~` bookmark card (not implemented here) — and that guard was a
-bare `return`. With only one doc open in window 2, marked as speech,
-EVERY send attempt hits this exact case, since there's no other doc to
-send from. Fixed by surfacing a toast (`'This is already the speech
-doc — nothing to send.'`) instead of silently no-opping — doesn't
-implement the Verbatim marker-card behavior, just stops the command
-from looking broken. `showToast` added to the module's imports.
-
-### Added: macOS system-shortcut warning in the keybindings editor (`ribbon-commands.ts`, `keybindings-editor.ts`)
-
-The user asked for keybinding-conflict detection to also cover macOS's
-own reserved shortcuts, not just in-app collisions (already handled by
-`findConflict`/`removeKeyFromCommand` in `keybindings-editor.ts`).
-
-First pass checked the FOLDED key string (`ribbonKeyStringFor`'s own
-`'Mod-h'`-style output), keyed off a small table of well-known macOS
-shortcuts. The user then asked for the check to also catch a shortcut
-that "contains" a reserved one, not just an exact string match — the
-real gap: `ribbonKeyStringFor` folds `e.ctrlKey || e.metaKey` into one
-`'Mod'` segment for keymap-dispatch purposes, but real macOS shortcuts
-DO distinguish them (Quit is Cmd-Q specifically, not Ctrl-Q). Checking
-the folded string meant a genuine two-modifier system shortcut like
-Control-Command-F (Full Screen) couldn't be listed at all without also
-false-flagging a plain Cmd-F someone actually wants — the exact
-limitation the first pass's doc comment called out and explicitly
-excluded. Reworked to check the RAW `KeyboardEvent`'s modifier flags
-instead of the folded string, which resolves that cleanly: Ctrl-only
-and Cmd-only are distinguishable again, so two-modifier combos can be
-listed precisely.
-
-- **`ribbon-commands.ts`**: `MACOS_RESERVED_KEYS` (string-keyed)
-  replaced by `MACOS_RESERVED_SHORTCUTS`, an array of
-  `{ctrl?, meta?, alt?, shift?, key, description}` entries matched by
-  exact modifier-flag equality (mirrors how a real macOS shortcut only
-  fires on its exact modifier set, not a superset) — now also covers
-  Lock Screen (Control-Command-Q), Full Screen (Control-Command-F),
-  and Mission Control / App Exposé / move-a-space (the Control-arrow
-  keys), on top of the previous Quit/Hide/Hide Others/Log Out/
-  screenshots. `isMacPlatform()` (extracted from `formatKeyForDisplay`
-  in the first pass) is unchanged. `macOSReservedKeyWarningForEvent(e)`
-  replaces `macOSReservedKeyWarning(key)` — normalizes `e`'s key the
-  same way `ribbonKeyStringFor` does (digit via `e.code`, `Arrow*`
-  passed through, single chars lowercased) but checks the RAW
-  `ctrlKey`/`metaKey`/`altKey`/`shiftKey` flags against each entry
-  instead of folding first.
-- **`keybindings-editor.ts`**: the capture flow's `onKey` handler
-  calls `macOSReservedKeyWarningForEvent(e)` (the same `KeyboardEvent`
-  already in scope) instead of passing the folded key string, and
-  flashes a combined or standalone "Heads up: macOS: X — it may not
-  reach CardMirror" note via the existing `flashConflict` note
-  element, alongside the existing `findConflict` in-app-collision
-  dislodge. Non-blocking by design — several of these shortcuts are
-  user-remappable in System Settings, so this is a warning, not a
-  refusal; the binding still commits either way.
-
-### Fixed: user-facing text hardcoded "Ctrl" for the app's cross-platform modifier key (`platform.ts` new, `settings.ts`, `index.ts`, `find-replace-ui.ts`, `multi-pane-shell.ts`, `repair-paragraph-ui.ts`, `keybindings-editor.ts`)
-
-The user asked to replace literal "Ctrl" mentions with "Cmd" on
-macOS, wherever the underlying shortcut is actually the app's own
-cross-platform "Mod" key (bound `Cmd-X` on Mac, `Ctrl-X` elsewhere) —
-NOT a blanket text replace, and specifically not touching any actual
-keybinding logic (confirmed scope with the user via AskUserQuestion
-before starting: text only, no functional rebinds).
-
-Went file by file checking each hit's ACTUAL underlying binding before
-touching it, since "Ctrl" in this codebase means at least three
-different things:
-- The app's own `Mod` alias (`ribbonKeyStringFor` folds `ctrlKey ||
-  metaKey`) — genuinely wrong to call "Ctrl" on Mac. Fixed: Find
-  (`Mod-f`) / Find & Replace (`Mod-h`) mentions in
-  `findRememberLastQuery`/`findCategoryOrder`'s settings descriptions
-  and `find-replace-ui.ts`'s sort-mode tooltip; zoom buttons (`Mod-=`/
-  `Mod--`) in `gestureZoom`/`defaultZoomPct`'s descriptions; voice
-  session mic (`Mod-Shift-V`) in `voiceInputDeviceId`'s description;
-  Uncondense (`Mod-Alt-Shift-F3`) in `usePilcrows`'s description;
-  expand-pane (`Mod-Shift-f`) in `multi-pane-shell.ts`'s chip tooltip;
-  plain-paste's native browser Cmd/Ctrl+V hint in `index.ts`; the
-  keybindings editor's own "must include Ctrl/Cmd/Alt" validation
-  message (simplified to name only the platform's actual modifier,
-  though technically either still satisfies the check).
-- A LITERAL Ctrl-key check unrelated to the Mod alias, where "Ctrl" is
-  accurate on every platform including macOS and was deliberately left
-  alone: the pinch/scroll-to-zoom gesture (`gestureZoom` setting) reads
-  the wheel event's raw `ctrlKey` flag specifically — the same flag a
-  trackpad pinch gesture synthesizes on every platform, mirroring the
-  browser's own pinch-to-zoom convention, not this app's Mod system.
-  Only the SAME description string's zoom-BUTTON chord mention
-  (`Mod-=`/`Mod--`) got the Cmd swap; the "Ctrl + mouse-wheel" /
-  "Ctrl-scroll" gesture mentions right next to it did not.
-- A "Ctrl-Enter" repair-paragraph hint (`repair-paragraph-ui.ts`) that
-  checks `e.ctrlKey || e.metaKey` directly (both already work, on any
-  platform) — not wrong exactly, but only names the modifier a given
-  platform's user would actually reach for, so switched to
-  `ctrlOrCmdWord()` too.
-- `morph-mode.ts`'s "Effect Ctrl" / "Ctrl option" legends are NOT
-  keyboard-modifier text at all — they're keycap labels on a physical
-  video-editing keyboard overlay this panel mimics ("Effect Ctrl" =
-  the Effect Controls panel button, standard NLE terminology). Left
-  untouched.
-
-New `platform.ts` holds `isMacPlatform()` (moved out of
-`ribbon-commands.ts`, which re-exports it for existing importers) and
-a new `ctrlOrCmdWord(): 'Ctrl' | 'Cmd'` — deliberately a standalone,
-zero-dependency module rather than adding `ctrlOrCmdWord` directly to
-`ribbon-commands.ts`: `ribbon-commands.ts` imports `settings.ts`, and
-several of the fixed strings live IN `settings.ts`, so importing the
-helper from `ribbon-commands.ts` there would have been a circular
-import. Each fixed string is now a template literal calling
-`ctrlOrCmdWord()`, evaluated once at module load (the platform doesn't
-change mid-session, so no reactivity is needed).
-
-## 1.8.0-bcb.1 — 2026-09-07
-
-Synced with upstream through its 1.8.0 release (below) — see
-`README.md`'s fork-changes section and PR #16 for the merge itself
-(conflict resolution, the stale-patch test failure found and fixed
-along the way). Everything else in this entry is this fork's own work
-since 1.6.0-bcb.3.1.
-
-### From upstream
-
-See `CHANGELOG.md`'s "From upstream" section (under this same
-`1.8.0-bcb.1` entry) for the user-facing summary of what this sync
-brought in, and the `## 1.8.0` / `## 1.7.0` sections further down this
-file for upstream's own full rationale and implementation detail —
-nothing was re-typed here since upstream's entries already cover it.
-
-### Changed: Save reverted to current-doc-only; Save/Autosave move into each pane's chip in three-pane mode (`index.ts`, `multi-pane-shell.ts`, `window-coordination.ts`, `apps/desktop/src/{main,preload}.ts`, `src/editor/host/electron-host.ts`)
-
-Field report: 1.6.0-bcb.3.1's "Save saves everywhere" change (see
-below) turned out to be more confusing than convenient once multiple
-panes and windows were actually in play — a single shared Save
-button/keybinding with no visual indication of *which* doc(s) it
-would touch. The user asked for Save to go back to acting only on the
-current doc, and — since a shared ribbon pair for Save/Autosave in
-three-pane mode has the exact same "which doc does this act on"
-ambiguity even scoped to one window — for Save and Autosave to move
-into each pane's own title chip so each pane's controls are visibly
-its own.
-
-- **Removed** the save-everywhere infrastructure entirely rather than
-  leaving it dead: `saveAllDirty()` (`MultiPaneShell`),
-  `saveAllInThisWindow()`/`runSaveAllFlow()` (`index.ts`),
-  `broadcastSaveAllToOtherWindows()` + the `'save-all'` `CoordMsg`
-  variant (`window-coordination.ts`), `saveAllOtherWindows()`/
-  `onSaveAllRequested()` (`ElectronHost` interface + impl,
-  `preload.ts`), and the `ipcMain.handle('host:save-all-windows', ...)`
-  handler (`main.ts`). The ribbon Save click and Mod-S both go back to
-  `runSaveFlow()` (current doc only). `promptSaveAllForQuit` — the
-  save-all-dirty-docs-before-quit confirmation — is unrelated and
-  untouched; it already only ever ran at quit time, not on every Save.
-- **New per-pane chip buttons** (`multi-pane-shell.ts`, `Slot`):
-  `chipSaveBtn`/`chipAutosaveBtn`, inserted between the slot-number
-  badge and the expand icon in each pane's title chip. Each focuses
-  its own slot (`shell.focusSlot(this)`) before acting, so clicking a
-  background pane's Save button saves *that* pane's doc, not whatever
-  was previously focused.
-- **`DocRecord` gains `autosaveError: boolean`** — moved off the
-  shared chip DOM (which would show a stale error from whatever
-  record last set it, once a slot's stack switches to a different
-  doc) and onto the per-record model, matching how every other
-  per-doc autosave state already worked.
-- **`Slot.refreshChipSaveState()`**: mirrors the single-doc ribbon's
-  autosave-label logic but reads only `this.visible` — always safe
-  regardless of which pane is focused. Sets `aria-pressed`,
-  `data-autosave-effective`, `data-autosave-error`, and hover titles
-  on both chip buttons.
-- **`runAutosaveForRecord`** dropped its old `isFocusedRecord`/
-  `isFocusedNow` focus-gating — that guard only existed because there
-  used to be one shared global indicator that had to avoid showing
-  the wrong doc's state. Each pane's chip now always reflects its own
-  record's state regardless of focus, so the guard is gone along with
-  the race conditions it existed to paper over.
-- **CSS**: `body.pmd-multi-doc #export-btn, #autosave-btn { display:
-  none; }` hides the now-redundant ribbon pair in three-pane mode;
-  new `.pmd-pane-chip-save`/`.pmd-pane-chip-autosave` styling reuses
-  the existing effective/error/pressed state classes from the ribbon
-  button. Needed the same focused-pane contrast override already used
-  for `.pmd-pane-chip-expand`/`.pmd-pane-chip-nav` (accent-blue text
-  on the focused pane's own accent-blue background is illegible) —
-  caught via a zoomed screenshot crop during live verification, not
-  code review.
-- Verified live in a real Electron build (Playwright/CDP under Xvfb):
-  two-pane workspace, each pane's Save button independently writes
-  its own doc to disk and flashes only that pane's icons; each pane's
-  autosave toggle is fully independent (toggling one pane's autosave
-  off/on has no effect on the other); confirmed the ribbon's Save/
-  Autosave buttons are still hidden only in three-pane mode and remain
-  visible and functional in ordinary single-doc mode.
-
-### Added: Ctrl/Cmd+K auto-detects a selected URL (`link-context-menu-plugin.ts`)
-
-Field report: pasting a source URL, selecting it, and pressing Ctrl/Cmd+K
-to turn it into a clickable link left the "Link to" field empty — the
-user had to retype or re-paste the exact text they'd just selected as the
-display text.
-
-- New `detectLinkHref(text)`: three cases, in order — an explicit scheme
-  (`https://…`, `ftp://…`) is used as-is; a `www.`-prefixed domain gets
-  `https://` prepended; a bare domain with no prefix gets the same
-  treatment only when its TLD is in a small curated list (`com`, `org`,
-  `net`, `io`, …), to avoid false-positiving on ordinary text that
-  happens to contain a dot (`e.g.`, `Verbatim.docx`, `Dr. Smith` all
-  correctly return null).
-- `toggleOrCreateLink`'s non-empty-selection branch passes
-  `detectLinkHref(selectedText) ?? ''` as `promptForLink`'s
-  `initialHref` instead of always `''`. `initialText` (the display-text
-  field, prefilled from the selection either way) is untouched — this
-  only changes what the destination field starts with.
-- Unit-tested directly (`tests/editor/link-url-detect.test.ts`,
-  exporting `detectLinkHref`): scheme/`www.`/bare-domain positives,
-  whitespace trimming, and the filename/abbreviation/plain-text
-  negatives above.
-- Verified live in a real Electron build (Playwright/CDP under Xvfb):
-  selecting a full pasted URL and pressing Ctrl+K pre-filled both
-  fields with the same URL; a filename, a domain-looking bare word, and
-  plain text all left the destination field empty as before.
-
-### Added: Named, stacked close prompts for multiple unsaved docs; "Bind new filepath…" for a moved/deleted file (`index.ts`, `multi-pane-shell.ts`)
-
-Field report: quitting a three-pane window with unsaved changes in more
-than one pane popped the exact same unnamed "You have unsaved changes.
-Save before closing?" dialog once per dirty doc, in sequence — no way to
-tell which of several dirty documents a given prompt was even about, and
-no visibility into how many more were still coming.
-
-- **`confirmCloseUnsaved`** (`index.ts`) gains an optional `docName`
-  (named in the header: `"Chapter One.docx" has unsaved changes...`)
-  and a `CloseUnsavedOpts.pathMissing` flag. When `pathMissing` is set,
-  the plain "Save" button is omitted (it would just fail the same way
-  every time) and "Save As…" is relabeled "Bind new filepath…" with a
-  warning line explaining why. All three existing call sites (single-doc
-  window-close, single-doc "close and go home", multi-pane's per-pane ×)
-  now pass the doc's filename; the window-close and per-pane × sites also
-  pass `pathMissing` via the new `isHandlePathMissing` helper.
-- **New `isHandlePathMissing(handle)`** (`index.ts`, exported): stats an
-  Electron absolute-path handle via `getHost().statFile` and reports
-  whether it's gone; anything else (a web `FileSystemFileHandle`, or a
-  never-saved doc's null) reports "not missing" — there's no saved
-  location to have gone stale.
-- **New `confirmCloseUnsavedBatch(docs)`** (`index.ts`, exported): the
-  multi-doc version — one card per dirty doc, all rendered together in a
-  single overlay (`.pmd-multi-close-stack`) instead of one dialog at a
-  time, each card an independent `.pmd-route-dialog` naming its own doc
-  (and its own path-missing state, same button swap as above). A single
-  shared "Cancel" aborts the whole batch — matches the old sequential
-  prompts' all-or-nothing behavior, since save-some-quit-anyway was never
-  a choice on offer. Resolves once every card is answered, with a Map
-  from doc uid to choice.
-- **`MultiPaneShell.promptSaveAllForQuit`** rewritten: gathers every
-  dirty record across every slot up front (instead of prompting slot by
-  slot, doc by doc, sequentially), stats each for path-missing via
-  `Promise.all`, then shows ONE dialog — the plain single-doc
-  `confirmCloseUnsaved` for exactly one dirty doc (no group "Cancel" bar
-  needed), or `confirmCloseUnsavedBatch` for two or more — and processes
-  the results in slot order afterward (show + focus each record's slot,
-  then save/save-as/discard as chosen). Removed the now-unused
-  per-slot `promptSaveDirtyForQuit` this replaced.
-- **Bug caught during live verification, not code review**: the batch
-  dialog's "all cards answered" check compared `wrap.children.length`
-  against 0 — but the shared Cancel bar lives in the same `wrap`
-  container as the cards, so that count never reached 0 even after every
-  card was removed, and the promise hung forever (the quit never
-  completed, but never actually failed either — just silently stuck).
-  Fixed by counting resolved docs against `results.size === docs.length`
-  instead of reading it back off the DOM.
-- Verified live in a real Electron build (Playwright/CDP under Xvfb,
-  driving the actual native close path via the main process's Node
-  inspector rather than `window.close()` from the renderer — the latter
-  turned out not to trigger Electron's `BrowserWindow` `close` intercept
-  under a CDP-attached debugger the same way a real close does):
-  a single dirty doc still gets the plain named single-card dialog; two
-  dirty docs (one with its on-disk file deleted mid-session) show both
-  cards stacked together, the second correctly swapping in "Bind new
-  filepath…" and the warning line; discarding both completes the quit;
-  Cancel on the batch leaves both docs open, still dirty, window fully
-  interactive. Also confirmed the ordinary per-pane × close still shows
-  the correctly-named single dialog when clicked promptly on a doc that
-  is still actually dirty (autosave — on by default — clears the dirty
-  flag ~5s after the last edit, which produced a few false "no dialog"
-  reads during testing before that was accounted for).
-
-### Added: Recent Workspaces — reopen a whole multi-pane window's docs together (`recent-workspaces-store.ts`, `multi-pane-shell.ts`, `home-screen.ts`, `index.ts`)
-
-Field report: a user had "AFF UQ" and "NEG UQ" open together in a
-two-pane window, closed CardMirror, reopened it, and the home screen's
-Recent list only offered the two files individually — no way to get
-back the same two-pane layout in one click. `recents-store.ts` only
-ever tracked individual files with no memory of which ones were open
-*together*, so this needed a new, separate store.
-
-- **`recent-workspaces-store.ts`** (new, mirrors `recents-store.ts`'s
-  shape): `RecentWorkspace { id, docs: {handle, filename, format}[],
-  closedAt }`, capped at 5, de-duped by a stable id (the sorted set of
-  doc handles joined) so re-closing the same set moves it to the front
-  instead of piling up near-duplicates, cross-window `storage`-event
-  sync like the plain recents store.
-- **`MultiPaneShell.getWorkspaceSnapshot()`** (`multi-pane-shell.ts`):
-  the visible doc in each slot with a real on-disk (string) handle, in
-  slot order — a web `FileSystemFileHandle` isn't a string and can't be
-  replayed at boot, so this is Electron-only in practice.
-- **`MultiPaneShell.restoreWorkspaceFromPaths(entries)`**: silently
-  loads a snapshot's docs into slots 1..N in order, bypassing the slot
-  picker entirely (this is a deliberate restore, not an Open action).
-  Reads each path via `getElectronHost().readFileAtPath` — the exact
-  same primitive `showInContext` (Flashcard "Show in context") already
-  uses — and skips + toasts per-entry on a failed read (moved/deleted
-  file, or a path the main-process read-scope hasn't granted) rather
-  than aborting the whole restore.
-- **Recording point**: `handleUserCloseRequestInner`'s multi-pane
-  success branch (`index.ts`), right before `electronHost.closeSelf()`
-  — snapshots the closing window's docs and hands them to
-  `recordRecentWorkspace` (which itself no-ops below 2 docs, since a
-  single file is already covered by plain Recents).
-- **Restoring, single-doc boot**: nothing is open behind a blank home
-  screen, so `reopenWorkspaceFromHome` stashes the target paths in
-  `sessionStorage` under `cardmirror:workspace-restore` and flips
-  `multiDocWorkspace` on, reusing the exact same confirm+reload
-  mode-switch path the ribbon toggle uses. Added a
-  `modeSwitchSkipConfirm` one-shot flag so this flow doesn't make the
-  user confirm twice — clicking the suggestion already *is* the
-  confirmation. The post-reload `BOOT_MULTI_DOC_WORKSPACE` boot block
-  consumes the sessionStorage key once (after `routeInitialDocIntoWorkspace()`
-  finds no OS-opened file) and calls `restoreWorkspaceFromPaths`
-  instead of falling through to a blank home screen.
-- **Restoring, already multi-pane**: `reopenWorkspaceFromHome` calls
-  `restoreWorkspaceFromPaths` directly — no mode switch needed.
-- **Hooks**: `getWorkspaceSnapshot` / `restoreWorkspaceFromPaths`
-  added to `enableMultiDocMode`'s opts interface, following the
-  existing hook-function-reference pattern (index.ts never reaches
-  into the `MultiPaneShell` instance directly).
-- **`home-screen.ts`**: new "Recent Workspaces" section above Recent
-  (hidden when empty), each row showing the doc count, joined
-  filenames, and a relative "closed Xm ago" time, plus a dismiss (✕)
-  button wired to `removeRecentWorkspace`.
-
-Verified end-to-end in a real Electron build (Playwright over CDP,
-`xvfb-run` — the close→reopen cycle can't be exercised in a plain
-browser): pre-granted two real `.cmir` files in the main process's
-read-scope journal (`granted-reads.json`, the same persistence the
-existing "Recent Files" reopen-by-path relies on — a file only reaches
-`getWorkspaceSnapshot` in the first place via a real open/save/drop,
-which already grants it), injected a two-doc workspace entry, and
-confirmed: the suggestion renders on the home screen, clicking it
-switches into three-pane mode with no extra confirm dialog, and both
-docs land back in slots 1 and 2 in their original order. Also
-confirmed the graceful-failure path (ungranted / moved / deleted
-paths) toasts per-file and never crashes.
-
-### Fixed: macOS `.docx` "Always Open With CardMirror" didn't persist; reverted a Windows default-app regression (`apps/desktop/package.json`)
-
-Root cause: `CFBundleDocumentTypes`' Word Document entry (auto-generated
-by electron-builder from `fileAssociations`) declared only
-`CFBundleTypeExtensions: [docx]`, no `LSItemContentTypes`. macOS Launch
-Services resolves default-app bindings by UTI
-(`org.openxmlformats.wordprocessingml.document` for `.docx`) whenever a
-file's UTI is claimed by more than one installed app — which `.docx`
-always is (Word, Pages, TextEdit, CardMirror). An extension-only
-declaration doesn't durably bind CardMirror to that UTI, so "Always
-Open With CardMirror" could silently reset whenever the Launch
-Services database rebuilds (app/OS updates, periodic re-registration).
-
-- electron-builder's `FileAssociation` config type has no field for a
-  UTI at all (confirmed by reading
-  `app-builder-lib/out/options/FileAssociation.d.ts`) — there's no way
-  to get `LSItemContentTypes` out of `fileAssociations` no matter how
-  it's configured. The only path in is `mac.extendInfo`, which
-  electron-builder concatenates with whatever it auto-generates from
-  `fileAssociations`
-  (`appPlist.CFBundleDocumentTypes = [...(appPlist.CFBundleDocumentTypes
-  || []), ...documentTypes]` in `app-builder-lib/out/electron/electronMac.js`).
-- So `docx` was pulled OUT of `fileAssociations` entirely and declared
-  by hand in `mac.extendInfo.CFBundleDocumentTypes` instead — a
-  complete entry (name, extensions, role, rank, icon file, and the new
-  `LSItemContentTypes`) — otherwise mac would end up with TWO `.docx`
-  entries after the concat, one with the UTI and one without, which is
-  the same ambiguity this fix is trying to remove.
-- Removing `docx` from `fileAssociations` also removes
-  electron-builder's automatic per-association icon copy, so
-  `build/docx.icns` (already existed, previously auto-copied) is now
-  copied into the bundle via a new `extraResources` entry instead,
-  mirroring the existing `docx.ico` one.
-- **Found and reverted a real regression along the way**: `docx` had
-  been living in the shared top-level `fileAssociations` array (used
-  by all three platforms) since `e4897bf` (2026-09-03) — which silently
-  undid `16a3060`'s (2026-08-27) deliberate fix removing it from there
-  specifically because electron-builder's NSIS fileAssociations
-  mechanism stamps `.docx`'s DEFAULT ProgId on every Windows
-  install/update, breaking Word's "New > Microsoft Word Document"
-  Explorer entry and leaving `.docx` dangling on uninstall.
-  `build/installer.nsh` already handles `.docx` correctly on Windows
-  by hand (`CardMirror.docx` class under `.docx\OpenWithProgids`
-  ONLY — the default is never touched — plus a healing pass for
-  machines the old broken installer left behind) and was untouched by
-  `e4897bf`, so it had been silently running ALONGSIDE
-  electron-builder's own conflicting auto-registration this whole
-  time. Fixed by leaving `win.fileAssociations` empty (Windows'
-  `.docx` handling stays entirely in `installer.nsh`, as `16a3060`
-  intended) while `linux.fileAssociations` keeps declaring it (no
-  evidence Linux has this failure mode, and the feature was announced
-  for macOS/Windows specifically). See the new `CLAUDE.md` section for
-  future sessions — this exact array is an easy thing to regress
-  again if `fileAssociations` gets touched without reading why `docx`
-  isn't just sitting in the shared array already.
-- Verified by actually running `npx electron-builder --mac --dir
-  -c.mac.identity=null` in this Linux sandbox — packaging and
-  Info.plist generation don't require macOS, only codesigning does,
-  which is skipped automatically when unsupported — and inspecting the
-  real generated `Contents/Info.plist` with Python's `plistlib`:
-  exactly one `.docx` entry (no duplicate), carrying
-  `LSItemContentTypes` and `CFBundleTypeIconFile: docx.icns`; both
-  `docx.icns` and `cmir.icns` confirmed present in `Contents/Resources/`.
-  Could NOT verify the actual end-to-end point of the fix — that Launch
-  Services now durably retains the "Always Open With" choice across a
-  database rebuild — since that requires a real macOS machine running
-  `lsregister`, unavailable here.
-
-### Fixed: three-pane autosave never flashed the Save button (`multi-pane-shell.ts`, `index.ts`)
-
-Single-doc mode's `runAutosaveAttempt` has always called
-`flashSaveSuccess()` (the same ✓-flash-the-Save-button helper a manual
-save uses) right after its write is confirmed. Three-pane mode's
-equivalent, `MultiPaneShell.runAutosaveForRecord`, never did — it
-called `reportAutosaveSuccess()` (updates the autosave toggle's own
-state) but nothing that touched the main Save button, so a successful
-autosave in a three-pane window was invisible unless you were watching
-the autosave toggle specifically.
-
-- Exported `flashSaveSuccess` from `index.ts` (was module-private) and
-  imported it into `multi-pane-shell.ts` alongside the
-  already-imported `refreshAutosaveBtn`.
-- Call it in `runAutosaveForRecord` right after the write settles
-  (`await host.saveExisting(...)`), gated on focus — same gating
-  `refreshAutosaveBtn` already uses a few lines down, since the Save
-  button is one shared per-window element and flashing it for a
-  background pane's autosave would read as feedback for whatever the
-  user is actually looking at.
-- Caught during review (not by `tsc` or the test suite — both passed
-  before this fix too): the original `isFocusedRecord` was captured at
-  the TOP of the function, before the async serialize + write. A large
-  `.docx` write can take long enough for the user to switch panes in
-  that window, so the flash (and the pre-existing `refreshAutosaveBtn`
-  call next to it) could fire based on stale focus. Fixed by
-  re-checking `shell?.getFocusedFile()?.uid === record.uid` fresh right
-  before both calls, after the write settles, instead of reusing the
-  value captured before it started.
-- Verified live in a real Electron build (Playwright/CDP under Xvfb,
-  two real `.cmir` files pre-granted in the read-scope journal,
-  restored into slots 1+2 via the recent-workspaces flow): typing in
-  the focused pane flashes the Save button after the 5s debounce, and
-  writes the edit to disk; typing in the background pane and refocusing
-  the first pane before its debounce fires saves the background pane's
-  edit to disk too but does NOT flash the button — confirming the
-  focus re-check reflects focus at completion time, not schedule time.
-
-### Changed: autosave is on by default (`autosave-prefs-store.ts`, `settings.ts`, `multi-pane-shell.ts`)
-
-Previously every file defaulted to autosave OFF; `autosave-prefs-store.ts`
-stored the set of paths the user had explicitly turned it ON for (a path
-absent from the set meant off). Flipped the default to on, so silence
-means autosave is running rather than that it's paused.
-
-- Store semantics inverted: it now records paths explicitly turned
-  OFF (`isAutosaveOnForPath` returns true unless the path is in that
-  set). Given a new key (`pmd-autosave-paths-off`, was
-  `pmd-autosave-paths`) rather than reinterpreting the old one — the
-  old store never recorded an explicit "off" choice as distinct from
-  "never touched" (off was already the default, so turning it off just
-  removed the entry), so there was no way to migrate old data forward
-  without silently reverting every user's past explicit "off" picks
-  back to "on" under the new default. A fresh empty OFF-set means
-  everyone's autosave defaults to on now (the point of the change) and
-  nothing that was already explicitly ON stops being on. The
-  unavoidable tradeoff: a file someone had explicitly turned off under
-  the old model — indistinguishable from a never-touched file in that
-  model — reverts to on too, since that distinction was never recorded.
-- `settings.ts`'s `autosaveEnabled` default flipped `false` → `true`
-  (only matters as the ribbon toggle's pre-doc-load visual state; real
-  per-file behavior was already driven by `isAutosaveOnForPath` at
-  every doc-open call site in both single-doc and multi-pane mode).
-- Verified live alongside the flash-button fix above: a freshly
-  restored doc with no prior autosave record (never touched by either
-  store) autosaved and flashed the Save button with no manual toggle
-  click needed.
-
-### Added: "Save As…" action button on the autosave-failure notice (`status-notices.ts`, `index.ts`, `multi-pane-shell.ts`)
-
-Field report: the "Autosave failed — file no longer exists" notice
-already told the user to "Use Save As to pick a new one," but made
-them go find the doc and the command themselves. `status-notices.ts`
-had no concept of an actionable button — Copy and Dismiss were the
-only two, hardcoded.
-
-- **`status-notices.ts`**: new `NoticeAction { label, onClick }`,
-  optional on `NoticeInput` and stored per notice. Rendered as an
-  extra button before Copy/Dismiss, styled with the shared "primary
-  button" recipe (`.pmd-notice-action-primary`, joined into the
-  existing accent-background selector list in `style.css`). On a
-  coalesced repeat (same `key`), the action is replaced with the new
-  one (or cleared if the repeat has none) rather than keeping the
-  first occurrence's closure — a second failure targeting a different
-  doc must not fire the first doc's fix.
-- **`reportAutosaveFailure`** (`index.ts`) gains a `saveAs?: () => void`
-  opt, attached to the notice only on the two failure kinds whose
-  message already says "Use Save As" (file-gone, write-blocked) — not
-  the "changed on disk" case (already pops `promptConflict` immediately)
-  or the generic fallback (unclear cause, Save As isn't necessarily right).
-- Single-doc call sites (`notifyEditForAutosave`'s catch,
-  `runAutosaveAttempt`'s catch) pass `saveAs: () => void runSaveAsFlow()`
-  — unambiguous, there's only one doc in the window.
-- Multi-pane's `runAutosaveForRecord` catch passes a NEW
-  `MultiPaneShell.revealAndSaveAsRecord(record)` method: the record
-  that failed may not be the focused (or even visible) pane, and
-  `runSaveAsFlow` — like every other Save As caller — only ever acts
-  on the focused doc. `revealAndSaveAsRecord` finds the record's slot
-  via `findRecordForView`, calls `slot.showRecord` + `focusSlot` to
-  bring it into view first, then runs `runSaveAsFlow`. No-ops if the
-  record has since been closed.
-- Verified live in a real Electron build (Playwright/CDP under Xvfb):
-  restored two docs into slots 1+2, deleted pane B's file from disk,
-  edited pane B then refocused pane A before B's autosave debounce
-  fired. Confirmed: the notice named "Pane B.cmir" (not the focused
-  pane), showed the "Save As…" button, and — with pane A focused —
-  clicking it flipped focus to pane B (`pmd-pane-focused` moved from
-  pane 1 to pane 2) before the native Save As dialog opened, proving
-  the action targets the doc that actually failed rather than
-  whatever the user happens to be looking at.
 
 ## 1.8.0 — 2026-09-06
 
@@ -2365,276 +1335,6 @@ the ordinary path. Everything here is idempotent for the CRDT and
 best-effort by nature: the crash-recovery record still re-sends
 whatever did not make it on the next resume, and partners still expire
 a silent caret.
-
-## 1.6.0-bcb.3.1 — 2026-09-04
-
-### Added: Ctrl/Cmd+K hyperlink toggle (`link-context-menu-plugin.ts`, `ribbon-commands.ts`, `text-prompt.ts`)
-
-New `toggleLink` ribbon command, default-bound to `Mod-k`. Three
-cases:
-
-- Collapsed cursor inside an existing link → removes just that
-  link's contiguous run, found via `findLinkRunAtPos` — extracted
-  from `findLinkAt` (the right-click handler's own lookup) by
-  splitting out the coords→position resolution from the
-  position→link-run walk, so both share the walk-outward logic
-  instead of duplicating it.
-- Non-empty selection touching a link anywhere in range → removes
-  the link mark from the selection (`nodesBetween` scan + one
-  `removeMark`, matching `removeHyperlinks`'s own detection, just
-  always scoped to the selection here rather than the whole
-  document).
-- Non-empty selection with no link → `promptForLink` (new dialog in
-  `text-prompt.ts`, mirroring `promptForText`'s construction with a
-  second input) asks for display text (prefilled from the selection)
-  and a URL, then applies. Leaving the text field unedited adds the
-  link mark over the existing selection (preserves other formatting);
-  changing it replaces the selected text with fresh link-marked text.
-
-Caught and fixed two real bugs via testing in an actual Electron
-build (Playwright connected over CDP to a real `electron .` process
-under Xvfb — no way to reach this any other way, since the shortcut
-only matters with real click/select/keypress sequences a browser
-harness can't approximate):
-
-1. **Runtime crash on boot**: `toggleLink` was added to
-   `RIBBON_COMMAND_IDS` but not to `ribbon-groups.ts`'s
-   `RIBBON_GROUPS`, tripping a startup consistency assertion between
-   the two lists (`ribbon-groups.test.ts` covers this too, but only
-   catches command IDs added before the test runs — added `toggleLink`
-   to the "Inline formatting" group.
-2. **Silent space-eating**: a double-click word-select in a real
-   browser sometimes grabs a trailing space along with the word. The
-   dialog's returned text is always `.trim()`ed, so comparing it
-   against the raw (possibly space-carrying) selection to decide
-   "did the user change the text" false-positived on an untouched
-   selection, taking the destructive replace-text branch and
-   silently dropping the space from the document. Fixed by trimming
-   whitespace out of the actual link range up front (`linkFrom` /
-   `linkTo`, adjusted by the trimmed amount on each end) rather than
-   just the comparison, so a linked run never includes incidental
-   surrounding whitespace either way.
-
-Verified live: created a link on a double-click-selected word
-(space before the next word confirmed intact both in the rendered
-DOM text and via `.trim()`-independent inspection of the `<a>`
-element's own text content), then removed it via a collapsed cursor
-— `tsc --noEmit` clean throughout, plus the existing
-`clipboard-link-preservation`, `ribbon-groups`, and `ribbon-commands`
-suites.
-
-### Fixed: floating context menus rendering behind the status bar (`context-menu-position.ts`)
-
-`link-context-menu-plugin.ts`, `image-context-menu-plugin.ts`,
-`nav-panel.ts`, `text-context-menu-plugin.ts`, and
-`viewport-spellcheck.ts` each carried their own copy of the same
-positioning clamp: `Math.min(y, window.innerHeight - rect.height - 4)`.
-That only prevents the menu from starting past the *browser*
-viewport's bottom edge — it has no idea `#status-bar` is a
-fixed-position footer occupying the last ~24px of that same
-viewport, so a menu opened near the bottom of the window rendered
-with its last row or two underneath the bar (user screenshot: the
-link menu's "Remove Link" item partly hidden). New shared
-`positionFloatingMenu(menu, x, y)` fixes this two ways: subtracts
-`#status-bar`'s real measured height from the usable viewport height
-before clamping, and — the part the raw clamp never did — flips the
-menu to open ABOVE the click point when it wouldn't fit below,
-instead of sliding it up while still anchored underneath the cursor.
-Applied to all five call sites (same one-line swap each: append to
-DOM, call the helper, done) rather than fixing only the reported
-one, since all five shared the identical bug.
-
-## 1.6.0-bcb.3 — 2026-09-03
-
-### Added: Ribbon toggle + New-window option for the three-pane workspace
-
-`multiDocWorkspace` was only reachable from Settings, and opening a
-doc into a full three-pane workspace only offered replacing one of
-the three slots. Two independent additions, both leaning on
-machinery that already existed:
-
-- A new `#three-pane-toggle-btn` ribbon button (`index.html`,
-  wired in `index.ts` right after the other ribbon-element const
-  declarations) does nothing but
-  `settings.set('multiDocWorkspace', !settings.get('multiDocWorkspace'))`
-  — the entire confirm-dialog / per-doc journal / reload sequence
-  already lived in the `settings.subscribe` mode-switch handler
-  further down `index.ts` (added in 5300d22, "Allow independent
-  three-pane workspace windows"), so the button is a thin trigger,
-  not new state machinery. It doesn't live-resync its own
-  `aria-pressed` while the window is up: a confirmed toggle reloads
-  the page (next boot reads the new value); a cancelled one reverts
-  the setting back to what the button already shows. New icon
-  `pmd-icon-three-pane` in `icons.css` (three vertical panes,
-  matching the existing outline-SVG icon style). The button sits in
-  its own single-item `.ribbon-button-stack` rather than joining
-  `view-ops-panel` — deliberately NOT reusing the fixed 2-row
-  `.ribbon-doc-ops-panel` grid that `view-ops-panel` had just been
-  fixed for overflowing (see the 9679ef3 entry above): a single-item
-  container has no room to grow past capacity the same way. Needed
-  its own height override (`grid-template-rows: 1.45rem 1.45rem`) —
-  `.ribbon-button-stack`'s default `repeat(2, auto)` rows collapse
-  to roughly half-height with only one button and no second row of
-  content, reading visibly shorter than its 2-row-tall neighbors
-  otherwise (caught in a Playwright screenshot before shipping).
-- `MultiPaneShell.promptForSlot` (`multi-pane-shell.ts`) gained an
-  `opts: { allowNewWindow?: boolean }` parameter and widened its
-  return type to `SlotId | 'new-window' | null`. When the caller
-  opts in AND `getHost().canSpawnWindow` (Electron only — false on
-  the web edition, so the option silently doesn't render there), the
-  dialog gets a fourth, full-width button below the three slots
-  (`'4'` is its keyboard shortcut, alongside the existing `1`/`2`/`3`).
-  Only `onFileOpen` (the ribbon Open button's entry point) passes
-  `allowNewWindow: true` — the other two `promptForSlot` callers
-  (joining a collaboration session, creating a new speech document)
-  don't, so they keep the plain three-slot picker; both needed a
-  `target === 'new-window'` narrowing guard added after their
-  existing `!target` check purely to satisfy the widened return
-  type, since neither can actually receive that value. Picking
-  "New window" builds a `SpawnWindowPayload` from the `OpenedFile`
-  (mirroring the payload shape the single-doc "windows mode" spawn
-  path already builds at `index.ts`'s `routeOpenedFile`) and calls
-  `getHost().spawnWindow(...)` instead of loading into a slot in
-  this window — the freshly-spawned window boots into three-pane
-  mode on its own (spawning already matched the spawning window's
-  mode before this change) with the file in its first slot.
-
-Verified: `tsc --noEmit` clean; `settings-backup`,
-`multi-pane-blank-doc`, `transclusion-ribbon`, `ribbon-custom-buttons`,
-`ribbon-groups`, and `ribbon-commands` test suites all pass. The
-ribbon toggle's full click → confirm-dialog → reload → three-pane-
-active flow was exercised end-to-end in a real browser (Playwright)
-at ship time. The New-window option's actual spawn was NOT click-
-tested at ship time (no Electron runtime was available in that
-session) — verified after the fact instead, in the same real-Electron
-session that verified Save Everywhere below: opening a 4th doc into a
-full three-pane window, picking "New window," and confirming a real
-second `BrowserWindow` opened with the file mounted in its slot 1
-(after one extra "which slot" prompt in the new, empty workspace —
-`routeInitialDocIntoWorkspace`'s existing spawned-window boot path
-always shows the slot picker rather than silently mounting into slot
-1, a pre-existing behavior from the OS-cold-launch case this reuses,
-not something this feature changed).
-
-### Added: Save saves everywhere — every pane, every window (`index.ts`, `multi-pane-shell.ts`, `window-coordination.ts`, `apps/desktop/src/{main,preload}.ts`, `src/editor/host/electron-host.ts`)
-
-Ctrl+S / the ribbon Save button previously saved only the FOCUSED
-document — not even the other panes in the same three-pane window,
-confirmed by reading `runSaveFlowInner`'s `activeFile()`, which
-resolves to `multiDocGetFocusedFile()` in multi-doc mode. User asked
-for Save to reach every open document everywhere, after being shown
-the tradeoffs (per-doc confirmation dialogs stacking across windows,
-breaking this app's otherwise-consistent per-window-independence
-model, silently saving a doc left dirty elsewhere on purpose) and
-choosing "everywhere" anyway.
-
-Two layers:
-
-- **This window's fan-out** (`MultiPaneShell.saveAllDirty`,
-  `multi-pane-shell.ts`): iterates every slot's stack, and for each
-  dirty record, shows + focuses it then calls the existing
-  `runSaveFlow()` — the same show-then-focus-then-save shape
-  `promptSaveDirtyForQuit` (the quit path) already used, reused here
-  because `runSaveFlow` has no other way to target a specific
-  background doc; it only ever operates on whichever doc is
-  currently focused. Unlike the quit path, this doesn't ask
-  save-or-discard per doc and doesn't abort the sweep if one doc's
-  save is declined or fails (e.g. a docx live-link-flatten confirm) —
-  it's a bulk save, not a gate on some other action. Single-doc mode
-  needs no fan-out: there's only ever the one doc, so `saveAllInThisWindow`
-  (`index.ts`) just calls `runSaveFlow` directly there.
-- **Cross-window broadcast**: two parallel transports, since Electron
-  and the web edition coordinate windows completely differently
-  already (`window-coordination.ts`'s own docstring: "the browser-
-  edition counterpart to the Electron main process, which the desktop
-  build uses as its coordination hub").
-  - Electron: new `ElectronHost.saveAllOtherWindows()` /
-    `onSaveAllRequested()`, backed by a new `host:save-all-windows`
-    IPC handler in `main.ts` that iterates `BrowserWindow.getAllWindows()`
-    and sends `host:save-all` to every window except the sender and the
-    timer pop-out — same `for (const w of getAllWindows())
-    w.webContents.send(...)` shape `broadcastSpeechState` and friends
-    already use elsewhere in `main.ts`, not a new pattern.
-  - Web / installed PWA: new `'save-all'` message kind on the existing
-    `pmd-window-coord` `BroadcastChannel`, plus an `onSaveAllRequested`
-    hook added to `installWindowCoordination`'s existing options
-    object and a `broadcastSaveAllToOtherWindows` export reusing the
-    persistent channel `installWindowCoordination` already opens.
-  - Both are one-hop and fire-and-forget: the window the user actually
-    pressed Save in is the only one that broadcasts; a window that
-    receives the request calls its own local `saveAllInThisWindow` and
-    does NOT re-broadcast, and the initiator never learns whether the
-    other windows' saves succeeded (same as not knowing when a
-    background autosave elsewhere completes).
-- Deliberately NOT a drop-in replacement for `runSaveFlow` — every
-  other internal caller (a close-prompt's "Save", a disk-conflict's
-  "Overwrite", the quit path) still calls `runSaveFlow` directly and
-  must keep doing so; only the two top-level entry points (the ribbon
-  Save button's click handler, and `ribbonContext.save` — which is
-  what the `save` ribbon command / Mod-S routes through) call the new
-  `runSaveAllFlow` wrapper.
-
-Verified for real, not just by code review — a genuine Electron
-build actually running (`electron .` under Xvfb with `--no-sandbox`,
-driven via Playwright connected over CDP; no way to reach this
-otherwise, since `canSpawnWindow` is false in a plain browser so
-there's nothing to even spawn a second window to test against there).
-Opened two real, separate `BrowserWindow`s, typed into the second
-window's document (a real file with a real on-disk path), recorded
-its file hash/mtime, clicked Save in the FIRST window only, and
-confirmed the second window's file changed on disk — hash, mtime, and
-size all different, and the saved bytes (gunzipped — `.cmir` is a
-gzip-compressed envelope) contained the exact text typed into that
-other window. Full round trip through real IPC, not simulated.
-
-### Added: `.docx` file association (`apps/desktop/package.json`)
-
-`fileAssociations` only declared `.cmir`, so macOS's "Choose an
-application to open the document" dialog (and Windows' equivalent)
-showed CardMirror greyed out / unselectable for `.docx` files —
-LaunchServices only considers apps eligible for a file type they
-declare in `CFBundleDocumentTypes`, generated from this config. Not
-a code-signing issue (a common guess): signing gates whether an app
-is allowed to *launch*, not whether Finder considers it a valid
-handler to offer. Added a second `fileAssociations` entry for
-`docx` (role: Editor, matching the existing `cmir` entry's shape) so
-CardMirror can now be selected — and set as default — for `.docx`,
-one of its two core supported formats. Takes effect on the next
-built release, not the current dev checkout.
-
-## 1.6.0-bcb.2 — 2026-09-02
-
-### Fixed: view-ops-panel ribbon buttons overflowing their 2-row height
-
-`#view-ops-panel` kept the base `.ribbon-doc-ops-panel` class (1
-column, 2 fixed 1.45rem rows) from when it held only `read-mode-btn`
-and `nav-pane-toggle-btn`. Auto-scroll and reading-view (`book`) were
-added as buttons 2 and 3 later without adding the `-2col` modifier
-class the comments panel next to it already uses for its own
-multi-button layout, so the 4 buttons landed in 4 implicit grid rows
-in a single column instead of a 2×2 grid — overflowing the panel's
-fixed 2-row height, clipped by the ribbon at both top and bottom, with
-the last button (`nav-pane-toggle-btn`) rendering mostly outside the
-visible/clipped area. Fixed by adding
-`ribbon-doc-ops-panel-2col` to the panel's class list
-(`index.html`), giving it the 2-column grid its 4 buttons need.
-Verified in the browser: the panel now renders as a clean 2×2 (read
-mode / auto-scroll on top, reading view / nav-pane toggle below) at
-its intended height, with every icon visible.
-
-## 1.6.0-bcb.1 — 2026-09-02
-
-First tagged release of the BlueCheeseburger fork — the first time
-this fork's own accumulated work (Gemini provider, independent
-multi-window workspace, independent document background theme,
-`.docx` autosave, paced auto-scroll, and the update-check fix
-pointing at this fork's own releases) ships as an actual tagged
-GitHub Release with built installers, rather than living only on
-`main`. No new implementation work in this entry — see this fork's
-individual PRs and `README.md`'s fork-changes section for the
-rationale and implementation details behind each item; see
-`CHANGELOG.md` for the user-facing summary. Built on top of
-upstream's 1.6.0 (below).
 
 ## 1.6.0 — 2026-09-01
 

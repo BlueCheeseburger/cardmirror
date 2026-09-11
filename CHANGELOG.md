@@ -2,27 +2,87 @@
 
 User-facing release notes for CardMirror. Brief summaries of what
 changes in each release, written for users of the editor. For
-in-depth rationale and implementation context behind each entry,
-see `DETAILED_CHANGELOG.md`.
+in-depth rationale and implementation context behind each feature
+this fork has added, see
+[DETAILED_CHANGELOG.md § Fork Changes](./DETAILED_CHANGELOG.md#fork-changes).
+For a shorter summary of upstream releases, each upstream section
+below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## 1.10.0-bcb.1 — 2026-09-11
+## Fork Changes
 
-### Fixed
+*This fork's own additions on top of upstream CardMirror, ranked by user impact.
+For implementation details, see [DETAILED_CHANGELOG.md § Fork Changes](./DETAILED_CHANGELOG.md#fork-changes).*
 
-- **Pressing Escape while capturing a keybinding no longer closes the Settings dialog** — it now cancels just the key-capture pill, as intended.
-- **Ctrl+key on Mac now displays as ⌃key** in keybinding chips, not ⌘key — Control and Command are now captured and stored as distinct modifiers, so binding Ctrl+something no longer shows up looking like a Cmd shortcut (which could be confusing since Cmd+\` for example is intercepted by macOS and never reaches CardMirror).
+### 1. Independent multi-window three-pane workspace
 
-### From upstream
+Additional windows are fully independent — each window can have its
+own three-pane (or single-doc) layout, its own open documents, and
+its own pane configuration. Before this fork, all windows shared the
+same layout mode. You can toggle the three-pane layout per window
+from the ribbon, and opening a fourth document while all three slots
+are full now offers "New window" alongside the slot picker.
 
-Syncs all changes from [v1.10.0](#1100--2026-09-10) and [v1.9.0](#190--2026-09-09). Highlights:
-- **Last workspace** — reopen the set of documents you had open when you last quit (Settings → General → Workspace → Remember my last workspace)
-- **Arrange Windows** — puts the speech document on one side and every other window on the other (Speech group, unbound by default)
-- **Mod-Y repeats the last action** (Word-style Repeat; off by default, under Editor behavior)
-- **Preview Received Card** — new command to preview without inserting; **Read mode in the preview**
-- **Live word count order** now configurable; **Square bracket** card number separators; **Underlines follow font color** option
-- **Alt+Letter keybindings on macOS** (e.g. Option+A) now resolve correctly in ribbon shortcuts
-- **Voice control, rebuilt** — hold-to-dictate, fourteen command words, new local engine, optional AI cleanup
-- **Bulk operations** now work in documents that contain a live view
+### 2. Per-pane cloud-sync badge
+
+In a multi-pane workspace, each pane has its own cloud-sync status
+badge in that pane's own footer — instead of one shared pill in the
+window corner that only ever reflected whichever pane was focused,
+making it ambiguous which document it was reporting on. The badge
+shows the provider's own icon (Dropbox / OneDrive / Google Drive /
+iCloud), drops the text label while fully synced, and keeps a short
+label only for "changed on disk" and "conflicted copy" states.
+
+### 3. Google Gemini as a third AI provider
+
+Google Gemini is available alongside Anthropic Claude and OpenRouter
+as a third AI provider option in this fork. Select it in AI
+settings the same way you'd choose any other provider.
+
+### 4. Paced auto-scroll
+
+A hands-free teleprompter mode that scrolls the document at your
+actual reading pace, automatically slowing for dense highlighted
+text and speeding through everything else. Toggle it from the
+ribbon's auto-scroll button.
+
+### 5. Settings search
+
+A search bar next to the "Settings" title searches every setting's
+name and description across every tab at once. Matches are
+highlighted in yellow and only the matching rows are shown while
+you're typing, grouped by tab. Clear the box to go back to normal
+browsing.
+
+### 6. Window naming
+
+Right-click anywhere on the ribbon to name (or rename) the window.
+A named window shows that name as its title bar instead of the
+document filename — useful for telling windows apart at a glance
+("Speech Doc", "Research"). The name persists across mode-switch
+reloads and clears with "Clear Window Name."
+
+### 7. Autosave for .docx files
+
+Autosave now covers Word documents, not just .cmir files — with a
+time-boxed, logged fallback for the zip worker and a ribbon button
+that distinguishes "saving" from "paused" (e.g. a doc with a live
+view that Word can't hold open).
+
+### 8. Ctrl/Cmd+K hyperlink toggle
+
+Select text and press Ctrl/Cmd+K to add a hyperlink via a small
+dialog (display text pre-filled from your selection, URL field
+empty). Press it again with the cursor in — or a selection touching —
+an existing link to remove it. Selecting a URL before pressing
+Ctrl/Cmd+K pre-fills the "Link to" field so you don't have to
+re-paste it.
+
+---
+
+## Upstream Releases
+
+*The sections below are upstream CardMirror's own release notes, synced into
+this fork. This fork's own changes are covered above in [Fork Changes](#fork-changes).*
 
 ## 1.10.0 — 2026-09-10
 
@@ -195,241 +255,6 @@ Syncs all changes from [v1.10.0](#1100--2026-09-10) and [v1.9.0](#190--2026-09-0
   focused, or the focused pane was empty, the workspace could still act
   on the document that had been open before switching layouts. It now
   reports no active document instead.
-
-## 1.8.0-bcb.4.1 — 2026-09-10
-
-### Fixed
-
-- **Settings search now finds settings on every query**, not just the first one — a second (or re-typed) search could silently drop rows that matched the previous query, showing "No settings match" even when it should.
-
-## 1.8.0-bcb.4 — 2026-09-10
-
-### Added
-
-- **A search bar in Settings**, next to the "Settings" title — searches
-  every setting's name and description across every tab at once,
-  highlights the matched words in yellow, and shows only the matches
-  (grouped by tab) while you're typing. Clear the box to go back to
-  browsing normally.
-
-### Fixed
-
-- **Opening a second window could wrongly mark one of ITS docs as the
-  active speech document too**, even though only one doc anywhere had
-  actually been marked — a uid-collision bug (every window's per-pane
-  doc ids restarted from `doc-1`, so a second window's first pane
-  could collide with the first window's already-marked doc's id).
-  Doc ids are now unique across windows.
-- **Right-clicking the ribbon to name/rename a window opened a menu
-  you couldn't see or click** — it rendered underneath the ribbon
-  itself, since the click that opens it is necessarily inside the
-  ribbon's own bounds.
-- **A named window's title bar no longer has a redundant "— CardMirror"
-  suffix** — it's just the name you gave it.
-- **A successful save (manual or autosave) now flashes only the Save
-  button's checkmark, not the Autosave toggle's** — the Autosave
-  button reflects an on/off setting, not "a write just happened," so
-  flashing it alongside every autosave tick read as noise.
-- **The update-progress pill no longer changes width as the percent
-  climbs** (e.g. "7%" vs "100%") — the percent now sits in a
-  fixed-width slot instead of resizing the whole pill on every tick.
-
-## 1.8.0-bcb.3.1 — 2026-09-09
-
-### Added
-
-- **A "Shrink" button in the Card menu** — shrinks a card's connective
-  text (everything except underlined/emphasized text) to 8pt in one
-  click, matching the existing Mod-8 keyboard shortcut. Previously
-  only reachable via that shortcut or the command palette.
-
-## 1.8.0-bcb.3 — 2026-09-09
-
-### Added
-
-- **Opening a Recent file that's moved or been deleted now offers to
-  locate it** instead of just toasting an error and forgetting it —
-  click "Locate…" to browse for where it lives now, or remove it from
-  Recents.
-- **The reader-speed setting now links to readingsoft.com** to actually
-  measure your reading speed, if you don't already know your wpm.
-- **Custom dash can now convert "--" and "---" independently, at the
-  same time** — previously an either/or choice, since converting "--"
-  immediately couldn't tell whether a third hyphen was about to make it
-  "---" instead. Off by default; the existing single-trigger behavior
-  is unchanged unless you turn the second one on.
-- **Right-click anywhere on the ribbon to name (or rename) the window**
-  — desktop only. A named window shows that name as its title instead
-  of the document filename, useful for telling windows apart at a
-  glance (e.g. "Speech Doc"). The name persists across mode-switch
-  reloads and clears with "Clear Window Name."
-- **Each pane in a multi-pane workspace now has its own cloud-sync
-  pill**, in that pane's own footer, instead of one shared pill in the
-  window's bottom-right corner that left it ambiguous which pane's
-  document it was reporting on. Also more compact: it shows the
-  provider's own icon (Dropbox / OneDrive / Google Drive / iCloud)
-  instead of a generic cloud glyph plus the word "Cloud," and drops the
-  label entirely while just synced — only "changed on disk" and
-  "conflicted copy" states still show a short text cue. Single-doc mode
-  is unchanged (still the one shared pill).
-- **The update chip now shows download progress** — desktop only. While
-  an update is downloading, the same status-bar pill fills in left to
-  right and its text names the percent complete, instead of just
-  appearing once the download finishes.
-
-### Fixed
-
-- **Rebinding a shortcut to Option+\` (backtick) on macOS captured as
-  "Alt-Unidentified"** — a dead-key artifact of Option held on that
-  key — instead of the literal backtick. Cmd+\` also added to the
-  macOS-reserved-shortcut list (it's "Move to Next Window," a hard
-  OS-level reservation — the keystroke never reaches any app to
-  capture in the first place, so this is documentation, not a fix).
-- **A pane's speech-doc marking (amber tint + 🎤) is no longer hidden
-  by the focused-pane blue highlight** — you can now tell a pane is
-  the active speech doc even while you're actively working in it, not
-  just when looking at it from another pane.
-- **Send to Speech silently did nothing when the cursor wasn't
-  somewhere sendable** (an empty line, or between cards/headings) — it
-  now says so instead of looking like the command is broken.
-- **A filename containing a macOS Finder-typed "/" now displays the
-  same way in CardMirror as it does in Finder** — Finder shows "/" but
-  actually stores the file with ":" on disk (a classic Mac OS
-  carryover); CardMirror was showing the raw on-disk name.
-
-## 1.8.0-bcb.2 — 2026-09-08
-
-### Added
-
-- **New Document (ribbon or Mod-N) now asks which pane, or a new
-  window** when a three-pane workspace is open, the same picker Open
-  already shows — instead of always opening a whole new window. An
-  empty pane stays hidden until something's loaded into it, so
-  previously the only visible "new doc" button was whichever pane you
-  already had open, and clicking it added to THAT pane's stack rather
-  than using an empty one.
-- **Opening a file from Finder/Explorer/Dock now asks which window**
-  when more than one three-pane workspace window is open, instead of
-  always routing to whichever window was last focused — so a file
-  meant for a different, unfocused window no longer lands in the wrong
-  one's slot picker.
-- **Rebinding a shortcut on macOS now warns when it overlaps a macOS
-  system shortcut** (Quit, Hide, Log Out, the screenshot keys, Mission
-  Control, Full Screen) — binding one used to silently do nothing when
-  you pressed it, with no indication why. Checks the real Ctrl/Cmd keys
-  you actually pressed, so a two-key combo like Control-Command-F is
-  correctly told apart from a plain Cmd-F.
-
-### Fixed
-
-- **Send to Speech silently did nothing when the speech doc was the
-  only document open and you tried to send from it to itself** — it
-  now tells you why instead of looking like the button (or shortcut)
-  is just broken.
-- **Settings, tooltips, and hints that mention a shortcut by name now
-  say "Cmd" instead of "Ctrl" on macOS** (Find, Find & Replace, zoom,
-  voice-control mic, expand-pane, Uncondense, the plain-paste hint, the
-  keybindings editor's own validation message) — these used to say
-  "Ctrl" everywhere, which was simply wrong on a Mac for anything
-  bound to the app's cross-platform modifier key. Left untouched where
-  "Ctrl" is genuinely, literally correct on every platform including
-  macOS: the pinch/scroll-to-zoom gesture checks a real Ctrl keypress
-  specifically (mirroring the browser's own pinch-to-zoom convention),
-  not the app's Cmd-on-Mac modifier.
-
-## 1.8.0-bcb.1 — 2026-09-07
-
-Synced with upstream through its 1.8.0 release (below) — brings in the
-disk-conflict guard rework and cloud pill for shared folders, the
-single-owner flashcard store fix, and every 1.7.0 co-editing fix.
-
-### From upstream
-
-- **Cloud pill and conflicted copies for shared folders.** A document
-  in a Dropbox, OneDrive, Google Drive or iCloud folder now shows sync
-  status live, and an edit from another machine is saved beside yours
-  as a conflicted copy instead of being silently overwritten.
-- **Flashcards no longer vanish when two windows are open.** One owner
-  now applies every change to the flashcard store, instead of each
-  window's save overwriting whatever the others had written.
-- **A long list of co-editing reliability fixes from 1.7.0.** Cut now
-  moves a card instead of copying it, undo can no longer delete a
-  partner's typing, sessions recover cleanly from dropped connections
-  and relay outages, and syncing large documents or catching up after
-  time offline is much faster.
-- **Smaller additions from 1.7.0**: choosing which machine to unlink,
-  Send to Recipient, a card count in Word Count, Convert Cards to Read
-  Mode, and a "keep entire cite" read-mode setting.
-
-See the `## 1.8.0` and `## 1.7.0` sections below for upstream's own
-complete release notes.
-
-### Changed
-
-- **Save (ribbon button or Mod-S) once again saves only the current
-  document**, undoing 1.6.0-bcb.3.1's "save everything" change — it
-  was more confusing than convenient once multiple panes and windows
-  were in play. In three-pane mode, Save and Autosave also move out
-  of the ribbon into each pane's own title chip, so each pane has
-  its own Save/Autosave controls that unambiguously act on that
-  pane's document, instead of a shared ribbon pair whose target
-  depended on whichever pane was focused.
-
-### Added
-
-- **Ctrl/Cmd+K now recognizes a selected URL and fills in the "Link
-  to" field for you.** Select a pasted link (with `https://`, a
-  `www.` prefix, or a recognized domain like `.com`/`.org`) and press
-  Ctrl/Cmd+K — the hyperlink dialog's destination field is pre-filled
-  instead of empty, so you don't have to retype or re-paste the same
-  URL a second time.
-- **Closing a window with unsaved changes in more than one pane now
-  shows a separate, named prompt for each document, all at once** —
-  "Chapter One.docx" and "Chapter Two.docx" each get their own dialog
-  stacked together, instead of one generic "You have unsaved
-  changes" dialog repeated one at a time with no way to tell which
-  document it was actually asking about. A document whose saved file
-  can no longer be found (moved, renamed, or deleted) gets a "Bind
-  new filepath…" button in place of plain Save.
-- **The home screen can now suggest reopening a whole three-pane
-  workspace, not just individual recent files.** When a multi-pane
-  window with 2+ saved documents open closes, CardMirror remembers
-  that set under a "Recent Workspaces" section — click it to reopen
-  every doc together in the same pane layout, instead of hunting
-  down each file separately in Recent. Desktop only.
-
-### Added
-
-- **The "Autosave problem" notice now offers a "Save As…" button**
-  when the saved file has gone missing or its folder refused the
-  write, instead of only telling you to do that yourself. In
-  three-pane mode this works even for a background pane — clicking it
-  brings that document into view before opening the dialog.
-
-### Changed
-
-- **Autosave is now on by default** for every document, instead of
-  off until you turned it on per file. Turn it off per file from the
-  ribbon toggle the same way as before — that choice is still
-  remembered across closing and reopening the file.
-
-### Fixed
-
-- **In three-pane workspace mode, a successful autosave no longer
-  saves silently.** The Save button now flashes its checkmark the
-  same way it does for a manual save or single-doc autosave — it
-  just never did that for autosave in three-pane mode before.
-- **macOS: "Open With → Always Open With CardMirror" for `.docx` now
-  actually sticks.** It could silently reset itself (back to Word,
-  Pages, or whatever else claims `.docx`) whenever macOS rebuilt its
-  Launch Services database — after an app update, an OS update, or on
-  its own. CardMirror now declares its `.docx` support in a way macOS
-  can bind to durably.
-- **Windows: a recent build had quietly gone back to installing
-  CardMirror as the *default* app for `.docx`** on every install —
-  the exact bug an earlier fix removed, because it made Word's right-click
-  "New > Microsoft Word Document" disappear from Explorer. Reverted;
-  CardMirror is Open-With-only for `.docx` on Windows again, as intended.
 
 ## 1.8.0 — 2026-09-06
 
@@ -653,83 +478,6 @@ complete release notes.
   Linked machines used to need re-linking after a lapse; the relay now
   hears about membership changes directly (live since 2026-09-04,
   independent of this build).
-
-## 1.6.0-bcb.3.1 — 2026-09-04
-
-### Added
-
-- **Ctrl/Cmd+K adds or removes a hyperlink.** Select text with no link
-  and press it to get a small dialog for the display text (prefilled
-  from your selection) and the URL. Press it again with the cursor
-  in — or a selection touching — an existing link to remove it.
-  Previously the only way to get a link into a document was pasting
-  one in from somewhere else.
-- **Save now saves every dirty document across every pane and every
-  open window**, not just the focused one — no more clicking through
-  each window individually to save everything.
-
-### Fixed
-
-- **The link right-click menu (and every other small floating
-  menu — image, text-selection, nav-pane, spellcheck) could render
-  partly hidden behind the status bar** when opened near the bottom
-  of the window, instead of flipping to open above the click point.
-
-## 1.6.0-bcb.3 — 2026-09-03
-
-### Added
-
-- **Three-pane workspace can now be toggled from the ribbon**, not
-  just Settings, and the toggle is per window — switching one
-  window's layout never affects any other open window.
-- **Opening a document offers "New window" alongside the three
-  workspace slots** (desktop only), so opening a fourth doc while
-  all three slots are full doesn't force replacing one of them.
-- **CardMirror registers as a `.docx` handler** on macOS/Windows —
-  it now appears (and can be set as default) in "Open With" for
-  Word documents, matching its native `.docx` support. Previously
-  only `.cmir` was registered.
-
-## 1.6.0-bcb.2 — 2026-09-02
-
-### Fixed
-
-- **Reading view / auto-scroll ribbon buttons were overflowing their
-  group**, clipped at the top and bottom of the ribbon instead of
-  sitting in a clean 2×2 grid, with the nav-pane-toggle button's icon
-  effectively invisible as a result. All four buttons (Read mode,
-  Auto-scroll, Reading view, Toggle nav pane) now render fully inside
-  their normal ribbon height.
-
-## 1.6.0-bcb.1 — 2026-09-02
-
-First tagged release of the BlueCheeseburger fork. Built on top of
-upstream's 1.6.0 (below), plus everything this fork has added on top
-of upstream so far:
-
-### Added
-
-- **Google Gemini** as a third AI provider, alongside Anthropic and
-  OpenRouter.
-- **Independent multi-window three-pane workspace.** Additional
-  windows no longer have to mirror the main window's pane layout.
-- **Independent document background theme.** The editor surface's
-  light/dark appearance can now be set separately from the app
-  chrome's theme.
-- **Autosave for `.docx` files**, not just `.cmir` — plus a
-  time-boxed, logged fallback for the zip worker and a ribbon button
-  that distinguishes "saving" from "paused" (e.g. a doc with a live
-  view / linked copy Word can't hold).
-- **Paced auto-scroll** — a hands-free teleprompter that scrolls the
-  document at your actual reading pace, slowing for dense highlighted
-  text and speeding through everything else.
-
-### Fixed
-
-- **Update checks now point at this fork's own releases**, not
-  upstream's — so in-app "check for updates" and the desktop
-  auto-updater compare against `BlueCheeseburger/cardmirror` releases
-  instead of `ant981228/cardmirror`.
 
 ## 1.6.0 — 2026-09-01
 
