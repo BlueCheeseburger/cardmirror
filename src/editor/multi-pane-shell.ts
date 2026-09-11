@@ -100,6 +100,7 @@ import {
 import { showToast } from './toast.js';
 import { recordRecent } from './recents-store.js';
 import { reportWindowWorkspace, type WorkspaceDoc } from './workspace-store.js';
+import { slotPlanForSpeech } from './arrange-plan.js';
 import { maybeDecryptForOpen, OpenCancelledError } from './open-encrypted.js';
 import {
   checkSessionRejoinForOpenedDoc,
@@ -1394,6 +1395,13 @@ class MultiPaneShell {
     rafId: number | null;
   } | null = null;
   private layoutMode: 'compact' | 'wide';
+  /** Arrange Windows split in force (speech slot's share of the width),
+   *  applied as inline flex on the two panes; cleared by refreshLayout
+   *  the moment the layout stops being "two active panes". */
+  private arrangedSplit: { speechSlot: SlotId; docsSlot: SlotId; speechPct: number } | null = null;
+  /** Set while arrangeForSpeech shuffles records between slots, so the
+   *  momentary "every slot empty" state never shows the home screen. */
+  private arranging = false;
   /** When non-null, the named slot is "expanded" — visible on its
    *  own with every other pane + nav-section hidden, regardless of
    *  whether those slots have docs loaded. Click the chip's expand
@@ -1693,6 +1701,17 @@ class MultiPaneShell {
       ? 1
       : SLOT_IDS.filter((id) => this.slots[id].stack.length > 0).length;
     this.rowEl.dataset['active'] = String(active);
+    // An arranged split only means something while exactly its two
+    // slots are the active ones; a third doc, an expand, or an emptied
+    // slot hands the widths back to the layout CSS.
+    if (this.arrangedSplit) {
+      const { speechSlot, docsSlot } = this.arrangedSplit;
+      const stillTwo =
+        active === 2 &&
+        this.slots[speechSlot].stack.length > 0 &&
+        this.slots[docsSlot].stack.length > 0;
+      if (!stillTwo) this.clearArrangedSplit();
+    }
     this.navRailEl.dataset['active'] = String(active);
     // Active-count change → pane widths change → re-sync.
     this.scheduleSyncAllCardIntrinsicWidths();
@@ -2571,7 +2590,7 @@ class MultiPaneShell {
     // BEFORE the focus bookkeeping: that path early-returns when the
     // emptied slot wasn't the focused one, and the last doc can close
     // from an unfocused slot (clean-doc ✕ needs no focus first).
-    if (!SLOT_IDS.some((id) => this.slots[id].stack.length > 0)) {
+    if (!this.arranging && !SLOT_IDS.some((id) => this.slots[id].stack.length > 0)) {
       homeScreen.show();
     }
     if (this.focusedSlot !== slot) return;
@@ -3056,6 +3075,67 @@ class MultiPaneShell {
    *  focused doc IS already the speech doc, clear the designation.
    *  Otherwise mark it (replacing any previous). No-op if no pane
    *  is focused. */
+  /** Arrange Windows, three-pane edition: the speech doc into the slot
+   *  on `side`, every other document stacked into the middle slot (the
+   *  one that was showing stays on top), the far slot emptied, and the
+   *  width divided by `speechPct`. Returns false when there is nothing
+   *  to arrange. Without a marked speech doc everything stacks into the
+   *  docs slot and the split still applies (the speech slot stays
+   *  empty), mirroring the single-doc command's "no speech doc" case. */
+  arrangeForSpeech(side: 'left' | 'right', speechPct: number): boolean {
+    const plan = slotPlanForSpeech(side);
+    const all: DocRecord[] = SLOT_IDS.flatMap((id) => this.slots[id].stack);
+    if (all.length === 0) return false;
+    if (this.expandedSlot) this.toggleExpanded(this.expandedSlot);
+    const speechView = getSpeechDocResolver().getSpeechView();
+    const speechRec = all.find((r) => r.view === speechView) ?? null;
+    const onTop = this.focusedSlot?.visible ?? null;
+    this.arranging = true;
+    try {
+      // Docs first, the one that was showing last so it ends up visible.
+      const docs = all.filter((r) => r !== speechRec);
+      docs.sort((a, b) => (a === onTop ? 1 : b === onTop ? -1 : 0));
+      for (const rec of docs) this.moveRecordToSlot(rec, this.slots[plan.docsSlot]);
+      if (speechRec) this.moveRecordToSlot(speechRec, this.slots[plan.speechSlot]);
+    } finally {
+      this.arranging = false;
+    }
+    this.arrangedSplit = { speechSlot: plan.speechSlot, docsSlot: plan.docsSlot, speechPct };
+    this.applyArrangedSplit();
+    this.refreshLayout();
+    const focusRec = onTop && onTop !== speechRec ? onTop : (this.slots[plan.docsSlot].visible ?? speechRec);
+    if (focusRec) {
+      focusRec.owner.showRecord(focusRec);
+      this.focusSlot(focusRec.owner);
+      focusRec.view.focus();
+    }
+    return true;
+  }
+
+  /** Hand `rec` from wherever it lives to `target` (no-op if already
+   *  there). Goes through the same release/push pair send-to-slot uses. */
+  private moveRecordToSlot(rec: DocRecord, target: Slot): void {
+    const from = rec.owner;
+    if (from === target) return;
+    from.showRecord(rec);
+    const released = from.releaseVisible();
+    if (released) target.push(released);
+  }
+
+  private applyArrangedSplit(): void {
+    if (!this.arrangedSplit) return;
+    const { speechSlot, docsSlot, speechPct } = this.arrangedSplit;
+    const pct = Math.min(90, Math.max(10, Math.round(speechPct)));
+    for (const id of SLOT_IDS) this.slots[id].paneEl.style.flex = '';
+    this.slots[speechSlot].paneEl.style.flex = `0 0 ${pct}%`;
+    this.slots[docsSlot].paneEl.style.flex = `0 0 ${100 - pct}%`;
+  }
+
+  private clearArrangedSplit(): void {
+    this.arrangedSplit = null;
+    for (const id of SLOT_IDS) this.slots[id].paneEl.style.flex = '';
+  }
+
   markFocusedAsSpeech(): void {
     const rec = this.focusedSlot?.visible;
     if (!rec) return;
@@ -3567,6 +3647,7 @@ export function mountMultiPaneShell(): void {
     showInContext: (req) => shell!.showInContext(req),
     onNewDoc: () => shell!.createNewDoc(),
     toggleReadMode: () => shell!.toggleFocusedReadMode(),
+    arrangeForSpeech: (side, pct) => shell!.arrangeForSpeech(side, pct),
     toggleReaderView: () => shell!.toggleFocusedReaderView(),
     toggleAutosave: () => shell!.toggleFocusedAutosave(),
     zoomFocusedBy: (delta) => shell!.zoomFocusedBy(delta),

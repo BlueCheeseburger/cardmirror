@@ -978,6 +978,7 @@ let multiDocOnNewDoc: (() => Promise<void> | void) | null = null;
 /** When the multi-pane shell is active, this delegates the
  *  read-mode ribbon button to the shell's per-pane toggle. */
 let multiDocToggleReadMode: (() => void) | null = null;
+let multiDocArrangeForSpeech: ((side: 'left' | 'right', speechPct: number) => boolean) | null = null;
 let multiDocToggleAutosave: (() => void) | null = null;
 /** Assigned by `wireColorPanel(...)` further below. Referenced by the
  *  `togglePaintbrushHighlight` / `togglePaintbrushShading` ribbon
@@ -1191,6 +1192,7 @@ export function enableMultiDocMode(opts: {
   getOpenHandles?: () => unknown[];
   toggleAllNav?: () => void;
   showAllNav?: () => void;
+  arrangeForSpeech?: (side: 'left' | 'right', speechPct: number) => boolean;
 }): void {
   multiDocActive = true;
   multiDocOnFileOpen = opts.onFileOpen;
@@ -1203,6 +1205,7 @@ export function enableMultiDocMode(opts: {
   multiDocZoomResetHook = opts.zoomFocusedReset ?? null;
   multiDocNewSpeechDocument = opts.newSpeechDocument ?? null;
   multiDocMarkActiveAsSpeech = opts.markActiveAsSpeech ?? null;
+  multiDocArrangeForSpeech = opts.arrangeForSpeech ?? null;
   multiDocSendToSpeechAtCursor = opts.sendToSpeechAtCursor ?? null;
   multiDocSendToSpeechAtEnd = opts.sendToSpeechAtEnd ?? null;
   multiDocSendToDropzone = opts.sendToDropzone ?? null;
@@ -1673,6 +1676,27 @@ const ribbonContext: RibbonContext = {
         ? 'Workspace saved (1 document).'
         : `Workspace saved (${saved.docs.length} documents).`,
     );
+  },
+  arrangeWindows: () => {
+    const side = settings.get('arrangeSpeechSide');
+    const speechPct = settings.get('arrangeSpeechPct');
+    if (multiDocActive) {
+      // Three-pane: slots, not windows.
+      if (multiDocArrangeForSpeech && !multiDocArrangeForSpeech(side, speechPct)) {
+        showToast('Nothing to arrange — open a document first.');
+      }
+      return;
+    }
+    void (async () => {
+      const result = await getElectronHost()?.arrangeWindows({ side, speechPct });
+      if (!result) {
+        showToast('Arranging windows requires the desktop edition.');
+        return;
+      }
+      if (!result.speechFound) {
+        showToast('No speech doc yet — every window went to the docs side. Mark a speech doc first.');
+      }
+    })();
   },
   reopenWorkspace: () => {
     if (!getElectronHost()) {

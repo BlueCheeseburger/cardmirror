@@ -27,7 +27,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'markActiveAsSpeech',
       'sendToSpeechAtCursor',
       'sendToSpeechAtEnd',
-      'selectSpeechDoc',
+      'selectSpeechDoc', 'arrangeWindows',
     ],
   },
   {

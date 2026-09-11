@@ -1027,6 +1027,12 @@ export interface Settings {
   wordCountOrder: WordCountOrder;
   /** …and while the document is in read mode. */
   wordCountOrderReadMode: WordCountOrder;
+  /** Arrange Windows: which side of the screen the speech doc takes
+   *  (every other window goes to the other side). */
+  arrangeSpeechSide: 'left' | 'right';
+  /** Arrange Windows: the speech doc's share of the width, in percent
+   *  (10–90); the docs side gets the rest. */
+  arrangeSpeechPct: number;
   /**
    * Per-style font sizes (in points). See DisplaySizes for details.
    * Each field becomes a CSS custom property on `#editor`.
@@ -1821,6 +1827,8 @@ const DEFAULTS: Settings = {
   liveRemainingReadTime: false,
   wordCountOrder: 'doc-container-remaining',
   wordCountOrderReadMode: 'doc-container-remaining',
+  arrangeSpeechSide: 'right',
+  arrangeSpeechPct: 50,
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
   displayParagraphSpacing: { ...DEFAULT_PARAGRAPH_SPACING },
   displayTypography: { ...DEFAULT_DISPLAY_TYPOGRAPHY },
@@ -2103,6 +2111,7 @@ export interface SettingMeta {
     | 'timerPosition'
     | 'enterAfterStyle'
     | 'wordCountOrder'
+    | 'arrangeSpeechSide'
     | 'password'
     | 'voiceInputDevice'
     | 'voiceDashStyle'
@@ -2173,6 +2182,27 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Workspace',
     aliases: ['split view', 'split screen', 'multi pane', 'multi-doc'],
+  },
+  {
+    key: 'arrangeSpeechSide',
+    label: 'Arrange Windows: speech doc side',
+    description:
+      "The Arrange Windows command (Speech group; unbound by default) puts the speech doc on one side of the screen and every other window on the other, stacked, all full height — Verbatim's Window Arranger. This is the side the speech doc takes. In the three-pane workspace the same command moves the speech doc into the slot on this side and stacks every other document in the middle slot. Desktop only.",
+    kind: 'arrangeSpeechSide',
+    category: 'general',
+    section: 'Workspace',
+    aliases: ['window arranger', 'arrange windows', 'speech doc side', 'speech left', 'speech right'],
+  },
+  {
+    key: 'arrangeSpeechPct',
+    label: 'Arrange Windows: speech doc share of the screen (%)',
+    description:
+      'How much of the width the speech doc takes when you run Arrange Windows; the other windows (or, in three-pane, the docs slot) get the rest. 10–90, default 50.',
+    kind: 'number',
+    min: 10,
+    category: 'general',
+    section: 'Workspace',
+    aliases: ['speech doc width', 'window split', 'arrange ratio'],
   },
   {
     key: 'multiDocLayoutMode',
@@ -4567,6 +4597,11 @@ function sanitize(s: Settings): Settings {
     liveRemainingReadTime: s.liveRemainingReadTime === true,
     wordCountOrder: isWordCountOrder(s.wordCountOrder) ? s.wordCountOrder : DEFAULT_WORD_COUNT_ORDER,
     wordCountOrderReadMode: isWordCountOrder(s.wordCountOrderReadMode) ? s.wordCountOrderReadMode : DEFAULT_WORD_COUNT_ORDER,
+    arrangeSpeechSide: s.arrangeSpeechSide === 'left' ? 'left' : 'right',
+    arrangeSpeechPct:
+      typeof s.arrangeSpeechPct === 'number' && Number.isFinite(s.arrangeSpeechPct)
+        ? Math.min(90, Math.max(10, Math.round(s.arrangeSpeechPct)))
+        : 50,
     displaySizes: sanitizeDisplaySizes(s.displaySizes),
     displayParagraphSpacing: sanitizeParagraphSpacing(s.displayParagraphSpacing),
     underlineFollowsFontColor: s.underlineFollowsFontColor === true,

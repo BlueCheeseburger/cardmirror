@@ -665,6 +665,10 @@ export class BrowserHost implements Host {
     return true;
   }
 
+  async arrangeWindows(): Promise<null> {
+    return null; // a browser cannot place its own windows
+  }
+
   async isFirstWindow(): Promise<boolean> {
     // A spawned window (carrying a ?spawn handoff) opened a specific doc — it's
     // not the session's first window and shouldn't run the recovery prompt.

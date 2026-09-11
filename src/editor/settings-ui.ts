@@ -1012,6 +1012,10 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildWordCountOrderEditor());
       return row;
+    } else if (meta.kind === 'arrangeSpeechSide') {
+      row.appendChild(text);
+      row.appendChild(buildArrangeSpeechSideEditor());
+      return row;
     } else if (meta.kind === 'colorOverrides') {
       row.appendChild(text);
       row.appendChild(buildColorOverridesEditor());
@@ -5039,6 +5043,37 @@ function buildEnterAfterStyleEditor(): HTMLElement {
 
 /** Two-button segmented control for which ribbon edge the timer
  *  panel occupies. Same visual language as the prep-label control. */
+/** Two-button segmented control: which side of the screen Arrange
+ *  Windows gives the speech doc. Same visual language as the timer
+ *  position control. */
+function buildArrangeSpeechSideEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-theme-editor';
+  const options: { value: Settings['arrangeSpeechSide']; label: string }[] = [
+    { value: 'left', label: 'Speech doc on the left' },
+    { value: 'right', label: 'Speech doc on the right' },
+  ];
+  for (const o of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-theme-editor-btn';
+    btn.textContent = o.label;
+    btn.dataset['value'] = o.value;
+    btn.addEventListener('click', () => settings.set('arrangeSpeechSide', o.value));
+    wrap.appendChild(btn);
+  }
+  function refresh(): void {
+    const cur = settings.get('arrangeSpeechSide');
+    for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
+      btn.setAttribute('aria-pressed', btn.dataset['value'] === cur ? 'true' : 'false');
+    }
+  }
+  refresh();
+  const unsub = settings.subscribe(refresh);
+  registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
 function buildTimerPositionEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-theme-editor';

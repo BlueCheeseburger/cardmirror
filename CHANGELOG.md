@@ -57,6 +57,14 @@ see `DETAILED_CHANGELOG.md`.
   separators (Settings → Appearance → Card numbering) now offer a
   trailing bracket — “1]”, “a]” — and full brackets — “[1]”, “[a]” —
   alongside the other glyphs. Display-only, like every separator.
+- **Arrange Windows.** Verbatim's Window Arranger, ported: one command
+  (Speech group; unbound by default) puts the speech doc's window on
+  one side of the screen and every other window on the other, stacked,
+  full height. Settings → General → Workspace picks the side (right by
+  default) and the speech doc's share of the width (50% by default).
+  In the three-pane workspace it arranges slots instead: speech doc on
+  the chosen side, everything else stacked in the middle, the far slot
+  emptied, widths split by the same share. Desktop only.
 
 ## 1.9.0 — 2026-09-09
 

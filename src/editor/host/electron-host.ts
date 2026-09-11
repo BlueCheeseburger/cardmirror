@@ -293,6 +293,7 @@ interface ElectronAPI {
   getInitialDoc(): Promise<SpawnWindowPayload | null>;
   isFirstWindow(): Promise<boolean>;
   isAppQuitting?(): boolean;
+  arrangeWindows?(opts: { side: 'left' | 'right'; speechPct: number }): Promise<{ speechFound: boolean; arranged: number }>;
   /** Report this window's workspace mode to main (multi-pane vs
    *  single-pane) so the OS "Open with…" path can reuse a multi-pane
    *  window's slot picker instead of spawning a blank window. */
@@ -979,6 +980,11 @@ export class ElectronHost implements Host {
 
   async isFirstWindow(): Promise<boolean> {
     return await api().isFirstWindow();
+  }
+
+  async arrangeWindows(opts: { side: 'left' | 'right'; speechPct: number }): Promise<{ speechFound: boolean; arranged: number } | null> {
+    const fn = api().arrangeWindows;
+    return fn ? await fn(opts) : null;
   }
 
   isAppQuitting(): boolean {

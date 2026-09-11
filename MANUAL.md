@@ -1222,6 +1222,26 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   visible, and — like the buttons — a press in one window drives the clocks in
   every window.
 
+### Arranging windows around the speech doc
+
+**Arrange Windows** (Speech group; unbound by default — give it a key under
+Settings → Keyboard shortcuts) does what Verbatim's Window Arranger did: the
+speech doc's window takes one side of the screen and every other CardMirror
+window takes the other side, all full height, the others stacked exactly on
+top of one another so you flip between them without hunting. The window you
+ran it from stays in front. **Settings → General → Workspace** sets which side
+the speech doc takes (right, like Verbatim, by default) and its share of the
+width (50% by default). With no speech doc marked, every window goes to the
+docs side and a note says so.
+
+In the three-pane workspace the same command works on slots instead of
+windows: the speech doc moves into the slot on the chosen side, every other
+document stacks into the middle slot with the one you were reading on top,
+the far slot empties, and the two share the width by the same percentage.
+Opening a third document, expanding a slot, or emptying one hands the widths
+back to the normal layout. Desktop only — a browser cannot place its own
+windows, so the command does not appear in the web edition.
+
 ### Send-to-speech and the dropzone
 
 Assemble a speech document by sending cards into it:

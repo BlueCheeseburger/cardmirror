@@ -4319,6 +4319,7 @@ export type RibbonCommandId =
   | 'openContainingFolder'
   | 'saveWorkspace'
   | 'reopenWorkspace'
+  | 'arrangeWindows'
   | 'toggleCommentsVisible'
   | 'addCommentToSelection'
   | 'addNoteToSelection'
@@ -4557,6 +4558,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'openContainingFolder',
   'saveWorkspace',
   'reopenWorkspace',
+  'arrangeWindows',
   'toggleCommentsVisible',
   'addCommentToSelection',
   'addNoteToSelection',
@@ -4747,6 +4749,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   openContainingFolder: 'Open Containing Folder',
   saveWorkspace: 'Save Workspace',
   reopenWorkspace: 'Reopen Last Workspace',
+  arrangeWindows: 'Arrange Windows',
   toggleCommentsVisible: 'Show / Hide Comments',
   addCommentToSelection: 'Add Comment to Selection',
   addNoteToSelection: 'Add Note to Selection',
@@ -4924,6 +4927,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   openContainingFolder: ['reveal in finder', 'show in folder', 'show in explorer', 'reveal file', 'file location', 'containing folder'],
   saveWorkspace: ['save session', 'save open documents', 'remember open documents', 'save tabs'],
   reopenWorkspace: ['restore session', 'reopen session', 'open previous session', 'reopen last session', 'restore workspace', 'reopen documents', 'reopen tabs'],
+  arrangeWindows: ['window arranger', 'arrange for speech', 'tile windows', 'speech doc side by side', 'split screen', 'organize windows'],
   toggleAutosave: ['enable autosave', 'disable autosave', 'turn on autosave', 'turn off autosave'],
   markActiveAsSpeech: ['toggle speech doc', 'set speech document'],
   // vague / Word-flavored labels
@@ -5103,6 +5107,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   openContainingFolder: '',
   saveWorkspace: '',
   reopenWorkspace: '',
+  arrangeWindows: '',
   toggleCommentsVisible: '',
   addCommentToSelection: '',
   addNoteToSelection: 'Mod-Shift-n',
@@ -5349,6 +5354,9 @@ export interface RibbonContext {
   openContainingFolder: () => void;
   saveWorkspace: () => void;
   reopenWorkspace: () => void;
+  /** Arrange Windows: speech doc on one side, everything else on the
+   *  other (three-pane: into slots). Desktop only. */
+  arrangeWindows: () => void;
   openShortcutsReference: () => void;
   toggleCommentsVisible: () => void;
   addCommentToSelection: () => void;
@@ -5549,6 +5557,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   openContainingFolder: () => {},
   saveWorkspace: () => {},
   reopenWorkspace: () => {},
+  arrangeWindows: () => {},
   openShortcutsReference: () => {},
   toggleCommentsVisible: () => {},
   addCommentToSelection: () => {},
@@ -5819,6 +5828,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.reopenWorkspace();
+        return true;
+      };
+    case 'arrangeWindows':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.arrangeWindows();
         return true;
       };
     case 'toggleCommentsVisible':
