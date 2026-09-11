@@ -6719,7 +6719,16 @@ export function getRibbonCommand(
  */
 export function ribbonKeyStringFor(e: KeyboardEvent): string {
   const parts: string[] = [];
-  if (e.ctrlKey || e.metaKey) parts.push('Mod');
+  if (isMacPlatform()) {
+    // On macOS, Cmd → 'Mod' (cross-platform modifier, fires on either
+    // Ctrl or Cmd in dispatch), Ctrl → 'Ctrl' (Ctrl-only, so the chip
+    // displays ⌃ rather than ⌘ and the binding fires on Ctrl specifically).
+    // Keeps the display accurate: pressing Ctrl+key doesn't show ⌘key.
+    if (e.metaKey) parts.push('Mod');
+    if (e.ctrlKey) parts.push('Ctrl');
+  } else {
+    if (e.ctrlKey || e.metaKey) parts.push('Mod');
+  }
   if (e.altKey) parts.push('Alt');
   if (e.shiftKey) parts.push('Shift');
   // Normalize digits via `e.code` so `Mod-Shift-1` matches even
@@ -6851,6 +6860,7 @@ export function formatKeyForDisplay(key: string): string {
   const isMac = isMacPlatform();
   return key
     .replace(/Mod-/g, isMac ? '⌘' : 'Ctrl+')
+    .replace(/Ctrl-/g, isMac ? '⌃' : 'Ctrl+')
     .replace(/Shift-/g, isMac ? '⇧' : 'Shift+')
     .replace(/Alt-/g, isMac ? '⌥' : 'Alt+')
     .replace(/-/g, '+');

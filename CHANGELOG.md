@@ -7,6 +7,11 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Fixed
+
+- **Pressing Escape while capturing a keybinding no longer closes the Settings dialog** — it now cancels just the key-capture pill, as intended.
+- **Ctrl+key on Mac now displays as ⌃key** in keybinding chips, not ⌘key — Control and Command are now captured and stored as distinct modifiers, so binding Ctrl+something no longer shows up looking like a Cmd shortcut (which could be confusing since Cmd+\` for example is intercepted by macOS and never reaches CardMirror).
+
 ## 1.8.0-bcb.4.1 — 2026-09-10
 
 ### Fixed
