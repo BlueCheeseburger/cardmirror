@@ -12,8 +12,9 @@
 >   with your cursor on a tagline, Shift-` sends it (tagline + cite) into
 >   your open flow, landing in the next empty cell with the flow's focus
 >   auto-advancing a row, so a whole case can be sent without switching
->   windows. Connect a flow from Settings → PolicyDebateFlow. Desktop
->   only. (main)
+>   windows. Connect a flow from Settings → PolicyDebateFlow, and a
+>   status-bar chip shows Connected/Off at a glance — click it to
+>   disconnect, or to jump to Settings when it's off. Desktop only. (main)
 > - **Synced with upstream through its 1.10.0 and 1.9.0 releases** —
 >   pulls in last workspace (reopen documents from your last session),
 >   Arrange Windows for speech/non-speech split-screen, Mod-Y repeat

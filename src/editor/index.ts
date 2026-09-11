@@ -22,6 +22,7 @@ import type { Thread, Comment } from './comments-plugin.js';
 import type { LocalComment } from './learn-store.js';
 import { NavigationPanel } from './nav-panel.js';
 import { initUpdateChip } from './update-chip.js';
+import { initFlowChip } from './flow-chip.js';
 import { mountTimerUI } from './timer-ui.js';
 import { initTimerAudio } from './timer-audio.js';
 import {
@@ -991,6 +992,15 @@ function updatePlainPasteIndicator(armed: boolean): void {
   const updateChipEl = document.getElementById('update-chip') as HTMLButtonElement | null;
   const chipHost = getElectronHost();
   if (updateChipEl && chipHost) initUpdateChip(updateChipEl, chipHost);
+}
+// PolicyDebateFlow connection chip — desktop only, same gate as the
+// update chip; the underlying integration itself is also gated on
+// policyDebateFlowEnabled (checked inside initFlowChip's render()).
+{
+  const flowChipEl = document.getElementById('pf-flow-chip') as HTMLButtonElement | null;
+  if (flowChipEl && getElectronHost()) {
+    initFlowChip(flowChipEl, () => settingsBtn.click());
+  }
 }
 
 // Timer pop-out reconciliation — the timer always LAUNCHES popped
