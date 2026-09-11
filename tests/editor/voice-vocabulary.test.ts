@@ -15,9 +15,9 @@ import {
 } from '../../src/editor/voice/vocabulary.js';
 
 describe('voice vocabulary', () => {
-  it('has thirteen acoustically spaced words', () => {
-    expect(VOICE_COMMANDS).toHaveLength(13);
-    expect(new Set(VOICE_COMMANDS).size).toBe(13);
+  it('has fourteen acoustically spaced words', () => {
+    expect(VOICE_COMMANDS).toHaveLength(14);
+    expect(new Set(VOICE_COMMANDS).size).toBe(14);
   });
 
   it('normalizes recognizer output: case, punctuation, fillers', () => {
@@ -49,8 +49,8 @@ describe('voice vocabulary', () => {
   });
 
   it('matches sleep and wake phrases with a stray word or a repeat', () => {
-    expect(matchPhrase('Voice sleep.', SLEEP_PHRASES)).toBe('voice sleep');
-    expect(matchPhrase('um voice wake', WAKE_PHRASES)).toBe('voice wake');
+    expect(matchPhrase('Sleep.', SLEEP_PHRASES)).toBe('sleep');
+    expect(matchPhrase('um wake', WAKE_PHRASES)).toBe('wake');
     expect(matchPhrase('wake up wake up', WAKE_PHRASES)).toBe('wake up');
     expect(matchPhrase('I need to wake up early tomorrow', WAKE_PHRASES)).toBeNull();
   });

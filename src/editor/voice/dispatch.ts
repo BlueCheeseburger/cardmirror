@@ -16,6 +16,8 @@ import { undo as historyUndo } from 'prosemirror-history';
 import { newHeadingId } from '../../schema/index.js';
 import { deleteSelectionKeepingLeadingCursor } from '../boundary-cursor-keymap.js';
 import { getRibbonCommand, type RibbonContext, type RibbonCommandId } from '../ribbon-commands.js';
+import { enterAsKey } from '../enter-style.js';
+import type { EditorView } from 'prosemirror-view';
 import { patchVoiceState, sealUtterance, voiceDispatcher, voicePluginKey, type ViewLike } from './plugin.js';
 import type { PenName, VoiceEvent } from './types';
 
@@ -158,6 +160,12 @@ export async function applyVoiceCommand(
         dispatch(tr);
         break;
       }
+      case 'return':
+        // Enter, the way the key does it (styled paragraphs after headings
+        // and all). A live EditorView goes through when there is one; the
+        // handlers only need state + dispatch otherwise.
+        ok = enterAsKey(view.state, dispatch, 'dom' in view ? (view as unknown as EditorView) : undefined);
+        break;
       case 'undo':
         ok = deps.undo ? deps.undo() : historyUndo(view.state, view.dispatch.bind(view));
         break;

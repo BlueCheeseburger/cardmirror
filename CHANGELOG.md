@@ -13,12 +13,12 @@ see `DETAILED_CHANGELOG.md`.
   Mac). Ctrl/Cmd-Shift-V is "paste and match style" in too many other
   apps to sit on the microphone. Rebindable, as before.
 - **Voice control, rebuilt.** Voice now works the way people actually
-  edit: point with the mouse, say what to do. Thirteen command words
-  (line, box, glow, bare, shrink, tag, cite, card, chunk, ship, delete,
-  condense, undo) fire whenever voice is on, no wake word, and only
+  edit: point with the mouse, say what to do. Fourteen command words
+  (line, box, glow, bare, shrink, tag, cite, card, chunk, ship, return,
+  delete, condense, undo) fire whenever voice is on, no wake word, and only
   when the word is the whole thing you said, so conversation doesn't
   trigger anything. Dictation is a hold-to-dictate key (default
-  Alt-Shift-Space; a foot pedal works): hold, speak, release — text lands at each pause. For a mouse macro or a hand that cannot hold, a setting makes the key press-to-start and press-to-stop, with a silence limit (default six seconds) that stops a forgotten session. Dictated
+  Alt-Shift-Space; a foot pedal works): hold, speak, release — text lands at each pause, and "new paragraph" inside a dictation breaks the paragraph there. "sleep" parks the mic, "wake" resumes. For a mouse macro or a hand that cannot hold, a setting makes the key press-to-start and press-to-stop, with a silence limit (default six seconds) that stops a forgotten session. Dictated
   text goes through the same autocorrect rules as typing, spoken
   punctuation still works, and an optional AI cleanup pass on your own
   key fixes self-corrections, fillers, punctuation and names before
@@ -28,7 +28,7 @@ see `DETAILED_CHANGELOG.md`.
   is far more accurate than before, including on author names, and
   still keeps every bit of audio on your machine. Removed: spoken
   targeting ("take", "pick", "go to"), paint mode, the large dictation
-  model download, and the "voice sleep" pen vocabulary.
+  model download, and the old pen vocabulary.
 
 ## 1.9.0 — 2026-09-09
 

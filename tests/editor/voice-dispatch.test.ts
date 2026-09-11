@@ -31,6 +31,14 @@ function makeView(body = 'alpha bravo charlie') {
   const bodyStart = 1 + doc.child(0).child(0).nodeSize + 1;
   return { view, bodyStart };
 }
+function countTextblocks(doc: PMNode): number {
+  let n = 0;
+  doc.descendants((node) => {
+    if (node.isTextblock) n++;
+    return true;
+  });
+  return n;
+}
 const hints: string[] = [];
 const deps: DispatchDeps = { ribbonCtx: undefined as unknown as RibbonContext, ui: { echo() {}, hint: (t) => hints.push(t) } };
 const cmd = (verb: string, id = 1): Extract<VoiceEvent, { kind: 'command' }> => ({ utteranceId: id, mode: 'command', raw: verb, tEndOfSpeech: 0, tParse: 0, kind: 'command', verb });
@@ -79,6 +87,16 @@ describe('voice dispatch', () => {
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, bodyStart, bodyStart + 6)));
     await applyVoiceCommand(view, cmd('delete', 2), deps);
     expect(view.state.doc.child(0).child(1).textContent).toBe('bravo charlie');
+  });
+
+  it('return presses Enter at the cursor: one textblock becomes two', async () => {
+    const { view, bodyStart } = makeView('alpha bravo');
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, bodyStart + 5)));
+    const blocksBefore = countTextblocks(view.state.doc);
+    await applyVoiceCommand(view, cmd('return'), deps);
+    expect(countTextblocks(view.state.doc)).toBe(blocksBefore + 1);
+    expect(view.state.doc.textContent).toContain('alpha');
+    expect(view.state.doc.textContent).toContain('bravo');
   });
 
   it('undo goes through the supplied editor undo path', async () => {

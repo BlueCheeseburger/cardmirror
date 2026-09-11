@@ -315,7 +315,7 @@ export class VoicePill {
     this.el.classList.remove('pmd-voice-mode-command', 'pmd-voice-mode-dictation', 'pmd-voice-mode-asleep');
     this.el.classList.add(`pmd-voice-mode-${mode}`);
     this.modeEl.textContent = mode === 'dictation' ? 'dictating' : mode;
-    const hint = mode === 'asleep' ? 'say "voice wake" to resume' : mode === 'dictation' ? 'release the key to land it' : '';
+    const hint = mode === 'asleep' ? 'say "wake" to resume' : mode === 'dictation' ? 'release the key to land it' : '';
     this.setEcho(hint, true);
   }
 

@@ -11,7 +11,7 @@ import { EditorView } from 'prosemirror-view';
 import { history, undo } from 'prosemirror-history';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
-import { typingChunks, typeThroughInputRules, landDictation } from '../../src/editor/voice/landing.js';
+import { typingChunks, typeThroughInputRules, landDictation, splitDictationBreaks } from '../../src/editor/voice/landing.js';
 import { voicePlugin } from '../../src/editor/voice/plugin.js';
 import type { DispatchDeps } from '../../src/editor/voice/dispatch.js';
 import type { RibbonContext } from '../../src/editor/ribbon-commands.js';
@@ -46,6 +46,22 @@ function makeView(bodyText = 'alpha') {
 const deps: DispatchDeps = { ribbonCtx: undefined as unknown as RibbonContext, ui: { echo() {}, hint() {} } };
 
 describe('dictation landing', () => {
+  it('"new paragraph" / "new line" break a dictation into paragraphs, the next one capitalized, one undo step', () => {
+    expect(splitDictationBreaks('first bit new paragraph second bit new line third')).toEqual(['first bit', 'second bit', 'third']);
+    expect(splitDictationBreaks('the new line of argument'), 'the phrase always breaks').toEqual(['the', 'of argument']);
+    expect(splitDictationBreaks('a newline\nhere')).toEqual(['a', 'here']);
+    const view = makeView('alpha');
+    const before = (() => { let n = 0; view.state.doc.descendants((node) => { if (node.isTextblock) n++; return true; }); return n; })();
+    landDictation(view, { utteranceId: 1, pen: null, deps, text: 'first sentence new paragraph second sentence' });
+    let after = 0;
+    view.state.doc.descendants((node) => { if (node.isTextblock) after++; return true; });
+    expect(after).toBe(before + 1);
+    expect(view.state.doc.textContent, 'the first segment continues the sentence in progress').toContain('alpha first sentence');
+    expect(view.state.doc.textContent, 'the segment after the break starts a sentence').toContain('Second sentence');
+    undo(view.state, view.dispatch);
+    expect(view.state.doc.textContent).toBe('Tagalpha');
+  });
+
   it('dictating with text selected replaces the selection (no replace verb needed)', () => {
     const view = makeView('alpha bravo charlie');
     const bodyStart = 1 + view.state.doc.child(0).child(0).nodeSize + 1;

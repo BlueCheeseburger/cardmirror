@@ -1889,13 +1889,13 @@ Click the pill for a menu: pick a microphone, calibrate, or stop.
 
 While voice is on, CardMirror is always listening for **command words** —
 there is no wake word and no key to hold. To park the mic without ending
-the session, say **`voice sleep`** and **`voice wake`** to resume; it also
+the session, say **`sleep`** and **`wake`** to resume; it also
 **auto-sleeps** after a stretch of silence (configurable) so a forgotten
 session doesn't transcribe the room.
 
 ### Commands
 
-Thirteen words. A command fires only when the word is the whole thing you
+Fourteen words. A command fires only when the word is the whole thing you
 said — "line" fires, "the line of argument" does not — so ordinary
 conversation doesn't trigger anything. Select with the mouse first when a
 command needs a span.
@@ -1910,6 +1910,7 @@ command needs a span.
 | **condense** | Condense |
 | **chunk** | Select Current Heading |
 | **ship** | Send to Speech (At End) |
+| **return** | Enter — a new paragraph at the cursor, following the same rules as the key (a styled paragraph after a heading if you have one set) |
 | **tag** | apply the Tag style to the selection or the current paragraph |
 | **cite** | apply the Cite style to the selection |
 | **card** | insert a new card after the current one and land in its tag |
@@ -1927,7 +1928,9 @@ speak, release: the words land at the cursor. A foot pedal that acts as a
 keyboard key works the same way. While the key is held, command words are
 ignored — say "delete the paragraph" in a dictation and it types. With text
 selected, dictating replaces it. Text lands at each pause, so a long passage
-appears sentence by sentence rather than all at once when you let go.
+appears sentence by sentence rather than all at once when you let go. Say
+**"new paragraph"** (or "new line") inside a dictation to break the paragraph
+there; the next sentence starts capitalized and any armed pen carries over.
 
 If holding a key is not an option — a mouse macro that can only send a
 keystroke, or a hand that cannot hold — turn on **Press to start and stop

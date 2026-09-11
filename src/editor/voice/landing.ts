@@ -15,6 +15,7 @@
  */
 import type { EditorView } from 'prosemirror-view';
 import { settings } from '../settings.js';
+import { enterAsKey } from '../enter-style.js';
 import { transformDictation, capitalizeForContext } from './dictation-text.js';
 import { PEN_MARK_NAMES, type DispatchDeps } from './dispatch.js';
 import { getRibbonCommand, type RibbonContext } from '../ribbon-commands.js';
@@ -92,19 +93,39 @@ function armPen(view: EditorView, deps: DispatchDeps, pen: PenName, dispatch: (t
   dispatch(view.state.tr.setStoredMarks(mark.addToSet(current)));
 }
 
+/** Spoken paragraph breaks inside a dictation, matched as whole words;
+ *  a literal newline (a cleanup pass may emit one) counts too. The
+ *  phrases ALWAYS break — "a new line of argument" splits, the same
+ *  trade every dictation product makes; type those words instead. */
+const BREAK_RE = /\s*(?:\bnew paragraph\b|\bnew line\b|\bnewline\b|\n)\s*/gi;
+export function splitDictationBreaks(text: string): string[] {
+  return text.split(BREAK_RE).map((s) => s.trim());
+}
+
 /** Land a dictation utterance at the cursor. */
 export function landDictation(view: EditorView, opts: LandingOptions): void {
   const dispatch = voiceDispatcher(view, opts.utteranceId);
   const sel = view.state.selection;
   const context = view.state.doc.textBetween(Math.max(0, sel.from - 40), sel.from, '\n', ' ');
-  let text = transformDictation(opts.text, settings.get('voiceDashStyle'));
-  text = capitalizeForContext(text, context);
-  if (!text) return;
-  const before = context.slice(-1);
-  const needsSpace = before !== '' && !/[\s([{«“"'—–-]$/.test(before);
-  if (needsSpace) typeThroughInputRules(view, ' ', dispatch);
-  if (opts.pen) armPen(view, opts.deps, opts.pen, dispatch);
-  typeThroughInputRules(view, text, dispatch);
+  const segments = splitDictationBreaks(transformDictation(opts.text, settings.get('voiceDashStyle')));
+  if (segments.every((seg) => !seg)) return;
+  segments.forEach((raw, i) => {
+    if (i > 0) {
+      // "new paragraph": Enter as the key does it, then re-arm the pen
+      // (a split clears stored marks) so the next line stays marked.
+      enterAsKey(view.state, dispatch, view);
+      if (opts.pen) armPen(view, opts.deps, opts.pen, dispatch);
+    }
+    const text = capitalizeForContext(raw, i === 0 ? context : '');
+    if (!text) return;
+    if (i === 0) {
+      const before = context.slice(-1);
+      const needsSpace = before !== '' && !/[\s([{«“"'—–-]$/.test(before);
+      if (needsSpace) typeThroughInputRules(view, ' ', dispatch);
+      if (opts.pen) armPen(view, opts.deps, opts.pen, dispatch);
+    }
+    typeThroughInputRules(view, text, dispatch);
+  });
   dispatch(view.state.tr.scrollIntoView());
   sealUtterance(view);
   patchVoiceState(view, { appendLog: { utteranceId: opts.utteranceId, kind: 'dictation', text: opts.text } });

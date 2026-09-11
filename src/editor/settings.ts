@@ -2800,14 +2800,16 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Which microphone the voice session (Alt-Shift-V) listens to. "System default" follows the OS setting. Device names appear after the first voice session grants microphone access. Desktop only.',
     kind: 'voiceInputDevice',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
   },
   {
     key: 'voiceAutoSleepSeconds',
     label: 'Voice auto-sleep (seconds)',
     description:
-      'How long the voice session can sit idle before it parks itself asleep, so a forgotten mic doesn\'t eat a conversation. The status pill dims during the last ten seconds. Say "voice wake" to resume. 0 disables auto-sleep.',
+      'How long the voice session can sit idle before it parks itself asleep, so a forgotten mic doesn\'t eat a conversation. The status pill dims during the last ten seconds. Say "wake" to resume. 0 disables auto-sleep.',
     kind: 'number',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
   },
   {
     key: 'voiceDashStyle',
@@ -2816,6 +2818,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'The glyph dictated by the bare word "dash". Explicit names always work regardless of this setting: "hyphen", "n dash", "m dash", "double dash", "triple dash", each optionally followed by "spaced".',
     kind: 'voiceDashStyle',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
   },
   {
     key: 'voiceModelEngine',
@@ -2824,6 +2827,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Voice control runs entirely on this computer. Its recognition model is a one-time download (about 640 MB) — the first voice start fetches it, or download it here ahead of a trip with no connection. Delete it to reclaim the space.',
     kind: 'voiceModel',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
     electronOnly: true,
   },
   {
@@ -2833,6 +2837,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Hold it, speak, release: the words land at the cursor — or, with the next setting on, press it once to start and again to stop. Commands need no key — they listen whenever voice is on. A foot pedal that acts as a keyboard key works here too. Default Alt-Shift-Space (Option-Shift-Space on a Mac). While voice is off the key does nothing, so a chord shared with another command still reaches that command.',
     kind: 'voiceHoldKey',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
     electronOnly: true,
     aliases: ['push to talk', 'hold to dictate', 'pedal'],
   },
@@ -2843,6 +2848,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Instead of holding the dictation key, press it once to start and again to stop — for a mouse macro that can only send a keystroke, or when holding a key is not an option. A run of silence (next setting) also stops it, so a forgotten session never transcribes the room. Dictated text lands at each pause either way.',
     kind: 'toggle',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
     electronOnly: true,
     aliases: ['toggle dictation', 'push to toggle', 'macro'],
   },
@@ -2854,6 +2860,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'number',
     min: 2,
     category: 'accessibility',
+    section: 'Voice control (experimental)',
     electronOnly: true,
   },
   {
@@ -2863,6 +2870,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Before dictated words land, a short AI pass fixes mid-sentence self-corrections, drops fillers, adds punctuation, and spells names to match the document — on your own AI key (Settings → Comments & AI). Only the transcript and nearby text are sent, never audio. Turned off, the raw transcript lands; spoken punctuation ("period", "comma") still works either way.',
     kind: 'toggle',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
     electronOnly: true,
   },
   {
@@ -2872,6 +2880,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'One minute: say each command word a couple of times through the microphone you use (and whispered, if you whisper). What the recognizer hears becomes your own spelling of each word, so commands fire for your voice specifically. Saved per microphone. Run it again any time — after a new headset, for example.',
     kind: 'voiceCalibrate',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
     electronOnly: true,
     aliases: ['calibration', 'train voice', 'my voice'],
   },

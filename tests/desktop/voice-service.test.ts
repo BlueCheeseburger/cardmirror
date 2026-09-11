@@ -125,7 +125,7 @@ describe('voice service: commands', () => {
   });
 
   it('sleep phrase parks the mic; only the wake phrase decodes while asleep', () => {
-    const h = harness(['voice sleep', 'delete', 'wake up', 'delete']);
+    const h = harness(['sleep', 'delete', 'wake', 'delete']);
     h.feed(300, false); h.feed(500, true); h.feed(400, false);
     expect(h.svc.currentMode).toBe('asleep');
     h.feed(500, true); h.feed(400, false); // "delete" while asleep: discarded
@@ -204,7 +204,7 @@ describe('voice service: held dictation', () => {
   });
 
   it('calibration wakes a sleeping session, holds off auto-sleep, and ignores the sleep phrase', () => {
-    const h = harness(['voice sleep', 'line', 'voice sleep'], { autoSleepSeconds: 2 });
+    const h = harness(['sleep', 'line', 'sleep'], { autoSleepSeconds: 2 });
     h.feed(300, false); h.feed(500, true); h.feed(400, false);
     expect(h.svc.currentMode).toBe('asleep');
     h.svc.setCalibrating(true);
@@ -213,7 +213,7 @@ describe('voice service: held dictation', () => {
     expect(h.svc.currentMode, 'no auto-sleep while calibrating').toBe('command');
     h.feed(500, true); h.feed(400, false); // "line" → a command event for the dialog
     expect(h.events.some((e) => e.kind === 'command' && e.verb === 'line')).toBe(true);
-    h.feed(500, true); h.feed(400, false); // "voice sleep" — ignored during calibration
+    h.feed(500, true); h.feed(400, false); // "sleep" — ignored during calibration
     expect(h.svc.currentMode).toBe('command');
     h.svc.setCalibrating(false);
     h.feed(2500, false);
@@ -240,7 +240,7 @@ describe('voice service: held dictation', () => {
   });
 
   it('holding while asleep works and returns to command listening', () => {
-    const h = harness(['voice sleep', 'hello there']);
+    const h = harness(['sleep', 'hello there']);
     h.feed(300, false); h.feed(500, true); h.feed(400, false);
     expect(h.svc.currentMode).toBe('asleep');
     h.svc.setDictation(true);

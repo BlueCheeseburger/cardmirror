@@ -3,7 +3,7 @@
  * §6.1). Shared by the desktop recognizer worker (bundled) and the
  * renderer (calibration, tests). Pure: no DOM, no Node.
  *
- * Thirteen words, chosen for acoustic distance, each mapped to an existing
+ * Fourteen words, chosen for acoustic distance, each mapped to an existing
  * editor command by the dispatcher. A command fires only when the WHOLE
  * utterance is one vocabulary word (after trimming fillers): "line"
  * fires; "the line of argument" does not — that rule, not a grammar, is
@@ -22,6 +22,7 @@ export const VOICE_COMMANDS = [
   'condense',
   'chunk',
   'ship',
+  'return',
   'undo',
   'delete',
 ] as const;
@@ -40,15 +41,16 @@ export const VOICE_COMMAND_LABELS: Record<VoiceVerb, string> = {
   condense: 'condense',
   chunk: 'select heading',
   ship: 'send to speech',
+  return: 'new paragraph',
   undo: 'undo',
   delete: 'delete',
 };
 
 /** Spoken while listening for commands: park the mic. Two syllables and
  *  a word pair that never occurs in debate prose. */
-export const SLEEP_PHRASES = ['voice sleep', 'go to sleep'];
+export const SLEEP_PHRASES = ['sleep', 'go to sleep'];
 /** The only thing that decodes while asleep. */
-export const WAKE_PHRASES = ['voice wake', 'wake up'];
+export const WAKE_PHRASES = ['wake', 'wake up'];
 
 /** Spellings an open recognizer produces for a word said in isolation
  *  (homophones and near-homophones; measured in the 2026-09-10 spike).
@@ -65,6 +67,7 @@ export const BUILT_IN_ALIASES: Record<VoiceVerb, readonly string[]> = {
   condense: ['condensed', 'condens', 'condenser'],
   chunk: ['chunks', 'chuck', 'junk', 'trunk', 'chunky'],
   ship: ['ships', 'shipped', 'chip', 'sip', 'shep'],
+  return: ['returns', 'returned', 'retain', 'we turn', 'return key'],
   undo: ['undue', 'and do', 'un do', 'ondo'],
   delete: ['deleted', 'the lead', 'delet', 'dilate'],
 };
