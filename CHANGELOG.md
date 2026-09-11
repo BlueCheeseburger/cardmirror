@@ -25,6 +25,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   code. It now just pauses the connection locally (click again to resume);
   the real disconnect (which does revoke the token) stays in Settings →
   PolicyDebateFlow's Disconnect button.
+- **Sending a tagline now tells you when PolicyDebateFlow itself is
+  paused**, instead of the generic "isn't open" message — PolicyDebateFlow
+  has its own status chip, and a tab that's open but paused on its end
+  gets its own toast so it's not confused with a closed tab.
 
 ---
 

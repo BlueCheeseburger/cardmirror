@@ -211,6 +211,25 @@ describe('sendTaglineToFlowAsync — network flow', () => {
     v.destroy();
   });
 
+  it('toasts "PolicyDebateFlow is paused" (distinct from not-open) when presence reports paused: true', async () => {
+    // The tab IS open on PolicyDebateFlow's side, but the user paused
+    // delivery from their own status chip there — a different reason
+    // than a closed tab, so it gets its own message rather than the
+    // generic "isn't open".
+    connect();
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ present: false, paused: true }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const v = view();
+    await sendTaglineToFlowAsync(v);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(showToast).toHaveBeenCalledWith('PolicyDebateFlow is paused');
+    v.destroy();
+  });
+
   it('toasts the expired-connection message on a 401 from presence', async () => {
     connect();
     const fetchMock = vi.fn().mockResolvedValueOnce(new Response('', { status: 401 }));
