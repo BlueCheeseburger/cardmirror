@@ -1050,6 +1050,11 @@ export interface Settings {
   wordCountOrder: WordCountOrder;
   /** …and while the document is in read mode. */
   wordCountOrderReadMode: WordCountOrder;
+  /** Last workspace (the Home screen's "reopen what I had open"
+   *  section, the recording behind it, and the Save / Reopen Workspace
+   *  commands). Off by default: nothing is recorded and the section
+   *  never renders until it is on. */
+  lastWorkspaceEnabled: boolean;
   /** Arrange Windows: which side of the screen the speech doc takes
    *  (every other window goes to the other side). */
   arrangeSpeechSide: 'left' | 'right';
@@ -1855,6 +1860,7 @@ const DEFAULTS: Settings = {
   liveRemainingReadTime: false,
   wordCountOrder: 'doc-container-remaining',
   wordCountOrderReadMode: 'doc-container-remaining',
+  lastWorkspaceEnabled: false,
   arrangeSpeechSide: 'right',
   arrangeSpeechPct: 50,
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
@@ -2212,6 +2218,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Workspace',
     aliases: ['split view', 'split screen', 'multi pane', 'multi-doc'],
+  },
+  {
+    key: 'lastWorkspaceEnabled',
+    label: 'Remember my last workspace',
+    description:
+      'Off by default. On, CardMirror remembers the documents open when you quit and lists them on the Home screen under Last workspace with a tick box each, so a whole working set comes back in one click; Save Workspace and Reopen Last Workspace work from the command bar too. Off, nothing is recorded and the section never appears. Desktop only.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    electronOnly: true,
+    aliases: ['last workspace', 'reopen documents', 'restore session', 'remember open documents'],
   },
   {
     key: 'arrangeSpeechSide',
@@ -4716,6 +4733,7 @@ function sanitize(s: Settings): Settings {
     liveRemainingReadTime: s.liveRemainingReadTime === true,
     wordCountOrder: isWordCountOrder(s.wordCountOrder) ? s.wordCountOrder : DEFAULT_WORD_COUNT_ORDER,
     wordCountOrderReadMode: isWordCountOrder(s.wordCountOrderReadMode) ? s.wordCountOrderReadMode : DEFAULT_WORD_COUNT_ORDER,
+    lastWorkspaceEnabled: s.lastWorkspaceEnabled === true,
     arrangeSpeechSide: s.arrangeSpeechSide === 'left' ? 'left' : 'right',
     arrangeSpeechPct:
       typeof s.arrangeSpeechPct === 'number' && Number.isFinite(s.arrangeSpeechPct)

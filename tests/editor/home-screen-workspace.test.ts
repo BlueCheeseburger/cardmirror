@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { homeScreen, type HomeScreenCallbacks } from '../../src/editor/home-screen.js';
+import { settings } from '../../src/editor/settings.js';
 import {
   saveWorkspaceNow,
   reportWindowWorkspace,
@@ -48,6 +49,7 @@ describe('home screen — last workspace', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    settings.set('lastWorkspaceEnabled', true);
     document.body.innerHTML = '';
     seedWorkspace(['/w/a.cmir', '/w/b.cmir', '/w/c.cmir']);
     cb = makeCallbacks();
@@ -113,6 +115,17 @@ describe('home screen — last workspace', () => {
     homeScreen.show();
     expect(items()).toHaveLength(2);
     expect(items().every((b) => b.checked)).toBe(true);
+  });
+
+  it('hides the section while the setting is off, even with a snapshot', () => {
+    settings.set('lastWorkspaceEnabled', false);
+    homeScreen.hide();
+    homeScreen.show();
+    expect(document.querySelector<HTMLElement>('.pmd-home-workspace-section')!.hidden).toBe(true);
+    settings.set('lastWorkspaceEnabled', true);
+    homeScreen.hide();
+    homeScreen.show();
+    expect(document.querySelector<HTMLElement>('.pmd-home-workspace-section')!.hidden).toBe(false);
   });
 
   it('hides the section entirely when there is no snapshot', () => {

@@ -1669,6 +1669,10 @@ const ribbonContext: RibbonContext = {
       showToast('Saving a workspace requires the desktop edition.');
       return;
     }
+    if (!settings.get('lastWorkspaceEnabled')) {
+      showToast(LAST_WORKSPACE_OFF_MESSAGE);
+      return;
+    }
     const saved = saveWorkspaceNow();
     if (!saved) {
       showToast('Nothing to save — no saved documents are open.');
@@ -1704,6 +1708,10 @@ const ribbonContext: RibbonContext = {
   reopenWorkspace: () => {
     if (!getElectronHost()) {
       showToast('Reopening a workspace requires the desktop edition.');
+      return;
+    }
+    if (!settings.get('lastWorkspaceEnabled')) {
+      showToast(LAST_WORKSPACE_OFF_MESSAGE);
       return;
     }
     const snapshot = lastWorkspace();
@@ -4028,6 +4036,13 @@ settings.subscribe((s) => {
   // reuse the cache" path (it still counts a live selection, which is
   // O(range) and cheap).
   refreshWordCount({ selectionOnly: true });
+  // Last workspace turned on mid-session: report this window's doc now
+  // (the report hook is memoized and would otherwise wait for a change).
+  if (s.lastWorkspaceEnabled !== lastWorkspaceEnabledSeen) {
+    lastWorkspaceEnabledSeen = s.lastWorkspaceEnabled;
+    lastReportedWorkspaceKey = '';
+    reportSingleDocWorkspace();
+  }
   refreshFontSizeDisplay();
   refreshCursorColorDisplay();
   if (
@@ -7436,7 +7451,9 @@ async function routeInitialDocIntoWorkspace(): Promise<boolean> {
 /** Last workspace tuple this window published, so the report hook can
  *  sit on the (hot) window-title path without hammering localStorage
  *  on every keystroke-driven dirty-marker refresh. */
+const LAST_WORKSPACE_OFF_MESSAGE = 'Turn on "Remember my last workspace" (Settings → General → Workspace) first.';
 let lastReportedWorkspaceKey = '';
+let lastWorkspaceEnabledSeen = settings.get('lastWorkspaceEnabled');
 
 // A window that closes on its own — not the app quitting — is gone
 // from the next session's offer; a quit, or a kill, leaves its docs in

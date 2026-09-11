@@ -1494,6 +1494,8 @@ class MultiPaneShell {
       }
       // Pane word counts depend on reader settings.
       for (const id of SLOT_IDS) this.slots[id].refreshWordCount();
+      // Last workspace turned on mid-session: publish the open set now.
+      if (s.lastWorkspaceEnabled) this.reportWorkspace();
       // Editor spellcheck is served by the viewport-spellcheck plugin
       // (in buildEditorPlugins), which subscribes to `editorSpellcheck`
       // itself — nothing to push to the views here.

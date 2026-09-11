@@ -2030,8 +2030,9 @@ home screen — to open it, exactly like File → Open (including the unsaved-ch
 prompt, and focusing a copy that's already open). Other file types are ignored,
 and dragging cards around inside the editor is unaffected.
 
-**Reopening your last set of documents.** CardMirror remembers which files
-you had open when you last quit and lists them on the Home screen under
+**Reopening your last set of documents.** Turn on **Settings → General →
+Workspace → Remember my last workspace** (off by default) and CardMirror
+remembers which files you had open when you last quit and lists them on the Home screen under
 **Last workspace**, each with a tick box. **Reopen** opens the ticked ones —
 untick the ones you don't want, or use **All** / **None** to flip the whole
 list. In the three-pane workspace each document goes back to the pane it was

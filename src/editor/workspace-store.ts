@@ -45,6 +45,8 @@
  * later if it comes back.
  */
 
+import { settings } from './settings.js';
+
 const LIVE_KEY = 'pmd-live-workspace';
 const LAST_KEY = 'pmd-last-workspace';
 
@@ -206,6 +208,7 @@ export function reportWindowWorkspace(
   mode: 'panes' | 'windows',
   docs: Array<{ path: unknown; filename: string | null; format: 'cmir' | 'docx' | null; slot?: WorkspaceSlotId | null }>,
 ): void {
+  if (!settings.get('lastWorkspaceEnabled')) return; // off: nothing is recorded
   const kept: WorkspaceDoc[] = [];
   for (const d of docs) {
     if (typeof d.path !== 'string' || !d.path || !d.filename) continue;
@@ -245,8 +248,10 @@ export function installWindowCloseForget(isAppQuitting: () => boolean): () => vo
   return () => window.removeEventListener('pagehide', onHide);
 }
 
-/** The snapshot the user can reopen, or null when there is none. */
+/** The snapshot the user can reopen, or null when there is none (or
+ *  the feature is off — the section then never renders). */
 export function lastWorkspace(): WorkspaceSnapshot | null {
+  if (!settings.get('lastWorkspaceEnabled')) return null;
   const parsed = readJson(LAST_KEY);
   if (!parsed || typeof parsed !== 'object') return null;
   const s = parsed as WorkspaceSnapshot;
@@ -276,6 +281,7 @@ function publish(snapshot: WorkspaceSnapshot | null): void {
  *  Workspace, which is exactly the set the user asked to keep.
  *  Returns the resulting snapshot. */
 export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
+  if (!settings.get('lastWorkspaceEnabled')) return null; // off: leave storage alone
   const folded = foldLive(readLive());
   writeJson(LIVE_KEY, {});
   let snapshot: WorkspaceSnapshot | null;
@@ -296,6 +302,7 @@ export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
  *  RIGHT NOW into LAST, without disturbing the live map. Returns the
  *  saved snapshot, or null when nothing reopenable is open. */
 export function saveWorkspaceNow(): WorkspaceSnapshot | null {
+  if (!settings.get('lastWorkspaceEnabled')) return null;
   const folded = foldLive(readLive());
   if (!folded) return null;
   const pinned: WorkspaceSnapshot = { ...carryExclusions(folded), pinned: true };
@@ -336,3 +343,12 @@ if (typeof window !== 'undefined') {
     if (e.key === LAST_KEY || e.key === null) publish(lastWorkspace());
   });
 }
+// The master switch flips what `lastWorkspace()` answers, so a Home
+// screen sitting open shows or hides the section as soon as it changes.
+let lastEnabled = settings.get('lastWorkspaceEnabled');
+settings.subscribe((s) => {
+  if (s.lastWorkspaceEnabled !== lastEnabled) {
+    lastEnabled = s.lastWorkspaceEnabled;
+    publish(lastWorkspace());
+  }
+});

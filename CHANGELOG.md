@@ -9,9 +9,11 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
-- **Last workspace — reopen what you had open last time.** CardMirror
-  now remembers the documents open when you last quit and lists them on
-  the Home screen under **Last workspace**, each with a tick box:
+- **Last workspace — reopen what you had open last time.** Off by
+  default: turn on Settings → General → Workspace → Remember my last
+  workspace, and CardMirror remembers the documents open when you last
+  quit and lists them on the Home screen under **Last workspace**, each
+  with a tick box:
   **Reopen** opens the ticked ones, and **All** / **None** flip the
   whole list, so coming back to a 15-document workspace doesn't have to
   mean reopening all 15. In the three-pane workspace each document

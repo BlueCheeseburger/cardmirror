@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { settings } from '../../src/editor/settings.js';
 import {
   reportWindowWorkspace,
   rolloverLastWorkspace,
@@ -30,6 +31,7 @@ const LAST_KEY = 'pmd-last-workspace';
 
 beforeEach(() => {
   localStorage.clear();
+  settings.set('lastWorkspaceEnabled', true);
 });
 
 function report(paths: string[]): void {
@@ -255,6 +257,21 @@ describe('workspace store', () => {
     } finally {
       uninstall();
     }
+  });
+
+  it('with the setting off (the default) nothing is recorded, offered, or saved', () => {
+    settings.set('lastWorkspaceEnabled', false);
+    report(['/w/a.cmir']);
+    expect(localStorage.getItem(LIVE_KEY)).toBeNull();
+    expect(saveWorkspaceNow()).toBeNull();
+    expect(rolloverLastWorkspace()).toBeNull();
+    // A snapshot left over from when it was on stays hidden until it is on again.
+    settings.set('lastWorkspaceEnabled', true);
+    report(['/w/a.cmir']);
+    rolloverLastWorkspace();
+    expect(lastWorkspace()?.docs).toHaveLength(1);
+    settings.set('lastWorkspaceEnabled', false);
+    expect(lastWorkspace()).toBeNull();
   });
 
   it('survives a corrupt record', () => {
