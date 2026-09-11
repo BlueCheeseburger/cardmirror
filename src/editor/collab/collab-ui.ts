@@ -589,6 +589,7 @@ function installSeams(
       ...cursors.plugins(),
     ],
     ownsUndo: () => true,
+    canRedo: () => undoManager.canRedo(),
     // Read-mode clamp (M4): swallow undo/redo entirely while reading — the Loro
     // undo transactions carry the binding meta (→ sync-origin) and would
     // otherwise sail through the read-mode lock and revert real edits.

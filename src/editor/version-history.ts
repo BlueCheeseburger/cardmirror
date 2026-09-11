@@ -23,7 +23,7 @@
  * history dialog's chrome, each version opening as a new unsaved doc.
  */
 
-import { EditorState } from 'prosemirror-state';
+import { EditorState, Plugin } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import { getElectronHost } from './host/index.js';
@@ -231,7 +231,7 @@ export function formatDelta(d: SnapshotDelta): string {
  * Returns the view — caller owns destroy() (the nav panel is torn
  * down with it via the returned view's destroy hook).
  */
-export function mountVersionPreview(pane: HTMLElement, doc: PMNode): EditorView {
+export function mountVersionPreview(pane: HTMLElement, doc: PMNode, opts: { plugins?: Plugin[] } = {}): EditorView {
   pane.innerHTML = '';
   const wrap = document.createElement('div');
   wrap.className = 'pmd-recover-preview-wrap';
@@ -245,7 +245,7 @@ export function mountVersionPreview(pane: HTMLElement, doc: PMNode): EditorView 
   wrap.append(navHost, scrollHost);
   pane.appendChild(wrap);
   const view = new EditorView(mountHost, {
-    state: EditorState.create({ doc }),
+    state: EditorState.create({ doc, plugins: opts.plugins ?? [] }),
     editable: () => false,
     // Hard read-only: selection may move (nav jumps set it), but no
     // transaction may change the doc — belt to `editable`'s braces,

@@ -48,6 +48,8 @@ import { setIcon } from './icons';
 import { readModePlugin } from './read-mode-plugin.js';
 import { READ_MODE_DRAG_META } from './reading-marker.js';
 import { checkedSliceFromJSON } from '../schema/slice-check.js';
+import { openCardPreview } from './card-preview-modal.js';
+import { isAnyOverlayOpen } from './overlay-stack.js';
 
 interface DropzoneMountOptions {
   parent: HTMLElement;
@@ -256,6 +258,9 @@ export class DropzoneController {
     label.title = item.label;
     row.appendChild(label);
 
+    // Look before you insert: a full-size read-only preview with Copy.
+    row.appendChild(previewRowButton(() => openCardPreview({ title: item.label, sliceJson: item.sliceJson })));
+
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'pmd-dropzone-row-delete';
@@ -270,7 +275,7 @@ export class DropzoneController {
 
     row.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
-      if ((e.target as HTMLElement).closest('.pmd-dropzone-row-delete')) return;
+      if ((e.target as HTMLElement).closest('.pmd-dropzone-row-delete, .pmd-row-preview')) return;
       this.dragOutSource = {
         startX: e.clientX,
         startY: e.clientY,
@@ -293,10 +298,13 @@ export class DropzoneController {
     if (!session) return;
     const srcView = session.view;
     for (const item of items) {
-      const raw = item.prebuilt ?? srcView.state.doc.slice(item.from, item.to);
       // Materialize any Live View before it's frozen onto the shelf — the source
-      // doc is gone by drop time, so the reference can't survive.
-      const slice = flattenSelfRefsInSlice(raw, srcView.state.doc, newHeadingId);
+      // doc is gone by drop time, so the reference can't survive. A prebuilt
+      // slice (a received card, a shelf item dragged onward) was materialized
+      // by whoever built it; flattening it against THIS doc would drop its
+      // cards, since its source is not here.
+      const slice =
+        item.prebuilt ?? flattenSelfRefsInSlice(srcView.state.doc.slice(item.from, item.to), srcView.state.doc, newHeadingId);
       const sliceJson = slice.toJSON();
       const type = item.type || inferTypeFromSlice(slice);
       const label = deriveDropzoneLabel(slice, type);
@@ -424,6 +432,9 @@ export class DropzoneController {
 
   private onDocumentPointerDown = (e: PointerEvent): void => {
     if (!this.open) return;
+    // A modal on top (the card preview opened from a row) takes the pointer:
+    // its Close button must not collapse the list the user is browsing.
+    if (isAnyOverlayOpen()) return;
     const t = e.target as Node | null;
     if (!t) return;
     if (this.root.contains(t)) return;
@@ -435,21 +446,40 @@ function newId(): string {
   return `dz-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** The row's Preview button — the compact accent-outline look of the
+ *  Receive pill's Join button. Shared by the shelf and the inbox rows;
+ *  the click never starts the row's drag-out. */
+export function previewRowButton(open: () => void): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pmd-row-preview';
+  btn.textContent = 'Preview';
+  btn.title = 'Look at these cards without inserting them';
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    open();
+  });
+  return btn;
+}
+
+/** The row's type chip. Every label is three letters so the chips line
+ *  up (user request 2026-09-09); the heading ones match the search
+ *  toolbar's file-object badges (`FILE_OBJECT_KIND_BADGES`). */
 export function typeBadge(type: string): { kind: string; label: string } {
   switch (type) {
-    case 'pocket': return { kind: 'pocket', label: 'POCKET' };
+    case 'pocket': return { kind: 'pocket', label: 'POC' };
     case 'hat': return { kind: 'hat', label: 'HAT' };
-    case 'block': return { kind: 'block', label: 'BLOCK' };
+    case 'block': return { kind: 'block', label: 'BLK' };
     case 'tag': return { kind: 'tag', label: 'TAG' };
-    case 'analytic': return { kind: 'analytic', label: 'ANALYTIC' };
-    case 'card': return { kind: 'card', label: 'CARD' };
-    case 'card_body': return { kind: 'card', label: 'BODY' };
-    case 'cite_paragraph': return { kind: 'cite', label: 'CITE' };
-    case 'analytic_unit': return { kind: 'analytic', label: 'ANALYTIC' };
-    case 'undertag': return { kind: 'tag', label: 'UNDERTAG' };
-    case 'paragraph': return { kind: 'text', label: 'TEXT' };
-    case 'text': return { kind: 'text', label: 'TEXT' };
-    default: return { kind: 'generic', label: 'ITEM' };
+    case 'analytic': return { kind: 'analytic', label: 'ANL' };
+    case 'card': return { kind: 'card', label: 'CRD' };
+    case 'card_body': return { kind: 'card', label: 'BDY' };
+    case 'cite_paragraph': return { kind: 'cite', label: 'CIT' };
+    case 'analytic_unit': return { kind: 'analytic', label: 'ANL' };
+    case 'undertag': return { kind: 'tag', label: 'UND' };
+    case 'paragraph': return { kind: 'text', label: 'TXT' };
+    case 'text': return { kind: 'text', label: 'TXT' };
+    default: return { kind: 'generic', label: 'ITM' };
   }
 }
 

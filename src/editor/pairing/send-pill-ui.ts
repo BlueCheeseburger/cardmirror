@@ -13,6 +13,7 @@
  */
 
 import { Fragment, Slice } from 'prosemirror-model';
+import { flattenSelfRefsInSlice } from '../self-transclusion.js';
 import type { EditorView } from 'prosemirror-view';
 import {
   dragController,
@@ -20,7 +21,7 @@ import {
   type DragSurface,
 } from '../drag-controller.js';
 import { deriveDropzoneLabel } from '../dropzone-store.js';
-import { schema } from '../../schema/index.js';
+import { schema, newHeadingId } from '../../schema/index.js';
 import { settings, type PairingGroup } from '../settings.js';
 import { showToast } from '../toast.js';
 import { relayClient, sendOutcomeToast, type SendItem } from './relay-client.js';
@@ -783,7 +784,12 @@ export class SendPillController {
     for (const item of items) {
       let slice: Slice;
       try {
-        slice = item.prebuilt ?? srcView.state.doc.slice(item.from, item.to);
+        // A live view can't travel to another machine: materialize it
+        // against the source doc while we have it (a prebuilt slice — a
+        // received card dragged onward — was materialized by its sender).
+        slice =
+          item.prebuilt ??
+          flattenSelfRefsInSlice(srcView.state.doc.slice(item.from, item.to), srcView.state.doc, newHeadingId);
       } catch {
         continue;
       }

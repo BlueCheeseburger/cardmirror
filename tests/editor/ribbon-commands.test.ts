@@ -792,6 +792,14 @@ describe('global hotkey fallback (focus outside the editor)', () => {
     expect(ribbonKeyStringFor(kbd({ key: 'F7', code: 'F7' }))).toBe('F7');
     expect(ribbonCommandForKey('F7')).toBe('setTag');
   });
+
+  it('names an Option-chord letter from e.code (macOS reports the layout character as e.key)', () => {
+    // Option-Shift-V types "◊" on a US Mac layout; the chord must still read as Alt-Shift-v.
+    expect(ribbonKeyStringFor(kbd({ key: '◊', code: 'KeyV', altKey: true, shiftKey: true }))).toBe('Alt-Shift-v');
+    expect(ribbonKeyStringFor(kbd({ key: 'å', code: 'KeyA', altKey: true }))).toBe('Alt-a');
+    // Without Alt, e.key is authoritative (layout-specific letters stay themselves).
+    expect(ribbonKeyStringFor(kbd({ key: 'é', code: 'KeyE' }))).toBe('é');
+  });
 });
 
 // ---- Selection-spanning application ----

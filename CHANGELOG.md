@@ -5,12 +5,196 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 1.10.0-bcb.1 — 2026-09-11
 
 ### Fixed
 
 - **Pressing Escape while capturing a keybinding no longer closes the Settings dialog** — it now cancels just the key-capture pill, as intended.
 - **Ctrl+key on Mac now displays as ⌃key** in keybinding chips, not ⌘key — Control and Command are now captured and stored as distinct modifiers, so binding Ctrl+something no longer shows up looking like a Cmd shortcut (which could be confusing since Cmd+\` for example is intercepted by macOS and never reaches CardMirror).
+
+### From upstream
+
+Syncs all changes from [v1.10.0](#1100--2026-09-10) and [v1.9.0](#190--2026-09-09). Highlights:
+- **Last workspace** — reopen the set of documents you had open when you last quit (Settings → General → Workspace → Remember my last workspace)
+- **Arrange Windows** — puts the speech document on one side and every other window on the other (Speech group, unbound by default)
+- **Mod-Y repeats the last action** (Word-style Repeat; off by default, under Editor behavior)
+- **Preview Received Card** — new command to preview without inserting; **Read mode in the preview**
+- **Live word count order** now configurable; **Square bracket** card number separators; **Underlines follow font color** option
+- **Alt+Letter keybindings on macOS** (e.g. Option+A) now resolve correctly in ribbon shortcuts
+- **Voice control, rebuilt** — hold-to-dictate, fourteen command words, new local engine, optional AI cleanup
+- **Bulk operations** now work in documents that contain a live view
+
+## 1.10.0 — 2026-09-10
+
+### Added
+
+- **Last workspace — reopen what you had open last time.** Off by
+  default: turn on Settings → General → Workspace → Remember my last
+  workspace, and CardMirror remembers the documents open when you last
+  quit and lists them on the Home screen under **Last workspace**, each
+  with a tick box:
+  **Reopen** opens the ticked ones, and **All** / **None** flip the
+  whole list, so coming back to a 15-document workspace doesn't have to
+  mean reopening all 15. In the three-pane workspace each document
+  returns to the pane it was in; in single-document mode each gets its
+  own window. Nothing is reopened behind your back — a launch with no
+  file lands on the Home screen as it always has, and the set waits
+  there until you click. Ticks are remembered between sessions, so a
+  document you untick stays unticked as the set changes from one
+  session to the next.
+  Closing everything before you quit clears the set — a clean quit
+  means a clean start — unless you deliberately saved it with the new
+  **Save Workspace** command, which keeps a working set on offer until
+  you quit with other documents open. **Reopen Last Workspace**
+  restores it without going via the Home screen, and **Forget** drops
+  it. (Both commands are unbound by default.) Desktop only — reopening
+  needs files on disk — and documents you never saved aren't included;
+  a file that has since moved or been deleted is skipped with a note,
+  and one that's already open (here or in another window) is never
+  duplicated. Closing a window before you quit drops its document from
+  the set, so what comes back is what was open when you quit. Thanks
+  to Cora (@coralynnkc)!
+- **Preview Received Card.** A command that opens the most recently
+  received card in the preview window without inserting it — the
+  keyboard twin of Insert Received Card. Unbound by default; give it a
+  key under Settings → Keyboard shortcuts.
+- **Read mode in the preview.** The card preview (Dropzone shelf and
+  Receive pill rows, and the new command) has a **Read mode** button
+  that shows only the marked text, the way read mode does in a
+  document. It stays on for later previews until you turn it off.
+- **Live word count for the whole document** is now a setting (on by
+  default, under Word counts). Off drops the bottom bar's first
+  readout so a narrow window can show only the specific live counts —
+  the selection, the enclosing card / block, what's left — that you
+  keep on. The Word Count button (Σ) still has the whole-document
+  count on demand.
+- **Order of the live word counts.** A setting for the left-to-right
+  order of the bar's readouts — Doc, Card, Left in any arrangement —
+  with one order while editing and another in read mode, since a
+  reader often wants what's left first and an editor the whole
+  document. Each pane in the three-pane workspace follows its own read
+  mode.
+- **Square brackets for card numbers.** The number and substructure
+  separators (Settings → Appearance → Card numbering) now offer a
+  trailing bracket — “1]”, “a]” — and full brackets — “[1]”, “[a]” —
+  alongside the other glyphs. Display-only, like every separator.
+- **Arrange Windows.** Verbatim's Window Arranger, ported: one command
+  (Speech group; unbound by default) puts the speech doc's window on
+  one side of the screen and every other window on the other, stacked,
+  full height. Settings → General → Workspace picks the side (right by
+  default) and the speech doc's share of the width (50% by default).
+  In the three-pane workspace it arranges slots instead: speech doc on
+  the chosen side, everything else stacked in the middle, the far slot
+  emptied, widths split by the same share. Desktop only.
+
+### Changed
+
+- **Voice control's shortcut is now Alt-Shift-V** (Option-Shift-V on a
+  Mac). Ctrl/Cmd-Shift-V is "paste and match style" in too many other
+  apps to sit on the microphone. Rebindable, as before.
+- **Voice control, rebuilt.** Voice now works the way people actually
+  edit: point with the mouse, say what to do. Fourteen command words
+  (line, box, glow, bare, shrink, tag, cite, card, chunk, ship, return,
+  delete, condense, undo) fire whenever voice is on, no wake word, and only
+  when the word is the whole thing you said, so conversation doesn't
+  trigger anything. Dictation is a hold-to-dictate key (default
+  Alt-Shift-Space; a foot pedal works): hold, speak, release — text lands at each pause, and "new paragraph" inside a dictation breaks the paragraph there. "sleep" parks the mic, "wake" resumes. For a mouse macro or a hand that cannot hold, a setting makes the key press-to-start and press-to-stop, with a silence limit (default six seconds) that stops a forgotten session. Dictated
+  text goes through the same autocorrect rules as typing, spoken
+  punctuation still works, and an optional AI cleanup pass on your own
+  key fixes self-corrections, fillers, punctuation and names before
+  the words land. A one-minute calibration learns how the recognizer
+  hears each command word in your voice, per microphone. Recognition
+  runs on a new local engine and model (about 650 MB, a one-time download; nothing voice-related ships in the installer) that
+  is far more accurate than before, including on author names, and
+  still keeps every bit of audio on your machine. Removed: spoken
+  targeting ("take", "pick", "go to"), paint mode, the large dictation
+  model download, and the old pen vocabulary.
+  **Known limitation in this release:** dictation is solid, but the
+  single-word commands are missed far more often than they should be —
+  the recognizer decodes an open vocabulary and a one-word utterance
+  often comes back as some other word. Voice control stays
+  experimental; a keyword-spotting pass for the command channel is
+  planned for the next release.
+
+## 1.9.0 — 2026-09-09
+
+### Added
+
+- **Mod-Y can repeat the last action, like Word.** A new setting under
+  Editor behavior, off by default. When on, Mod-Y with nothing left to
+  redo does the last editing action again at the cursor: the last
+  thing you typed, the same formatting on the new selection, one more
+  Backspace or Delete, the same paste, or the last command. Redo still
+  comes first, and Mod-Shift-Z is unchanged.
+- **Preview cards on the shelf and in the Receive pill.** Every row in
+  the dropzone and the Receive pill has a Preview button that opens
+  the cards full-size in a read-only view, with a nav pane beside
+  them, without inserting anything. Copy to clipboard copies the
+  cards for pasting anywhere; Close or Esc dismisses the preview.
+- **Favorite sections in the live-view picker.** Every row in the
+  "Live view of a section of this document" picker (and the linked-copy
+  and re-point pickers) has a star. Starred sections sit under a
+  Favorites block above the filter, so a section you mirror often is
+  one click with no search; the arrow keys visit favorites first.
+  Remembered per file on this computer.
+- **A file format per doc type for the silent saves.** Settings →
+  Files → Send / Read / Marked docs gains Send Doc, Read Doc and Marked
+  Cards format options: .docx (the default), .cmir, or the same as new
+  documents. They apply to the Save Send Doc, Save Read Doc and Save
+  Marked Cards commands and their shortcuts only; the Save As dialog
+  keeps its own format choice. (Before, these commands followed the
+  default format for new documents.)
+- **Save Read Doc command.** The Read Doc preset (the read-mode view of
+  the document) now has a silent command like Save Send Doc, with its
+  own destination, folder and format settings and the READ_ prefix.
+  Unbound by default: run it from the command bar or give it a key.
+- **Underlines follow font color (Appearance → Document typography, off
+  by default).** On, an underline under colored text is drawn in that
+  text's color, the way Word draws it, including the underline of hats
+  and blocks. Off keeps the classic look, with underlines in the body
+  text color. Display-only; files and exports are unchanged.
+
+### Changed
+
+- **Three-letter type chips in the dropzone and the Receive pill.** The
+  chips on shelf and inbox rows now read TAG, BLK, POC, HAT, CRD, ANL,
+  CIT, TXT and SES, the same length everywhere and matching the search
+  toolbar's badges for headings, so the rows line up.
+
+### Fixed
+
+- **Live views always travel as cards.** Copying or cutting a section
+  from the outline, Copy Current Heading, copying a Cmd-click
+  selection, and cutting in a shared document put a live view on the
+  clipboard as the view itself, so pasting into the speech document
+  showed "Source section not found in this document" instead of the
+  cards. The same happened to a live view inserted from another file
+  through the quick-card palette, and to one dragged onto the Send
+  pill. All of them now turn the view into its cards first, the way
+  a plain copy and Send to Speech always did. Pasting back into the
+  same document still keeps the live view.
+- **The cloud pill follows the pane you click into, even in read mode.**
+  In the three-pane workspace, clicking into a pane that was in read
+  mode, or clicking anywhere while the timer was popped out, left the
+  pill showing the previous pane's state, so a local document could
+  wear a "Dropbox" pill. The pill now re-renders on every change of
+  document; only state changes of the same document are held back
+  while reading or with the timer out.
+- **Bulk operations work in documents that contain a live view.** Condense,
+  Repair Paragraph Integrity, Replace All, Shrink and the formatting sweeps
+  used to do nothing at all, with no message, whenever their scope reached
+  into a live view, because the view's read-only guard threw the whole
+  operation away. The guard now refuses only edits made entirely through a
+  view; a document-wide operation goes through, and the view re-derives
+  from its source as it always did.
+- **The cloud pill leaves room at the bottom of the rightmost pane.**
+  Like the Send and Receive pills on the left, it now adds blank space
+  under the pane it sits over, so scrolling to the end still shows the
+  last line. Single-pane already had this.
+- **No stale document in the three-pane workspace.** When no pane was
+  focused, or the focused pane was empty, the workspace could still act
+  on the document that had been open before switching layouts. It now
+  reports no active document instead.
 
 ## 1.8.0-bcb.4.1 — 2026-09-10
 

@@ -1,23 +1,13 @@
 /**
- * Renderer-side mirror of the main process's typed voice events
- * (SPEC-voice.md §10, §12 item 2 — apps/desktop/src/voice/types.ts).
- * The renderer voice layer consumes these and nothing lower-level:
- * no raw audio, no transcription streams.
+ * Renderer-side mirror of the recognizer worker's typed events (voice
+ * v2 — apps/desktop/src/voice/types.ts). The renderer consumes these
+ * and nothing lower-level: no raw audio, no transcription streams.
  */
 
-export type VoiceMode = 'command' | 'dictation' | 'paint' | 'asleep';
+export type VoiceMode = 'command' | 'dictation' | 'asleep';
 
-export type PenName = 'underline' | 'highlight' | 'emphasis' | 'cite';
-
-export interface CommandArgs {
-  pen?: string;
-  color?: string;
-  n?: number;
-  dir?: 'left' | 'right' | 'up' | 'down';
-  unit?: 'words' | 'lines';
-  target?: string;
-  quote?: string;
-}
+/** The sticky pen: the mark a bare mark word arms for the next dictation. */
+export type PenName = 'underline' | 'highlight' | 'emphasis';
 
 export interface VoiceEventBase {
   utteranceId: number;
@@ -29,24 +19,13 @@ export interface VoiceEventBase {
 
 export type VoiceEvent = VoiceEventBase &
   (
-    | { kind: 'command'; verb: string; args: CommandArgs }
-    | {
-        kind: 'rejection';
-        reason: 'out-of-grammar' | 'low-confidence' | 'invalid-utterance';
-      }
-    | { kind: 'dictation'; text: string }
-    /** Streaming in-progress transcript while a dictation utterance is
-     *  open — rendered as provisional ghost text, never as document
-     *  content. Empty text clears the ghost. */
-    | { kind: 'dictation-partial'; text: string }
-    /** Streaming in-progress transcript while a PAINT utterance is open
-     *  — drives provisional ink (§6). Empty text clears. */
-    | { kind: 'paint-partial'; text: string }
+    | { kind: 'command'; verb: string }
+    | { kind: 'rejection'; reason: 'out-of-vocabulary' | 'too-long' }
+    | { kind: 'dictation'; text: string; durationMs: number }
     | { kind: 'mode'; from: VoiceMode; to: VoiceMode; trigger: string }
   );
 
-/** Out-of-band session-terminated notice (worker crash/exit) — arrives
- *  on the same channel but without utterance context. */
+/** Out-of-band session-terminated notice (worker crash/exit). */
 export interface VoiceEndedEvent {
   kind: 'ended';
   reason: string;
@@ -54,8 +33,6 @@ export interface VoiceEndedEvent {
 
 export interface VoiceLevel {
   rms: number;
-  gate: number;
-  calibrating: boolean;
-  /** Present only in the final 10 s before idle auto-sleep. */
+  speech: boolean;
   autoSleepRemainingMs?: number;
 }

@@ -5,7 +5,398 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 1.10.0-bcb.1 — 2026-09-11
+
+### Fixed: keybind editor — Escape and Ctrl+key on Mac
+
+**ESC while capturing a keybinding** previously closed the entire Settings dialog, because the keydown event reached the dialog's own escape handler. The fix intercepts ESC in the capture pill's keydown handler and calls `cancelCapture()` before the event can bubble up, so only the pill is dismissed.
+
+**Ctrl+key on Mac** was displayed as ⌘key (Cmd) in keybinding chips, because both `e.ctrlKey` and `e.metaKey` were mapped to `'Cmd'`. The fix distinguishes them: `e.ctrlKey` → `'Ctrl'`, `e.metaKey` → `'Cmd'`, with separate display strings `⌃` and `⌘` respectively. Stored bindings created under the old behavior that recorded `Cmd` when Ctrl was pressed will need to be re-set.
+
+### From upstream
+
+See CHANGELOG.md's [1.10.0-bcb.1 entry](CHANGELOG.md#1100-bcb1--2026-09-11) for the user-facing summary. The detailed rationale for each upstream change is in the [## 1.10.0](#1100--2026-09-10) and [## 1.9.0](#190--2026-09-09) sections below.
+
+## 1.10.0 — 2026-09-10
+
+### Added: Last workspace (reopen the documents you had open)
+
+Recents reopened one file at a time; the only machinery that ever
+reopened a SET of documents was the internal mode-switch reload. This
+generalizes that idea into a user-facing feature, without touching the
+mode-switch path.
+
+`workspace-store.ts` keeps two localStorage records. The LIVE map is
+windowId → the docs that window currently has open: every window
+rewrites its own entry whenever its open set changes (single-doc from
+`updateWindowTitle` / `setCurrentDocHandle`, which every doc-identity
+change funnels through — memoized on a path|name|format key so the
+hot dirty-marker refresh doesn't hammer storage; three-pane from
+`refreshLayout`, where every open / close / send-to-slot already
+lands, plus `setFocusedFile` for Save As). A window that closes on its own drops
+its entry — `installWindowCloseForget` asks main's `quitInitiated` flag
+synchronously from `pagehide`, the one place nothing can be awaited —
+so the offer is what was open at the QUIT; a quit, or a killed app,
+leaves entries exactly as they were, which is the point. The roll-over
+is skipped on a mode-switch reload, which is not a session boundary.
+The first window of an app session folds LIVE into the LAST snapshot
+at boot (`rolloverLastWorkspace`) and empties it, so LAST is always
+"the previous session", and the roll-over runs BEFORE this window
+mounts anything (then re-reports) so a doc mounted first isn't swept
+back out. A fold that finds nothing open CLEARS the snapshot —
+closing every document before quitting is taken at face value — with
+one exception: a snapshot written by the explicit Save Workspace
+command is `pinned` and survives an empty quit, which is the whole
+reason to reach for that command. Pinning protects against erasure,
+it doesn't freeze the row: a session that ends WITH documents open
+replaces the snapshot either way. Windows merge oldest-first,
+de-duplicated by path and capped at 24; live entries older than 30
+days are dropped on read, bounding the map against windows that
+vanished on a machine whose next launch never came.
+
+Restoring is mode-aware. Three-pane hands the whole set to the shell,
+which reads each file by path and loads it into the slot it was saved
+from (a snapshot taken in single-doc mode has no slots, so those fill
+slot1 → slot2 → slot3 in turn). Single-doc mounts the first document
+in place when this window still holds the pristine starter and spawns
+a window for each of the rest — the one-doc-per-window convention every
+other desktop flow follows. Both paths run the existing duplicate-open
+guards (`findOpenRecordByHandle` / `openPathCheck`), so a document
+already open here or in another window is skipped rather than opened
+twice, and both substitute blank-document bytes for a genuinely-empty
+file the way the Open dialog's `resolveOpenedFile` does. Files that
+moved or were deleted are counted and reported in one toast.
+
+The home-screen section lists the whole set as a checklist rather than
+a single all-or-nothing row: reopening 15 documents (15 windows, in
+single-doc mode) is rarely what the user wants, and seeing what's in
+the set is half the value. Ticks are tracked as an EXCLUSION set keyed
+to the snapshot's `savedAt`, so a snapshot that gains documents
+defaults them to ticked and a genuinely new snapshot resets the
+selection; All / None flip every row at once, and the summary label
+plus the Reopen button's disabled state are re-derived in place rather
+than by re-rendering (which would rebuild the list under the user's
+cursor). The button hands the callback a snapshot carrying only the
+ticked documents, so the renderer opens exactly what it's given. The
+list scrolls past ~18rem, like the sessions list, so a 24-document
+workspace can't push the utilities off screen.
+
+Ticks are durable, not a per-click filter: the untick list (`excluded`)
+lives on the snapshot in the store, carried across roll-overs for paths
+still in the set and pruned of everything else — so a document that
+leaves the set and returns months later comes back ticked rather than
+silently suppressed. One wrinkle worth recording: ticking a box
+deliberately does NOT re-render the list (that would rebuild it under
+the user's cursor), so the captured snapshot's `excluded` is stale by
+the time Reopen is clicked; the button sends what's on screen rather
+than what it was rendered from. A unit test covers exactly that (it
+caught the bug).
+
+Nothing reopens at launch. An at-launch restore was built first, behind
+an opt-in setting, and then removed after field use: with it on you
+never land on the home screen, so the checklist that decides WHAT comes
+back is somewhere you have to go hunting for — and a status-bar notice
+pointing at it was a workaround for a design that shouldn't need one.
+The roll-over now only MINTS the snapshot; the home screen is the single
+place that decides what reopens, which is also what a blank launch has
+always shown. `reopenWorkspaceOnLaunch` is gone with it.
+
+The feature is gated on the Electron host throughout: the web edition can't
+serialize a `FileSystemFileHandle`, exactly as in `recents-store.ts`,
+so docs with no string path are never recorded and the Home screen
+section is omitted rather than shown dead.
+
+### Changed: voice control v2 — mouse targets, voice acts
+
+v1 assumed no manual input, which forced an open-ended spoken targeting
+layer (decode a quoted phrase under a dynamic grammar of near-cursor
+words, align it against the document, disambiguate with badges) on a
+2022 Kaldi recognizer; that layer was where the frustration lived, and
+the engine made it worse. v2 assumes a pointing device: the mouse
+supplies the span, voice supplies the verb.
+
+**Engine.** Vosk is gone (models, libvosk binaries, koffi binding for
+voice, the downloaded Node runtime, the fetch script). Recognition is
+sherpa-onnx (N-API addon `sherpa-onnx-node`, per-platform packages
+asar-unpacked; `scripts/fetch-sherpa-cross.sh` materializes the non-host
+ones for the mac universal build) running Parakeet TDT 0.6B v2 int8 plus
+Silero VAD, downloaded once into `userData/voice-models` from the
+sherpa-onnx GitHub releases (`voice/ipc.ts`; legacy Vosk assets are
+removed on first run). The recognizer worker (`voice/worker.ts`, bundled
+by esbuild because it shares `src/editor/voice/vocabulary.ts`) runs
+under Electron-as-Node; the VAD wrapper asks for copied segments because
+Electron forbids N-API external buffers. Measured on Apple Silicon:
+~1 s model load, 30–45 ms per single word, ~120 ms per four seconds of
+speech.
+
+**Service (`voice/service.ts`).** Two channels over one 16 kHz PCM
+stream. Commands: Silero VAD (threshold 0.35) closes a segment after
+200 ms of silence; the segment is re-read from a ring buffer with 250 ms
+pre-roll and 120 ms post-roll (the detector opens late on soft onsets —
+"line" decoded as "fine" without it), padded with 300 ms of silence
+(+3/36 words in the spike), decoded in one shot, and matched with the
+whole-utterance rule (`matchCommand`: exact word, built-in homophone
+aliases such as site→cite and low→glow, per-user aliases, one character
+off for the six-letter-plus words only). Segments over 3 s are speech,
+not commands. While speech keeps the VAD open past 1.5 s, the trailing
+1.2 s is decoded every 400 ms so a command still lands in a noisy room,
+once per span. `voice sleep` / `voice wake` remain as phrases; auto-sleep
+as before. Dictation: `setDictation(true)` buffers PCM and stops feeding
+the VAD (structural suppression), `false` decodes the whole hold once
+and emits a `dictation` event; a tap under 300 ms lands nothing.
+
+**Renderer.** `dispatch.ts` maps the twelve words onto existing ribbon
+commands (applyUnderline / applyEmphasis / applyHighlight, shrink,
+condenseDefault, setTag, applyCite, a fresh card with a real tag id,
+delete-selection, the editor's own collab-aware undo). A mark word with
+no selection arms the sticky pen; `bare` clears marks or disarms.
+`landing.ts` types dictated text through the view's `handleTextInput`
+prop chunk by chunk (words whole, every other character alone) so the
+autocorrect engine and custom expansions fire as for typing; the pen is
+set as a stored mark before typing (underline via the ribbon's typing
+toggle, emphasis/highlight directly, highlight in the ribbon's color) so
+the utterance stays one adjacent history group — a mark step applied
+afterwards opens a second undo step. `cleanup.ts` runs the transcript
+through the existing AI provider (`callLlm`, user key, Haiku-class
+budget, 2.5 s timeout, falls back to the raw transcript; off in Lite,
+setting `voiceCleanupEnabled`). `hold-key.ts` is a capture-phase
+keydown/keyup pair on the configured chord (`voiceDictateKey`, default
+Mod-Shift-Space; auto-repeat swallowed; a modifier release or a window
+blur ends the hold). `calibrate.ts` prompts each word twice (optionally
+whispered), learns the recognizer's spellings as aliases
+(`learnAliases`, collisions reported not learned) into
+`voiceProfiles[deviceId]`, and pushes the profile to the live worker.
+Settings: `voiceDictationModel` removed; `voiceDictateKey`,
+`voiceCleanupEnabled`, `voiceModelEngine`, `voiceProfiles` added, with
+Accessibility rows for the model download, the hold key, cleanup and
+calibration. New ribbon command `calibrateVoice` (unbound, Voice group).
+Removed modules: align, paint-align, scopes, please-match, and the
+targeting verbs of dispatch; plugin state shrank to listening / mode /
+pen / log / ghost.
+
+**Tests.** vocabulary (matcher, aliases, phrases, learning), service
+(fake engine + scripted VAD: pre/post-roll, rejection, too-long,
+rolling fire with dedupe, sleep/wake, auto-sleep, held dictation and
+mutual exclusion), hold key, landing (chunking, input rules, pen,
+single undo step, spoken punctuation), dispatch, atomicity.
+
+## 1.9.0 — 2026-09-09
+
+### Added: Word-style Repeat on Mod-Y (setting, off by default)
+
+In Word, Ctrl+Y is Redo while there is something to redo and Repeat
+otherwise: the last action runs again at the current selection. A
+recorder plugin, placed ahead of every keymap and the paste plugin so
+its hooks see events first, remembers the last editing action per
+view: the last contiguous burst of typed text (a caret move ends the
+burst; the next keystroke starts a new one), Backspace or Delete
+(replayed as one more press of the same key, through the app's own
+tag-boundary and node-select handlers, which is Word's "Repeat Clear"
+rather than "delete the same text"), a paste (the same slice replaces
+the selection), or a ribbon command that changed the document,
+remembered by id so user key overrides and buttons are covered alike.
+Command runs are reported by the runner, which also wraps the
+keyboard-bound ribbon commands; the document is compared before and
+after, so a command that opened a dialog and changed nothing is not
+recorded. Any other document change (drag and drop, autocorrect's own
+fix-ups, remote edits) clears the record rather than being replayed
+wrong; undo and redo leave it alone, so after undoing and redoing
+everything Mod-Y repeats again, as in Word. Mod-Y falls through to
+Repeat only when redo is empty, checked against the plain history
+outside a session and the CRDT undo manager inside one; Mod-Shift-Z
+stays plain Redo; read mode claims the key and does nothing. Gated
+behind `repeatWithModY` (Settings → General → Editor behavior), off by
+default so Mod-Y behaves exactly as before. F4, Word's other Repeat
+key, converts blocks here and stays that way.
+
+### Added: Preview for shelf and received cards
+
+The only way to see what a Dropzone row or a Receive-pill row held was to
+insert it into a document. Each card row now carries a Preview button in
+the compact accent-outline style of the Receive pill's Join button
+(`previewRowButton`, shared by both pills; the click never starts the
+row's drag-out). `card-preview-modal.ts` rebuilds the stored slice through
+the validated parser, fits it into an empty document, and mounts the same
+read-only preview Recover Previous Version uses (`mountVersionPreview`: a
+real ProseMirror view under the document stylesheet with the real nav
+pane in read-only mode beside it) in a dialog sized to most of the
+window. Copy to clipboard puts the cards on the clipboard through the
+shared clipboard path (`serializeRangesForClipboard`, so the payload is
+exactly what a copy from a document produces), toasts the card count and
+closes; a busy clipboard toasts and keeps the preview open. Close, the ×,
+Esc and a click outside dismiss it. The dialog follows the modal
+conventions: overlay-stack token, `installModalKeys` (Escape handled;
+keys aimed at the preview's own surfaces run natively; nothing falls
+through to the document), `armDialogFocus` and focus restore on close.
+A payload that cannot be rebuilt toasts instead of opening.
+
+### Added: favorites in the in-document section picker
+
+Inserting a live view of a section you use often meant filtering the
+whole outline every time. `self-ref-picker.ts` rows now carry a star
+(☆/★, `aria-pressed`, a click never picks) and a Favorites block sits
+above the filter listing the starred sections in starring order, each
+with its own star to un-star and disabled (like its outline row) when
+the cursor sits inside it; a favorite whose heading is gone is simply
+not listed (kept in storage in case it comes back). Keyboard
+navigation moved from a row index to an element-based active slot so
+the arrows walk favorites first, then the visible outline; Left/Right
+still collapse and expand outline rows only; Enter picks the active
+slot. `self-ref-favorites.ts` holds the store: favorites are a UI
+preference, not document content, so they live outside the file —
+keyed by the document's path in localStorage (like the per-document
+autosave memory; capped at 300 documents, oldest-touched dropped) so
+starring never dirties the document or reaches collaborators — and in
+a per-view WeakMap for a document without a path (unsaved, or a web
+handle). Heading ids are the identity (stored in the file, stable
+through edits and moves). Tests cover the star round-trip from both
+places, persistence per path, the pathless fallback, missing and
+guarded favorites, and the arrow order.
+
+### Added: per-type format for the silent Send Doc / Marked Cards saves
+
+`runSaveSendDocFlow` and `runSaveMarkedCardsFlow` took their format from
+`defaultSaveFormat`, the Save As dialog's default for never-saved docs,
+so a user who keeps backfiles in .cmir but hands judges .docx had to go
+through the dialog every time. Two settings, `sendDocFormat` and
+`markedDocFormat` (`DocTypeFormat` = `docx` | `cmir` | `default`, default
+`docx` by user decision — what judges and opponents open — with `default`
+= follow `defaultSaveFormat` kept as an explicit choice; sanitized to
+`docx` on anything else), sit in the Send /
+Read / Marked docs section after each command's folder row, rendered by
+the new `docTypeFormat` kind (the default-format editor's radio chrome
+with a "Same as new documents" first choice). `effectiveDocTypeFormat`
+resolves `default` to `defaultSaveFormat`; both flows call it, so the
+filename extension, the serializer and the dialog-fallback filters all
+follow the per-type choice. The Save As dialog's presets are untouched
+by design (user decision).
+
+### Added: Save Read Doc (silent), for symmetry with Save Send Doc
+
+The Read Doc preset (read-mode export: what is read aloud, comments /
+analytics / undertags stripped) had no silent command. `saveReadDoc`
+joins the registry (label, aliases, ribbon Files group next to Save Send
+Doc, dispatcher, context) with an EMPTY default keybinding (user
+decision: symmetry, unbound), and `runSaveReadDocFlow` mirrors Save Send
+Doc through a shared `runSilentExportFlow(spec)` — the Send Doc flow's
+body, parameterized by the type's format / prefix / destination / folder
+settings and the preset's export options (taken verbatim from
+save-as-ui.ts) — so the two flows cannot drift. New settings
+`readDocDestination` (kind `readDocDestination`, the shared destination
+radio), `readDocFolder` and `readDocFormat`, sanitized like their Send
+Doc twins, sit after the Send Doc rows. The desktop `saveSendDoc` IPC is
+generic (folder-or-sibling target with a source-collision refusal) and
+serves both.
+
+### Added: "Underlines follow font color" (Appearance, off by default)
+
+In the editor an underline is painted by the element that declares it —
+the underline / emphasis / underlined-cite span (ordered outside
+`font_color` in the schema) or the hat / block heading itself — in that
+element's color, so colored words get a body-colored line; Word paints
+its colorless underlines (`<w:u>` with no color, as the exporter and the
+Heading 2 / 3 styles emit) in the run's color. `underlineFollowsFontColor`
+(boolean, default false, sanitized to `=== true`) mirrors to a root
+predicate class `pmd-underline-follows-color` from the settings
+subscriber and the initial apply, beside the typography flags. Under it,
+a `[data-color]` span (the font_color mark; the 000000 automatic run is
+excluded, it inherits) nested inside `.pmd-underline`, `.pmd-emphasis`,
+a direct `<u>`, an underlined `.pmd-cite`, `.pmd-block` or `.pmd-hat`
+re-declares the underline on itself with `currentColor` — the same
+inner-repaint technique the highlight / shading band rules use — so the
+line takes the run's displayed color (the dark-mode dark-band override
+changes that color, and currentColor follows). Hats get the double
+variant, single under `pmd-hat-underline-single`. Display-only: files
+and exports are untouched. A test pins the setting's placement and the
+stylesheet rules.
+
+### Changed: three-letter type chips on shelf and inbox rows
+
+`typeBadge` (dropzone-ui.ts, shared by the Receive pill) returned labels
+from three to eight letters (TAG … UNDERTAG), so the chips were ragged
+and the labels shifted every row's content. Every label is now three
+letters: the heading ones equal the search toolbar's file-object badges
+(POC / HAT / BLK / TAG), and the rest follow suit (CRD card, BDY card
+body, ANL analytic, CIT cite, UND undertag, TXT text, ITM other); the
+session-invite row's chip is SES (`SESSION_BADGE_LABEL`). Styling is
+unchanged. A test holds every label to three letters.
+
+### Fixed: live views escaped the clipboard as dangling references
+
+A live view (`self_ref`) holds no cards of its own: its children are
+derived from the source section on every render, and its DOM parses
+back as a live view. A plain copy runs the editor's `transformCopied`
+hook, which materializes each view against the source document and
+remembers the link-bearing original for a paste back into the same
+document. Several copy commands built their clipboard HTML themselves
+with the bare schema serializer and skipped that hook: the outline's
+Copy and Cut heading-and-contents, Copy Current Heading, the Cmd-click
+discontinuous copy, and cut-in-place's payload in a shared document
+(which probed the view for ProseMirror's clipboard serializer, a
+module function that is never a method, so it always fell through to
+the bare serializer). Pasting any of them into the speech document
+landed a view pointing at a heading that lives in the backfile, hence
+"Source section not found in this document" (field reports). Two
+capture-side paths leaked the same way: the quick-card palette's
+file-object insert sliced the browsed file and handed the slice to the
+insert path, which unwraps linked copies but cannot materialize a view
+without the source doc; and the Send pill's drag capture bundled the
+raw slice, so the receiver got a reference into a document it does not
+have. One helper (`clipboard-slice.ts`) now produces what the editor's
+own copy produces, views materialized and the same-document link
+remembered, and all four copy commands use it; the palette materializes
+against the file it browsed and the Send pill against the source view
+before bundling (a received card dragged onward is already
+materialized by its sender). A drift test pins each call site.
+
+### Fixed: bulk operations were silent no-ops in a document with a live view
+
+A live view's children are derived from its source section and re-derived
+after every change, so the view is read-only by way of a transaction filter
+that rejected any transaction with a step inside a view. Every bulk
+operation, condense, repair paragraph integrity, replace-all, shrink, the
+highlight and formatting sweeps, builds one transaction of per-range steps,
+so the moment one step reached into a view the whole batch was dropped,
+nothing anywhere changed, and nothing said why. The filter now rejects a
+transaction only when every ranged step lands inside a view, which is what
+typing into one, or replacing a single match inside one, looks like. A
+mixed transaction passes; the re-derive that runs in the same dispatch
+restores each view from its source, so the in-view steps cannot leave a
+mark, and the rest of the document gets the operation. Find does not skip
+view content (user decision): a match inside a view still counts and a
+single replace on it is still refused, since its twin at the source is the
+one to replace. Linked copies are unaffected: they are editable and were
+never filtered.
+
+### Fixed: the cloud pill's bottom runway in three-pane
+
+The Send / Receive / Dropzone tray adds bottom padding under the pane
+it sits over so the last line can scroll clear of the pills; when the
+cloud pill moved to the bottom-right, single-pane got the same runway
+but the three-pane case was left out. The right-tray positioning pass
+now tags the rightmost visible pane the way the left pass tags the
+leftmost, and a rule pads that pane's editor by the same amount while
+the pill is showing. A stylesheet test pins both rules to the left
+tray's value.
+
+### Fixed: the cloud pill froze across document switches
+
+The pill is deliberately frozen while the focused pane is in read mode
+or the timer is popped out, so a change of disk state cannot draw the
+eye mid-speech. The freeze covered every re-render, including the one
+for a change of active document, so in the three-pane workspace
+clicking into a read-mode pane, or into any pane with the timer out,
+kept the previous pane's pill: a local document showed "Dropbox"
+(field report 2026-09-09, reproduced live). The pill now records which
+document it last rendered for and re-renders whenever that changes,
+regardless of suppression; only same-document state transitions are
+held back. A second, quieter gap closed with it: the active-file lookup
+in three-pane mode fell back to the single-pane variables when the
+focused slot reported no visible document (an empty focused pane, or
+no focused slot after a close). Those variables are never cleared in
+three-pane mode and still named the pre-switch document, so the pill,
+and Save, could act on a document nobody was looking at. The lookup
+now reports no active document in that case.
 
 ## 1.8.0-bcb.4.1 — 2026-09-10
 

@@ -8,6 +8,7 @@
  * config can layer on later as its own module without colliding.
  */
 
+import { DEFAULT_WORD_COUNT_ORDER, isWordCountOrder, type WordCountOrder } from './word-count-order.js';
 import { isWordHighlightName, isHex6 } from './color-palette.js';
 import { sanitizeAcronymPattern, type AcronymPattern } from './acronym-patterns.js';
 import type { IconName } from './icons.js';
@@ -359,7 +360,9 @@ export type EnterAfterStyle =
 
 /** Separator glyph that trails a card-numbering number/letter (display-only).
  *  `period` = ".", `paren` = ")", `dash` = " -", `colon` = ":", `emdash` = "—",
- *  `endash` = "–", `doublehyphen` = "--", `triplehyphen` = "---". */
+ *  `endash` = "–", `doublehyphen` = "--", `triplehyphen` = "---",
+ *  `bracket` = "]" (like `paren`, trailing); `brackets` is the one that
+ *  WRAPS instead: "[1]" / "[a]". */
 export type NumberingSeparator =
   | 'period'
   | 'paren'
@@ -368,7 +371,9 @@ export type NumberingSeparator =
   | 'emdash'
   | 'endash'
   | 'doublehyphen'
-  | 'triplehyphen';
+  | 'triplehyphen'
+  | 'bracket'
+  | 'brackets';
 
 /** Runtime list of every valid `NumberingSeparator` (persistence validation +
  *  the settings-UI option lists read from this). */
@@ -381,9 +386,44 @@ export const NUMBERING_SEPARATORS: readonly NumberingSeparator[] = [
   'endash',
   'doublehyphen',
   'triplehyphen',
+  'bracket',
+  'brackets',
 ];
 
+/** What trails the number or letter for each separator — except
+ *  `brackets`, which wraps it (`applyNumberingSeparator` is the only
+ *  place that knows the difference). One table so the editor's
+ *  decorations, the ribbon faces, and the settings previews cannot
+ *  disagree. */
+export const NUMBERING_SEPARATOR_GLYPH: Record<NumberingSeparator, string> = {
+  period: '.',
+  paren: ')',
+  dash: ' -',
+  colon: ':',
+  emdash: '—',
+  endash: '–',
+  doublehyphen: '--',
+  triplehyphen: '---',
+  bracket: ']',
+  brackets: ']',
+};
+
+/** "1" + `period` → "1."; "a" + `brackets` → "[a]". */
+export function applyNumberingSeparator(text: string, sep: NumberingSeparator): string {
+  return sep === 'brackets' ? `[${text}]` : `${text}${NUMBERING_SEPARATOR_GLYPH[sep]}`;
+}
+
 /** Schema for all editor settings. Add new fields here with sensible defaults. */
+/** Per-type format for the silent Send / Read / Marked saves: `docx`
+ *  (the default — what judges and opponents open), `cmir`, or `default`
+ *  = follow `defaultSaveFormat`. */
+export type DocTypeFormat = 'default' | 'cmir' | 'docx';
+
+export interface VoiceCalibrationProfile {
+  aliases: Record<string, string[]>;
+  updatedAt: number;
+}
+
 export interface Settings {
   /** Width of the navigation pane in pixels. */
   navWidth: number;
@@ -476,6 +516,11 @@ export interface Settings {
    *  is `fixedFolder`. Empty falls the command back to the OS save
    *  dialog. */
   sendDocFolder: string;
+  /** Where Save Read Doc writes — same model as `sendDocDestination`. */
+  readDocDestination: 'sameFolder' | 'fixedFolder';
+  /** Destination folder for Save Read Doc when `readDocDestination` is
+   *  `fixedFolder`. Empty falls the command back to the OS save dialog. */
+  readDocFolder: string;
   /** Where Save Marked Cards writes — same model as `sendDocDestination`:
    *  `sameFolder` (default) drops it beside the source file, `fixedFolder`
    *  always writes into `markedCardsFolder`. Unresolvable → Save-As dialog. */
@@ -483,6 +528,15 @@ export interface Settings {
   /** Destination folder for Save Marked Cards when `markedCardsDestination`
    *  is `fixedFolder`. Empty falls the command back to the OS save dialog. */
   markedCardsFolder: string;
+  /** Format the Save Send Doc command (and its shortcut) writes: `docx`
+   *  (default), `cmir`, or `default` = follow `defaultSaveFormat`. The Save
+   *  As dialog's presets are untouched — the dialog has its own format
+   *  choice. */
+  sendDocFormat: DocTypeFormat;
+  /** Same for Save Read Doc. */
+  readDocFormat: DocTypeFormat;
+  /** Same for Save Marked Cards. */
+  markedDocFormat: DocTypeFormat;
   /** When on, the highlight marks in the doc render in the colors
    *  defined by `overrideHighlightSlots` rather than their stored
    *  colors. Display-only — does NOT mutate the doc, so saving
@@ -889,9 +943,27 @@ export interface Settings {
   voiceDashStyle:
     | 'em' | 'em-spaced' | 'en' | 'en-spaced' | 'hyphen' | 'hyphen-spaced'
     | 'double' | 'double-spaced' | 'triple' | 'triple-spaced';
-  /** Dictation decode model: shipped standard, or the opt-in large
-   *  download (better general-English accuracy; ~5 GB RAM). */
-  voiceDictationModel: 'standard' | 'large';
+  /** Voice v2: the hold-to-dictate chord (ribbon key-string format,
+   *  e.g. "Alt-Shift-Space"). Held = dictation; released = the utterance
+   *  lands. Commands need no key. */
+  voiceDictateKey: string;
+  /** The dictation key toggles (press to start, press to end) instead
+   *  of holding — for a macro that can only send a keystroke, or a hand
+   *  that cannot hold. */
+  voiceDictateToggle: boolean;
+  /** In toggle mode, this much silence ends the session by itself. */
+  voiceDictateSilenceSeconds: number;
+  /** Run dictated text through a short AI cleanup (self-corrections,
+   *  fillers, punctuation, names) on the user's own key before it lands.
+   *  Off in Lite; a failure lands the raw transcript. */
+  voiceCleanupEnabled: boolean;
+  /** Which local recognition model voice uses. One choice today; the
+   *  settings row shows its download state. */
+  voiceModelEngine: 'parakeet';
+  /** Calibration profiles keyed by microphone device id ('' = default):
+   *  the recognizer's own spellings of each command word for this
+   *  speaker and mic. Never document content. */
+  voiceProfiles: Record<string, VoiceCalibrationProfile>;
   /** Whether autosave is on. When true, doc-changing edits schedule
    *  a background write-back to the file's existing on-disk
    *  location, debounced by ~5s of idle. Fires for both `.cmir` and
@@ -923,6 +995,11 @@ export interface Settings {
    *  Convert Cards to Read Mode follows it. Off by default: the marked
    *  runs are what most people read at the podium. */
   readModeKeepEntireCite: boolean;
+  /** Word-style Repeat: when true, Mod-Y with nothing left to redo
+   *  re-runs the last editing action at the current selection (the
+   *  last burst of typing, a formatting command, Backspace/Delete, a
+   *  paste). Off by default: Mod-Y is plain Redo. */
+  repeatWithModY: boolean;
   /** When true, tint every run of card body text that falls AFTER a
    *  reading-position marker red, a visual record of what you didn't reach
    *  in a round. Bounded per-card; display-only (a decoration, never a doc
@@ -966,6 +1043,15 @@ export interface Settings {
    */
   liveSelectionWordCount: boolean;
   /**
+   * The live readout's first segment: the whole document's read-aloud
+   * word count with each reader's time. On by default. Off frees the
+   * bottom bar for the other live readouts (selection, enclosing
+   * container, what's left) — for a narrow window that only has room
+   * for the specific ones. The Word Count button still shows the
+   * whole-doc count on demand.
+   */
+  liveDocWordCount: boolean;
+  /**
    * Append the smallest enclosing container's read time (card /
    * analytic unit / block section) to the live word-count readout —
    * or the selection's when one exists. Cursor moves within a
@@ -982,6 +1068,22 @@ export interface Settings {
    * doc, so a cursor move only counts the child it lands in.
    */
   liveRemainingReadTime: boolean;
+  /** Left-to-right order of the live readouts while editing (see
+   *  `WordCountOrder` in live-read-time.ts). */
+  wordCountOrder: WordCountOrder;
+  /** …and while the document is in read mode. */
+  wordCountOrderReadMode: WordCountOrder;
+  /** Last workspace (the Home screen's "reopen what I had open"
+   *  section, the recording behind it, and the Save / Reopen Workspace
+   *  commands). Off by default: nothing is recorded and the section
+   *  never renders until it is on. */
+  lastWorkspaceEnabled: boolean;
+  /** Arrange Windows: which side of the screen the speech doc takes
+   *  (every other window goes to the other side). */
+  arrangeSpeechSide: 'left' | 'right';
+  /** Arrange Windows: the speech doc's share of the width, in percent
+   *  (10–90); the docs side gets the rest. */
+  arrangeSpeechPct: number;
   /**
    * Per-style font sizes (in points). See DisplaySizes for details.
    * Each field becomes a CSS custom property on `#editor`.
@@ -995,6 +1097,11 @@ export interface Settings {
    * DisplayTypography. Each becomes a class toggle on `#editor`.
    */
   displayTypography: DisplayTypography;
+  /** Draw an underline under colored text in that text's color (the way
+   *  Word draws a colorless underline), including the hat / block heading
+   *  underline. Off (default) keeps underlines in the body text color.
+   *  Display-only: the file and exports are unchanged. */
+  underlineFollowsFontColor: boolean;
   /** Per-style center/justify alignment overrides (accessibility).
    *  Applied as CSS custom properties; see StyleAlignments. */
   styleAlignments: StyleAlignments;
@@ -1672,6 +1779,11 @@ const DEFAULTS: Settings = {
   sendDocFolder: '',
   markedCardsDestination: 'sameFolder',
   markedCardsFolder: '',
+  readDocDestination: 'sameFolder',
+  readDocFolder: '',
+  sendDocFormat: 'docx',
+  readDocFormat: 'docx',
+  markedDocFormat: 'docx',
   theme: 'system',
   docTheme: 'light',
   iconSet: 'modern',
@@ -1752,17 +1864,22 @@ const DEFAULTS: Settings = {
   voiceInputDeviceId: '',
   voiceAutoSleepSeconds: 60,
   voiceDashStyle: 'em',
-  voiceDictationModel: 'standard',
-  // Default ON (2026-09-07). Purely a placeholder for the ribbon
-  // toggle's visual state before any doc has loaded — autosave itself
-  // is a no-op until the doc has a handle (been saved at least once),
-  // and the real per-file default lives in `autosave-prefs-store.ts`'s
-  // isAutosaveOnForPath (also on by default now, opt-out per file).
-  autosaveEnabled: true,
+  voiceDictateKey: 'Alt-Shift-Space',
+  voiceDictateToggle: false,
+  voiceDictateSilenceSeconds: 6,
+  voiceCleanupEnabled: true,
+  voiceModelEngine: 'parakeet',
+  voiceProfiles: {},
+  // Default OFF — autosave is meaningful only when the user has
+  // saved at least once (so we have a handle) AND the doc is in
+  // .cmir format. We let the user opt in via the ribbon toggle
+  // rather than silently saving in the background.
+  autosaveEnabled: false,
   readMode: false,
   hideEmphasisBordersInReadMode: false,
   readModeParagraphIntegrity: false,
   readModeKeepEntireCite: false,
+  repeatWithModY: false,
   markUnreadAfterMarker: false,
   defaultZoomPct: 100,
   chromeScalePct: 100,
@@ -1772,11 +1889,18 @@ const DEFAULTS: Settings = {
     { name: 'Reader 2', wpm: 250 },
   ],
   liveSelectionWordCount: false,
+  liveDocWordCount: true,
   liveContainerReadTime: true,
   liveRemainingReadTime: false,
+  wordCountOrder: 'doc-container-remaining',
+  wordCountOrderReadMode: 'doc-container-remaining',
+  lastWorkspaceEnabled: false,
+  arrangeSpeechSide: 'right',
+  arrangeSpeechPct: 50,
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
   displayParagraphSpacing: { ...DEFAULT_PARAGRAPH_SPACING },
   displayTypography: { ...DEFAULT_DISPLAY_TYPOGRAPHY },
+  underlineFollowsFontColor: false,
   styleAlignments: { ...DEFAULT_STYLE_ALIGNMENTS },
   maxTextWidthPx: 0,
   maxTextWidthAlign: 'center',
@@ -2036,10 +2160,12 @@ export interface SettingMeta {
     | 'speechDocFormat'
     | 'speechFilenameTemplate'
     | 'saveFormat'
+    | 'docTypeFormat'
     | 'formattingGapClass'
     | 'pasteCursor'
     | 'versionHistory'
     | 'sendDocDestination'
+    | 'readDocDestination'
     | 'markedCardsDestination'
     | 'findCategoryOrder'
     | 'color'
@@ -2055,10 +2181,14 @@ export interface SettingMeta {
     | 'timerPrepLabel'
     | 'timerPosition'
     | 'enterAfterStyle'
+    | 'wordCountOrder'
+    | 'arrangeSpeechSide'
     | 'password'
     | 'voiceInputDevice'
     | 'voiceDashStyle'
-    | 'voiceDictationModel'
+    | 'voiceModel'
+    | 'voiceHoldKey'
+    | 'voiceCalibrate'
     | 'clod'
     | 'clodCustomize'
     | 'aiCitePrompt'
@@ -2125,6 +2255,38 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Workspace',
     aliases: ['split view', 'split screen', 'multi pane', 'multi-doc'],
+  },
+  {
+    key: 'lastWorkspaceEnabled',
+    label: 'Remember my last workspace',
+    description:
+      'Off by default. On, CardMirror remembers the documents open when you quit and lists them on the Home screen under Last workspace with a tick box each, so a whole working set comes back in one click; Save Workspace and Reopen Last Workspace work from the command bar too. Off, nothing is recorded and the section never appears. Desktop only.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    electronOnly: true,
+    aliases: ['last workspace', 'reopen documents', 'restore session', 'remember open documents'],
+  },
+  {
+    key: 'arrangeSpeechSide',
+    label: 'Arrange Windows: speech doc side',
+    description:
+      "The Arrange Windows command (Speech group; unbound by default) puts the speech doc on one side of the screen and every other window on the other, stacked, all full height — Verbatim's Window Arranger. This is the side the speech doc takes. In the three-pane workspace the same command moves the speech doc into the slot on this side and stacks every other document in the middle slot. Desktop only.",
+    kind: 'arrangeSpeechSide',
+    category: 'general',
+    section: 'Workspace',
+    aliases: ['window arranger', 'arrange windows', 'speech doc side', 'speech left', 'speech right'],
+  },
+  {
+    key: 'arrangeSpeechPct',
+    label: 'Arrange Windows: speech doc share of the screen (%)',
+    description:
+      'How much of the width the speech doc takes when you run Arrange Windows; the other windows (or, in three-pane, the docs slot) get the rest. 10–90, default 50.',
+    kind: 'number',
+    min: 10,
+    category: 'general',
+    section: 'Workspace',
+    aliases: ['speech doc width', 'window split', 'arrange ratio'],
   },
   {
     key: 'multiDocLayoutMode',
@@ -2242,6 +2404,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Editor behavior',
     aliases: ['whole cite', 'full cite', 'entire cite', 'read mode cite', 'quals'],
   },
+  {
+    key: 'repeatWithModY',
+    label: 'Mod-Y repeats the last action',
+    description:
+      'Word-style Repeat. When on, Mod-Y with nothing left to redo does the last editing action again at the cursor: types the last thing you typed, applies the same formatting to the new selection, deletes one more character, pastes the same thing again, or re-runs the last command. Mod-Shift-Z stays plain Redo. Off by default: Mod-Y is Redo only.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Editor behavior',
+    aliases: ['repeat', 'repeat last action', 'ctrl y', 'cmd y', 'word repeat', 'f4'],
+  },
   // ─── General ────────────────────────────────────────────────────
   {
     key: 'readers',
@@ -2256,6 +2428,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Word counts',
     mobile: true,
+  },
+  {
+    key: 'liveDocWordCount',
+    label: 'Live word count for the whole document',
+    description:
+      "On by default. The bottom bar's first readout: the whole document's read-aloud word count with each reader's time. Turn it off to give the bar to the other live readouts — the selection, the enclosing card / block, and what's left — when a narrow window only has room for the specific ones. The Word Count button (Σ) still shows the whole-document count on demand.",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Word counts',
+    aliases: ['whole document word count', 'doc word count', 'hide word count', 'total word count'],
   },
   {
     key: 'liveSelectionWordCount',
@@ -2285,6 +2467,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Word counts',
     aliases: ['time left', 'remaining read time', 'words left', 'unread words'],
+  },
+  {
+    key: 'wordCountOrder',
+    label: 'Order of the live word counts',
+    description:
+      "Left-to-right order of the bottom bar's readouts — the whole document (Doc), the enclosing card / block (Card), and what's left (Left). One order while editing and another in read mode: a reader often wants what's left first, an editor the whole document. Readouts you have turned off simply drop out of the order.",
+    kind: 'wordCountOrder',
+    category: 'general',
+    section: 'Word counts',
+    aliases: ['word count order', 'readout order', 'bar order', 'read mode word count order'],
   },
   {
     key: 'findRememberLastQuery',
@@ -2442,7 +2634,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'sendDocDestination',
     label: 'Send Doc destination',
     description:
-      'Where the Save Send Doc command (and its shortcut) writes — a send doc is the document with comments, analytics, and undertags stripped, the same content the Save As dialog\'s Send Doc preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. The send doc is written in your default new-document format, and prefixed SEND_ when that option is on.',
+      'Where the Save Send Doc command (and its shortcut) writes — a send doc is the document with comments, analytics, and undertags stripped, the same content the Save As dialog\'s Send Doc preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. The send doc is written in the Send Doc format below, and prefixed SEND_ when that option is on.',
     kind: 'sendDocDestination',
     category: 'files',
     section: 'Send / Read / Marked docs',
@@ -2459,10 +2651,48 @@ export const SETTING_METADATA: SettingMeta[] = [
     electronOnly: true,
   },
   {
+    key: 'sendDocFormat',
+    label: 'Send Doc format',
+    description:
+      'The file format the Save Send Doc command (and its shortcut) writes: .docx (the default — what judges and opponents open), .cmir, or "Same as new documents" to follow the default file format for new documents above. The Save As dialog is not affected — it has its own format choice.',
+    kind: 'docTypeFormat',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+  },
+  {
+    key: 'readDocDestination',
+    label: 'Read Doc destination',
+    description:
+      'Where the Save Read Doc command writes — a read doc is the read-mode view of the document (what you would read aloud, with comments, analytics, and undertags stripped), the same content the Save As dialog\'s Read Doc preset produces. The command has no shortcut by default; run it from the command bar or give it a key. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. A doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the Save As dialog. Written in the Read Doc format below, and prefixed READ_ when that option is on.',
+    kind: 'readDocDestination',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    electronOnly: true,
+  },
+  {
+    key: 'readDocFolder',
+    label: 'Read Doc folder',
+    description:
+      'Destination folder for Save Read Doc when the destination above is set to "Fixed folder". Leave empty to fall back to the Save As dialog.',
+    kind: 'folder',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    electronOnly: true,
+  },
+  {
+    key: 'readDocFormat',
+    label: 'Read Doc format',
+    description:
+      'The file format the Save Read Doc command writes: .docx (default), .cmir, or "Same as new documents" to follow the default file format for new documents above. The Save As dialog is not affected.',
+    kind: 'docTypeFormat',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+  },
+  {
     key: 'markedCardsDestination',
     label: 'Marked Cards destination',
     description:
-      'Where the Save Marked Cards command (and its shortcut) writes — a marked-cards doc is just the cards that contain a reading marker, flattened (no headings, no analytics), the same content the Save As dialog\'s Marked Cards preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. Written in your default new-document format, and prefixed MARKED_ when that option is on.',
+      'Where the Save Marked Cards command (and its shortcut) writes — a marked-cards doc is just the cards that contain a reading marker, flattened (no headings, no analytics), the same content the Save As dialog\'s Marked Cards preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. Written in the Marked Cards format below, and prefixed MARKED_ when that option is on.',
     kind: 'markedCardsDestination',
     category: 'files',
     section: 'Send / Read / Marked docs',
@@ -2477,6 +2707,15 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'files',
     section: 'Send / Read / Marked docs',
     electronOnly: true,
+  },
+  {
+    key: 'markedDocFormat',
+    label: 'Marked Cards format',
+    description:
+      'The file format the Save Marked Cards command (and its shortcut) writes: .docx (default), .cmir, or "Same as new documents" to follow the default file format for new documents above. The Save As dialog is not affected.',
+    kind: 'docTypeFormat',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
   },
   {
     key: 'fileSearchRoots',
@@ -2718,17 +2957,19 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'voiceInputDeviceId',
     label: 'Voice control microphone',
     description:
-      `Which microphone the voice session (${ctrlOrCmdWord()}-Shift-V) listens to. "System default" follows the OS setting. Device names appear after the first voice session grants microphone access. Desktop only.`,
+      'Which microphone the voice session (Alt-Shift-V) listens to. "System default" follows the OS setting. Device names appear after the first voice session grants microphone access. Desktop only.',
     kind: 'voiceInputDevice',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
   },
   {
     key: 'voiceAutoSleepSeconds',
     label: 'Voice auto-sleep (seconds)',
     description:
-      'How long the voice session can sit idle before it parks itself asleep, so a forgotten mic doesn\'t eat a conversation. The status pill dims during the last ten seconds. Say "voice wake" to resume. 0 disables auto-sleep.',
+      'How long the voice session can sit idle before it parks itself asleep, so a forgotten mic doesn\'t eat a conversation. The status pill dims during the last ten seconds. Say "wake" to resume. 0 disables auto-sleep.',
     kind: 'number',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
   },
   {
     key: 'voiceDashStyle',
@@ -2737,14 +2978,71 @@ export const SETTING_METADATA: SettingMeta[] = [
       'The glyph dictated by the bare word "dash". Explicit names always work regardless of this setting: "hyphen", "n dash", "m dash", "double dash", "triple dash", each optionally followed by "spaced".',
     kind: 'voiceDashStyle',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
   },
   {
-    key: 'voiceDictationModel',
-    label: 'Dictation model',
+    key: 'voiceModelEngine',
+    label: 'Voice recognition model',
     description:
-      'The standard model — a one-time ~130 MB download — handles all commands and dictation, and is what voice needs to run at all. The large model — a one-time 1.8 GB download, ~5 GB of memory while voice is on — roughly halves dictation word errors on general English, and changes dictation only (not commands, targeting, paint, or debate jargon). Download either below, or let the first voice start fetch the standard model. Takes effect the next time voice starts.',
-    kind: 'voiceDictationModel',
+      'Voice control runs entirely on this computer. Its recognition model is a one-time download (about 640 MB) — the first voice start fetches it, or download it here ahead of a trip with no connection. Delete it to reclaim the space.',
+    kind: 'voiceModel',
     category: 'accessibility',
+    section: 'Voice control (experimental)',
+    electronOnly: true,
+  },
+  {
+    key: 'voiceDictateKey',
+    label: 'Dictation key',
+    description:
+      'Hold it, speak, release: the words land at the cursor — or, with the next setting on, press it once to start and again to stop. Commands need no key — they listen whenever voice is on. A foot pedal that acts as a keyboard key works here too. Default Alt-Shift-Space (Option-Shift-Space on a Mac). While voice is off the key does nothing, so a chord shared with another command still reaches that command.',
+    kind: 'voiceHoldKey',
+    category: 'accessibility',
+    section: 'Voice control (experimental)',
+    electronOnly: true,
+    aliases: ['push to talk', 'hold to dictate', 'pedal'],
+  },
+  {
+    key: 'voiceDictateToggle',
+    label: 'Press to start and stop dictation',
+    description:
+      'Instead of holding the dictation key, press it once to start and again to stop — for a mouse macro that can only send a keystroke, or when holding a key is not an option. A run of silence (next setting) also stops it, so a forgotten session never transcribes the room. Dictated text lands at each pause either way.',
+    kind: 'toggle',
+    category: 'accessibility',
+    section: 'Voice control (experimental)',
+    electronOnly: true,
+    aliases: ['toggle dictation', 'push to toggle', 'macro'],
+  },
+  {
+    key: 'voiceDictateSilenceSeconds',
+    label: 'Stop dictation after silence (seconds)',
+    description:
+      'With press-to-start-and-stop on, this many seconds without speech ends dictation and the mic goes back to listening for commands. Long enough to think; short enough that a forgotten session does not sit open. Default 6.',
+    kind: 'number',
+    min: 2,
+    category: 'accessibility',
+    section: 'Voice control (experimental)',
+    electronOnly: true,
+  },
+  {
+    key: 'voiceCleanupEnabled',
+    label: 'Clean up dictation with AI',
+    description:
+      'Before dictated words land, a short AI pass fixes mid-sentence self-corrections, drops fillers, adds punctuation, and spells names to match the document — on your own AI key (Settings → Comments & AI). Only the transcript and nearby text are sent, never audio. Turned off, the raw transcript lands; spoken punctuation ("period", "comma") still works either way.',
+    kind: 'toggle',
+    category: 'accessibility',
+    section: 'Voice control (experimental)',
+    electronOnly: true,
+  },
+  {
+    key: 'voiceProfiles',
+    label: 'Calibrate to your voice and microphone',
+    description:
+      'One minute: say each command word a couple of times through the microphone you use (and whispered, if you whisper). What the recognizer hears becomes your own spelling of each word, so commands fire for your voice specifically. Saved per microphone. Run it again any time — after a new headset, for example.',
+    kind: 'voiceCalibrate',
+    category: 'accessibility',
+    section: 'Voice control (experimental)',
+    electronOnly: true,
+    aliases: ['calibration', 'train voice', 'my voice'],
   },
 
   // ─── Appearance ─────────────────────────────────────────────────
@@ -2894,6 +3192,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['reading marker', 'unread', 'red text', 'marked'],
   },
   {
+    key: 'underlineFollowsFontColor',
+    label: 'Underlines follow font color',
+    description:
+      'When on, an underline under colored text is drawn in that text\'s color — the way Word draws it — including the underline of hats and blocks. Off (default) keeps the classic look: underlines stay the body text color whatever color the words are. Display-only; the file and exports are unchanged (Word already colors them).',
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Document typography',
+    aliases: ['underline color', 'colored underline', 'colored underlines'],
+  },
+  {
     key: 'showCharacterStyles',
     label: 'Show character styles in ribbon',
     description:
@@ -2973,7 +3281,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'cardNumberingFormat',
     label: 'Number separator',
     description:
-      'The glyph after a number — “1.”, “1)”, “1:”, “1 -”, and dash/hyphen variants. Display-only — the .docx carries a canonical format each reader can override.',
+      'The glyph after a number — “1.”, “1)”, “1]”, “1:”, “1 -”, dash/hyphen variants — or square brackets around it, “[1]”. Display-only — the .docx carries a canonical format each reader can override.',
     kind: 'cardNumberFormat',
     category: 'appearance',
     section: 'Card numbering',
@@ -2983,7 +3291,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'cardNumberingSubFormat',
     label: 'Substructure separator',
     description:
-      'The glyph after a substructure letter — configured independently of the number separator. Display-only.',
+      'The glyph after a substructure letter — “a.”, “a)”, “a]” and the rest — or square brackets around it, “[a]”. Configured independently of the number separator. Display-only.',
     kind: 'cardNumberSubFormat',
     category: 'appearance',
     section: 'Card numbering',
@@ -3895,8 +4203,9 @@ export function hiddenInLite(meta: SettingMeta): boolean {
   if (!isLiteBuild()) return false;
   if (meta.category === 'pairing' || meta.category === 'plugins') return true;
   const k = meta.key as string;
-  if (/^(ai|clod|anthropic|openrouter|gemini)/i.test(k)) return true;
-  return k === 'voiceDictationModel';
+  if (/^(ai|clod|anthropic|openrouter)/i.test(k)) return true;
+  // Lite is local-only: no model download, no AI cleanup of dictation.
+  return k === 'voiceModelEngine' || k === 'voiceCleanupEnabled';
 }
 
 export function toggleableSettingMetas(env: ToggleEnv): SettingMeta[] {
@@ -4250,6 +4559,28 @@ function sanitizeCustomAutocorrects(raw: unknown): Array<{ from: string; to: str
   return out;
 }
 
+function sanitizeDocTypeFormat(v: unknown): DocTypeFormat {
+  return v === 'cmir' || v === 'docx' || v === 'default' ? v : 'docx';
+}
+
+function sanitizeVoiceProfiles(raw: unknown): Record<string, VoiceCalibrationProfile> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, VoiceCalibrationProfile> = {};
+  for (const [device, prof] of Object.entries(raw as Record<string, unknown>)) {
+    if (!prof || typeof prof !== 'object') continue;
+    const aliasesRaw = (prof as { aliases?: unknown }).aliases;
+    const aliases: Record<string, string[]> = {};
+    if (aliasesRaw && typeof aliasesRaw === 'object') {
+      for (const [verb, list] of Object.entries(aliasesRaw as Record<string, unknown>)) {
+        if (Array.isArray(list)) aliases[verb] = list.filter((x): x is string => typeof x === 'string').slice(0, 20);
+      }
+    }
+    const updatedAt = (prof as { updatedAt?: unknown }).updatedAt;
+    out[device] = { aliases, updatedAt: typeof updatedAt === 'number' ? updatedAt : 0 };
+  }
+  return out;
+}
+
 function sanitize(s: Settings): Settings {
   return {
     navWidth: clamp(s.navWidth, 150, 800),
@@ -4292,6 +4623,12 @@ function sanitize(s: Settings): Settings {
       s.markedCardsDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
     markedCardsFolder:
       typeof s.markedCardsFolder === 'string' ? s.markedCardsFolder : '',
+    readDocDestination:
+      s.readDocDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
+    readDocFolder: typeof s.readDocFolder === 'string' ? s.readDocFolder : '',
+    sendDocFormat: sanitizeDocTypeFormat(s.sendDocFormat),
+    readDocFormat: sanitizeDocTypeFormat(s.readDocFormat),
+    markedDocFormat: sanitizeDocTypeFormat(s.markedDocFormat),
     theme:
       s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system',
     // Migration: pre-independent-doc-theme installs had a boolean
@@ -4456,12 +4793,24 @@ function sanitize(s: Settings): Settings {
     voiceDashStyle: VOICE_DASH_STYLES.includes(s.voiceDashStyle as Settings['voiceDashStyle'])
       ? (s.voiceDashStyle as Settings['voiceDashStyle'])
       : 'em',
-    voiceDictationModel: s.voiceDictationModel === 'large' ? 'large' : 'standard',
+    // Mod-Shift-Space was the first default and collides with Search
+    // Everything; a stored copy of it reads as the current default.
+    voiceDictateKey:
+      typeof s.voiceDictateKey === 'string' && s.voiceDictateKey !== 'Mod-Shift-Space' ? s.voiceDictateKey : 'Alt-Shift-Space',
+    voiceDictateToggle: s.voiceDictateToggle === true,
+    voiceDictateSilenceSeconds:
+      typeof s.voiceDictateSilenceSeconds === 'number' && Number.isFinite(s.voiceDictateSilenceSeconds)
+        ? Math.min(600, Math.max(2, Math.round(s.voiceDictateSilenceSeconds)))
+        : 6,
+    voiceCleanupEnabled: s.voiceCleanupEnabled === false ? false : true,
+    voiceModelEngine: 'parakeet',
+    voiceProfiles: sanitizeVoiceProfiles(s.voiceProfiles),
     autosaveEnabled: !!s.autosaveEnabled,
     readMode: !!s.readMode,
     hideEmphasisBordersInReadMode: !!s.hideEmphasisBordersInReadMode,
     readModeParagraphIntegrity: !!s.readModeParagraphIntegrity,
     readModeKeepEntireCite: !!s.readModeKeepEntireCite,
+    repeatWithModY: !!s.repeatWithModY,
     markUnreadAfterMarker: !!s.markUnreadAfterMarker,
     // A legacy persisted `zoomPct` is deliberately ignored — live body
     // zoom is transient; documents open at this default.
@@ -4470,12 +4819,22 @@ function sanitize(s: Settings): Settings {
     gestureZoom: !!s.gestureZoom,
     readers: sanitizeReaders(s.readers),
     liveSelectionWordCount: s.liveSelectionWordCount === true,
+    liveDocWordCount: s.liveDocWordCount === false ? false : true,
     // Default-on: preserve `false` only when explicitly set, so
     // installs upgrading from before this setting existed get it on.
     liveContainerReadTime: s.liveContainerReadTime === false ? false : true,
     liveRemainingReadTime: s.liveRemainingReadTime === true,
+    wordCountOrder: isWordCountOrder(s.wordCountOrder) ? s.wordCountOrder : DEFAULT_WORD_COUNT_ORDER,
+    wordCountOrderReadMode: isWordCountOrder(s.wordCountOrderReadMode) ? s.wordCountOrderReadMode : DEFAULT_WORD_COUNT_ORDER,
+    lastWorkspaceEnabled: s.lastWorkspaceEnabled === true,
+    arrangeSpeechSide: s.arrangeSpeechSide === 'left' ? 'left' : 'right',
+    arrangeSpeechPct:
+      typeof s.arrangeSpeechPct === 'number' && Number.isFinite(s.arrangeSpeechPct)
+        ? Math.min(90, Math.max(10, Math.round(s.arrangeSpeechPct)))
+        : 50,
     displaySizes: sanitizeDisplaySizes(s.displaySizes),
     displayParagraphSpacing: sanitizeParagraphSpacing(s.displayParagraphSpacing),
+    underlineFollowsFontColor: s.underlineFollowsFontColor === true,
     displayTypography: sanitizeDisplayTypography(s.displayTypography),
     styleAlignments: sanitizeStyleAlignments(s.styleAlignments),
     maxTextWidthPx:
@@ -5574,4 +5933,11 @@ export function migrateAutoUpdateOptOut(onMigrated: () => void): void {
     settings.set('checkForUpdatesOnLaunch', true);
     onMigrated();
   }
+}
+
+/** The format a silent per-type save writes: the type's own setting, or the
+ *  default new-document format when it says `default`. */
+export function effectiveDocTypeFormat(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'): 'cmir' | 'docx' {
+  const v = settings.get(key);
+  return v === 'default' ? settings.get('defaultSaveFormat') : v;
 }

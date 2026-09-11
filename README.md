@@ -8,6 +8,15 @@
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Changes
 > added on top of upstream, newest first:
 >
+> - **Synced with upstream through its 1.10.0 and 1.9.0 releases** —
+>   pulls in last workspace (reopen documents from your last session),
+>   Arrange Windows for speech/non-speech split-screen, Mod-Y repeat
+>   last action, voice control rebuilt with a new local engine, live
+>   word count ordering, and more. (main)
+> - **Pressing Escape while capturing a keybinding no longer closes the
+>   Settings dialog** — it now cancels just the key-capture pill.
+>   **Ctrl+key on Mac now correctly displays as ⌃key** in keybinding
+>   chips instead of ⌘key. (main)
 > - **Fixed a cross-window bug where opening a second window could
 >   wrongly mark one of its docs as the active speech doc too** (a
 >   doc-id collision, not an architecture bug — ids weren't unique
@@ -159,7 +168,17 @@ manual; [`PRIVACY.md`](./PRIVACY.md) for how CardMirror handles your data;
 
 You can find a video walkthrough of CardMirror's basic functions [here](https://www.youtube.com/playlist?list=PLXM5iwKNQkSs). 
 
-## Support Upstream Cardmirror
+## Sharing relay status
+
+[![Sharing relay status](https://uptime.betterstack.com/status-badges/v2/monitor/2xdk0.svg)](https://cardmirror.betteruptime.com/)
+
+Card sharing and collaboration sessions go through a small relay server.
+If sharing seems broken, check the live status page at
+**[cardmirror.betteruptime.com](https://cardmirror.betteruptime.com/)**
+before troubleshooting on your end. Everything else in CardMirror works
+offline and does not depend on it.
+
+## Support
 
 The core CardMirror editor is free, and built and maintained by one
 person. If it's useful to you, two ways to help keep it going:
@@ -201,7 +220,7 @@ launch CardMirror like any other app.
 
 ### Windows
 
-1. Download `CardMirror Setup x.x.x.exe`.
+1. Download `CardMirror-Setup-x.x.x.exe`.
 2. Run the installer (Next → Install → Finish).
 3. **First launch only.** SmartScreen shows "Windows protected your
    PC." Click **More info** → **Run anyway**.

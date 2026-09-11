@@ -16,7 +16,9 @@ import type { EditorView } from 'prosemirror-view';
 import { dragController, type DragItem } from '../drag-controller.js';
 import { schema } from '../../schema/index.js';
 import { setIcon } from '../icons';
-import { typeBadge, dropzoneDragLevel } from '../dropzone-ui.js';
+import { typeBadge, dropzoneDragLevel, previewRowButton } from '../dropzone-ui.js';
+import { openCardPreview } from '../card-preview-modal.js';
+import { isAnyOverlayOpen } from '../overlay-stack.js';
 import { settings } from '../settings.js';
 import {
   inboxItemCardCount, inboxStore, type InboxItem } from './inbox-store.js';
@@ -35,6 +37,9 @@ interface ReceivePillMountOptions {
 
 const PULSE_MS = 700;
 const REPEAT_MS = 10000;
+
+/** The session-invite row's type chip — three letters like every other chip. */
+export const SESSION_BADGE_LABEL = 'SES';
 
 export class ReceivePillController {
   private root!: HTMLDivElement;
@@ -312,6 +317,12 @@ export class ReceivePillController {
     main.appendChild(meta);
     row.appendChild(main);
 
+    // Look before you insert: a full-size read-only preview with Copy.
+    const subtitle = meta.textContent;
+    row.appendChild(
+      previewRowButton(() => openCardPreview({ title: item.label, subtitle, sliceJson: item.sliceJson })),
+    );
+
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'pmd-dropzone-row-delete';
@@ -326,7 +337,7 @@ export class ReceivePillController {
 
     row.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
-      if ((e.target as HTMLElement).closest('.pmd-dropzone-row-delete')) return;
+      if ((e.target as HTMLElement).closest('.pmd-dropzone-row-delete, .pmd-row-preview')) return;
       this.dragOutSource = {
         startX: e.clientX,
         startY: e.clientY,
@@ -364,7 +375,7 @@ export class ReceivePillController {
 
     const badge = document.createElement('span');
     badge.className = 'pmd-dropzone-row-type pmd-dropzone-row-type-generic';
-    badge.textContent = 'SESSION';
+    badge.textContent = SESSION_BADGE_LABEL;
     row.appendChild(badge);
 
     const main = document.createElement('span');
@@ -496,6 +507,9 @@ export class ReceivePillController {
 
   private onDocumentPointerDown = (e: PointerEvent): void => {
     if (!this.open) return;
+    // A modal on top (the card preview opened from a row) takes the pointer:
+    // its Close button must not collapse the list the user is browsing.
+    if (isAnyOverlayOpen()) return;
     const t = e.target as Node | null;
     if (!t) return;
     if (this.root.contains(t)) return;
@@ -505,7 +519,7 @@ export class ReceivePillController {
 
 /** Prefer your local nickname for the sender, then their self-declared
  *  name, then a short form of their code. */
-function resolveSender(item: InboxItem): string {
+export function resolveSender(item: InboxItem): string {
   if (item.senderCode) {
     const partner = settings
       .get('pairingPartners')
@@ -517,7 +531,7 @@ function resolveSender(item: InboxItem): string {
   return 'Unknown sender';
 }
 
-function relTime(ts: number): string {
+export function relTime(ts: number): string {
   const sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
   if (sec < 45) return 'just now';
   const min = Math.round(sec / 60);
@@ -526,4 +540,23 @@ function relTime(ts: number): string {
   if (hr < 24) return `${hr}h ago`;
   const day = Math.round(hr / 24);
   return `${day}d ago`;
+}
+
+/** Open the most-recently-received card in the preview (the same
+ *  preview a row's Preview button opens) without inserting anything —
+ *  the keyboard twin of Insert Received Card. False when the inbox is
+ *  empty or the payload cannot be rebuilt (the preview toasts for the
+ *  latter itself). Works with the home screen up: nothing is written. */
+export const NOTHING_RECEIVED_MESSAGE = 'Nothing received yet.';
+export function previewMostRecentReceived(): boolean {
+  const item = inboxStore.list().at(-1);
+  if (!item) {
+    showToast(NOTHING_RECEIVED_MESSAGE);
+    return false;
+  }
+  return openCardPreview({
+    title: item.label,
+    subtitle: `${resolveSender(item)} · ${relTime(item.receivedAt)}`,
+    sliceJson: item.sliceJson,
+  });
 }
