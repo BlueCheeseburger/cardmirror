@@ -5215,7 +5215,11 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   // Own chord, deliberately distinct from the three above so
   // send-to-speech and send-to-flow never fight over the same key.
   // Rebindable via Settings → Keybindings like everything else here.
-  sendToFlowAtCursor: 'Shift-`',
+  // '~' is the w3c-keyname / prosemirror-keymap canonical string for
+  // Shift+Backquote on a US layout. PM matches by e.key directly for
+  // single-char keys, which is '~' when Shift is held — so the shift
+  // is implicit, not a prefix. 'Shift-`' never fires in the editor.
+  sendToFlowAtCursor: '~',
   sendToStarred: '',
   sendToRecipient: '',
   insertReceivedAtCursor: 'Mod-p',
@@ -6847,16 +6851,23 @@ export function ribbonKeyStringFor(e: KeyboardEvent): string {
     // handler matches space bindings even when the editor is unfocused.
     parts.push('Space');
   } else if (e.code === 'Backquote') {
-    // Same idea as Space, for a different reason: on macOS, Option (Alt)
-    // held on the backtick key is a dead-key prefix (Option-` + a letter
-    // composes an accented character, e.g. à), so the browser can't
-    // resolve a single character synchronously and reports
-    // `e.key === 'Unidentified'` — which the fallback branch below would
-    // otherwise push verbatim as the key name (field report: captured as
-    // "Alt-Unidentified", a binding nothing could ever match). `e.code`
-    // names the physical key regardless of what it composes, so use it
-    // to normalize back to the literal backtick every time.
-    parts.push('`');
+    // Use e.code to name the physical key regardless of what it composes.
+    // On macOS, Option+` is a dead-key prefix; the browser reports
+    // e.key === 'Unidentified', which the fallback branch would push
+    // verbatim ("Alt-Unidentified") — never matching any binding.
+    //
+    // Shift case: Shift+Backquote produces e.key === '~' on US layouts.
+    // prosemirror-keymap (via w3c-keyname) uses the character directly —
+    // PM's own convention is that a single-char key implies Shift when
+    // the char is the shifted version, so '~' is the canonical string,
+    // not 'Shift-`'. Remove the 'Shift' we already pushed and use '~'.
+    if (e.shiftKey) {
+      const idx = parts.lastIndexOf('Shift');
+      if (idx !== -1) parts.splice(idx, 1);
+      parts.push('~');
+    } else {
+      parts.push('`');
+    }
   } else if (e.altKey && /^Key[A-Z]$/.test(e.code)) {
     // With Option held, macOS reports the layout's dead/special
     // character as e.key ("◊" for Option-Shift-V, "å" for Option-A),
@@ -6968,6 +6979,9 @@ export { isMacPlatform, ctrlOrCmdWord } from './platform.js';
 export function formatKeyForDisplay(key: string): string {
   if (!key) return '';
   const isMac = isMacPlatform();
+  // '~' is PM's canonical form for Shift+Backquote (the shifted char is
+  // used directly, no 'Shift-' prefix). Display it as users expect.
+  if (key === '~') return isMac ? '⇧`' : 'Shift+`';
   return key
     .replace(/Mod-/g, isMac ? '⌘' : 'Ctrl+')
     .replace(/Ctrl-/g, isMac ? '⌃' : 'Ctrl+')
