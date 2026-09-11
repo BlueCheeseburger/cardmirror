@@ -19,6 +19,8 @@ import { armDialogFocus, captureFocusForDialog, installModalKeys } from './text-
 import { serializeRangesForClipboard } from './clipboard-slice.js';
 import { writeClipboardHtml, CLIPBOARD_BUSY_MESSAGE } from './clipboard-write.js';
 import { showToast } from './toast.js';
+import { settings } from './settings.js';
+import { readModePlugin, PMD_READ_MODE_TOGGLE } from './read-mode-plugin.js';
 
 export interface CardPreviewOptions {
   /** Dialog title — the row's label. */
@@ -149,12 +151,19 @@ export function openCardPreview(opts: CardPreviewOptions): boolean {
   pane.className = 'pmd-recover-preview-pane pmd-card-preview-pane';
   body.appendChild(pane);
   dialog.appendChild(body);
-  previewView = mountDocPreview(pane, doc);
-  // Read mode is the same CSS the panes use (`.pmd-read-mode` on the
-  // editor host), so the preview shows exactly what the document would.
+  previewView = mountDocPreview(pane, doc, { plugins: [readModePlugin] });
+  // Read mode is what the panes do: the read-mode plugin's decorations
+  // hide the unmarked text (toggled through its transaction meta) and
+  // the host classes carry the CSS half, so the preview shows exactly
+  // what the document would.
   const editorHost = pane.querySelector<HTMLElement>('.pmd-recover-preview-editor');
   const applyReadMode = (on: boolean): void => {
     editorHost?.classList.toggle('pmd-read-mode', on);
+    editorHost?.classList.toggle('pmd-rm-no-emphasis-borders', on && settings.get('hideEmphasisBordersInReadMode'));
+    editorHost?.classList.toggle('pmd-rm-para-integrity', on && settings.get('readModeParagraphIntegrity'));
+    if (previewView && (readModePlugin.getState(previewView.state)?.on ?? false) !== on) {
+      previewView.dispatch(previewView.state.tr.setMeta(PMD_READ_MODE_TOGGLE, on));
+    }
     readBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
     readBtn.title = on ? 'Show everything (read mode is on)' : 'Show only the marked text';
   };

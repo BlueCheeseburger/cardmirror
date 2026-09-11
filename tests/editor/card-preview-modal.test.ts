@@ -221,6 +221,11 @@ describe('read mode in the preview', () => {
     expect(host().classList.contains('pmd-read-mode')).toBe(true);
     expect(readBtn().getAttribute('aria-pressed')).toBe('true');
     expect(previewReadModeOn()).toBe(true);
+    // The plugin half: unmarked body text carries the hide decoration.
+    expect(host().querySelector('.pmd-rm-hide'), 'read-mode decorations are live in the preview').not.toBeNull();
+    readBtn().click();
+    expect(host().querySelector('.pmd-rm-hide'), 'off again: decorations gone').toBeNull();
+    readBtn().click();
     closePreview();
 
     openCardPreview({ title: 'Two', sliceJson: sliceJson(card('Tag', 'body')) });
