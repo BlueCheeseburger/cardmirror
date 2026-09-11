@@ -68,14 +68,14 @@ time-boxed, logged fallback for the zip worker and a ribbon button
 that distinguishes "saving" from "paused" (e.g. a doc with a live
 view that Word can't hold open).
 
-### 8. Ctrl/Cmd+K hyperlink toggle
+### 8. Send taglines to PolicyDebateFlow
 
-Select text and press Ctrl/Cmd+K to add a hyperlink via a small
-dialog (display text pre-filled from your selection, URL field
-empty). Press it again with the cursor in — or a selection touching —
-an existing link to remove it. Selecting a URL before pressing
-Ctrl/Cmd+K pre-fills the "Link to" field so you don't have to
-re-paste it.
+Connect PolicyDebateFlow (Settings → PolicyDebateFlow — paste the
+pairing code it gives you) and press Shift-` with your cursor on a
+tagline to send it — tagline plus cite — straight into your open
+flow. It lands in the next empty cell and the flow's focus moves down
+one row automatically, so you can send a whole case without ever
+switching windows.
 
 ---
 

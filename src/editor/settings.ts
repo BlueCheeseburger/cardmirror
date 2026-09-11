@@ -76,6 +76,7 @@ const SECRET_SETTING_KEYS = new Set<string>([
   'geminiApiKey',
   'googleTranslateApiKey',
   'myMemoryEmail',
+  'policyDebateFlowToken',
 ]);
 
 /** Reader profile for read-time estimates: name + words-per-minute.
@@ -1497,6 +1498,16 @@ export interface Settings {
    *  malformed) falls back to the app's built-in default, mirroring
    *  `aiModelOverride` for Anthropic. */
   geminiModel: string;
+  /** Master switch for the PolicyDebateFlow integration (`flow-send.ts`).
+   *  Off by default — when off, `sendToFlowAtCursor` is a no-op and no
+   *  network calls are ever made, so the feature is fully inert for
+   *  anyone who hasn't turned it on. */
+  policyDebateFlowEnabled: boolean;
+  /** Personal API token pasted from PolicyDebateFlow (Settings there),
+   *  pairing this machine to that account. Grants access to all of the
+   *  user's flows; no per-flow scoping or expiration. Stored locally,
+   *  sent only to PolicyDebateFlow's own backend. Empty until connected. */
+  policyDebateFlowToken: string;
   /** Max output tokens for AI calls that don't set their own ceiling
    *  (cite, explain, flashcards, image alt text). Applies to both
    *  providers. Reasoning models count hidden thinking tokens against
@@ -1975,6 +1986,8 @@ const DEFAULTS: Settings = {
   openrouterModel: '',
   geminiApiKey: '',
   geminiModel: '',
+  policyDebateFlowEnabled: false,
+  policyDebateFlowToken: '',
   aiMaxTokens: 4096,
   aiFeaturesEnabled: false,
   clodEnabled: false,
@@ -2073,6 +2086,7 @@ export type SettingsCategory =
   | 'shortcuts'
   | 'comments-ai'
   | 'pairing'
+  | 'policyDebateFlow'
   | 'plugins';
 
 export type SettingCondition =
@@ -2204,7 +2218,8 @@ export interface SettingMeta {
     | 'pairingPartners'
     | 'pairingGroups'
     | 'pairingBlocked'
-    | 'pairingReceiveFlash';
+    | 'pairingReceiveFlash'
+    | 'flowConnection';
   /** Which tab this setting lives under in the settings dialog. */
   category: SettingsCategory;
   /** When set, this row is greyed out and its controls disabled unless
@@ -4116,6 +4131,27 @@ export const SETTING_METADATA: SettingMeta[] = [
     dependsOn: 'pairingEnabled',
     aliases: ['relay token', 'relay password'],
   },
+  // ─── PolicyDebateFlow ───────────────────────────────────────────
+  {
+    key: 'policyDebateFlowEnabled',
+    label: 'Connect to PolicyDebateFlow',
+    description:
+      'Send taglines straight to a PolicyDebateFlow flow while you work — put your cursor on (or near) a tagline and press the send-to-flow shortcut instead of switching windows. Off by default; no network calls happen until this is on and a token is connected below.',
+    kind: 'toggle',
+    category: 'policyDebateFlow',
+    electronOnly: true,
+    aliases: ['flow', 'policydebateflow', 'pdf', 'send to flow'],
+  },
+  {
+    key: 'policyDebateFlowToken',
+    label: 'PolicyDebateFlow connection',
+    description:
+      'Paste the personal token from PolicyDebateFlow (Settings there) to link this machine to your flows. The token grants access to all your flows and does not expire — disconnect here to revoke it.',
+    kind: 'flowConnection',
+    category: 'policyDebateFlow',
+    electronOnly: true,
+    dependsOn: 'policyDebateFlowEnabled',
+  },
   {
     key: 'pluginsEnabled',
     label: 'Enable plugins',
@@ -5051,6 +5087,11 @@ function sanitize(s: Settings): Settings {
     openrouterModel: typeof s.openrouterModel === 'string' ? s.openrouterModel.trim() : '',
     geminiApiKey: typeof s.geminiApiKey === 'string' ? s.geminiApiKey : DEFAULTS.geminiApiKey,
     geminiModel: typeof s.geminiModel === 'string' ? s.geminiModel.trim() : '',
+    policyDebateFlowEnabled: !isLiteBuild() && !!s.policyDebateFlowEnabled,
+    policyDebateFlowToken:
+      typeof s.policyDebateFlowToken === 'string'
+        ? s.policyDebateFlowToken
+        : DEFAULTS.policyDebateFlowToken,
     aiMaxTokens:
       typeof s.aiMaxTokens === 'number' && Number.isFinite(s.aiMaxTokens)
         ? Math.max(1024, Math.round(s.aiMaxTokens))

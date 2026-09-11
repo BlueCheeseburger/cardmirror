@@ -7723,6 +7723,22 @@ body.pmd-steady-cursor .pmd-italic-caret,
   flex-wrap: wrap;
 }
 
+.pmd-flow-connection {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.pmd-flow-connection-status {
+  font-size: 0.85rem;
+  color: var(--pmd-c-text-muted);
+}
+
+.pmd-flow-connection-status-on {
+  color: var(--pmd-c-success);
+}
+
 /* Code left, Copy/Regenerate pushed to the right edge — the auto margin
    absorbs the free space after the pill without stretching its
    background (same left-field / right-button shape as the account row). */

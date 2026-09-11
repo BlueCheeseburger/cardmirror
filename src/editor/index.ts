@@ -45,6 +45,7 @@ import {
   buildDeleteStructureTr,
   installIncomingSpeechSliceHandler,
 } from './speech-doc-send.js';
+import { sendTaglineToFlowAtCursor } from './flow-send.js';
 import { promptForChoice, promptForText, promptForRouteChoice, alertDialog, confirmDialog, installModalKeys, armDialogFocus } from './text-prompt.js';
 import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
 import { positionFloatingMenu } from './context-menu-position.js';
@@ -2222,6 +2223,12 @@ const ribbonContext: RibbonContext = {
       return;
     }
     if (view) void sendViewToDropzone(view);
+  },
+  // No multi-pane routing needed — unlike send-to-speech/dropzone, this
+  // always acts on whichever pane's view has the cursor, not a shared
+  // cross-pane destination.
+  sendToFlowAtCursor: () => {
+    if (view) sendTaglineToFlowAtCursor(view);
   },
   sendToStarred: () => {
     if (multiDocSendToStarred) {
