@@ -32,6 +32,11 @@ import {
   type WorkspaceDoc,
   type WorkspaceSnapshot,
 } from './workspace-store.js';
+import {
+  listRecentWorkspaces,
+  removeRecentWorkspace,
+  type RecentWorkspace,
+} from './recent-workspaces-store.js';
 import { learnStore, localToday } from './learn-store-host.js';
 import { getElectronHost } from './host/index.js';
 import { displayFilename } from './platform.js';
@@ -64,6 +69,9 @@ export interface HomeScreenCallbacks {
    *  does. Omitted on hosts that can't reopen by path (the web
    *  edition), in which case the Workspace section isn't rendered. */
   reopenWorkspace?: (snapshot: WorkspaceSnapshot) => void;
+  /** Reopen a recently closed multi-pane workspace from the Recent
+   *  Workspaces list. Omitted on hosts that can't reopen by path. */
+  reopenRecentWorkspace?: (ws: RecentWorkspace) => void;
   /** Open the Quick Cards manage overlay. */
   manageQuickCards: () => void;
   /** Open the .docx style cleaner. Electron-only (recursive folder I/O +
@@ -481,7 +489,7 @@ class HomeScreen {
    *  ever closed with 2+ real-path docs open). */
   private renderWorkspaces(): void {
     if (!this.workspacesSection) return;
-    const workspaces = this.callbacks?.reopenWorkspace ? listRecentWorkspaces() : [];
+    const workspaces = this.callbacks?.reopenRecentWorkspace ? listRecentWorkspaces() : [];
     this.workspacesSection.hidden = workspaces.length === 0;
     this.workspacesEl.innerHTML = '';
     for (const ws of workspaces) {
@@ -514,7 +522,7 @@ class HomeScreen {
     meta.textContent = `closed ${relativeTime(ws.closedAt)}`;
     row.appendChild(meta);
 
-    row.addEventListener('click', () => this.callbacks?.reopenWorkspace?.(ws));
+    row.addEventListener('click', () => this.callbacks?.reopenRecentWorkspace?.(ws));
     wrap.appendChild(row);
 
     const forget = document.createElement('button');
