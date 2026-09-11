@@ -7300,6 +7300,9 @@ const homeCallbacks: HomeScreenCallbacks = {
         reopenWorkspace: (snapshot: WorkspaceSnapshot): void => {
           void restoreWorkspace(snapshot);
         },
+        reopenRecentWorkspace: (ws: RecentWorkspace): void => {
+          reopenWorkspaceFromHome(ws);
+        },
       }
     : {}),
   resumeSession: (roomId: string) => {
