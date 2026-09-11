@@ -129,9 +129,11 @@ jobs:
         # `gh release view` exits non-zero if no release exists for
         # the tag, so the `||` falls through to creating one. If
         # the release already exists (e.g., a re-run of the
-        # workflow), update its notes in place from CHANGELOG so a
-        # re-trigger after a CHANGELOG fix actually refreshes the
-        # draft.
+        # workflow), re-draft it and update its notes in place from
+        # CHANGELOG — re-drafting is required so electron-builder's
+        # build jobs can find and upload to the release (it only
+        # uploads to open drafts). The publish-release job at the
+        # end re-publishes it live once all builds succeed.
         #
         # Pre-release detection: SemVer treats any tag with a `-`
         # after the version (e.g., `v0.1.0-alpha.3`, `v1.2.0-rc.1`,
@@ -150,8 +152,8 @@ jobs:
             echo "Detected pre-release tag $TAG — applying --prerelease."
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --notes-file release-notes.md $PRERELEASE_FLAG
-            echo "Updated existing release $TAG with refreshed notes."
+            gh release edit "$TAG" --draft --notes-file release-notes.md $PRERELEASE_FLAG
+            echo "Re-drafted existing release $TAG and refreshed notes."
           else
             gh release create "$TAG" --draft --title "$TAG" --notes-file release-notes.md $PRERELEASE_FLAG
             echo "Created draft release $TAG."
