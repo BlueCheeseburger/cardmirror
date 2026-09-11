@@ -30,6 +30,7 @@ describe('number separator', () => {
     ['endash', '1–'],
     ['doublehyphen', '1--'],
     ['triplehyphen', '1---'],
+    ['bracket', '1]'],
     ['brackets', '[1]'],
   ];
   for (const [sep, expected] of cases) {
@@ -51,6 +52,13 @@ describe('substructure separator + capitalization', () => {
     settings.set('cardNumberingSubFormat', 'period');
     expect(glyph(sub)).toBe('a.');
   });
+  it('a trailing bracket → "a]", capitalized "A]"', () => {
+    settings.set('cardNumberingSubFormat', 'bracket');
+    expect(glyph(sub)).toBe('a]');
+    settings.set('cardNumberingSubCapitalized', true);
+    expect(glyph(sub)).toBe('A]');
+  });
+
   it('brackets wrap the letter, capitalization included → "[A]"', () => {
     settings.set('cardNumberingSubFormat', 'brackets');
     expect(glyph(sub)).toBe('[a]');

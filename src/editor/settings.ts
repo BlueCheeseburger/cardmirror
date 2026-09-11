@@ -358,8 +358,9 @@ export type EnterAfterStyle =
 
 /** Separator glyph that trails a card-numbering number/letter (display-only).
  *  `period` = ".", `paren` = ")", `dash` = " -", `colon` = ":", `emdash` = "—",
- *  `endash` = "–", `doublehyphen` = "--", `triplehyphen` = "---"; `brackets`
- *  is the one that WRAPS instead: "[1]" / "[a]". */
+ *  `endash` = "–", `doublehyphen` = "--", `triplehyphen` = "---",
+ *  `bracket` = "]" (like `paren`, trailing); `brackets` is the one that
+ *  WRAPS instead: "[1]" / "[a]". */
 export type NumberingSeparator =
   | 'period'
   | 'paren'
@@ -369,6 +370,7 @@ export type NumberingSeparator =
   | 'endash'
   | 'doublehyphen'
   | 'triplehyphen'
+  | 'bracket'
   | 'brackets';
 
 /** Runtime list of every valid `NumberingSeparator` (persistence validation +
@@ -382,6 +384,7 @@ export const NUMBERING_SEPARATORS: readonly NumberingSeparator[] = [
   'endash',
   'doublehyphen',
   'triplehyphen',
+  'bracket',
   'brackets',
 ];
 
@@ -399,6 +402,7 @@ export const NUMBERING_SEPARATOR_GLYPH: Record<NumberingSeparator, string> = {
   endash: '–',
   doublehyphen: '--',
   triplehyphen: '---',
+  bracket: ']',
   brackets: ']',
 };
 
@@ -3096,7 +3100,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'cardNumberingFormat',
     label: 'Number separator',
     description:
-      'The glyph after a number — “1.”, “1)”, “1:”, “1 -”, dash/hyphen variants — or square brackets around it, “[1]”. Display-only — the .docx carries a canonical format each reader can override.',
+      'The glyph after a number — “1.”, “1)”, “1]”, “1:”, “1 -”, dash/hyphen variants — or square brackets around it, “[1]”. Display-only — the .docx carries a canonical format each reader can override.',
     kind: 'cardNumberFormat',
     category: 'appearance',
     section: 'Card numbering',
@@ -3106,7 +3110,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'cardNumberingSubFormat',
     label: 'Substructure separator',
     description:
-      'The glyph after a substructure letter, or square brackets around it — configured independently of the number separator. Display-only.',
+      'The glyph after a substructure letter — “a.”, “a)”, “a]” and the rest — or square brackets around it, “[a]”. Configured independently of the number separator. Display-only.',
     kind: 'cardNumberSubFormat',
     category: 'appearance',
     section: 'Card numbering',
