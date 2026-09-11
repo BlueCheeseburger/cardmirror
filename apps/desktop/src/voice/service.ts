@@ -40,6 +40,10 @@ export interface VoiceServiceOptions {
   onLevel?: (level: VoiceLevelEvent) => void;
   /** Clock override for tests. */
   now?: () => number;
+  /** Diagnostic tap: every command-mode utterance the recognizer decoded,
+   *  with what it heard — the worker can write these to disk so a
+   *  recognition problem can be reproduced offline. */
+  onSegment?: (samples: Float32Array, info: { text: string; verb: string | null; durationMs: number }) => void;
 }
 
 const LEVEL_EVERY_MS = 250;
@@ -351,10 +355,11 @@ export class VoiceService {
     }
     const text = this.opts.engine.decode(pad(samples)).trim();
     const tParse = this.now();
+    const verb = matchCommand(text, this.profile);
+    this.opts.onSegment?.(samples, { text, verb, durationMs });
     // Noise the VAD opened on but the recognizer heard nothing in: no
     // event at all (an empty "(not a command)" echo is just churn).
     if (!text) return;
-    const verb = matchCommand(text, this.profile);
     if (verb) {
       this.opts.onEvent({ ...base, raw: text, tParse, kind: 'command', verb });
       return;

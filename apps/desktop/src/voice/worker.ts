@@ -14,6 +14,9 @@ import { loadEngine } from './engine';
 import { VoiceService } from './service';
 import type { WorkerInbound, WorkerOutbound } from './types';
 
+const dumpDir = process.env.CARDMIRROR_VOICE_DUMP ? process.env.CARDMIRROR_VOICE_DUMP.replace(/\/$/, '') : null;
+if (dumpDir) { try { require('node:fs').mkdirSync(dumpDir, { recursive: true }); } catch { /* ignore */ } }
+
 let service: VoiceService | null = null;
 const send = (m: WorkerOutbound): void => {
   process.send?.(m);
@@ -24,6 +27,20 @@ process.on('message', (m: WorkerInbound) => {
     if (m.type === 'start') {
       const { engine, loadMs } = loadEngine({ modelDir: m.modelDir, vadModelPath: m.vadModelPath, threads: m.threads });
       service = new VoiceService({
+        // CARDMIRROR_VOICE_DUMP=<dir>: write every decoded command-mode
+        // utterance as a 16 kHz wav named with what was heard, so a field
+        // recognition problem can be replayed against other engines.
+        onSegment: dumpDir
+          ? (samples, info) => {
+              try {
+                const slug = (info.text || 'silence').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+                const file = `${dumpDir}/${Date.now()}-${info.verb ?? 'none'}-${slug}.wav`;
+                (require('sherpa-onnx-node') as { writeWave(f: string, w: { samples: Float32Array; sampleRate: number }): void }).writeWave(file, { samples, sampleRate: 16000 });
+              } catch (err) {
+                console.warn('voice dump failed', err);
+              }
+            }
+          : undefined,
         engine,
         autoSleepSeconds: m.autoSleepSeconds,
         profile: m.profile ?? null,
