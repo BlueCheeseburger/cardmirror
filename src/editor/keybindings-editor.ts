@@ -263,7 +263,12 @@ export function buildKeybindingsEditor(): HTMLElement {
 
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
+        // Stop propagation so the settings modal's own Escape-to-close
+        // handler (registered on document in the same capture phase,
+        // but after this listener) doesn't also fire. Registering on
+        // window (not document) ensures we always run first.
         e.preventDefault();
+        e.stopPropagation();
         exitCapture();
         return;
       }
@@ -321,11 +326,11 @@ export function buildKeybindingsEditor(): HTMLElement {
       setOverrideKeys(id, next);
       exitCapture();
     };
-    document.addEventListener('keydown', onKey, true);
+    window.addEventListener('keydown', onKey, true);
     activeCapture = {
       row,
       cleanup: () => {
-        document.removeEventListener('keydown', onKey, true);
+        window.removeEventListener('keydown', onKey, true);
         addBtn.style.display = '';
         capturePill.style.display = 'none';
         row.classList.remove('pmd-keybinding-row-capturing');
@@ -414,6 +419,7 @@ export function buildKeybindingsEditor(): HTMLElement {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
         exitCapture();
         return;
       }
@@ -431,11 +437,11 @@ export function buildKeybindingsEditor(): HTMLElement {
       setMacroKey(id, key); // → settings change → render() → exitCapture
       exitCapture();
     };
-    document.addEventListener('keydown', onKey, true);
+    window.addEventListener('keydown', onKey, true);
     activeCapture = {
       row,
       cleanup: () => {
-        document.removeEventListener('keydown', onKey, true);
+        window.removeEventListener('keydown', onKey, true);
         addBtn.style.display = '';
         capturePill.style.display = 'none';
         row.classList.remove('pmd-keybinding-row-capturing');
