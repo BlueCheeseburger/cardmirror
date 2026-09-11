@@ -37,10 +37,10 @@
 > 8. **Send taglines straight to a connected PolicyDebateFlow flow** — with
 >    your cursor on a tagline, Shift-` sends it (tagline + cite) into your
 >    open flow, landing in the next empty cell with the flow's focus
->    auto-advancing a row. Connect from Settings → PolicyDebateFlow.
->    Desktop only. (main; the status-bar Connected/Off chip and the
->    Shift-` fix that makes the shortcut actually fire are on open PR
->    [#24](https://github.com/BlueCheeseburger/cardmirror/pull/24))
+>    auto-advancing a row. Connect from Settings → PolicyDebateFlow, and a
+>    status-bar chip shows Connected/Off — click it to pause or resume the
+>    connection instantly, without re-pairing (the real disconnect, which
+>    does revoke your token, stays a Settings action). Desktop only. (main)
 
 CardMirror is a debate text editor focused on high school and college
 policy debate. It's a standalone

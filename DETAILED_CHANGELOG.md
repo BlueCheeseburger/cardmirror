@@ -68,6 +68,13 @@ for the user-facing summary. Full implementation details in
 [Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-flow-chipts-settingsts-settings-uits-ribbon-commandsts-ribbon-groupsts)
 below.
 
+### Fixed: PolicyDebateFlow status chip pauses instead of disconnecting
+
+See [CHANGELOG.md § 1.10.0-bcb.2.2](./CHANGELOG.md#1100-bcb22--2026-09-11)
+for the user-facing summary. Full implementation details in
+[Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-flow-chipts-settingsts-settings-uits-ribbon-commandsts-ribbon-groupsts)
+below.
+
 ---
 
 ## Fork Changes
@@ -312,21 +319,33 @@ outer-editor global-hotkey normalizer (`ribbonKeyStringFor`) to emit
 it as `Shift+\`` / `⇧\`` rather than a raw tilde.
 
 **Status-bar connection chip (`flow-chip.ts`).** A `Flow · Connected` /
-`Flow · Off` pill next to the collaboration chip, visible whenever
-`policyDebateFlowEnabled` is on. Mirrors the connection indicator
-PolicyDebateFlow itself shows in its own flow editor (green dot +
-"CardMirror: Connected" / grey + "Off"), polling `GET /pf-presence`
-every 30 seconds to match that cadence — a 401 clears the stored token
-and flips the chip to "Off" without the user needing to click
-anything, whether the token expired or was revoked from
-PolicyDebateFlow's side. Clicking the chip while connected disconnects;
-clicking it while off opens Settings. `POST /pf-revoke-token` (`{ok:
-true}` on success, 401 if the token was already gone) is now the
-shared disconnect path — pulled out to a `revokeFlowToken` export in
-`flow-send.ts` so both the status-bar chip and the existing Settings →
-PolicyDebateFlow "Disconnect" button call it, keeping PolicyDebateFlow's
-own status button in sync with either place CardMirror disconnects
-from.
+`Flow · Off` pill next to the collaboration chip, visible once a token
+is paired. Polls `GET /pf-presence` every 30 seconds while connected —
+a 401 means the token itself is dead (expired, or revoked from
+PolicyDebateFlow's side) and clears it, falling back to the same
+"never paired" Off state as before any token existed.
+
+Clicking the chip is a purely **local, instant pause/resume** — it
+toggles `policyDebateFlowEnabled` (the existing master switch,
+independent of the credential) and never touches the token or the
+network. That's deliberate, not a first draft: a hard revoke via
+`POST /pf-revoke-token` deletes the token row server-side, which
+can't be undone with a click — "reconnecting" after one would mean a
+whole new pairing (a fresh code generated in PolicyDebateFlow, pasted
+back into Settings), which is a bad trade for what's meant to be a
+quick status toggle. `flow-send.ts`'s own enabled check already makes
+`sendToFlowAtCursor` a no-op while paused, so the pause is fully
+effective without CardMirror losing its saved token or PolicyDebateFlow
+losing its side of the pairing. The one case where the chip still
+calls `openSettings()` instead of toggling: no token exists yet at
+all, since there's nothing local to pause — that's the "connect for
+the first time" bootstrap path, unchanged.
+
+The real disconnect (revoking the token) stays exactly where it was:
+Settings → PolicyDebateFlow's Disconnect button, via the shared
+`revokeFlowToken` export in `flow-send.ts` (`POST /pf-revoke-token`,
+`{ok: true}` on success or 401 if already gone, either way followed by
+clearing `policyDebateFlowToken` locally). The chip never calls it.
 
 ---
 

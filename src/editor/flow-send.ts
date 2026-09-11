@@ -78,11 +78,13 @@ interface PfPresence {
   focusedCol: number;
 }
 
-/** POST pf-revoke-token — the shared disconnect path for both the
- *  Settings → PolicyDebateFlow row (`buildFlowConnectionEditor` in
- *  `settings-ui.ts`) and the status-bar chip (`flow-chip.ts`), so
- *  disconnecting from either place also flips PolicyDebateFlow's own
- *  status indicator, not just CardMirror's stored token. `200 { ok:
+/** POST pf-revoke-token — the real "unpair" action, used only by
+ *  Settings → PolicyDebateFlow's Disconnect button
+ *  (`buildFlowConnectionEditor` in `settings-ui.ts`). The status-bar
+ *  chip (`flow-chip.ts`) deliberately does NOT call this: a revoke
+ *  deletes the token row server-side, which can't be undone with one
+ *  click, so the chip only pauses/resumes locally
+ *  (`policyDebateFlowEnabled`) and leaves the token alone. `200 { ok:
  *  true }` on success, `401` if the token was already invalid/missing
  *  — either way the caller proceeds to clear the token locally, which
  *  is the authoritative disconnect from CardMirror's side regardless
