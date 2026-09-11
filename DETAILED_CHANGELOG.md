@@ -10,12 +10,23 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## 1.10.0-bcb.2 — 2026-09-11
+## 1.10.0-bcb.2.1 — 2026-09-11
 
-### Added: Send taglines to PolicyDebateFlow
+### Added: Settings button on the home screen (`home-screen.ts`, `style.css`)
 
-See [CHANGELOG.md § 1.10.0-bcb.2](./CHANGELOG.md#1100-bcb2--2026-09-11) for the
-user-facing summary. Full implementation details in
+Wraps the existing "← Back to document" button and a new "Settings"
+button in a `div.pmd-home-header-nav` flex row. The Settings button
+lazy-imports `settings-ui.ts` on click (same pattern as the toolbar
+gear button in `index.ts`) and calls `openSettings()` — no new bundle
+cost. `.pmd-home-header-nav` is a flex row with `justify-content:
+space-between`, so Back and Settings sit at opposite ends; when no
+document is open (the normal launch state) only Settings shows, in
+the top-right corner.
+
+### Added / Fixed: PolicyDebateFlow status chip; the send-tagline hotkey now actually fires
+
+See [CHANGELOG.md § 1.10.0-bcb.2.1](./CHANGELOG.md#1100-bcb21--2026-09-11)
+for the user-facing summary. Full implementation details in
 [Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-flow-chipts-settingsts-settings-uits-ribbon-commandsts-ribbon-groupsts)
 below.
 
