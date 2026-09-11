@@ -184,7 +184,7 @@ Whenever a change is made to this fork — a new feature, a meaningful fix,
 anything a future contributor would want to know isn't in upstream — add
 or update an entry there in the same turn as the change, not as an
 afterthought. Keep entries short (a sentence or two) and note whether the
-change has landed on `main` or is still out on an open PR. Only have the top 8 biggest features that the fork has brought about, and sort the top 8 by how big the feature is to users. Add a reference to detailed_changelog.md and changelog.md to have our fork's changes there. Separate both changelog files into two sections. The bottom section will have every feature that came from upstream updates, and the top section will have every change made to this fork ever.
+change has landed on `main` or is still out on an open PR. Only have the top 8 biggest features that the fork has brought about in the README, and sort the top 8 by how big the feature is to users. Add a reference to detailed_changelog.md and changelog.md to have our fork's changes there. Separate both changelog files into two sections. The bottom section will have every feature that came from upstream updates, and the top section will have every change made to this fork ever.
 
 ## Update DETAILED_CHANGELOG.md and CHANGELOG.md with features made to this fork.
 
