@@ -8,6 +8,19 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.10.0-bcb.2 — 2026-09-11
+
+### Added
+
+- **Send taglines to PolicyDebateFlow.** Connect PolicyDebateFlow in Settings
+  (Settings → PolicyDebateFlow — paste the pairing code it gives you) and press
+  Shift-`` ` `` with your cursor on a card to send it — tagline plus cite —
+  straight into your open flow. It lands in the next empty cell and the flow's
+  focus moves down one row automatically, so you can send a whole case without
+  switching windows. Desktop only.
+
+---
+
 ## Fork Changes
 
 *This fork's own additions on top of upstream CardMirror, ranked by user impact.
