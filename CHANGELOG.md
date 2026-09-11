@@ -98,7 +98,10 @@ pairing code it gives you) and press Shift-` with your cursor on a
 tagline to send it — tagline plus cite — straight into your open
 flow. It lands in the next empty cell and the flow's focus moves down
 one row automatically, so you can send a whole case without ever
-switching windows.
+switching windows. A status-bar chip shows Connected/Off at a
+glance — click it to disconnect, or to jump to Settings when it's
+off — and updates on its own if the connection drops from either
+side.
 
 ---
 
