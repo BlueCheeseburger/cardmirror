@@ -18,6 +18,16 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   straight into your open flow. It lands in the next empty cell and the flow's
   focus moves down one row automatically, so you can send a whole case without
   switching windows. Desktop only.
+- **PolicyDebateFlow status chip.** A "Flow · Connected" / "Flow · Off" button
+  in the status bar shows your connection at a glance — click it to disconnect,
+  or to jump to Settings when it's off. It updates automatically if the
+  connection is dropped from either side, no need to check Settings.
+
+### Fixed
+
+- **Send taglines to PolicyDebateFlow never actually fired.** Shift-`` ` `` was
+  registered but silently did nothing — the keyboard shortcut is now wired up
+  correctly.
 
 ---
 

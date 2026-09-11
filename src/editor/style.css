@@ -2374,6 +2374,32 @@ body:not(.pmd-multi-doc) #app {
   font-variant-numeric: tabular-nums;
 }
 
+/* PolicyDebateFlow status chip: green-outlined when connected (matches
+   the success token used for "saved"/connected states elsewhere),
+   neutral outline when off. Hidden until policyDebateFlowEnabled. */
+#pf-flow-chip {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  background: transparent;
+  border: 1px solid var(--pmd-c-text-secondary);
+  border-radius: 999px;
+  padding: 0 0.6rem;
+  line-height: 1.4;
+  color: var(--pmd-c-text-secondary);
+}
+#pf-flow-chip[data-pf-state='connected'] {
+  color: var(--pmd-c-success);
+  border-color: var(--pmd-c-success);
+}
+#pf-flow-chip:hover {
+  color: #fff;
+  background: var(--pmd-c-text-secondary);
+}
+#pf-flow-chip[data-pf-state='connected']:hover {
+  background: var(--pmd-c-success);
+}
+
 .status-segment {
   display: flex;
 }
