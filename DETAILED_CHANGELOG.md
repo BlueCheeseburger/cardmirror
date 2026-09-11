@@ -293,7 +293,16 @@ Functions, no Supabase anon key needed on CardMirror's side:
 1. `GET /pf-presence` — confirms a flow tab is actually open (present
    within the last 5 minutes) and returns the live focused
    flow/sheet/row/col to target. `present: false` stops here with a
-   "PolicyDebateFlow isn't open" toast — no send attempted.
+   toast — no send attempted. Two distinct reasons, both `present:
+   false`: a closed/stale tab ("PolicyDebateFlow isn't open") vs. an
+   open tab whose OWN status chip paused delivery on PolicyDebateFlow's
+   side (`paused: true`, "PolicyDebateFlow is paused") — a real,
+   separate case from CardMirror's own local pause (which never even
+   reaches this call, since `sendTaglineToFlowAsync` bails on
+   `policyDebateFlowEnabled` being false before any network access).
+   `paused` itself degrades back to plain `present: false` after the
+   same 5-minute staleness window, by PolicyDebateFlow's own design —
+   not distinguished from a closed tab past that point.
 2. `POST /pf-send-card` with `{taglineText, authorDate, sheetId,
    targetRow, targetCol}` taken straight from the presence read. The
    flow tab applies it directly (walking forward from the target cell to
