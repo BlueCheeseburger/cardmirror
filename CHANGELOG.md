@@ -8,6 +8,20 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.10.0-bcb.2.2 — 2026-09-11
+
+### Fixed
+
+- **Recently closed multi-pane workspaces now actually appear on the home
+  screen.** The "reopen these documents together" suggestion (introduced in
+  1.10.0) was wired up but never rendered — closing a multi-pane window with
+  2+ saved docs recorded the suggestion, but nothing showed it. It's fixed
+  and merged into the Recent list: a workspace suggestion now appears right
+  alongside recently opened single files, sorted by recency, instead of
+  competing for its own separate space.
+
+---
+
 ## 1.10.0-bcb.2.1 — 2026-09-11
 
 ### Added
