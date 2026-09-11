@@ -1627,6 +1627,10 @@ class SettingsModal {
         void import('./ai/edit-prompt-modal.js').then((m) => m.openCitePromptEditor());
       });
       label.appendChild(btn);
+    } else if (meta.kind === 'flowConnection') {
+      row.appendChild(text);
+      row.appendChild(buildFlowConnectionEditor());
+      return row;
     } else if (meta.kind === 'pairingOwnCode') {
       row.appendChild(text);
       row.appendChild(buildPairingOwnCodeEditor());
@@ -3143,6 +3147,69 @@ function buildPairingOwnCodeEditor(): HTMLElement {
   refresh();
   const unsub = settings.subscribe(refresh);
   registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
+/** Paste-a-token connect/disconnect editor for the PolicyDebateFlow
+ *  integration (`flow-send.ts`). Deliberately simple compared to
+ *  `buildPairingAccountEditor` — no live Electron-side entitlement
+ *  polling, no seat/eviction handling. The token is saved locally on
+ *  "Connect" and shown as connected; real validation happens
+ *  naturally the first time a send is attempted (flow-send.ts's own
+ *  presence check + Bearer-token call surfaces a bad token there,
+ *  rather than duplicating that check here at save time). */
+function buildFlowConnectionEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-flow-connection';
+
+  const input = document.createElement('input');
+  input.type = 'password';
+  input.className = 'pmd-settings-text';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.placeholder = 'Paste your PolicyDebateFlow token';
+
+  const connectBtn = document.createElement('button');
+  connectBtn.type = 'button';
+  connectBtn.className = 'pmd-settings-btn';
+  connectBtn.textContent = 'Connect';
+
+  const status = document.createElement('span');
+  status.className = 'pmd-flow-connection-status';
+
+  const disconnectBtn = document.createElement('button');
+  disconnectBtn.type = 'button';
+  disconnectBtn.className = 'pmd-settings-btn';
+  disconnectBtn.textContent = 'Disconnect';
+
+  connectBtn.addEventListener('click', () => {
+    const token = input.value.trim();
+    if (!token) return;
+    settings.set('policyDebateFlowToken', token);
+    input.value = '';
+    showToast('Connected to PolicyDebateFlow');
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && input.value.trim()) connectBtn.click();
+  });
+  disconnectBtn.addEventListener('click', () => {
+    settings.set('policyDebateFlowToken', '');
+    showToast('Disconnected from PolicyDebateFlow');
+  });
+
+  function refresh(): void {
+    const connected = !!settings.get('policyDebateFlowToken');
+    status.textContent = connected ? 'Connected' : 'Not connected';
+    status.classList.toggle('pmd-flow-connection-status-on', connected);
+    input.style.display = connected ? 'none' : '';
+    connectBtn.style.display = connected ? 'none' : '';
+    disconnectBtn.style.display = connected ? '' : 'none';
+  }
+  refresh();
+  const unsub = settings.subscribe(refresh);
+  registerRowCleanup(wrap, () => unsub());
+
+  wrap.append(status, input, connectBtn, disconnectBtn);
   return wrap;
 }
 

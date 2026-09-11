@@ -198,36 +198,47 @@ then logs the fallback. The ribbon's Save button now distinguishes
 linked copy Word can't hold open), matching the visual feedback users
 already had for `.cmir` autosave.
 
-### 8. Ctrl/Cmd+K hyperlink toggle (`link-context-menu-plugin.ts`, `ribbon-commands.ts`, `text-prompt.ts`)
+### 8. Send taglines to PolicyDebateFlow (`flow-send.ts`, `settings.ts`, `settings-ui.ts`, `ribbon-commands.ts`, `ribbon-groups.ts`)
 
-**Introduced in 1.6.0-bcb.3.1. Extended in 1.8.0-bcb.1 (auto-fill URL from selection).**
+**Introduced in this release.**
 
-New `toggleLink` ribbon command, default-bound to `Mod-k`. Three cases:
+A new `sendToFlowAtCursor` ribbon command, default-bound to `Shift-\``
+(deliberately its own chord — the existing `` ` `` / `Alt-`` ` / `Mod-`` `
+family is send-to-speech and send-to-dropzone, and this needed to never
+collide with those). With the cursor on or inside a card, it walks up to
+the enclosing `card`/`analytic_unit`, reads its `tag` text and the
+cite-marked run(s) anywhere in the card (`collectCiteText`, the same
+helper the nav pane uses for its short-cite display) as the tagline and
+author/date, and sends both to a connected PolicyDebateFlow flow.
 
-- Collapsed cursor inside an existing link → removes just that link's
-  contiguous run, found via `findLinkRunAtPos` (extracted from `findLinkAt`
-  by splitting out coordinates→position from position→link-run walk).
-- Non-empty selection touching a link anywhere in range → removes the link
-  mark from the selection (`nodesBetween` scan + `removeMark`).
-- Non-empty selection with no link → `promptForLink` (new dialog in
-  `text-prompt.ts`, mirroring `promptForText`'s construction with a second
-  input) asks for display text (pre-filled from selection) and a URL.
-  Leaving the text field unedited adds the link mark over the existing
-  selection; changing it replaces the selected text with new link-marked text.
+New Settings → PolicyDebateFlow tab (`policyDebateFlowEnabled` toggle,
+off by default; `policyDebateFlowToken`, a `SECRET_SETTING_KEYS` entry
+like the AI provider keys) with a paste-a-token Connect/Disconnect
+editor (`buildFlowConnectionEditor`). The token comes from a
+"Generate pairing code" action in PolicyDebateFlow's own Settings
+(`pf_create_api_token()`); one token per user, and generating a new one
+or disconnecting on either side revokes it.
 
-Two bugs caught and fixed via testing in a real Electron build:
-1. `toggleLink` was added to `RIBBON_COMMAND_IDS` but not to
-   `ribbon-groups.ts`'s `RIBBON_GROUPS`, tripping a startup consistency
-   assertion.
-2. A double-click word-select sometimes grabs a trailing space. The dialog's
-   `.trim()` comparison to decide "did the user change the text" false-positived,
-   taking the destructive replace-text branch. Fixed by trimming whitespace out
-   of the actual link range up front (`linkFrom`/`linkTo`).
+Sending is two Bearer-token calls to PolicyDebateFlow's Supabase Edge
+Functions, no Supabase anon key needed on CardMirror's side:
 
-The 1.8.0-bcb.1 extension: when the selection looks like a URL (starts with
-`https://`, `www.`, or a recognized TLD like `.com`/`.org`), `promptForLink`'s
-URL field is pre-filled with that selection, so you don't have to paste the
-same URL twice.
+1. `GET /pf-presence` — confirms a flow tab is actually open (present
+   within the last 5 minutes) and returns the live focused
+   flow/sheet/row/col to target. `present: false` stops here with a
+   "PolicyDebateFlow isn't open" toast — no send attempted.
+2. `POST /pf-send-card` with `{taglineText, authorDate, sheetId,
+   targetRow, targetCol}` taken straight from the presence read. The
+   flow tab applies it directly (walking forward from the target cell to
+   the first empty one, never overwriting existing content) and
+   auto-advances its own focus down one row — fire-and-forget from
+   CardMirror's side, no apply-ack expected.
+
+A 401 from either call (expired/invalid token) shows a distinct
+"PolicyDebateFlow connection expired — re-pair in Settings" toast rather
+than the generic failure message. The integration is fully inert unless
+both the toggle is on and a token is saved — `flow-send.ts` is a
+self-contained module nothing else imports from, so it can be deleted
+wholesale without touching anything else. Desktop-only for now.
 
 ---
 
