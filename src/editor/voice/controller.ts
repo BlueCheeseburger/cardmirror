@@ -275,6 +275,7 @@ export class VoiceController {
   isDictating(): boolean {
     return this.holding;
   }
+
   endDictation(): void {
     if (!this.holding) return;
     this.holding = false;

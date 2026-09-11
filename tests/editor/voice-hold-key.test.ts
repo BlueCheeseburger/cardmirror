@@ -92,6 +92,15 @@ describe('hold-to-dictate', () => {
     expect(log).toEqual(['begin', 'begin', 'end']);
   });
 
+  it('with voice off, the chord passes through untouched (a shared binding still fires)', () => {
+    const log: string[] = [];
+    uninstall = installHoldToDictate({ getKey: () => 'Mod-Shift-Space', isActive: () => false, begin: () => log.push('begin'), end: () => log.push('end') });
+    const down = key('keydown', { key: ' ', code: 'Space', metaKey: true, shiftKey: true });
+    expect(down.defaultPrevented).toBe(false);
+    key('keyup', { key: ' ', code: 'Space', metaKey: true, shiftKey: true });
+    expect(log).toEqual([]);
+  });
+
   it('releaseEndsHold reads the chord', () => {
     expect(releaseEndsHold(new KeyboardEvent('keyup', { key: 'Meta' }), 'Mod-Shift-Space')).toBe(true);
     expect(releaseEndsHold(new KeyboardEvent('keyup', { key: 'Alt' }), 'Mod-Shift-Space')).toBe(false);

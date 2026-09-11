@@ -28,6 +28,10 @@ export interface HoldKeyDeps {
   getMode?: () => DictateKeyMode;
   /** Toggle mode asks this before deciding whether a press starts or ends. */
   isDictating?: () => boolean;
+  /** Whether a voice session is on at all. Off → the listener stays out
+   *  of the way entirely, so a chord shared with another command still
+   *  reaches that command (Search Everything sat on the first default). */
+  isActive?: () => boolean;
 }
 
 const MODIFIER_KEYS = new Set(['Control', 'Meta', 'Shift', 'Alt']);
@@ -52,6 +56,7 @@ export function installHoldToDictate(deps: HoldKeyDeps): () => void {
   const onDown = (e: KeyboardEvent): void => {
     const chord = deps.getKey();
     if (!chord) return;
+    if (!(deps.isActive?.() ?? true)) return;
     if ((deps.getMode?.() ?? 'hold') === 'toggle') {
       if (e.repeat || MODIFIER_KEYS.has(e.key) || ribbonKeyStringFor(e) !== chord) return;
       e.preventDefault();

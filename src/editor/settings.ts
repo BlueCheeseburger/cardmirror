@@ -894,7 +894,7 @@ export interface Settings {
     | 'em' | 'em-spaced' | 'en' | 'en-spaced' | 'hyphen' | 'hyphen-spaced'
     | 'double' | 'double-spaced' | 'triple' | 'triple-spaced';
   /** Voice v2: the hold-to-dictate chord (ribbon key-string format,
-   *  e.g. "Mod-Shift-Space"). Held = dictation; released = the utterance
+   *  e.g. "Alt-Shift-Space"). Held = dictation; released = the utterance
    *  lands. Commands need no key. */
   voiceDictateKey: string;
   /** The dictation key toggles (press to start, press to end) instead
@@ -1775,7 +1775,7 @@ const DEFAULTS: Settings = {
   voiceInputDeviceId: '',
   voiceAutoSleepSeconds: 60,
   voiceDashStyle: 'em',
-  voiceDictateKey: 'Mod-Shift-Space',
+  voiceDictateKey: 'Alt-Shift-Space',
   voiceDictateToggle: false,
   voiceDictateSilenceSeconds: 6,
   voiceCleanupEnabled: true,
@@ -2830,7 +2830,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'voiceDictateKey',
     label: 'Dictation key',
     description:
-      'Hold it, speak, release: the words land at the cursor — or, with the next setting on, press it once to start and again to stop. Commands need no key — they listen whenever voice is on. A foot pedal that acts as a keyboard key works here too. Default Mod-Shift-Space.',
+      'Hold it, speak, release: the words land at the cursor — or, with the next setting on, press it once to start and again to stop. Commands need no key — they listen whenever voice is on. A foot pedal that acts as a keyboard key works here too. Default Alt-Shift-Space (Option-Shift-Space on a Mac). While voice is off the key does nothing, so a chord shared with another command still reaches that command.',
     kind: 'voiceHoldKey',
     category: 'accessibility',
     electronOnly: true,
@@ -4576,7 +4576,10 @@ function sanitize(s: Settings): Settings {
     voiceDashStyle: VOICE_DASH_STYLES.includes(s.voiceDashStyle as Settings['voiceDashStyle'])
       ? (s.voiceDashStyle as Settings['voiceDashStyle'])
       : 'em',
-    voiceDictateKey: typeof s.voiceDictateKey === 'string' ? s.voiceDictateKey : 'Mod-Shift-Space',
+    // Mod-Shift-Space was the first default and collides with Search
+    // Everything; a stored copy of it reads as the current default.
+    voiceDictateKey:
+      typeof s.voiceDictateKey === 'string' && s.voiceDictateKey !== 'Mod-Shift-Space' ? s.voiceDictateKey : 'Alt-Shift-Space',
     voiceDictateToggle: s.voiceDictateToggle === true,
     voiceDictateSilenceSeconds:
       typeof s.voiceDictateSilenceSeconds === 'number' && Number.isFinite(s.voiceDictateSilenceSeconds)

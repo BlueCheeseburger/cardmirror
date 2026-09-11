@@ -5737,6 +5737,7 @@ installHoldToDictate({
   getKey: () => settings.get('voiceDictateKey'),
   getMode: () => (settings.get('voiceDictateToggle') ? 'toggle' : 'hold'),
   isDictating: () => getVoiceController().isDictating(),
+  isActive: () => getVoiceController().isActive,
   begin: () => getVoiceController().beginDictation(),
   end: () => getVoiceController().endDictation(),
 });

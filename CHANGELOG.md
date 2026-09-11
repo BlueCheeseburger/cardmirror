@@ -18,7 +18,7 @@ see `DETAILED_CHANGELOG.md`.
   condense, undo) fire whenever voice is on, no wake word, and only
   when the word is the whole thing you said, so conversation doesn't
   trigger anything. Dictation is a hold-to-dictate key (default
-  Mod-Shift-Space; a foot pedal works): hold, speak, release — text lands at each pause. For a mouse macro or a hand that cannot hold, a setting makes the key press-to-start and press-to-stop, with a silence limit (default six seconds) that stops a forgotten session. Dictated
+  Alt-Shift-Space; a foot pedal works): hold, speak, release — text lands at each pause. For a mouse macro or a hand that cannot hold, a setting makes the key press-to-start and press-to-stop, with a silence limit (default six seconds) that stops a forgotten session. Dictated
   text goes through the same autocorrect rules as typing, spoken
   punctuation still works, and an optional AI cleanup pass on your own
   key fixes self-corrections, fillers, punctuation and names before

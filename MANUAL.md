@@ -1921,8 +1921,8 @@ always agree.
 
 ### Dictation
 
-Dictation uses a **dictation key** (default **Mod-Shift-Space**,
-changeable under Settings → Accessibility → Dictation key). Hold it,
+Dictation uses a **dictation key** (default **Alt-Shift-Space** — Option-Shift-Space
+on a Mac — changeable under Settings → Accessibility → Dictation key). Hold it,
 speak, release: the words land at the cursor. A foot pedal that acts as a
 keyboard key works the same way. While the key is held, command words are
 ignored — say "delete the paragraph" in a dictation and it types. With text
