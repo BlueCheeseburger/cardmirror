@@ -51,6 +51,23 @@ if (typeof Range !== 'undefined') {
   }
 }
 
+// Node.js 21+ exposes `navigator` as a global, and on macOS its
+// `navigator.platform` reflects the host OS ('MacIntel'). That makes
+// `isMacPlatform()` return true in tests that expect cross-platform
+// (non-Mac) key-modifier behaviour. Force it to empty so platform
+// detection is deterministic regardless of which CI OS runs the suite.
+if (typeof navigator !== 'undefined') {
+  try {
+    Object.defineProperty(navigator, 'platform', {
+      value: '',
+      configurable: true,
+      writable: true,
+    });
+  } catch {
+    // read-only in some environments — ignore; tests will adapt
+  }
+}
+
 // Same layout-free gap: jsdom has no `Element.scrollIntoView`. UI code
 // calls it after list re-renders (e.g. the palette keeping the active
 // row visible); a no-op is the honest jsdom behavior.

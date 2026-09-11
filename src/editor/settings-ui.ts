@@ -11,6 +11,7 @@ import { WORD_COUNT_ORDERS, type WordCountOrder } from './word-count-order.js';
 import { confirmDialog, promptForRouteChoice } from './text-prompt.js';
 import { requestVoiceCalibration } from './voice/hooks.js';
 import { isLiteBuild } from './lite.js';
+import { revokeFlowToken } from './flow-send.js';
 import { entryConflictWarnings } from './custom-autocorrect-plugin.js';
 import {
   CUSTOMIZABLE_COLOR_TOKENS,
@@ -3193,6 +3194,8 @@ function buildFlowConnectionEditor(): HTMLElement {
     if (e.key === 'Enter' && input.value.trim()) connectBtn.click();
   });
   disconnectBtn.addEventListener('click', () => {
+    const token = settings.get('policyDebateFlowToken');
+    if (token) void revokeFlowToken(token);
     settings.set('policyDebateFlowToken', '');
     showToast('Disconnected from PolicyDebateFlow');
   });

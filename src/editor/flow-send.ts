@@ -78,6 +78,26 @@ interface PfPresence {
   focusedCol: number;
 }
 
+/** POST pf-revoke-token — the shared disconnect path for both the
+ *  Settings → PolicyDebateFlow row (`buildFlowConnectionEditor` in
+ *  `settings-ui.ts`) and the status-bar chip (`flow-chip.ts`), so
+ *  disconnecting from either place also flips PolicyDebateFlow's own
+ *  status indicator, not just CardMirror's stored token. `200 { ok:
+ *  true }` on success, `401` if the token was already invalid/missing
+ *  — either way the caller proceeds to clear the token locally, which
+ *  is the authoritative disconnect from CardMirror's side regardless
+ *  of whether the remote call landed. */
+export async function revokeFlowToken(token: string): Promise<void> {
+  try {
+    await fetch(`${PF_FUNCTIONS_BASE}/pf-revoke-token`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    // network offline — local clear still disconnects this app
+  }
+}
+
 type FlowSendResult =
   | { ok: true; flowName: string; sheetName: string }
   | { ok: false; reason: 'not-open' }

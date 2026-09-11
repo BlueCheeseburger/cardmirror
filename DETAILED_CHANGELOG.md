@@ -10,13 +10,24 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## 1.10.0-bcb.2 — 2026-09-11
+## 1.10.0-bcb.2.1 — 2026-09-11
 
-### Added: Send taglines to PolicyDebateFlow
+### Added: Settings button on the home screen (`home-screen.ts`, `style.css`)
 
-See [CHANGELOG.md § 1.10.0-bcb.2](./CHANGELOG.md#1100-bcb2--2026-09-11) for the
-user-facing summary. Full implementation details in
-[Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-settingsts-settings-uitsribbom-commandsts-ribbon-groupsts)
+Wraps the existing "← Back to document" button and a new "Settings"
+button in a `div.pmd-home-header-nav` flex row. The Settings button
+lazy-imports `settings-ui.ts` on click (same pattern as the toolbar
+gear button in `index.ts`) and calls `openSettings()` — no new bundle
+cost. `.pmd-home-header-nav` is a flex row with `justify-content:
+space-between`, so Back and Settings sit at opposite ends; when no
+document is open (the normal launch state) only Settings shows, in
+the top-right corner.
+
+### Added / Fixed: PolicyDebateFlow status chip; the send-tagline hotkey now actually fires
+
+See [CHANGELOG.md § 1.10.0-bcb.2.1](./CHANGELOG.md#1100-bcb21--2026-09-11)
+for the user-facing summary. Full implementation details in
+[Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-flow-chipts-settingsts-settings-uits-ribbon-commandsts-ribbon-groupsts)
 below.
 
 ---
@@ -209,15 +220,16 @@ then logs the fallback. The ribbon's Save button now distinguishes
 linked copy Word can't hold open), matching the visual feedback users
 already had for `.cmir` autosave.
 
-### 8. Send taglines to PolicyDebateFlow (`flow-send.ts`, `settings.ts`, `settings-ui.ts`, `ribbon-commands.ts`, `ribbon-groups.ts`)
+### 8. Send taglines to PolicyDebateFlow (`flow-send.ts`, `flow-chip.ts`, `settings.ts`, `settings-ui.ts`, `ribbon-commands.ts`, `ribbon-groups.ts`)
 
-**Introduced in this release.**
+**Introduced in this release. Extended in this release (status-bar
+connection chip; hotkey fix).**
 
-A new `sendToFlowAtCursor` ribbon command, default-bound to `Shift-\``
-(deliberately its own chord — the existing `` ` `` / `Alt-`` ` / `Mod-`` `
-family is send-to-speech and send-to-dropzone, and this needed to never
-collide with those). With the cursor on or inside a card, it walks up to
-the enclosing `card`/`analytic_unit`, reads its `tag` text and the
+A new `sendToFlowAtCursor` ribbon command, default-bound to `` ` `` while
+Shift is held (deliberately its own chord — the existing `` ` `` /
+`Alt-`` ` / `Mod-`` ` family is send-to-speech and send-to-dropzone, and
+this needed to never collide with those). With the cursor on or inside a
+card, it walks up to the enclosing `card`/`analytic_unit`, reads its `tag` text and the
 cite-marked run(s) anywhere in the card (`collectCiteText`, the same
 helper the nav pane uses for its short-cite display) as the tagline and
 author/date, and sends both to a connected PolicyDebateFlow flow.
@@ -250,6 +262,33 @@ than the generic failure message. The integration is fully inert unless
 both the toggle is on and a token is saved — `flow-send.ts` is a
 self-contained module nothing else imports from, so it can be deleted
 wholesale without touching anything else. Desktop-only for now.
+
+**Hotkey fix.** The command was registered as `'Shift-\`'`, which never
+actually fired: prosemirror-keymap (via w3c-keyname) matches single-char
+keys by `e.key` directly, and Shift+Backquote produces `e.key === '~'`
+on a US layout — the shift is implied by the character itself, not a
+`Shift-` prefix. Fixed the registered binding to `'~'`, taught the
+outer-editor global-hotkey normalizer (`ribbonKeyStringFor`) to emit
+`'~'` for a shifted Backquote instead of `'Shift-\`'`, and special-cased
+`formatKeyForDisplay('~')` so the Settings shortcut editor still shows
+it as `Shift+\`` / `⇧\`` rather than a raw tilde.
+
+**Status-bar connection chip (`flow-chip.ts`).** A `Flow · Connected` /
+`Flow · Off` pill next to the collaboration chip, visible whenever
+`policyDebateFlowEnabled` is on. Mirrors the connection indicator
+PolicyDebateFlow itself shows in its own flow editor (green dot +
+"CardMirror: Connected" / grey + "Off"), polling `GET /pf-presence`
+every 30 seconds to match that cadence — a 401 clears the stored token
+and flips the chip to "Off" without the user needing to click
+anything, whether the token expired or was revoked from
+PolicyDebateFlow's side. Clicking the chip while connected disconnects;
+clicking it while off opens Settings. `POST /pf-revoke-token` (`{ok:
+true}` on success, 401 if the token was already gone) is now the
+shared disconnect path — pulled out to a `revokeFlowToken` export in
+`flow-send.ts` so both the status-bar chip and the existing Settings →
+PolicyDebateFlow "Disconnect" button call it, keeping PolicyDebateFlow's
+own status button in sync with either place CardMirror disconnects
+from.
 
 ---
 
