@@ -144,6 +144,8 @@ class HomeScreen {
 
     const header = document.createElement('header');
     header.className = 'pmd-home-header';
+    const headerNav = document.createElement('div');
+    headerNav.className = 'pmd-home-header-nav';
     // "Back to document" — only meaningful when home was opened
     // over a live doc (Home button). Hidden otherwise.
     this.backBtn = document.createElement('button');
@@ -152,7 +154,17 @@ class HomeScreen {
     this.backBtn.textContent = '← Back to document';
     this.backBtn.hidden = true;
     this.backBtn.addEventListener('click', () => this.hide());
-    header.appendChild(this.backBtn);
+    headerNav.appendChild(this.backBtn);
+    const settingsBtn = document.createElement('button');
+    settingsBtn.type = 'button';
+    settingsBtn.className = 'pmd-home-settings';
+    settingsBtn.textContent = 'Settings';
+    settingsBtn.title = 'Open settings';
+    settingsBtn.addEventListener('click', () => {
+      void import('./settings-ui.js').then((m) => m.openSettings());
+    });
+    headerNav.appendChild(settingsBtn);
+    header.appendChild(headerNav);
     const title = document.createElement('h1');
     title.className = 'pmd-home-title';
     title.textContent = 'CardMirror';
