@@ -4325,6 +4325,13 @@ html.pmd-home-active #speech-doc-banner {
 .pmd-home-header {
   margin-bottom: 2rem;
 }
+.pmd-home-header-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 2rem;
+  margin-bottom: 0.75rem;
+}
 .pmd-home-back {
   appearance: none;
   font: inherit;
@@ -4334,13 +4341,27 @@ html.pmd-home-active #speech-doc-banner {
   color: var(--pmd-c-text-muted);
   cursor: pointer;
   padding: 0.2rem 0;
-  margin-bottom: 0.75rem;
   border-radius: 4px;
 }
 .pmd-home-back:hover {
   color: var(--pmd-c-text);
 }
 .pmd-home-back[hidden] { display: none; }
+.pmd-home-settings {
+  appearance: none;
+  font: inherit;
+  font-size: 0.85rem;
+  background: transparent;
+  border: none;
+  color: var(--pmd-c-text-muted);
+  cursor: pointer;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  margin-left: auto;
+}
+.pmd-home-settings:hover {
+  color: var(--pmd-c-text);
+}
 .pmd-home-title {
   margin: 0;
   font-size: 2rem;
