@@ -4407,6 +4407,89 @@ html.pmd-home-active #speech-doc-banner {
      if it must. */
 }
 
+/* Last workspace — above Recent: a Reopen button over the checklist of
+   documents the previous session ended with. Rows borrow the recent
+   row's chip / name / path scaffolding, so a path still left-truncates
+   to keep its tail visible. The list scrolls past ~8 rows (like the
+   sessions list) so a 24-document workspace can't push the utilities
+   off screen. */
+.pmd-home-workspace-section {
+  margin-bottom: 1.1rem;
+}
+.pmd-home-workspace-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+.pmd-home-workspace-open {
+  appearance: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--pmd-c-text);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pmd-home-workspace-open:hover:not(:disabled) {
+  background: var(--pmd-c-hover);
+}
+.pmd-home-workspace-open:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.pmd-home-workspace-select {
+  appearance: none;
+  font: inherit;
+  font-size: 0.78rem;
+  background: transparent;
+  border: none;
+  color: var(--pmd-c-text-muted);
+  cursor: pointer;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+.pmd-home-workspace-select:hover:not(:disabled) {
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text);
+}
+.pmd-home-workspace-select:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.pmd-home-workspace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+.pmd-home-workspace-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--pmd-c-text);
+}
+.pmd-home-workspace-item:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-home-workspace-item input {
+  flex: 0 0 auto;
+  margin: 0;
+  cursor: pointer;
+}
+
 /* Collaboration sessions — dedicated section below Recent. Scrolls
    past ~6 rows so a long list never pushes the utilities off screen,
    and a session can never be displaced the way recents rotate. */
@@ -15698,6 +15781,13 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 /* Card preview (shelf / Receive rows): the wide two-pane recover dialog's
    chrome with the preview alone filling the body — the real nav pane on
    the left, the rendered cards on the right — and Copy / Close below. */
+/* The preview's Read mode toggle: a plain button that reads as pressed
+   while on (same active tint the ribbon's inline-format buttons use). */
+.pmd-card-preview-readmode[aria-pressed="true"] {
+  background: var(--pmd-c-button-active);
+  box-shadow: inset 0 0 0 1px var(--pmd-c-border);
+}
+
 .pmd-card-preview-dialog {
   width: min(1200px, 94vw);
   max-width: min(1200px, 94vw);

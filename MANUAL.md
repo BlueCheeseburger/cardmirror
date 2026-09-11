@@ -340,7 +340,8 @@ means the default: the count restarts at that block.
 
 Tune how they look in **Settings → Appearance → Card numbering**: independent
 formats for the number and its substructure, the separator between them (period,
-dash, colon, and more), whether the substructure is capitalized and whether it's
+dash, colon, square brackets, and more), whether the substructure is capitalized and
+whether it's
 bold, the number color, and how far each is indented — all display settings that
 change how the numbers *look*, never the content. Numbers are exported to Word if
 you save as .docx.
@@ -1121,6 +1122,20 @@ count is cached per container, so moving the cursor doesn't re-count
 anything). Turning it off restores the plain whole-doc readout exactly
 as it was.
 
+The whole-document number itself can go too: **Settings → General →
+"Live word count for the whole document"** (on by default) turns off the
+first readout, leaving the bar to whichever of the others you keep — handy
+on a narrow window with room for only the specific counts. A live selection
+still shows while that setting is on, and the Word Count button (Σ) always
+has the whole-document count on demand.
+
+The readouts' left-to-right order is yours too: **Settings → General →
+"Order of the live word counts"** offers every arrangement of Doc, Card,
+and Left, with one order **while editing** and another **in read mode** —
+a reader often wants what's left first and the whole-document number last,
+an editor the reverse. Readouts you have turned off simply drop out of the
+order. In the three-pane workspace each pane follows its own read mode.
+
 A third readout — **what's left to read** — is available and **off by
 default**: turn on **Settings → General → "Live read time for what is
 left to read"** and the bar appends everything still ahead of your
@@ -1207,6 +1222,26 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   visible, and — like the buttons — a press in one window drives the clocks in
   every window.
 
+### Arranging windows around the speech doc
+
+**Arrange Windows** (Speech group; unbound by default — give it a key under
+Settings → Keyboard shortcuts) does what Verbatim's Window Arranger did: the
+speech doc's window takes one side of the screen and every other CardMirror
+window takes the other side, all full height, the others stacked exactly on
+top of one another so you flip between them without hunting. The window you
+ran it from stays in front. **Settings → General → Workspace** sets which side
+the speech doc takes (right, like Verbatim, by default) and its share of the
+width (50% by default). With no speech doc marked, every window goes to the
+docs side and a note says so.
+
+In the three-pane workspace the same command works on slots instead of
+windows: the speech doc moves into the slot on the chosen side, every other
+document stacks into the middle slot with the one you were reading on top,
+the far slot empties, and the two share the width by the same percentage.
+Opening a third document, expanding a slot, or emptying one hands the widths
+back to the normal layout. Desktop only — a browser cannot place its own
+windows, so the command does not appear in the web edition.
+
 ### Send-to-speech and the dropzone
 
 Assemble a speech document by sending cards into it:
@@ -1227,7 +1262,9 @@ or parking a card you know you need but are not sure where to put yet.
 **Preview** on a shelf row opens the cards full-size in a read-only view,
 with a nav pane beside them, so you can check what you parked without
 inserting it; **Copy to clipboard** there copies the cards for pasting
-anywhere, and **Close** (or Esc) puts the preview away.
+anywhere, and **Close** (or Esc) puts the preview away. A **Read mode**
+button in the preview shows only the marked text, and it stays on for later
+previews until you turn it off.
 
 ### Saving a send doc
 
@@ -1340,6 +1377,11 @@ row shows the card's label, who sent it, and when. From a row:
   instead of arriving fully expanded.
 - **Mod-P** inserts the most recently received card at the cursor, and
   **Mod-Alt-P** appends it, without opening the pill (both rebindable).
+- **Preview Received Card** opens the most recent one in the preview
+  without inserting it — unbound by default; give it a key under
+  Settings → Keyboard shortcuts. The preview's **Read mode** button shows
+  only the marked text and stays on for later previews until you turn it
+  off.
 
 The flash is configurable — **Flash the Receive pill on a new card**: once,
 every 10 seconds until you open the pill, or off.
@@ -1988,6 +2030,28 @@ home screen — to open it, exactly like File → Open (including the unsaved-ch
 prompt, and focusing a copy that's already open). Other file types are ignored,
 and dragging cards around inside the editor is unaffected.
 
+**Reopening your last set of documents.** CardMirror remembers which files
+you had open when you last quit and lists them on the Home screen under
+**Last workspace**, each with a tick box. **Reopen** opens the ticked ones —
+untick the ones you don't want, or use **All** / **None** to flip the whole
+list. In the three-pane workspace each document goes back to the pane it was
+in; in single-document mode each gets its own window.
+
+CardMirror never reopens documents behind your back: a launch with no file
+lands on the Home screen, where the list is waiting, and nothing opens until
+you say so. Your ticks are remembered between sessions, so a document you
+untick stays unticked as the set changes from one session to the next until
+you tick it again.
+
+Close every document (or its window) before you quit and there's nothing to
+offer, so the section disappears — a clean quit means a clean start. To keep a particular
+working set regardless, run **Save Workspace** (command bar — try "save
+session"): a saved set survives quitting with nothing open, and stays on offer
+until you open other documents and quit with those. **Reopen Last Workspace**
+restores it without going via the Home screen, and **Forget** drops it.
+Documents that have never been saved aren't included — there's no file to
+reopen — and one that has moved or been deleted is skipped with a note.
+
 **Password-protected Word files.** If you open a `.docx` that Word encrypted
 with a password, CardMirror asks for the password and opens it. Saving writes
 a normal, unencrypted file — CardMirror doesn't re-apply the password. (Only
@@ -2308,6 +2372,13 @@ headers shown inside each tab.
   words-per-minute rate. The first two show live in the status bar; all
   appear in the Word Count dialog
   (see [Read-time estimates](#read-time-estimates)).
+- **Live word count for the whole document** — on by default. Off drops
+  the bar's first readout (the whole document's count and read times) so
+  a narrow window can show only the specific counts you keep on. The Word
+  Count button (Σ) still gives the whole-document count on demand.
+- **Order of the live word counts** — the left-to-right order of the
+  bar's readouts (Doc, Card, Left), with one order while editing and
+  another in read mode.
 - **Live word count for the current selection** — off by default. When
   on, the status bar's count and read time follow your selection as you
   change it; leave it off on very large docs if you notice drag lag.

@@ -15,6 +15,7 @@
  *     journals, and auto-update.
  */
 
+import { arrangementRects, type ArrangeOptions } from './arrange-windows.js';
 import {
   app,
   BrowserWindow,
@@ -2030,6 +2031,15 @@ ipcMain.handle('host:is-first-window', async (event) => {
   return win.id === firstWindowId;
 });
 
+/** Synchronous on purpose: a renderer asks this from `pagehide`, where
+ *  nothing can be awaited. `quitInitiated` is set in `before-quit` and
+ *  cleared when the user backs out of the confirmation, so during a
+ *  quit every closing window sees true and an ordinary window close
+ *  sees false (the workspace store keeps or forgets accordingly). */
+ipcMain.on('host:is-app-quitting', (event) => {
+  event.returnValue = quitInitiated;
+});
+
 // ─── Mode-switch: journal-and-close other windows ─────────────────
 // When the user toggles `multiDocWorkspace` in window A, every
 // OTHER open window needs to journal its current doc and close
@@ -3223,6 +3233,50 @@ interface TimerPopoutOpts {
 function isTimerWindow(w: BrowserWindow): boolean {
   return timerWindow !== null && w === timerWindow;
 }
+
+/** Arrange Windows (Verbatim's Window Arranger): the speech doc's window
+ *  takes one side of the invoking window's display, every other
+ *  CardMirror window the other side — all of them the same rectangle,
+ *  stacked, full height — and the invoking window ends up in front.
+ *  Speech window = the registered speech doc's, or failing that a
+ *  window holding a doc whose filename says "speech" (Verbatim's own
+ *  fallback). Windows are taken out of full-screen / maximized /
+ *  minimized first; Linux window managers and macOS both ignore
+ *  `setBounds` on a window that is not in the normal state. */
+ipcMain.handle('host:arrange-windows', async (event, opts: ArrangeOptions) => {
+  const sender = BrowserWindow.fromWebContents(event.sender);
+  if (!sender || sender.isDestroyed()) return { speechFound: false, arranged: 0 };
+  const windows = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !isTimerWindow(w));
+  let speechWindowId: number | null = speechRegistration?.windowId ?? null;
+  if (speechWindowId === null) {
+    for (const [uid, windowId] of docOwners.entries()) {
+      if (/speech/i.test(docInfo.get(uid)?.filename ?? '')) {
+        speechWindowId = windowId;
+        break;
+      }
+    }
+  }
+  const area = screen.getDisplayMatching(sender.getBounds()).workArea;
+  const rects = arrangementRects(area, opts);
+  let leftFullScreen = false;
+  for (const w of windows) {
+    if (w.isFullScreen()) {
+      w.setFullScreen(false);
+      leftFullScreen = true;
+    }
+    if (w.isMinimized()) w.restore();
+    if (w.isMaximized()) w.unmaximize();
+  }
+  // macOS animates the exit from full-screen; bounds set during the
+  // animation are dropped. Give it a beat when any window needed it.
+  if (leftFullScreen) await new Promise((r) => setTimeout(r, 700));
+  for (const w of windows) {
+    if (w.isDestroyed()) continue;
+    w.setBounds(w.id === speechWindowId ? rects.speech : rects.docs, false);
+  }
+  if (!sender.isDestroyed()) sender.focus();
+  return { speechFound: speechWindowId !== null, arranged: windows.length };
+});
 
 /** Close the pop-out when the last DOCUMENT window goes away — a
  *  lone floating timer must not keep the app alive on Windows/Linux

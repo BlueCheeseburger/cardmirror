@@ -86,6 +86,8 @@ export function isRibbonCommandAvailable(id: RibbonCommandId): boolean {
   if (CUTTER_COMMANDS.has(id)) return settings.get('cardCutterEnabled') === true;
   // Browsers can't minimize their own window — desktop only.
   if (id === 'minimizeWindow') return getElectronHost() !== null;
+  // Placing windows (or slots by screen share) is a desktop thing.
+  if (id === 'arrangeWindows') return getElectronHost() !== null;
   if (id === 'openJournalsFolder') return getElectronHost() !== null;
   // Creating/refreshing a live zone reads other files from disk — desktop only.
   // Detach works on an already-cached zone, so it stays available everywhere.

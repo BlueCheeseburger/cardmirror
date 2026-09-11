@@ -329,6 +329,15 @@ export interface Host {
    *  user already has open in earlier windows of the same session.
    *  On hosts that don't multi-window (web), always true. */
   isFirstWindow(): Promise<boolean>;
+  /** Arrange Windows (desktop): the speech doc's window on `side`,
+   *  every other window on the other side. Null where windows cannot
+   *  be placed (the web edition). */
+  arrangeWindows(opts: { side: 'left' | 'right'; speechPct: number }): Promise<{ speechFound: boolean; arranged: number } | null>;
+  /** Synchronous — asked from `pagehide`, where nothing can be awaited:
+   *  is the app quitting, as opposed to this one window closing? Hosts
+   *  that cannot tell answer true, so a window's open set is never
+   *  thrown away by mistake. */
+  isAppQuitting(): boolean;
 }
 
 /** Payload exchanged between a spawning window and the freshly-

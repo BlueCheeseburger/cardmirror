@@ -8,6 +8,7 @@
  * config can layer on later as its own module without colliding.
  */
 
+import { DEFAULT_WORD_COUNT_ORDER, isWordCountOrder, type WordCountOrder } from './word-count-order.js';
 import { isWordHighlightName, isHex6 } from './color-palette.js';
 import { sanitizeAcronymPattern, type AcronymPattern } from './acronym-patterns.js';
 import type { IconName } from './icons.js';
@@ -357,7 +358,9 @@ export type EnterAfterStyle =
 
 /** Separator glyph that trails a card-numbering number/letter (display-only).
  *  `period` = ".", `paren` = ")", `dash` = " -", `colon` = ":", `emdash` = "—",
- *  `endash` = "–", `doublehyphen` = "--", `triplehyphen` = "---". */
+ *  `endash` = "–", `doublehyphen` = "--", `triplehyphen` = "---",
+ *  `bracket` = "]" (like `paren`, trailing); `brackets` is the one that
+ *  WRAPS instead: "[1]" / "[a]". */
 export type NumberingSeparator =
   | 'period'
   | 'paren'
@@ -366,7 +369,9 @@ export type NumberingSeparator =
   | 'emdash'
   | 'endash'
   | 'doublehyphen'
-  | 'triplehyphen';
+  | 'triplehyphen'
+  | 'bracket'
+  | 'brackets';
 
 /** Runtime list of every valid `NumberingSeparator` (persistence validation +
  *  the settings-UI option lists read from this). */
@@ -379,7 +384,32 @@ export const NUMBERING_SEPARATORS: readonly NumberingSeparator[] = [
   'endash',
   'doublehyphen',
   'triplehyphen',
+  'bracket',
+  'brackets',
 ];
+
+/** What trails the number or letter for each separator — except
+ *  `brackets`, which wraps it (`applyNumberingSeparator` is the only
+ *  place that knows the difference). One table so the editor's
+ *  decorations, the ribbon faces, and the settings previews cannot
+ *  disagree. */
+export const NUMBERING_SEPARATOR_GLYPH: Record<NumberingSeparator, string> = {
+  period: '.',
+  paren: ')',
+  dash: ' -',
+  colon: ':',
+  emdash: '—',
+  endash: '–',
+  doublehyphen: '--',
+  triplehyphen: '---',
+  bracket: ']',
+  brackets: ']',
+};
+
+/** "1" + `period` → "1."; "a" + `brackets` → "[a]". */
+export function applyNumberingSeparator(text: string, sep: NumberingSeparator): string {
+  return sep === 'brackets' ? `[${text}]` : `${text}${NUMBERING_SEPARATOR_GLYPH[sep]}`;
+}
 
 /** Schema for all editor settings. Add new fields here with sensible defaults. */
 /** Per-type format for the silent Send / Read / Marked saves: `docx`
@@ -990,6 +1020,15 @@ export interface Settings {
    */
   liveSelectionWordCount: boolean;
   /**
+   * The live readout's first segment: the whole document's read-aloud
+   * word count with each reader's time. On by default. Off frees the
+   * bottom bar for the other live readouts (selection, enclosing
+   * container, what's left) — for a narrow window that only has room
+   * for the specific ones. The Word Count button still shows the
+   * whole-doc count on demand.
+   */
+  liveDocWordCount: boolean;
+  /**
    * Append the smallest enclosing container's read time (card /
    * analytic unit / block section) to the live word-count readout —
    * or the selection's when one exists. Cursor moves within a
@@ -1006,6 +1045,17 @@ export interface Settings {
    * doc, so a cursor move only counts the child it lands in.
    */
   liveRemainingReadTime: boolean;
+  /** Left-to-right order of the live readouts while editing (see
+   *  `WordCountOrder` in live-read-time.ts). */
+  wordCountOrder: WordCountOrder;
+  /** …and while the document is in read mode. */
+  wordCountOrderReadMode: WordCountOrder;
+  /** Arrange Windows: which side of the screen the speech doc takes
+   *  (every other window goes to the other side). */
+  arrangeSpeechSide: 'left' | 'right';
+  /** Arrange Windows: the speech doc's share of the width, in percent
+   *  (10–90); the docs side gets the rest. */
+  arrangeSpeechPct: number;
   /**
    * Per-style font sizes (in points). See DisplaySizes for details.
    * Each field becomes a CSS custom property on `#editor`.
@@ -1800,8 +1850,13 @@ const DEFAULTS: Settings = {
     { name: 'Reader 2', wpm: 250 },
   ],
   liveSelectionWordCount: false,
+  liveDocWordCount: true,
   liveContainerReadTime: true,
   liveRemainingReadTime: false,
+  wordCountOrder: 'doc-container-remaining',
+  wordCountOrderReadMode: 'doc-container-remaining',
+  arrangeSpeechSide: 'right',
+  arrangeSpeechPct: 50,
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
   displayParagraphSpacing: { ...DEFAULT_PARAGRAPH_SPACING },
   displayTypography: { ...DEFAULT_DISPLAY_TYPOGRAPHY },
@@ -2083,6 +2138,8 @@ export interface SettingMeta {
     | 'timerPrepLabel'
     | 'timerPosition'
     | 'enterAfterStyle'
+    | 'wordCountOrder'
+    | 'arrangeSpeechSide'
     | 'password'
     | 'voiceInputDevice'
     | 'voiceDashStyle'
@@ -2155,6 +2212,27 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Workspace',
     aliases: ['split view', 'split screen', 'multi pane', 'multi-doc'],
+  },
+  {
+    key: 'arrangeSpeechSide',
+    label: 'Arrange Windows: speech doc side',
+    description:
+      "The Arrange Windows command (Speech group; unbound by default) puts the speech doc on one side of the screen and every other window on the other, stacked, all full height — Verbatim's Window Arranger. This is the side the speech doc takes. In the three-pane workspace the same command moves the speech doc into the slot on this side and stacks every other document in the middle slot. Desktop only.",
+    kind: 'arrangeSpeechSide',
+    category: 'general',
+    section: 'Workspace',
+    aliases: ['window arranger', 'arrange windows', 'speech doc side', 'speech left', 'speech right'],
+  },
+  {
+    key: 'arrangeSpeechPct',
+    label: 'Arrange Windows: speech doc share of the screen (%)',
+    description:
+      'How much of the width the speech doc takes when you run Arrange Windows; the other windows (or, in three-pane, the docs slot) get the rest. 10–90, default 50.',
+    kind: 'number',
+    min: 10,
+    category: 'general',
+    section: 'Workspace',
+    aliases: ['speech doc width', 'window split', 'arrange ratio'],
   },
   {
     key: 'multiDocLayoutMode',
@@ -2290,6 +2368,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     mobile: true,
   },
   {
+    key: 'liveDocWordCount',
+    label: 'Live word count for the whole document',
+    description:
+      "On by default. The bottom bar's first readout: the whole document's read-aloud word count with each reader's time. Turn it off to give the bar to the other live readouts — the selection, the enclosing card / block, and what's left — when a narrow window only has room for the specific ones. The Word Count button (Σ) still shows the whole-document count on demand.",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Word counts',
+    aliases: ['whole document word count', 'doc word count', 'hide word count', 'total word count'],
+  },
+  {
     key: 'liveSelectionWordCount',
     label: 'Live word count for the current selection',
     description:
@@ -2317,6 +2405,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Word counts',
     aliases: ['time left', 'remaining read time', 'words left', 'unread words'],
+  },
+  {
+    key: 'wordCountOrder',
+    label: 'Order of the live word counts',
+    description:
+      "Left-to-right order of the bottom bar's readouts — the whole document (Doc), the enclosing card / block (Card), and what's left (Left). One order while editing and another in read mode: a reader often wants what's left first, an editor the whole document. Readouts you have turned off simply drop out of the order.",
+    kind: 'wordCountOrder',
+    category: 'general',
+    section: 'Word counts',
+    aliases: ['word count order', 'readout order', 'bar order', 'read mode word count order'],
   },
   {
     key: 'findRememberLastQuery',
@@ -3121,7 +3219,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'cardNumberingFormat',
     label: 'Number separator',
     description:
-      'The glyph after a number — “1.”, “1)”, “1:”, “1 -”, and dash/hyphen variants. Display-only — the .docx carries a canonical format each reader can override.',
+      'The glyph after a number — “1.”, “1)”, “1]”, “1:”, “1 -”, dash/hyphen variants — or square brackets around it, “[1]”. Display-only — the .docx carries a canonical format each reader can override.',
     kind: 'cardNumberFormat',
     category: 'appearance',
     section: 'Card numbering',
@@ -3131,7 +3229,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'cardNumberingSubFormat',
     label: 'Substructure separator',
     description:
-      'The glyph after a substructure letter — configured independently of the number separator. Display-only.',
+      'The glyph after a substructure letter — “a.”, “a)”, “a]” and the rest — or square brackets around it, “[a]”. Configured independently of the number separator. Display-only.',
     kind: 'cardNumberSubFormat',
     category: 'appearance',
     section: 'Card numbering',
@@ -4611,10 +4709,18 @@ function sanitize(s: Settings): Settings {
     gestureZoom: !!s.gestureZoom,
     readers: sanitizeReaders(s.readers),
     liveSelectionWordCount: s.liveSelectionWordCount === true,
+    liveDocWordCount: s.liveDocWordCount === false ? false : true,
     // Default-on: preserve `false` only when explicitly set, so
     // installs upgrading from before this setting existed get it on.
     liveContainerReadTime: s.liveContainerReadTime === false ? false : true,
     liveRemainingReadTime: s.liveRemainingReadTime === true,
+    wordCountOrder: isWordCountOrder(s.wordCountOrder) ? s.wordCountOrder : DEFAULT_WORD_COUNT_ORDER,
+    wordCountOrderReadMode: isWordCountOrder(s.wordCountOrderReadMode) ? s.wordCountOrderReadMode : DEFAULT_WORD_COUNT_ORDER,
+    arrangeSpeechSide: s.arrangeSpeechSide === 'left' ? 'left' : 'right',
+    arrangeSpeechPct:
+      typeof s.arrangeSpeechPct === 'number' && Number.isFinite(s.arrangeSpeechPct)
+        ? Math.min(90, Math.max(10, Math.round(s.arrangeSpeechPct)))
+        : 50,
     displaySizes: sanitizeDisplaySizes(s.displaySizes),
     displayParagraphSpacing: sanitizeParagraphSpacing(s.displayParagraphSpacing),
     underlineFollowsFontColor: s.underlineFollowsFontColor === true,

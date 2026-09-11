@@ -7,6 +7,93 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+### Added: Last workspace (reopen the documents you had open)
+
+Recents reopened one file at a time; the only machinery that ever
+reopened a SET of documents was the internal mode-switch reload. This
+generalizes that idea into a user-facing feature, without touching the
+mode-switch path.
+
+`workspace-store.ts` keeps two localStorage records. The LIVE map is
+windowId → the docs that window currently has open: every window
+rewrites its own entry whenever its open set changes (single-doc from
+`updateWindowTitle` / `setCurrentDocHandle`, which every doc-identity
+change funnels through — memoized on a path|name|format key so the
+hot dirty-marker refresh doesn't hammer storage; three-pane from
+`refreshLayout`, where every open / close / send-to-slot already
+lands, plus `setFocusedFile` for Save As). A window that closes on its own drops
+its entry — `installWindowCloseForget` asks main's `quitInitiated` flag
+synchronously from `pagehide`, the one place nothing can be awaited —
+so the offer is what was open at the QUIT; a quit, or a killed app,
+leaves entries exactly as they were, which is the point. The roll-over
+is skipped on a mode-switch reload, which is not a session boundary.
+The first window of an app session folds LIVE into the LAST snapshot
+at boot (`rolloverLastWorkspace`) and empties it, so LAST is always
+"the previous session", and the roll-over runs BEFORE this window
+mounts anything (then re-reports) so a doc mounted first isn't swept
+back out. A fold that finds nothing open CLEARS the snapshot —
+closing every document before quitting is taken at face value — with
+one exception: a snapshot written by the explicit Save Workspace
+command is `pinned` and survives an empty quit, which is the whole
+reason to reach for that command. Pinning protects against erasure,
+it doesn't freeze the row: a session that ends WITH documents open
+replaces the snapshot either way. Windows merge oldest-first,
+de-duplicated by path and capped at 24; live entries older than 30
+days are dropped on read, bounding the map against windows that
+vanished on a machine whose next launch never came.
+
+Restoring is mode-aware. Three-pane hands the whole set to the shell,
+which reads each file by path and loads it into the slot it was saved
+from (a snapshot taken in single-doc mode has no slots, so those fill
+slot1 → slot2 → slot3 in turn). Single-doc mounts the first document
+in place when this window still holds the pristine starter and spawns
+a window for each of the rest — the one-doc-per-window convention every
+other desktop flow follows. Both paths run the existing duplicate-open
+guards (`findOpenRecordByHandle` / `openPathCheck`), so a document
+already open here or in another window is skipped rather than opened
+twice, and both substitute blank-document bytes for a genuinely-empty
+file the way the Open dialog's `resolveOpenedFile` does. Files that
+moved or were deleted are counted and reported in one toast.
+
+The home-screen section lists the whole set as a checklist rather than
+a single all-or-nothing row: reopening 15 documents (15 windows, in
+single-doc mode) is rarely what the user wants, and seeing what's in
+the set is half the value. Ticks are tracked as an EXCLUSION set keyed
+to the snapshot's `savedAt`, so a snapshot that gains documents
+defaults them to ticked and a genuinely new snapshot resets the
+selection; All / None flip every row at once, and the summary label
+plus the Reopen button's disabled state are re-derived in place rather
+than by re-rendering (which would rebuild the list under the user's
+cursor). The button hands the callback a snapshot carrying only the
+ticked documents, so the renderer opens exactly what it's given. The
+list scrolls past ~18rem, like the sessions list, so a 24-document
+workspace can't push the utilities off screen.
+
+Ticks are durable, not a per-click filter: the untick list (`excluded`)
+lives on the snapshot in the store, carried across roll-overs for paths
+still in the set and pruned of everything else — so a document that
+leaves the set and returns months later comes back ticked rather than
+silently suppressed. One wrinkle worth recording: ticking a box
+deliberately does NOT re-render the list (that would rebuild it under
+the user's cursor), so the captured snapshot's `excluded` is stale by
+the time Reopen is clicked; the button sends what's on screen rather
+than what it was rendered from. A unit test covers exactly that (it
+caught the bug).
+
+Nothing reopens at launch. An at-launch restore was built first, behind
+an opt-in setting, and then removed after field use: with it on you
+never land on the home screen, so the checklist that decides WHAT comes
+back is somewhere you have to go hunting for — and a status-bar notice
+pointing at it was a workaround for a design that shouldn't need one.
+The roll-over now only MINTS the snapshot; the home screen is the single
+place that decides what reopens, which is also what a blank launch has
+always shown. `reopenWorkspaceOnLaunch` is gone with it.
+
+The feature is gated on the Electron host throughout: the web edition can't
+serialize a `FileSystemFileHandle`, exactly as in `recents-store.ts`,
+so docs with no string path are never recorded and the Home screen
+section is omitted rather than shown dead.
+
 ### Changed: voice control v2 — mouse targets, voice acts
 
 v1 assumed no manual input, which forced an open-ended spoken targeting

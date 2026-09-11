@@ -441,6 +441,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  session. */
   isFirstWindow: () => ipcRenderer.invoke('host:is-first-window'),
 
+  /** Arrange Windows: speech doc on one side of the screen, every other
+   *  window on the other. Resolves with whether a speech window was
+   *  found and how many windows moved. */
+  arrangeWindows: (opts: { side: 'left' | 'right'; speechPct: number }) =>
+    ipcRenderer.invoke('host:arrange-windows', opts) as Promise<{ speechFound: boolean; arranged: number }>,
+
+  /** Synchronous — asked from `pagehide`, where nothing can be
+   *  awaited: is the app quitting, as opposed to this one window
+   *  closing? The workspace store keeps a window's open set through
+   *  a quit and forgets it on an ordinary close. */
+  isAppQuitting: () => ipcRenderer.sendSync('host:is-app-quitting') as boolean,
+
   /** Mode-switch helper: tell main to broadcast
    *  `'mode-switch:please-close'` to every other open window and
    *  resolve once they've all closed. */

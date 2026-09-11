@@ -7,6 +7,7 @@
  * settings store immediately.
  */
 
+import { WORD_COUNT_ORDERS, type WordCountOrder } from './word-count-order.js';
 import { confirmDialog, promptForRouteChoice } from './text-prompt.js';
 import { requestVoiceCalibration } from './voice/hooks.js';
 import { isLiteBuild } from './lite.js';
@@ -48,6 +49,7 @@ import {
   ZOOM_MAX_PCT,
   type StyleAlignments,
   type StyleAlignment,
+  applyNumberingSeparator,
 } from './settings.js';
 import { CATEGORY_TABS, visibleCategoryTabs, type SettingsTarget } from './settings-categories.js';
 import { generateGroupId, normalizePairingCode } from './pairing/pairing-ids.js';
@@ -1014,6 +1016,14 @@ class SettingsModal {
     } else if (meta.kind === 'enterAfterStyle') {
       row.appendChild(text);
       row.appendChild(buildEnterAfterStyleEditor());
+      return row;
+    } else if (meta.kind === 'wordCountOrder') {
+      row.appendChild(text);
+      row.appendChild(buildWordCountOrderEditor());
+      return row;
+    } else if (meta.kind === 'arrangeSpeechSide') {
+      row.appendChild(text);
+      row.appendChild(buildArrangeSpeechSideEditor());
       return row;
     } else if (meta.kind === 'colorOverrides') {
       row.appendChild(text);
@@ -3682,17 +3692,6 @@ function buildPairingReceiveFlashEditor(): HTMLElement {
 
 /** The trailing glyph each separator renders — mirrors `FORMAT_SEP` in the
  *  numbering plugin, so the dropdown labels read exactly as the numbers will. */
-const NUMBERING_SEP_GLYPH: Record<NumberingSeparator, string> = {
-  period: '.',
-  paren: ')',
-  dash: ' -',
-  colon: ':',
-  emdash: '—',
-  endash: '–',
-  doublehyphen: '--',
-  triplehyphen: '---',
-};
-
 /** A separator picker for one numbering level. `sample` is the leading glyph the
  *  options preview against ("1" for numbers, "a" for substructure). */
 function buildSeparatorSelect(
@@ -3704,7 +3703,7 @@ function buildSeparatorSelect(
   for (const sep of NUMBERING_SEPARATORS) {
     const opt = document.createElement('option');
     opt.value = sep;
-    opt.textContent = `${sample}${NUMBERING_SEP_GLYPH[sep]}`;
+    opt.textContent = applyNumberingSeparator(sample, sep);
     if (sep === settings.get(key)) opt.selected = true;
     select.appendChild(opt);
   }
@@ -4922,6 +4921,46 @@ type EnterAfterStyleKey =
   | 'enterAfterTag'
   | 'enterAfterAnalytic'
   | 'enterAfterUndertag';
+/** Two selects under one row — the order while editing and the order
+ *  in read mode — over the same six permutations. */
+function buildWordCountOrderEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-display-sizes-editor pmd-word-count-order-editor';
+  const fields: { key: 'wordCountOrder' | 'wordCountOrderReadMode'; label: string }[] = [
+    { key: 'wordCountOrder', label: 'While editing' },
+    { key: 'wordCountOrderReadMode', label: 'In read mode' },
+  ];
+  const selects: [typeof fields[number]['key'], HTMLSelectElement][] = [];
+  for (const f of fields) {
+    const row = document.createElement('div');
+    row.className = 'pmd-display-size-row';
+    const label = document.createElement('label');
+    label.className = 'pmd-display-size-label';
+    label.textContent = f.label;
+    row.appendChild(label);
+    const select = document.createElement('select');
+    select.className = 'pmd-body-font-select';
+    for (const o of WORD_COUNT_ORDERS) {
+      const opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.label;
+      select.appendChild(opt);
+    }
+    select.value = settings.get(f.key);
+    select.addEventListener('change', () => {
+      settings.set(f.key, select.value as WordCountOrder);
+    });
+    row.appendChild(select);
+    wrap.appendChild(row);
+    selects.push([f.key, select]);
+  }
+  const unsub = settings.subscribe(() => {
+    for (const [key, select] of selects) select.value = settings.get(key);
+  });
+  registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
 function buildEnterAfterStyleEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-display-sizes-editor pmd-enter-style-editor';
@@ -4975,6 +5014,37 @@ function buildEnterAfterStyleEditor(): HTMLElement {
 
 /** Two-button segmented control for which ribbon edge the timer
  *  panel occupies. Same visual language as the prep-label control. */
+/** Two-button segmented control: which side of the screen Arrange
+ *  Windows gives the speech doc. Same visual language as the timer
+ *  position control. */
+function buildArrangeSpeechSideEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-theme-editor';
+  const options: { value: Settings['arrangeSpeechSide']; label: string }[] = [
+    { value: 'left', label: 'Speech doc on the left' },
+    { value: 'right', label: 'Speech doc on the right' },
+  ];
+  for (const o of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-theme-editor-btn';
+    btn.textContent = o.label;
+    btn.dataset['value'] = o.value;
+    btn.addEventListener('click', () => settings.set('arrangeSpeechSide', o.value));
+    wrap.appendChild(btn);
+  }
+  function refresh(): void {
+    const cur = settings.get('arrangeSpeechSide');
+    for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
+      btn.setAttribute('aria-pressed', btn.dataset['value'] === cur ? 'true' : 'false');
+    }
+  }
+  refresh();
+  const unsub = settings.subscribe(refresh);
+  registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
 function buildTimerPositionEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-theme-editor';
