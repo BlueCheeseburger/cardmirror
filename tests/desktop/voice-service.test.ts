@@ -203,6 +203,23 @@ describe('voice service: held dictation', () => {
     expect(h.engine.decoded).toHaveLength(0);
   });
 
+  it('calibration wakes a sleeping session, holds off auto-sleep, and ignores the sleep phrase', () => {
+    const h = harness(['voice sleep', 'line', 'voice sleep'], { autoSleepSeconds: 2 });
+    h.feed(300, false); h.feed(500, true); h.feed(400, false);
+    expect(h.svc.currentMode).toBe('asleep');
+    h.svc.setCalibrating(true);
+    expect(h.svc.currentMode, 'woken for calibration').toBe('command');
+    h.feed(5000, false); // far past the 2 s idle limit
+    expect(h.svc.currentMode, 'no auto-sleep while calibrating').toBe('command');
+    h.feed(500, true); h.feed(400, false); // "line" → a command event for the dialog
+    expect(h.events.some((e) => e.kind === 'command' && e.verb === 'line')).toBe(true);
+    h.feed(500, true); h.feed(400, false); // "voice sleep" — ignored during calibration
+    expect(h.svc.currentMode).toBe('command');
+    h.svc.setCalibrating(false);
+    h.feed(2500, false);
+    expect(h.svc.currentMode, 'the idle clock resumes afterwards').toBe('asleep');
+  });
+
   it('hold mode never ends on silence', () => {
     const h = harness(['patient']);
     h.svc.setDictation(true);

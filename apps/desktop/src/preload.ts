@@ -587,6 +587,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** Per-user recognizer profile (calibration aliases) for the live session. */
   voiceSetProfile: (profile: { aliases?: Record<string, string[]> } | null) =>
     ipcRenderer.invoke('host:voice-profile', profile),
+  /** Calibration dialog open/closed: the recognizer wakes if asleep and
+   *  holds off auto-sleep while it is open. */
+  voiceCalibrating: (on: boolean) => ipcRenderer.invoke('host:voice-calibrating', on),
   /** The recognition models (~640 MB, stored in userData) — a one-time
    *  download, not bundled. */
   voiceModelInfo: () =>

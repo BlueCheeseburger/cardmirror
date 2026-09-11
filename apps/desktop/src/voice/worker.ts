@@ -40,6 +40,8 @@ process.on('message', (m: WorkerInbound) => {
       service?.setDictation(!!m.on, m.autoEndAfterMs);
     } else if (m.type === 'profile') {
       service?.setProfile(m.profile ?? null);
+    } else if (m.type === 'calibrating') {
+      service?.setCalibrating(!!m.on);
     }
   } catch (err) {
     send({ type: 'error', error: String(err) });

@@ -123,6 +123,18 @@ export class VoiceService {
     this.dictation = null;
   }
 
+  private calibrating = false;
+  /** Calibration: the dialog needs every utterance decoded and matched
+   *  whatever the mode — wake a sleeping session, hold off auto-sleep
+   *  while the user works through the word list (long silences between
+   *  takes are normal), and ignore the sleep phrase. */
+  setCalibrating(on: boolean): void {
+    this.calibrating = on;
+    const now = this.now();
+    if (on && this.mode === 'asleep') this.setMode('command', 'calibrate', now);
+    if (!on) this.lastActivityAt = now; // the idle clock starts fresh afterwards
+  }
+
   setProfile(profile: VoiceProfile | null): void {
     this.profile = profile;
   }
@@ -304,7 +316,7 @@ export class VoiceService {
     // Idle auto-sleep: a forgotten mic must not transcribe the room.
     const autoSleepMs = (this.opts.autoSleepSeconds ?? AUTO_SLEEP_DEFAULT_S) * 1000;
     let autoSleepRemainingMs: number | undefined;
-    if (autoSleepMs > 0 && this.mode === 'command') {
+    if (autoSleepMs > 0 && this.mode === 'command' && !this.calibrating) {
       const remaining = autoSleepMs - (now - this.lastActivityAt);
       if (remaining <= 0) this.setMode('asleep', 'auto-sleep', now);
       else if (remaining <= COUNTDOWN_WINDOW_MS) autoSleepRemainingMs = remaining;
@@ -347,7 +359,7 @@ export class VoiceService {
       this.opts.onEvent({ ...base, raw: text, tParse, kind: 'command', verb });
       return;
     }
-    if (matchPhrase(text, SLEEP_PHRASES)) {
+    if (!this.calibrating && matchPhrase(text, SLEEP_PHRASES)) {
       this.setMode('asleep', 'voice sleep', now);
       return;
     }

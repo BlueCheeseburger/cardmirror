@@ -17,6 +17,10 @@ const TAKES_PER_WORD = 2;
 
 export async function openVoiceCalibration(controller: VoiceController): Promise<void> {
   if (!(await controller.ensureActive())) return;
+  // From here until close the session belongs to the dialog: every
+  // utterance reaches the takes below and nothing fires on the document;
+  // a sleeping recognizer wakes and auto-sleep waits.
+  controller.setCalibrating(true);
   if (document.querySelector('.pmd-voice-calibrate')) return;
 
   const overlay = document.createElement('div');
@@ -73,6 +77,7 @@ export async function openVoiceCalibration(controller: VoiceController): Promise
   let unsubscribe: (() => void) | null = null;
   let removeKeys: (() => void) | null = null;
   const close = (): void => {
+    controller.setCalibrating(false);
     if (closed) return;
     closed = true;
     unsubscribe?.();

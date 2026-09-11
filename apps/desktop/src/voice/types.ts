@@ -74,7 +74,8 @@ export type WorkerInbound =
     }
   | { type: 'audio'; chunk: ArrayBuffer }
   | { type: 'dictation'; on: boolean; autoEndAfterMs?: number }
-  | { type: 'profile'; profile: VoiceProfile | null };
+  | { type: 'profile'; profile: VoiceProfile | null }
+  | { type: 'calibrating'; on: boolean };
 
 export type WorkerOutbound =
   | { type: 'started'; modelLoadMs: number }

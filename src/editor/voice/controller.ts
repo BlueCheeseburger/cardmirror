@@ -27,6 +27,7 @@ export interface VoiceHostApi {
   voicePushAudio(chunk: ArrayBuffer): void;
   voiceDictation(on: boolean, opts?: { autoEndAfterMs?: number }): Promise<void>;
   voiceSetProfile(profile: VoiceProfile | null): Promise<void>;
+  voiceCalibrating?(on: boolean): Promise<void>;
   voiceClipboard(op: 'copy' | 'cut' | 'paste'): Promise<void>;
   onVoiceEvent(handler: (event: unknown) => void): () => void;
   onVoiceLevel(handler: (level: VoiceLevel) => void): () => void;
@@ -57,6 +58,10 @@ export class VoiceController {
   private generation = 0;
   private holding = false;
   private transcriptListeners = new Set<TranscriptListener>();
+  /** While the calibration dialog is open, utterances go to its
+   *  transcript listeners only — nothing fires on the document — and
+   *  the recognizer stays awake. */
+  private calibrating = false;
   private uiInputBaseline: string | null = null;
 
   constructor(
@@ -80,6 +85,11 @@ export class VoiceController {
   onTranscript(fn: TranscriptListener): () => void {
     this.transcriptListeners.add(fn);
     return () => this.transcriptListeners.delete(fn);
+  }
+
+  setCalibrating(on: boolean): void {
+    this.calibrating = on;
+    void voiceHost()?.voiceCalibrating?.(on);
   }
 
   async toggle(): Promise<void> {
@@ -323,16 +333,26 @@ export class VoiceController {
     switch (event.kind) {
       case 'command':
         for (const fn of this.transcriptListeners) fn(event.raw, event.verb);
+        if (this.calibrating) {
+          // The dialog heard it; the document must not.
+          this.pill?.setEcho(event.raw, true);
+          break;
+        }
         await applyVoiceCommand(view, event, deps);
         break;
       case 'rejection':
         for (const fn of this.transcriptListeners) fn(event.raw, null);
+        if (this.calibrating) {
+          this.pill?.setEcho(event.raw, false);
+          break;
+        }
         if (event.reason === 'too-long') break; // speech aimed elsewhere; stay quiet
         this.pill?.setEcho(`(not a command) "${event.raw}"`, false);
         patchVoiceState(view, { appendLog: { utteranceId: event.utteranceId, kind: 'rejection', text: event.raw } });
         break;
       case 'dictation': {
         patchVoiceState(view, { ghostText: null });
+        if (this.calibrating) break; // nothing lands while the dialog is open
         if (!event.text.trim()) {
           this.pill?.setEcho('(nothing heard)', false);
           break;

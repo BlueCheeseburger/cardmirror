@@ -280,10 +280,20 @@ export class VoicePill {
     const mw = menu.offsetWidth || 220;
     const mh = menu.offsetHeight || 160;
     const left = Math.max(4, Math.min(window.innerWidth - mw - 4, card.right - mw));
-    const above = card.top - mh - 6;
-    const top = above >= 4 ? above : Math.min(window.innerHeight - mh - 4, card.bottom + 6);
     menu.style.left = `${left}px`;
-    menu.style.top = `${Math.max(4, top)}px`;
+    menu.style.overflowY = 'auto';
+    // Above the card, anchored by the menu's BOTTOM edge: the microphone
+    // list arrives after this runs, and a bottom anchor makes that growth
+    // go upward, away from the card, instead of down over it.
+    if (card.top - mh - 6 >= 4 || card.top > window.innerHeight / 2) {
+      menu.style.top = 'auto';
+      menu.style.bottom = `${Math.max(4, window.innerHeight - card.top + 6)}px`;
+      menu.style.maxHeight = `${Math.max(120, card.top - 10)}px`;
+    } else {
+      menu.style.bottom = 'auto';
+      menu.style.top = `${card.bottom + 6}px`;
+      menu.style.maxHeight = `${Math.max(120, window.innerHeight - card.bottom - 10)}px`;
+    }
   }
 
   private closeMenu(): void {

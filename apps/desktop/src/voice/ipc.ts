@@ -335,6 +335,11 @@ export function registerVoiceIpc(): void {
     worker.send({ type: 'profile', profile: profile ?? null } satisfies WorkerInbound);
   });
 
+  ipcMain.handle('host:voice-calibrating', async (event, on: boolean) => {
+    if (ownerWebContentsId !== event.sender.id || !worker) return;
+    worker.send({ type: 'calibrating', on: !!on } satisfies WorkerInbound);
+  });
+
   ipcMain.handle('host:voice-model-info', async () => ({
     present: voiceReady(),
     downloading: downloadInFlight,
