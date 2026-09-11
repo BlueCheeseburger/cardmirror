@@ -13102,40 +13102,80 @@ body.pmd-timer-popout-page .pmd-timer-display {
   text-decoration-skip-ink: none;
 }
 
-/* ── Voice pill ─────────────────────────────────────────────
-   Status pill for the voice session (SPEC-voice.md §9): mode dot +
-   parse echo + input-level meter. Same visual language as the
-   dropzone pill (.pmd-dropzone-bar): 30px bar, soft surface, instant
-   state flips, bottom-anchored above the status bar — but right
-   corner, mirroring the dropzone's left. */
+/* ── Voice card ─────────────────────────────────────────────
+   Floating status card for the voice session: mode dot + badge in a
+   drag handle, the armed pen and the parse echo beneath, a full-width
+   input meter along the bottom. Same surface language as the dropzone
+   pill (.pmd-dropzone-bar), but a free-floating square: drag the
+   header anywhere and the spot is remembered (voice/ui.ts). With no
+   remembered spot it sits at the right edge above the corner chips. */
 .pmd-voice-pill {
   position: fixed;
-  bottom: calc(var(--status-bar-height) + 0.5rem);
+  bottom: calc(var(--status-bar-height) + 3.25rem);
   right: 0.5rem;
   z-index: 220; /* same band as the dropzone pill */
   display: none;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0 0.55rem;
-  height: 30px;
-  max-width: 420px;
+  flex-direction: column;
+  width: 172px;
+  min-height: 112px;
+  padding: 0 0 0.35rem;
   font: inherit;
   font-size: 0.78rem;
   color: var(--pmd-c-text-muted);
   background: var(--pmd-c-surface-soft);
   border: 1px solid var(--pmd-c-border-soft);
-  border-radius: 6px;
-  box-shadow: 0 2px 6px var(--pmd-c-shadow-fade);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--pmd-c-shadow-fade);
   user-select: none;
-  cursor: pointer;
   transition: none; /* instant state morphs, matching the dropzone bar */
-}
-
-body.pmd-multi-doc .pmd-voice-pill {
-  bottom: calc(var(--status-bar-height) + var(--pmd-pane-footer-height) + 0.5rem);
 }
 .pmd-voice-pill.pmd-voice-on {
   display: flex;
+}
+.pmd-voice-card-dragging {
+  box-shadow: 0 6px 18px var(--pmd-c-shadow-fade);
+  cursor: grabbing;
+}
+.pmd-voice-card-handle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.55rem;
+  border-bottom: 1px solid var(--pmd-c-divider-faint);
+  cursor: grab;
+  touch-action: none;
+}
+.pmd-voice-card-dragging .pmd-voice-card-handle {
+  cursor: grabbing;
+}
+.pmd-voice-card-menu-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--pmd-c-text-muted);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 0.3rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.pmd-voice-card-menu-btn:hover {
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text);
+}
+.pmd-voice-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.4rem 0.55rem;
+  min-height: 3.2rem;
+  flex: 1 1 auto;
+}
+.pmd-voice-card-body .pmd-voice-pen {
+  align-self: flex-start;
 }
 .pmd-voice-dot {
   width: 9px;
@@ -13175,14 +13215,18 @@ body.pmd-multi-doc .pmd-voice-pill {
 }
 .pmd-voice-echo {
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-height: 1.3;
+  word-break: break-word;
 }
 .pmd-voice-echo.pmd-voice-rejected {
   color: var(--pmd-c-error);
 }
 .pmd-voice-meter {
-  width: 36px;
+  display: block;
+  margin: 0 0.55rem;
   height: 4px;
   border-radius: 2px;
   flex: 0 0 auto;
@@ -13236,9 +13280,7 @@ body.pmd-multi-doc .pmd-voice-pill {
 /* Voice pill session menu: mic picker + stop. Same panel language as
    the open dropzone shelf. */
 .pmd-voice-menu {
-  position: fixed;
-  right: 0.5rem;
-  bottom: calc(var(--status-bar-height) + 0.5rem + 36px);
+  position: fixed; /* left/top set by the card (voice/ui.ts placeMenu) */
   z-index: 221;
   min-width: 220px;
   padding: 0.4rem;
