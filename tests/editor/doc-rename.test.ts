@@ -186,4 +186,29 @@ describe('installInlineRename', () => {
     target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
     expect(target.querySelector('input')).toBeNull();
   });
+
+  it('destroy() mid-edit tears the field down and clears the mid-edit marker', () => {
+    // Leaving the marker set would strand the label: every refresh
+    // that rewrites its text checks isInlineRenaming() first and bails,
+    // so the chip would keep showing whatever it said when the edit
+    // started, forever.
+    document.body.innerHTML = '';
+    const target = document.createElement('span');
+    target.textContent = 'x.docx';
+    document.body.appendChild(target);
+    const handle = installInlineRename(target, {
+      currentName: () => 'x.docx',
+      commit,
+      restore,
+    });
+    target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    expect(target.querySelector('input')).not.toBeNull();
+
+    handle.destroy();
+    expect(target.querySelector('input')).toBeNull();
+    expect(isInlineRenaming(target)).toBe(false);
+    // Tearing down is not a commit — the name must not change on disk.
+    expect(commit).not.toHaveBeenCalled();
+    expect(restore).toHaveBeenCalled();
+  });
 });

@@ -329,16 +329,30 @@ type MultiPaneChoice =
  *  cancel. The OS-open path leaves it off: a file the OS handed us has
  *  to land somewhere, so a dismissed dialog still spawns a window.
  *  New Document passes it — dismissing that dialog should create
- *  nothing at all. */
+ *  nothing at all.
+ *
+ *  `autoRouteOnlyTo` restricts the silent single-candidate shortcut to
+ *  one window id. New Document passes the REQUESTING window: with a
+ *  three-pane workspace open beside the single-doc window you're
+ *  typing in, "no need to ask" would silently hand the doc to the
+ *  other window and yank focus over there — a window you never named.
+ *  A file the OS handed us has no requesting window, so that path
+ *  leaves this unset and keeps the plain shortcut. */
 async function pickMultiPaneTarget(
   message: string,
-  opts: { withCancel?: boolean } = {},
+  opts: { withCancel?: boolean; autoRouteOnlyTo?: number } = {},
 ): Promise<MultiPaneChoice> {
   const candidates = liveMultiPaneWindows();
   if (candidates.length === 0) return { kind: 'new-window' };
-  if (candidates.length === 1) return { kind: 'window', win: candidates[0]! };
+  if (
+    candidates.length === 1 &&
+    (opts.autoRouteOnlyTo === undefined || candidates[0]!.id === opts.autoRouteOnlyTo)
+  ) {
+    return { kind: 'window', win: candidates[0]! };
+  }
   const labels = candidates.map(labelForChooser);
-  const { buttons, cancelId } = buildChooserPrompt(labels, opts);
+  const layout = { withCancel: opts.withCancel === true };
+  const { buttons, cancelId } = buildChooserPrompt(labels, layout);
   const { response } = await dialog.showMessageBox({
     type: 'question',
     message,
@@ -347,16 +361,25 @@ async function pickMultiPaneTarget(
     cancelId,
     noLink: true,
   });
-  const parsed = readChooserResponse(response, labels.length, opts);
+  const parsed = readChooserResponse(response, labels.length, layout);
   if (parsed.kind === 'window') return { kind: 'window', win: candidates[parsed.index]! };
   return parsed.kind === 'cancel' ? { kind: 'cancel' } : { kind: 'new-window' };
 }
 
 /** Hand a window a doc-routing message, bringing it forward so the
- *  slot picker it shows is actually visible. */
-function focusForHandoff(win: BrowserWindow): void {
+ *  slot picker it shows is actually visible.
+ *
+ *  Returns false when the window died while the chooser dialog was up
+ *  — a modal dialog can stay open for as long as the user leaves it
+ *  there, and `send` on a destroyed webContents throws. Callers treat
+ *  that as "nothing took it" and spawn a window instead. */
+function handOffToWindow(win: BrowserWindow, channel: string, payload?: unknown): boolean {
+  if (win.isDestroyed() || win.webContents.isDestroyed()) return false;
+  if (payload === undefined) win.webContents.send(channel);
+  else win.webContents.send(channel, payload);
   if (win.isMinimized()) win.restore();
   win.focus();
+  return true;
 }
 
 const CLOUD_WAIT_TIMEOUT_MS = 20_000;
@@ -436,11 +459,11 @@ async function openExternalFile(filePath: string): Promise<void> {
   // (whichever copy closes first then releases the shared claim).
   if (focusExistingOwner(filePath)) return;
   const choice = await pickMultiPaneTarget(`Open "${path.basename(filePath)}" in:`);
-  if (choice.kind === 'window') {
-    // Hand off to the existing workspace — it reads the path and shows
-    // its slot picker. Bring it forward so the picker is visible.
-    choice.win.webContents.send('host:external-open', { path: filePath });
-    focusForHandoff(choice.win);
+  // Hand off to the existing workspace — it reads the path and shows
+  // its slot picker. Bring it forward so the picker is visible. A
+  // window that closed while the chooser was up falls through to the
+  // spawn below rather than dropping the file.
+  if (choice.kind === 'window' && handOffToWindow(choice.win, 'host:external-open', { path: filePath })) {
     return;
   }
   try {
@@ -1404,7 +1427,7 @@ ipcMain.handle(
     _event,
     filePath: string,
     bytes: unknown,
-    opts?: { failIfExists?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean },
   ) => {
     if (typeof filePath !== 'string' || !filePath) {
       throw new Error('write-file-at-path: no path');
@@ -1419,6 +1442,15 @@ ipcMain.handle(
         mkdir: true,
         failIfExists: opts?.failIfExists,
       });
+      // grantRead: the caller ADOPTS this file as the live document
+      // (the new-speech-doc auto-save, a save into a remembered
+      // folder), so it lands in recents and has to be reopenable by
+      // path later — exactly what host:save-as grants for a file the
+      // user picked in the dialog. Opt-in, because the bulk writers on
+      // this same channel (bulk convert, the style cleaner) produce
+      // hundreds of files nobody adopted, and every grant costs a slot
+      // in the LRU-capped grant journal.
+      if (opts?.grantRead) grantReadPath(filePath);
     } catch (err) {
       // The 'collision' sentinel lets the renderer defer to Save As —
       // same contract as host:save-send-doc below. Real write
@@ -2101,12 +2133,18 @@ ipcMain.handle('host:register-multipane', async (event, isMultiPane: boolean) =>
 //   'new-window' — nothing open can take it, or the user asked for a
 //                  fresh window; the caller spawns one.
 //   'cancel'     — the user dismissed the chooser; create nothing.
-ipcMain.handle('host:new-doc-target', async (): Promise<'sent' | 'new-window' | 'cancel'> => {
-  const choice = await pickMultiPaneTarget('New document in:', { withCancel: true });
-  if (choice.kind !== 'window') return choice.kind === 'cancel' ? 'cancel' : 'new-window';
-  choice.win.webContents.send('host:new-doc');
-  focusForHandoff(choice.win);
-  return 'sent';
+ipcMain.handle('host:new-doc-target', async (event): Promise<'sent' | 'new-window' | 'cancel'> => {
+  const asker = BrowserWindow.fromWebContents(event.sender);
+  const choice = await pickMultiPaneTarget('New document in:', {
+    withCancel: true,
+    // Only THIS window may take a new doc without being named; see
+    // pickMultiPaneTarget.
+    ...(asker ? { autoRouteOnlyTo: asker.id } : {}),
+  });
+  if (choice.kind === 'cancel') return 'cancel';
+  if (choice.kind !== 'window') return 'new-window';
+  // Closed while the chooser was up — the caller spawns instead.
+  return handOffToWindow(choice.win, 'host:new-doc') ? 'sent' : 'new-window';
 });
 
 ipcMain.handle('host:is-first-window', async (event) => {

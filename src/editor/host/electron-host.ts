@@ -268,7 +268,7 @@ interface ElectronAPI {
   writeFileAtPath(
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean },
   ): Promise<'collision' | void>;
   bulkCompress(
     dir: string,
@@ -881,10 +881,14 @@ export class ElectronHost implements Host {
     return true;
   }
 
+  /** `grantRead` marks the write as one whose file the caller adopts
+   *  as the live document, so main keeps it reopenable by path (the
+   *  same grant a Save As dialog pick gets). Bulk writers leave it
+   *  off. */
   async writeFileAtPath(
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean },
   ): Promise<'collision' | void> {
     return await api().writeFileAtPath(filePath, bytes, opts);
   }
