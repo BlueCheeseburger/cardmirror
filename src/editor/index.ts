@@ -885,7 +885,10 @@ async function runNewSpeechDocumentSingleDoc(): Promise<void> {
       const result = await electronForSpeechSave.writeFileAtPath(
         targetPath,
         docBytes,
-        { failIfExists: true },
+        // grantRead: this file becomes the window's live doc and lands
+        // in recents, so it has to stay reopenable by path — the OS
+        // picker grants that for a dialog pick, and this path skips it.
+        { failIfExists: true, grantRead: true },
       );
       if (result === 'collision') {
         const saved = await host.saveAs(filename, docBytes, {
@@ -8569,14 +8572,20 @@ async function saveIntoDirectory(
   }
   const target = joinPath(dir, filename);
   try {
-    const collided = await electron.writeFileAtPath(target, bytes, { failIfExists: true });
+    // grantRead: this becomes the window's live doc and goes into
+    // recents, so main has to keep it reopenable by path — the grant
+    // the OS save dialog hands out, which this shortcut skips.
+    const collided = await electron.writeFileAtPath(target, bytes, {
+      failIfExists: true,
+      grantRead: true,
+    });
     if (collided === 'collision') {
       const overwrite = await confirmDialog(
         `“${filename}” already exists in ${dir}. Replace it?`,
         { title: 'File exists', okLabel: 'Replace', cancelLabel: 'Cancel' },
       );
       if (!overwrite) return null;
-      await electron.writeFileAtPath(target, bytes);
+      await electron.writeFileAtPath(target, bytes, { grantRead: true });
     }
     return { name: filename, handle: target };
   } catch (err) {

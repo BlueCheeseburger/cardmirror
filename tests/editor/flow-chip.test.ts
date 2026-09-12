@@ -177,6 +177,33 @@ describe('flow chip', () => {
     vi.unstubAllGlobals();
   });
 
+  it('unrelated settings changes do not push the poll deadline back', async () => {
+    // render() runs on EVERY settings change, and it used to re-arm the
+    // 30-second timer each time. A window that writes a setting more
+    // often than that (chrome scale, read mode, autosave flags) would
+    // then never reach a poll at all — the connection could stay
+    // "Connected" on a token the server had already revoked.
+    vi.useFakeTimers();
+    settings.set('policyDebateFlowEnabled', true);
+    settings.set('policyDebateFlowToken', 'tok123');
+    const fetchMock = vi.fn(() => Promise.resolve({ status: 200 } as Response));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const el = makeEl();
+    const cleanup = initFlowChip(el, () => {});
+
+    // Churn an unrelated setting every 10s across the poll window.
+    for (let i = 0; i < 3; i++) {
+      await vi.advanceTimersByTimeAsync(10_000);
+      settings.set('chromeScalePct', 100 + i);
+    }
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
   it('cleanup stops the poll timer', async () => {
     vi.useFakeTimers();
     settings.set('policyDebateFlowEnabled', true);

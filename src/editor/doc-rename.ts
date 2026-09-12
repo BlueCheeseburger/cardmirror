@@ -160,10 +160,12 @@ export function installInlineRename(el: HTMLElement, opts: InlineRenameOptions):
   return {
     destroy(): void {
       el.removeEventListener('dblclick', onDblClick);
-      if (input) {
-        input = null;
-        opts.restore();
-      }
+      // Route through `end()` rather than just dropping the reference:
+      // it also pulls the field out of the DOM and clears the
+      // mid-edit marker. Leaving that marker set would make every
+      // later label refresh a no-op (they all check `isInlineRenaming`
+      // first), stranding the chip on a stale name forever.
+      end();
     },
   };
 }

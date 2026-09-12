@@ -68,18 +68,27 @@ export function initFlowChip(
     }
   }
 
+  /** Is the chip in its polling state — paired AND not paused? */
+  function isConnected(): boolean {
+    return settings.get('policyDebateFlowEnabled') && !!settings.get('policyDebateFlowToken');
+  }
+
   function schedulePoll(): void {
     stopPoll();
     pollTimer = setTimeout(async () => {
+      pollTimer = null;
       const token = settings.get('policyDebateFlowToken');
       if (!token) return;
       const valid = await tokenIsValid(token);
       if (!valid) {
         settings.set('policyDebateFlowToken', '');
         showToast('PolicyDebateFlow: session expired — disconnected');
-      } else {
-        schedulePoll();
+        return;
       }
+      // The request was in flight for a while — the user may have
+      // paused or disconnected in the meantime, in which case there's
+      // nothing left to poll for.
+      if (isConnected()) schedulePoll();
     }, POLL_MS);
   }
 
@@ -103,8 +112,15 @@ export function initFlowChip(
     } else {
       el.title = 'PolicyDebateFlow: not connected — click to open Settings';
     }
-    if (connected) schedulePoll();
-    else stopPoll();
+    // Arm the timer on the transition INTO connected, not on every
+    // render: `render` runs on every settings change of any kind, and
+    // re-arming each time would push the 30-second deadline back
+    // indefinitely on a busy window — the poll would simply never run.
+    if (connected) {
+      if (pollTimer === null) schedulePoll();
+    } else {
+      stopPoll();
+    }
   }
 
   el.addEventListener('click', () => {
