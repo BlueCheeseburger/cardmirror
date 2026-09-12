@@ -349,7 +349,7 @@ import {
   type AnyCommandId,
   type RibbonCommandId,
 } from './ribbon-commands.js';
-import { ctrlOrCmdWord, displayFilename } from './platform.js';
+import { ctrlOrCmdWord, displayFilename, isMacPlatform } from './platform.js';
 import { openWordCount } from './word-count-ui.js';
 import { wireColorPanel } from './color-panel.js';
 import { AI_DISABLED_MESSAGE } from './ai/llm.js';
@@ -3329,6 +3329,25 @@ const FORMATTING_PANEL_BUTTONS: Record<FormattingPanelId, string> = {
   applyEmphasis: 'emphasis-btn',
   clearToNormal: 'normal-btn',
 };
+/** Symbol-compact shortcut form for the formatting panel's tiny corner
+ *  badge — same modifier glyphs `formatKeyForDisplay` uses on macOS
+ *  (⌘/⌃/⇧/⌥), applied on EVERY platform here (unlike `formatKeyForDisplay`,
+ *  which spells out "Ctrl+"/"Shift+"/"Alt+" on Windows/Linux) and with no
+ *  '+' separator, so a two-key combo like Mod-F7 renders as "⌃F7" instead
+ *  of "Ctrl+F7" — the badge has no room for the longer form without
+ *  running over the button's own label. Every other display of a
+ *  shortcut (tooltips, Settings, the main label in 'shortcuts'/'both'
+ *  mode) still goes through the real `formatKeyForDisplay`. */
+function compactKeyForBadge(key: string): string {
+  if (!key) return '';
+  if (key === '~') return isMacPlatform() ? '⇧`' : 'Shift+`';
+  return key
+    .replace(/Mod-/g, isMacPlatform() ? '⌘' : '⌃')
+    .replace(/Ctrl-/g, '⌃')
+    .replace(/Shift-/g, '⇧')
+    .replace(/Alt-/g, '⌥')
+    .replace(/-/g, '');
+}
 const FORMATTING_PANEL_SHORT_LABEL: Record<FormattingPanelId, string> = {
   setPocket: 'Pocket',
   setHat: 'Hat',
@@ -3385,12 +3404,25 @@ const FORMATTING_PANEL_ACTIVE_MARKS: Partial<Record<FormattingPanelId, readonly 
 const formattingPanelEl = document.getElementById('formatting-panel') as HTMLElement | null;
 const citePanelEl = document.getElementById('cite-panel') as HTMLElement | null;
 const paragraphIntegrityBtn = document.getElementById('paragraph-integrity-btn') as HTMLButtonElement | null;
-const formattingPanelBtnRefs: { id: FormattingPanelId; btn: HTMLButtonElement }[] = [];
+const formattingPanelBtnRefs: { id: FormattingPanelId; btn: HTMLButtonElement; labelEl: Text; keyEl: HTMLSpanElement }[] = [];
 for (const [id, btnId] of Object.entries(FORMATTING_PANEL_BUTTONS) as [FormattingPanelId, string][]) {
   const btn = document.getElementById(btnId) as HTMLButtonElement | null;
   if (!btn) continue;
   const label = RIBBON_COMMAND_LABELS[id];
   btn.setAttribute('aria-label', label);
+  // Persistent children: a text node for the main label/shortcut display
+  // (applyFormattingPanel below only ever edits its `.data`, never
+  // replaces the button's children) plus a small corner badge showing
+  // the F-key so it's visible without hovering, even in the default
+  // 'labels' mode — requested 2026-09-12. `textContent = ''` first
+  // clears the button's original static HTML text ("Pocket", "Block", …).
+  btn.textContent = '';
+  const labelEl = document.createTextNode(label);
+  btn.appendChild(labelEl);
+  const keyEl = document.createElement('span');
+  keyEl.className = 'formatting-panel-key';
+  keyEl.setAttribute('aria-hidden', 'true');
+  btn.appendChild(keyEl);
   btn.addEventListener('mousedown', (e) => {
     // Don't steal focus from the editor — the command needs to act on
     // the paragraph that holds the live cursor.
@@ -3422,7 +3454,7 @@ for (const [id, btnId] of Object.entries(FORMATTING_PANEL_BUTTONS) as [Formattin
       view.focus();
     });
   }
-  formattingPanelBtnRefs.push({ id, btn });
+  formattingPanelBtnRefs.push({ id, btn, labelEl, keyEl });
   registerRibbonTooltip({ el: btn, commandId: id });
 }
 
@@ -3446,19 +3478,26 @@ function applyFormattingPanel(
     citePanelEl.classList.toggle('hidden', mode === 'hidden' || !showCharacterStyles);
     citePanelEl.classList.toggle('style-preview', preview);
   }
-  for (const { id, btn } of formattingPanelBtnRefs) {
-    const keyDisplay = formatKeyForDisplay(
-      primaryKeyFor(id, settings.get('ribbonKeyOverrides')),
-    );
+  for (const { id, labelEl, keyEl } of formattingPanelBtnRefs) {
+    const rawKey = primaryKeyFor(id, settings.get('ribbonKeyOverrides'));
+    const keyDisplay = formatKeyForDisplay(rawKey);
     const shortLabel = FORMATTING_PANEL_SHORT_LABEL[id];
     // ' · ' matches the separator used in the status-bar read-time
     // display, so the visual rhythm is consistent across the chrome.
-    btn.textContent =
+    labelEl.data =
       mode === 'shortcuts'
         ? (keyDisplay || shortLabel)
         : mode === 'both' && keyDisplay
         ? `${shortLabel} · ${keyDisplay}`
         : shortLabel;
+    // The small corner badge only earns its place in 'labels' mode —
+    // 'shortcuts' mode already IS the key, and 'both' already shows it
+    // inline; either way a second copy in the corner would be redundant.
+    // Uses the SYMBOL-compact form (compactKeyForBadge), not `keyDisplay` —
+    // the button's column width is sized to fit its label ("Analytic",
+    // "Undertag"), with no slack for a spelled-out "Ctrl+F7" corner badge
+    // without it running over the label's own letters.
+    keyEl.textContent = mode === 'labels' ? compactKeyForBadge(rawKey) : '';
     // Title is managed by the ribbon-tooltip controller (registered
     // for these buttons above) — `reapplyAllRibbonTooltips()` runs
     // from the settings subscriber whenever the relevant inputs
