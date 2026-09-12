@@ -12032,6 +12032,94 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   color: var(--pmd-c-text);
 }
 
+/* ── Chip drag: move a doc between slots ─────────────────────────
+   The chip is the handle. `grab` on the strip itself, but never on
+   its controls (they keep the pointer cursor from their own rules),
+   and never while the name is being renamed in place. */
+.pmd-pane-chip {
+  cursor: grab;
+}
+.pmd-pane-chip:has(.pmd-inline-rename) {
+  cursor: default;
+}
+.pmd-pane-chip-dragging {
+  cursor: grabbing;
+  opacity: 0.55;
+}
+/* While a drag is live: one cursor everywhere, and no text selection
+   sweeping across the editors the pointer passes over. */
+body.pmd-pane-dragging,
+body.pmd-pane-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+/* The label following the pointer. Positioned from the top-left
+   corner by `transform`, so a move is one compositor-level write per
+   pointer event. */
+.pmd-pane-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2100;
+  pointer-events: none;
+  max-width: 18rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  background: var(--pmd-c-surface);
+  color: var(--pmd-c-text);
+  border: 1px solid var(--pmd-c-border-soft);
+  box-shadow: 0 6px 16px var(--pmd-c-shadow);
+  opacity: 0.92;
+}
+/* Over a slot that will take the drop — same accent the target pane
+   picks up, so the two read as one answer. */
+.pmd-pane-drag-ghost-armed {
+  border-color: var(--pmd-c-accent);
+  box-shadow: 0 6px 16px var(--pmd-c-shadow), 0 0 0 2px var(--pmd-c-accent);
+}
+
+/* An empty slot, revealed for the drag only. It is normally `hidden`
+   (`.pmd-pane[hidden] { display: none }`), which this outranks on
+   specificity; narrow and fixed-width so the occupied panes give up a
+   sliver instead of the row re-flowing under the cursor. */
+.pmd-pane.pmd-pane-dropzone[hidden] {
+  display: flex;
+}
+.pmd-pane-dropzone {
+  flex: 0 0 clamp(110px, 13%, 200px) !important;
+  min-width: 0;
+  background: var(--pmd-c-surface);
+}
+.pmd-pane-dropzone-hint {
+  position: absolute;
+  inset: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.5rem;
+  border: 2px dashed var(--pmd-c-border-soft);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-muted);
+  pointer-events: none;
+}
+
+/* The pending destination — occupied pane or revealed drop zone. */
+.pmd-pane-drop-target {
+  box-shadow: inset 0 0 0 2px var(--pmd-c-accent);
+}
+.pmd-pane-drop-target .pmd-pane-dropzone-hint {
+  border-color: var(--pmd-c-accent);
+  color: var(--pmd-c-accent);
+}
+
 /* Slot-number badge — a single digit (1/2/3) shown to the left of
    the expand button so the user can tell at a glance which slot
    each chip belongs to. Especially useful when only some slots
