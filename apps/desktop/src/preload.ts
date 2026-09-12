@@ -329,7 +329,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeFileAtPath: (
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean },
   ) => ipcRenderer.invoke('host:write-file-at-path', filePath, bytes, opts),
 
   /** Bulk-compress every `.cmir` under `dir` in place (temporary
@@ -421,6 +421,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_evt: unknown, payload: { path: string }): void => handler(payload);
     ipcRenderer.on('host:external-open', listener);
     return () => ipcRenderer.removeListener('host:external-open', listener);
+  },
+
+  /** Ask main to route a New Document request through the same
+   *  "which window?" chooser an OS-opened file uses. Resolves 'sent'
+   *  (a window took it — it runs its own slot picker), 'new-window'
+   *  (spawn a fresh one), or 'cancel' (the user dismissed). */
+  pickNewDocTarget: (): Promise<'sent' | 'new-window' | 'cancel'> =>
+    ipcRenderer.invoke('host:new-doc-target'),
+
+  /** Rename a document on disk, in its own folder (double-click the
+   *  doc name in the chrome). Never overwrites an existing file. */
+  renameFile: (
+    oldPath: string,
+    newName: string,
+  ): Promise<
+    { ok: true; path: string } | { ok: false; reason: string; message?: string }
+  > => ipcRenderer.invoke('host:rename-file', oldPath, newName),
+
+  /** Main forwards a New Document request routed to this window by the
+   *  chooser above. Returns an unsubscribe. */
+  onNewDoc(handler: () => void): () => void {
+    const listener = (): void => handler();
+    ipcRenderer.on('host:new-doc', listener);
+    return () => ipcRenderer.removeListener('host:new-doc', listener);
   },
 
   /** Spawn a new BrowserWindow, optionally pre-loaded with a doc. */

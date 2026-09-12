@@ -1,0 +1,60 @@
+/**
+ * Validation for the in-place file rename behind the ribbon / pane
+ * chip's double-click-to-rename (`host:rename-file` in main.ts).
+ *
+ * Split out from main.ts to be testable, and because this is the part
+ * that has to be right: a rename takes a name the user typed straight
+ * into an `fs.rename`, so anything that could escape the document's own
+ * folder ('..', a separator, a NUL) has to be rejected before it gets
+ * near the filesystem. Renaming is deliberately same-folder only —
+ * moving a file is Finder's job, not a text field's.
+ */
+
+import * as path from 'node:path';
+
+/** Why a rename didn't happen. The first four come from validating the
+ *  typed name; the last three from the filesystem attempt itself. */
+export type RenameFailure =
+  | 'empty'
+  | 'separator'
+  | 'reserved'
+  | 'illegal-char'
+  | 'invalid'
+  | 'exists'
+  | 'failed';
+
+export type RenameValidation =
+  | { ok: true; newPath: string }
+  | { ok: false; reason: Extract<RenameFailure, 'empty' | 'separator' | 'reserved' | 'illegal-char'> };
+
+/** Characters Windows refuses in a filename, plus control characters.
+ *  POSIX only forbids NUL and the separator. */
+const WINDOWS_ILLEGAL = /[<>:"|?*\u0000-\u001f]/;
+const POSIX_ILLEGAL = /[\u0000]/;
+
+/** Resolve `rawName` against `oldPath`'s directory, or explain why it
+ *  isn't a usable filename. */
+export function validateRenameTarget(
+  oldPath: string,
+  rawName: string,
+  platform: NodeJS.Platform = process.platform,
+): RenameValidation {
+  const name = rawName.trim();
+  if (!name) return { ok: false, reason: 'empty' };
+  // A separator would move the file (or escape the folder entirely);
+  // '.' / '..' would target the directory itself.
+  if (name.includes('/') || name.includes('\\')) return { ok: false, reason: 'separator' };
+  if (name === '.' || name === '..') return { ok: false, reason: 'reserved' };
+  if ((platform === 'win32' ? WINDOWS_ILLEGAL : POSIX_ILLEGAL).test(name)) {
+    return { ok: false, reason: 'illegal-char' };
+  }
+  return { ok: true, newPath: path.join(path.dirname(oldPath), name) };
+}
+
+/** Do these paths name the same file on a case-insensitive volume?
+ *  A case-only rename ('1nc.docx' → '1NC.docx') resolves to the
+ *  existing file, so the "target already exists" guard has to let it
+ *  through or that rename is impossible on macOS and Windows. */
+export function isSamePathIgnoringCase(a: string, b: string): boolean {
+  return path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+}

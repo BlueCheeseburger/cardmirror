@@ -174,6 +174,8 @@ import {
   CHROME_SCALE_MAX_PCT,
   migrateAutoUpdateOptOut, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
+import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.js';
+import { resolveRenameFilename, installInlineRename, isInlineRenaming } from './doc-rename.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { viewportSpellcheckPlugin } from './viewport-spellcheck.js';
 import { commentsPlugin, commentsKey, loadThreads, getCommentsState, gcOrphanThreads, newCommentId, setCommentIdSessionResolver } from './comments-plugin.js';
@@ -883,7 +885,10 @@ async function runNewSpeechDocumentSingleDoc(): Promise<void> {
       const result = await electronForSpeechSave.writeFileAtPath(
         targetPath,
         docBytes,
-        { failIfExists: true },
+        // grantRead: this file becomes the window's live doc and lands
+        // in recents, so it has to stay reopenable by path — the OS
+        // picker grants that for a dialog pick, and this path skips it.
+        { failIfExists: true, grantRead: true },
       );
       if (result === 'collision') {
         const saved = await host.saveAs(filename, docBytes, {
@@ -994,8 +999,8 @@ function updatePlainPasteIndicator(armed: boolean): void {
   if (updateChipEl && chipHost) initUpdateChip(updateChipEl, chipHost);
 }
 // PolicyDebateFlow connection chip — desktop only, same gate as the
-// update chip; the underlying integration itself is also gated on
-// policyDebateFlowEnabled (checked inside initFlowChip's render()).
+// update chip; whether it's actually shown (a token is paired) is
+// decided inside initFlowChip's own render().
 {
   const flowChipEl = document.getElementById('pf-flow-chip') as HTMLButtonElement | null;
   if (flowChipEl && getElectronHost()) {
@@ -2494,6 +2499,45 @@ if (homeBtn) {
  *     Cancel → bail. Esc / overlay click also cancel.
  */
 async function onNewDocClicked(): Promise<void> {
+  // Desktop: which WINDOW takes the new doc is main's call, through the
+  // same chooser an OS-opened file goes through (`host:new-doc-target`).
+  // With 2+ three-pane workspaces open, "new doc" almost always means
+  // "new doc in one of these" and only the user knows which; before
+  // this, New silently spawned a blank window every time.
+  //   'sent'        — a window took it and is running its own slot picker.
+  //   'cancel'      — user dismissed the chooser; create nothing.
+  //   'new-window'  — nothing open can take it / user asked for a fresh
+  //                   one. Skip the LOCAL slot picker (they already
+  //                   answered that question) and spawn.
+  //   'unavailable' — older preload, no chooser; use local routing.
+  const electron = getElectronHost();
+  if (electron) {
+    const routed = await electron.pickNewDocTarget();
+    if (routed === 'sent' || routed === 'cancel') return;
+    if (routed === 'new-window') {
+      await spawnBlankWindow();
+      return;
+    }
+  }
+  await createNewDocLocally();
+}
+
+/** Spawn a fresh window for a blank doc, surfacing a failure rather
+ *  than dropping it silently. Shared by every "New → a new window"
+ *  path below. */
+async function spawnBlankWindow(): Promise<void> {
+  try {
+    await getHost().spawnWindow(null);
+  } catch (err) {
+    console.error('Spawn window failed:', err);
+    void alertDialog(`Failed to open new window: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+/** Create a new doc in THIS window, with no cross-window chooser —
+ *  the routing the app used before the chooser existed, and what a
+ *  window runs when the chooser hands it the request. */
+async function createNewDocLocally(): Promise<void> {
   const host = getHost();
   // Multi-pane: ask which slot (or a new window), the same picker Open
   // already shows — see `multiDocNewDocWithPicker`'s doc comment for why
@@ -2503,12 +2547,7 @@ async function onNewDocClicked(): Promise<void> {
       await multiDocNewDocWithPicker();
       return;
     }
-    try {
-      await host.spawnWindow(null);
-    } catch (err) {
-      console.error('Spawn window failed:', err);
-      void alertDialog(`Failed to open new window: ${err instanceof Error ? err.message : err}`);
-    }
+    await spawnBlankWindow();
     return;
   }
   // Multi-window mode (single-doc + Electron): New always spawns a
@@ -2518,12 +2557,7 @@ async function onNewDocClicked(): Promise<void> {
   // a request to overwrite. No prompt: nothing in the current
   // window is at risk of being lost.
   if (host.canSpawnWindow) {
-    try {
-      await host.spawnWindow(null);
-    } catch (err) {
-      console.error('Spawn window failed:', err);
-      void alertDialog(`Failed to open new window: ${err instanceof Error ? err.message : err}`);
-    }
+    await spawnBlankWindow();
     return;
   }
   // Web edition: no other window to open into, so New replaces
@@ -7673,6 +7707,12 @@ function installExternalOpenListener(): void {
   electron.onExternalOpen(({ path }) => {
     void openFileByPath(path, path.replace(/^.*[\\/]/, ''));
   });
+  // New Document routed here by main's window chooser. Goes straight to
+  // the LOCAL path — re-entering onNewDocClicked would ask main which
+  // window to use all over again, from the window that was just picked.
+  electron.onNewDoc(() => {
+    void createNewDocLocally();
+  });
 }
 
 /** Drag-and-drop file opening (desktop). Dropping a .cmir / .cmir-journal /
@@ -8106,9 +8146,20 @@ function activeFile(): { filename: string | null; handle: unknown | null; format
   return { filename: currentDocFilename, handle: currentDocHandle, format: currentDocFormat };
 }
 
-/** Apply a save result back into the active file's record — chip
- *  label, in-place-save handle, and format all update together. */
-function commitSaveResult(filename: string, handle: unknown | null, format: 'cmir' | 'docx'): void {
+/** Point the focused doc at a (possibly new) name / path / format and
+ *  bring the surfaces that mirror it back in step: window title, the
+ *  cross-window path claim (via the layout's own setter), recents, and
+ *  a live collab session's published title.
+ *
+ *  Shared by Save As and rename — the two ways a doc's on-disk identity
+ *  changes under a live editor. Save-specific bookkeeping (clearing the
+ *  recovered-draft mark, clearing an autosave failure) stays with the
+ *  save path; a rename proves neither of those things. */
+function adoptFileIdentity(
+  filename: string,
+  handle: unknown | null,
+  format: 'cmir' | 'docx',
+): void {
   if (multiDocActive && multiDocSetFocusedFile) {
     multiDocSetFocusedFile({ filename, handle, format });
   } else {
@@ -8121,23 +8172,105 @@ function commitSaveResult(filename: string, handle: unknown | null, format: 'cmi
   // moment the host saves, and joiners adopt it via the meta watcher.
   // `?.` on the module promise: never force-loads collab for a plain save.
   void collabUiModule?.then((m) => m.republishSessionTitle(activeDocIdentity().sessionUid));
+  updateWindowTitle();
+  recordRecent({
+    handle: typeof handle === 'string' ? handle : null,
+    filename,
+    format,
+  });
+}
+
+/** The ribbon chip is rebuilt in place rather than re-created, so its
+ *  double-click handler is installed exactly once and then left alone. */
+let ribbonChipRenameInstalled = false;
+function installRibbonChipRename(chipText: HTMLElement): void {
+  if (ribbonChipRenameInstalled) return;
+  ribbonChipRenameInstalled = true;
+  installInlineRename(chipText, {
+    currentName: () => activeFile().filename ?? null,
+    commit: (typed) => {
+      void renameFocusedDoc(typed).then(() => updateWindowTitle());
+    },
+    restore: () => updateWindowTitle(),
+  });
+}
+
+/** Why a rename attempt didn't happen, in the user's terms. Keyed by
+ *  main's `RenameFailure` plus the renderer-side refusals. */
+const RENAME_FAILURE_MESSAGES: Record<string, string> = {
+  empty: 'A document needs a name.',
+  separator: 'A document name can’t contain “/” or “\\”. Use Save As to move it.',
+  reserved: 'That name is reserved by the filesystem.',
+  'illegal-char': 'That name contains characters the filesystem won’t allow.',
+  exists: 'A file with that name already exists in this folder.',
+  'format-change':
+    'Renaming can’t change a document’s format — use Save As to convert between .cmir and .docx.',
+  unsupported: 'This build can’t rename files. Use Save As instead.',
+  invalid: 'That name can’t be used.',
+};
+
+/** Rename the focused doc — on disk as well as in the chrome.
+ *
+ *  Renaming only ever changes the name: the file stays in its folder
+ *  and keeps its format (see `resolveRenameFilename`). A doc that has
+ *  never been saved has no file to move, so it just takes the new label
+ *  and carries it into its eventual Save As.
+ *
+ *  Returns whether the name actually changed, so a caller can leave the
+ *  label alone when nothing happened. */
+export async function renameFocusedDoc(typed: string): Promise<boolean> {
+  const file = activeFile();
+  const current = file.filename ?? '';
+  const resolved = resolveRenameFilename(current, typed);
+  if (!resolved.ok) {
+    // 'unchanged' and 'empty' are both "the user didn't ask for
+    // anything" — back out quietly rather than scolding them.
+    if (resolved.reason === 'format-change') {
+      void alertDialog(RENAME_FAILURE_MESSAGES['format-change']!);
+    }
+    return false;
+  }
+  const { filename } = resolved;
+  const handle = file.handle;
+  // Never saved: nothing on disk to move, so the new name is simply
+  // what this doc is called from here on.
+  if (typeof handle !== 'string' || !handle) {
+    adoptFileIdentity(filename, handle ?? null, file.format ?? settings.get('defaultSaveFormat'));
+    return true;
+  }
+  const electron = getElectronHost();
+  if (!electron) {
+    void alertDialog(RENAME_FAILURE_MESSAGES['unsupported']!);
+    return false;
+  }
+  const result = await electron.renameFile(handle, filename);
+  if (!result.ok) {
+    const reason = RENAME_FAILURE_MESSAGES[result.reason];
+    void alertDialog(
+      reason ?? `Couldn’t rename this document: ${result.message ?? result.reason}`,
+    );
+    return false;
+  }
+  // The file moved: drop the stale recents entry before adopting the
+  // new identity (which records the new path), or the list would offer
+  // a path that no longer exists.
+  removeRecent(handle);
+  adoptFileIdentity(filename, result.path, file.format ?? 'cmir');
+  showToast(`Renamed to ${displayFilename(filename)}`);
+  return true;
+}
+
+function commitSaveResult(filename: string, handle: unknown | null, format: 'cmir' | 'docx'): void {
+  adoptFileIdentity(filename, handle, format);
   // A committed save (e.g. Save-As of a recovered draft) writes the content
   // to a real file, so it's no longer a stale-recovery-overwrite candidate.
   clearRecoveredDraftMark(activeDocIdentity().sessionUid);
-  updateWindowTitle();
   // Format/handle may have changed (e.g., Save-As from unsaved →
   // .cmir-with-handle), which flips the autosave button between
   // inert and effective states. A new handle also moots any earlier
   // autosave failure (the stale-path rescue lands here via Save As).
   reportAutosaveSuccess();
   refreshAutosaveBtn();
-  // A save (especially Save-As, which mints a path for a
-  // previously-unsaved doc) makes the file recents-worthy.
-  recordRecent({
-    handle: typeof handle === 'string' ? handle : null,
-    filename,
-    format,
-  });
 }
 
 /** Public refresh hook. Multi-pane callers invoke this whenever a
@@ -8196,9 +8329,12 @@ function updateWindowTitle(): void {
   const chipText = document.getElementById('doc-name-chip-text');
   if (chip && chipText) {
     const shown = focused.filename ? displayFilename(focused.filename) : '';
-    chipText.textContent = shown;
-    chip.setAttribute('title', shown);
+    // Don't clobber a rename in progress: this runs on plenty of
+    // things that aren't the filename changing.
+    if (!isInlineRenaming(chipText)) chipText.textContent = shown;
+    chip.setAttribute('title', shown ? `${shown} — double-click to rename` : '');
     chip.toggleAttribute('hidden', !focused.filename);
+    installRibbonChipRename(chipText);
   }
   // The cloud badge follows the active document — single-doc mode
   // only. Multi-pane mode has its own per-pane badge (embedded in
@@ -8415,6 +8551,51 @@ export async function runSaveAsFlow(): Promise<boolean> {
   }
 }
 
+/** Write `bytes` into a remembered folder as `filename`, skipping the
+ *  OS picker. Resolves the same `{name, handle}` `host.saveAs` does, or
+ *  null when the user backs out of overwriting / the write fails.
+ *
+ *  The picker's own overwrite prompt is gone on this path, so the
+ *  collision check has to happen here: `failIfExists` first, and only
+ *  an explicit confirmation writes over an existing file. Silently
+ *  clobbering a teammate's file because a folder was one click away is
+ *  exactly the failure this shortcut must not introduce. */
+async function saveIntoDirectory(
+  dir: string,
+  filename: string,
+  bytes: Uint8Array,
+): Promise<{ name: string; handle: string } | null> {
+  const electron = getElectronHost();
+  if (!electron?.writeFileAtPath) {
+    void alertDialog('This build can’t save straight to a folder — use Save As instead.');
+    return null;
+  }
+  const target = joinPath(dir, filename);
+  try {
+    // grantRead: this becomes the window's live doc and goes into
+    // recents, so main has to keep it reopenable by path — the grant
+    // the OS save dialog hands out, which this shortcut skips.
+    const collided = await electron.writeFileAtPath(target, bytes, {
+      failIfExists: true,
+      grantRead: true,
+    });
+    if (collided === 'collision') {
+      const overwrite = await confirmDialog(
+        `“${filename}” already exists in ${dir}. Replace it?`,
+        { title: 'File exists', okLabel: 'Replace', cancelLabel: 'Cancel' },
+      );
+      if (!overwrite) return null;
+      await electron.writeFileAtPath(target, bytes, { grantRead: true });
+    }
+    return { name: filename, handle: target };
+  } catch (err) {
+    void alertDialog(
+      `Couldn’t save into ${dir}: ${err instanceof Error ? err.message : err}`,
+    );
+    return null;
+  }
+}
+
 async function runSaveAsFlowInner(): Promise<boolean> {
   const file = activeFile();
   const suggestedName = basenameWithoutExt(file.filename ?? 'untitled');
@@ -8425,6 +8606,9 @@ async function runSaveAsFlowInner(): Promise<boolean> {
   const choice = await openSaveAs({
     initialFilename: suggestedName,
     defaultFormat,
+    // Only the desktop host can write to a bare directory path, which
+    // is what a remembered location is.
+    allowSaveLocations: !!getElectronHost()?.writeFileAtPath,
   });
   if (!choice) return false;
   // Writing to .docx flattens live views / linked copies — confirm first.
@@ -8475,13 +8659,25 @@ async function runSaveAsFlowInner(): Promise<boolean> {
       ),
       choice.filename,
     );
-    const result = await getHost().saveAs(choice.filename, bytes, {
-      filters: saveFiltersForFormat(choice.format),
-      // Open the dialog next to the doc's current path (or, after a
-      // rename/move broke it, the nearest surviving parent folder).
-      ...(typeof file.handle === 'string' && file.handle ? { nearPath: file.handle } : {}),
-    });
+    // A remembered folder writes straight there; everything else goes
+    // through the OS picker. Both produce the same {name, handle}, so
+    // the commit path below is identical either way.
+    const result = choice.destinationDir
+      ? await saveIntoDirectory(choice.destinationDir, choice.filename, bytes)
+      : await getHost().saveAs(choice.filename, bytes, {
+          filters: saveFiltersForFormat(choice.format),
+          // Open the dialog next to the doc's current path (or, after a
+          // rename/move broke it, the nearest surviving parent folder).
+          ...(typeof file.handle === 'string' && file.handle ? { nearPath: file.handle } : {}),
+        });
     if (!result) return false;
+    // Remember where this landed so it's offered next time. Covers the
+    // OS-picker path too — that's how the list fills up in the first
+    // place — and re-recording a remembered folder refreshes its
+    // recency so the list stays ordered by actual use.
+    if (typeof result.handle === 'string' && result.handle) {
+      recordSaveLocation(dirnameOf(result.handle));
+    }
     if (isFullSave) {
       // Read the pre-fork identity before committing the new file
       // (commitSaveResult leaves docId untouched, but read first to be

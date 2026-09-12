@@ -33,6 +33,12 @@ import {
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { bundlePathFromExe, launchSwapHelper, macBundleSelfUpdatable } from './mac-swap-update.js';
+import { buildChooserPrompt, readChooserResponse } from './multipane-chooser.js';
+import {
+  validateRenameTarget,
+  isSamePathIgnoringCase,
+  type RenameFailure,
+} from './rename-file.js';
 import { registerVoiceIpc } from './voice/ipc';
 import { registerFlowIpc } from './flow-bridge.js';
 import { registerPairingIpc, relayUrl } from './pairing-ipc.js';
@@ -59,6 +65,7 @@ import {
   refreshOwnedBaseline,
   claimBaseline,
   releaseBaseline,
+  transferDiskState,
   releaseBaselinesForWindow,
   baselineFor,
   ownedBaselines,
@@ -303,29 +310,76 @@ function labelForChooser(win: BrowserWindow): string {
   return win.getTitle().replace(/ — CardMirror$/, '') || 'Untitled';
 }
 
-/** Which multi-pane window should receive an externally-opened file.
+type MultiPaneChoice =
+  | { kind: 'window'; win: BrowserWindow }
+  | { kind: 'new-window' }
+  | { kind: 'cancel' };
+
+/** Which multi-pane window should receive a doc (an externally-opened
+ *  file, or a New Document request from any window).
  *  With exactly one candidate, use it — no need to ask. With 2+,
  *  always ask: picking the focused window (the old behavior) meant a
  *  Finder/Dock open always landed wherever you were last looking, even
  *  when a DIFFERENT window had the room and was the one actually
  *  meant — there's no way to infer intent from focus alone once
- *  multiple multi-pane windows are in play. Returns null for "New
- *  Window" or a dismissed dialog — both fall through to the caller's
- *  existing spawn-a-new-window path, same as the zero-candidate case. */
-async function pickMultiPaneTarget(filePath: string): Promise<BrowserWindow | null> {
+ *  multiple multi-pane windows are in play. Zero candidates resolves to
+ *  `new-window` (nothing open can take it).
+ *
+ *  `withCancel` adds an explicit Cancel button and makes Esc mean
+ *  cancel. The OS-open path leaves it off: a file the OS handed us has
+ *  to land somewhere, so a dismissed dialog still spawns a window.
+ *  New Document passes it — dismissing that dialog should create
+ *  nothing at all.
+ *
+ *  `autoRouteOnlyTo` restricts the silent single-candidate shortcut to
+ *  one window id. New Document passes the REQUESTING window: with a
+ *  three-pane workspace open beside the single-doc window you're
+ *  typing in, "no need to ask" would silently hand the doc to the
+ *  other window and yank focus over there — a window you never named.
+ *  A file the OS handed us has no requesting window, so that path
+ *  leaves this unset and keeps the plain shortcut. */
+async function pickMultiPaneTarget(
+  message: string,
+  opts: { withCancel?: boolean; autoRouteOnlyTo?: number } = {},
+): Promise<MultiPaneChoice> {
   const candidates = liveMultiPaneWindows();
-  if (candidates.length === 0) return null;
-  if (candidates.length === 1) return candidates[0]!;
+  if (candidates.length === 0) return { kind: 'new-window' };
+  if (
+    candidates.length === 1 &&
+    (opts.autoRouteOnlyTo === undefined || candidates[0]!.id === opts.autoRouteOnlyTo)
+  ) {
+    return { kind: 'window', win: candidates[0]! };
+  }
   const labels = candidates.map(labelForChooser);
+  const layout = { withCancel: opts.withCancel === true };
+  const { buttons, cancelId } = buildChooserPrompt(labels, layout);
   const { response } = await dialog.showMessageBox({
     type: 'question',
-    message: `Open "${path.basename(filePath)}" in:`,
-    buttons: [...labels, 'New Window'],
+    message,
+    buttons,
     defaultId: 0,
-    cancelId: labels.length,
+    cancelId,
     noLink: true,
   });
-  return response < candidates.length ? candidates[response]! : null;
+  const parsed = readChooserResponse(response, labels.length, layout);
+  if (parsed.kind === 'window') return { kind: 'window', win: candidates[parsed.index]! };
+  return parsed.kind === 'cancel' ? { kind: 'cancel' } : { kind: 'new-window' };
+}
+
+/** Hand a window a doc-routing message, bringing it forward so the
+ *  slot picker it shows is actually visible.
+ *
+ *  Returns false when the window died while the chooser dialog was up
+ *  — a modal dialog can stay open for as long as the user leaves it
+ *  there, and `send` on a destroyed webContents throws. Callers treat
+ *  that as "nothing took it" and spawn a window instead. */
+function handOffToWindow(win: BrowserWindow, channel: string, payload?: unknown): boolean {
+  if (win.isDestroyed() || win.webContents.isDestroyed()) return false;
+  if (payload === undefined) win.webContents.send(channel);
+  else win.webContents.send(channel, payload);
+  if (win.isMinimized()) win.restore();
+  win.focus();
+  return true;
 }
 
 const CLOUD_WAIT_TIMEOUT_MS = 20_000;
@@ -404,13 +458,12 @@ async function openExternalFile(filePath: string): Promise<void> {
   // already open in another window opens a second, conflicting copy
   // (whichever copy closes first then releases the shared claim).
   if (focusExistingOwner(filePath)) return;
-  const target = await pickMultiPaneTarget(filePath);
-  if (target) {
-    // Hand off to the existing workspace — it reads the path and shows
-    // its slot picker. Bring it forward so the picker is visible.
-    target.webContents.send('host:external-open', { path: filePath });
-    if (target.isMinimized()) target.restore();
-    target.focus();
+  const choice = await pickMultiPaneTarget(`Open "${path.basename(filePath)}" in:`);
+  // Hand off to the existing workspace — it reads the path and shows
+  // its slot picker. Bring it forward so the picker is visible. A
+  // window that closed while the chooser was up falls through to the
+  // spawn below rather than dropping the file.
+  if (choice.kind === 'window' && handOffToWindow(choice.win, 'host:external-open', { path: filePath })) {
     return;
   }
   try {
@@ -1374,7 +1427,7 @@ ipcMain.handle(
     _event,
     filePath: string,
     bytes: unknown,
-    opts?: { failIfExists?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean },
   ) => {
     if (typeof filePath !== 'string' || !filePath) {
       throw new Error('write-file-at-path: no path');
@@ -1389,6 +1442,15 @@ ipcMain.handle(
         mkdir: true,
         failIfExists: opts?.failIfExists,
       });
+      // grantRead: the caller ADOPTS this file as the live document
+      // (the new-speech-doc auto-save, a save into a remembered
+      // folder), so it lands in recents and has to be reopenable by
+      // path later — exactly what host:save-as grants for a file the
+      // user picked in the dialog. Opt-in, because the bulk writers on
+      // this same channel (bulk convert, the style cleaner) produce
+      // hundreds of files nobody adopted, and every grant costs a slot
+      // in the LRU-capped grant journal.
+      if (opts?.grantRead) grantReadPath(filePath);
     } catch (err) {
       // The 'collision' sentinel lets the renderer defer to Save As —
       // same contract as host:save-send-doc below. Real write
@@ -2061,6 +2123,30 @@ ipcMain.handle('host:register-multipane', async (event, isMultiPane: boolean) =>
   else multiPaneWindows.delete(win.id);
 });
 
+// New Document routes through the SAME "which window?" chooser an
+// OS-opened file does, instead of unconditionally spawning a blank
+// window: with two three-pane workspaces open, "new doc" is nearly
+// always "new doc in one of these", and only the user knows which.
+// The chosen window runs its own slot picker (`host:new-doc`), so the
+// two-step feel matches an external open exactly.
+//   'sent'       — a window took it; the caller is done.
+//   'new-window' — nothing open can take it, or the user asked for a
+//                  fresh window; the caller spawns one.
+//   'cancel'     — the user dismissed the chooser; create nothing.
+ipcMain.handle('host:new-doc-target', async (event): Promise<'sent' | 'new-window' | 'cancel'> => {
+  const asker = BrowserWindow.fromWebContents(event.sender);
+  const choice = await pickMultiPaneTarget('New document in:', {
+    withCancel: true,
+    // Only THIS window may take a new doc without being named; see
+    // pickMultiPaneTarget.
+    ...(asker ? { autoRouteOnlyTo: asker.id } : {}),
+  });
+  if (choice.kind === 'cancel') return 'cancel';
+  if (choice.kind !== 'window') return 'new-window';
+  // Closed while the chooser was up — the caller spawns instead.
+  return handOffToWindow(choice.win, 'host:new-doc') ? 'sent' : 'new-window';
+});
+
 ipcMain.handle('host:is-first-window', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return false;
@@ -2578,6 +2664,56 @@ ipcMain.handle(
     const provider = await cloudProviderFor(norm);
     if (provider) diskWatch.start();
     return { claim, provider };
+  },
+);
+
+// Rename a document in place, same folder (the chrome's double-click
+// rename). The renderer moves its own path claim afterwards via the
+// register/release pair above — this handler is only the disk half.
+//
+// Deliberately refuses to overwrite: renaming onto an existing file
+// would destroy it, and the rename affordance gives no hint that's
+// what's about to happen. A case-only rename is exempt, since on
+// macOS/Windows its target IS the file being renamed.
+ipcMain.handle(
+  'host:rename-file',
+  async (
+    _event,
+    oldPath: string,
+    newName: string,
+  ): Promise<
+    | { ok: true; path: string }
+    | { ok: false; reason: RenameFailure; message?: string }
+  > => {
+    if (typeof oldPath !== 'string' || !oldPath || typeof newName !== 'string') {
+      return { ok: false, reason: 'invalid' };
+    }
+    const validated = validateRenameTarget(oldPath, newName);
+    if (!validated.ok) return { ok: false, reason: validated.reason };
+    const { newPath } = validated;
+    if (path.resolve(newPath) === path.resolve(oldPath)) return { ok: true, path: oldPath };
+    try {
+      if (!isSamePathIgnoringCase(oldPath, newPath)) {
+        const taken = await fs
+          .access(newPath)
+          .then(() => true)
+          .catch(() => false);
+        if (taken) return { ok: false, reason: 'exists' };
+      }
+      await fs.rename(oldPath, newPath);
+      // The old path's read grant doesn't cover the new name.
+      grantReadPath(newPath);
+      // Same bytes, same mtime — carry the changed-on-disk baseline
+      // over, or the next in-place save is refused for having none.
+      transferDiskState(oldPath, newPath);
+      return { ok: true, path: newPath };
+    } catch (err) {
+      return {
+        ok: false,
+        reason: 'failed',
+        message: err instanceof Error ? err.message : String(err),
+      };
+    }
   },
 );
 

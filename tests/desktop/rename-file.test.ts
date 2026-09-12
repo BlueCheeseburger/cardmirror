@@ -1,0 +1,94 @@
+/**
+ * Rename validation (apps/desktop/src/rename-file.ts). This takes a
+ * name the user typed straight into an `fs.rename`, so the cases that
+ * matter are the ones that would move the file somewhere it was never
+ * meant to go.
+ */
+
+import { describe, it, expect } from 'vitest';
+import * as path from 'node:path';
+import {
+  validateRenameTarget,
+  isSamePathIgnoringCase,
+  type RenameValidation,
+} from '../../apps/desktop/src/rename-file.js';
+
+const OLD = '/w/round3/1nc.docx';
+
+/** Assert the two things a resolved target has to get right, without
+ *  pinning a separator: the file keeps its folder, and takes that name.
+ *  (`path.join` yields '\' on Windows, which is correct there.) */
+function expectResolvedTo(result: RenameValidation, name: string): void {
+  expect(result.ok).toBe(true);
+  const resolved = result as Extract<RenameValidation, { ok: true }>;
+  expect(path.basename(resolved.newPath)).toBe(name);
+  expect(path.resolve(path.dirname(resolved.newPath))).toBe(path.resolve(path.dirname(OLD)));
+}
+
+describe('validateRenameTarget', () => {
+  it('resolves a plain name against the file’s own folder', () => {
+    expectResolvedTo(validateRenameTarget(OLD, '2nr.docx'), '2nr.docx');
+  });
+
+  it('trims surrounding whitespace', () => {
+    expectResolvedTo(validateRenameTarget(OLD, '  2nr.docx  '), '2nr.docx');
+  });
+
+  it('rejects an empty or whitespace-only name', () => {
+    expect(validateRenameTarget(OLD, '')).toEqual({ ok: false, reason: 'empty' });
+    expect(validateRenameTarget(OLD, '   ')).toEqual({ ok: false, reason: 'empty' });
+  });
+
+  it('refuses anything containing a path separator — rename never moves a file', () => {
+    for (const name of ['../escaped.docx', 'sub/2nr.docx', '..\\escaped.docx', '/abs.docx']) {
+      expect(validateRenameTarget(OLD, name)).toEqual({ ok: false, reason: 'separator' });
+    }
+  });
+
+  it('refuses the directory entries themselves', () => {
+    expect(validateRenameTarget(OLD, '.')).toEqual({ ok: false, reason: 'reserved' });
+    expect(validateRenameTarget(OLD, '..')).toEqual({ ok: false, reason: 'reserved' });
+  });
+
+  it('refuses a NUL on every platform', () => {
+    expect(validateRenameTarget(OLD, 'a\u0000b.docx', 'linux')).toEqual({
+      ok: false,
+      reason: 'illegal-char',
+    });
+    expect(validateRenameTarget(OLD, 'a\u0000b.docx', 'win32')).toEqual({
+      ok: false,
+      reason: 'illegal-char',
+    });
+  });
+
+  it('applies Windows’ stricter character rules only on Windows', () => {
+    // A colon is legal on POSIX (the app already handles Finder-typed
+    // ones) but not on Windows.
+    expect(validateRenameTarget(OLD, 'Rd 3: Harvard.docx', 'darwin')).toMatchObject({ ok: true });
+    expect(validateRenameTarget(OLD, 'Rd 3: Harvard.docx', 'win32')).toEqual({
+      ok: false,
+      reason: 'illegal-char',
+    });
+    for (const bad of ['a<b.docx', 'a>b.docx', 'a"b.docx', 'a|b.docx', 'a?b.docx', 'a*b.docx']) {
+      expect(validateRenameTarget(OLD, bad, 'win32')).toEqual({
+        ok: false,
+        reason: 'illegal-char',
+      });
+    }
+  });
+
+  it('allows a leading dot — a hidden file is a real filename, not an escape', () => {
+    expectResolvedTo(validateRenameTarget(OLD, '.hidden.docx'), '.hidden.docx');
+  });
+});
+
+describe('isSamePathIgnoringCase', () => {
+  it('recognizes a case-only rename, which must not read as “target exists”', () => {
+    expect(isSamePathIgnoringCase('/w/r/1nc.docx', '/w/r/1NC.docx')).toBe(true);
+  });
+
+  it('does not conflate genuinely different files', () => {
+    expect(isSamePathIgnoringCase('/w/r/1nc.docx', '/w/r/2nr.docx')).toBe(false);
+    expect(isSamePathIgnoringCase('/w/r/1nc.docx', '/w/other/1nc.docx')).toBe(false);
+  });
+});

@@ -8,6 +8,80 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.10.0-bcb.3 — 2026-09-12
+
+### Added
+
+- **Double-click a document's name to rename it** — in the ribbon's doc-name
+  chip or a pane's title chip. Renames the real file too, so you don't have to
+  go out to Finder/Explorer. Enter or clicking away commits, Esc cancels. The
+  file stays in its folder and keeps its format (use Save As to convert), and
+  an existing file is never overwritten. Desktop only.
+- **Save As remembers where you've saved.** A "Save in a previously saved
+  location" list at the bottom of the dialog: click a folder and the document
+  saves straight into it, no OS dialog. Hover a folder for a pin to keep it at
+  the top. The section starts collapsed and remembers whether you left it open.
+  Desktop only.
+
+- **Drag a pane's title chip onto another pane to move that document there.**
+  Grab the strip with the filename and drop it on the slot you want; an empty
+  slot appears as a labelled drop zone while you drag, and Esc backs out. A
+  document dropped on an occupied slot joins its stack (the ▾ switcher gets you
+  between them) — the same thing "Send doc to slot N" has always done, now
+  without needing to know the command exists.
+
+### Changed
+
+- **Opening a document into an empty workspace no longer asks which slot.** A
+  brand-new three-pane window has nothing in any slot, so the "Open X into…"
+  picker had one real answer; documents now land in Slot 1. The picker still
+  appears as soon as any slot is occupied.
+- **New Document now asks which window**, the same way opening a file from
+  Finder/Dock does, instead of always spawning a new window. With one
+  three-pane workspace open it goes straight to that workspace's slot picker;
+  with several, you pick the window first. Desktop only.
+- **Save As's Include checkboxes moved into a Custom Save button**, sitting
+  right of Marked Doc with the other one-click saves. Clicking it opens a small
+  dialog with the same five options.
+
+### Fixed
+
+- **Recently closed multi-pane workspaces now actually appear on the home
+  screen.** The "reopen these documents together" suggestion (introduced in
+  1.10.0) was wired up but never rendered — closing a multi-pane window with
+  2+ saved docs recorded the suggestion, but nothing showed it. It's fixed
+  and merged into the Recent list: a workspace suggestion now appears right
+  alongside recently opened single files, sorted by recency, instead of
+  competing for its own separate space.
+- **A document saved into a remembered folder can be reopened from Recent.**
+  Saving through the new location list skipped the step that keeps a file
+  readable by path, so its Recent entry — and the same window's own reopen —
+  came back "file moved or deleted". Also fixes the same gap for a new speech
+  document auto-saved into your default speech-doc folder.
+- **New Document no longer hands your document to a window you didn't pick.**
+  With one three-pane workspace open beside the window you were working in,
+  New silently routed the document there and pulled focus with it. It now asks
+  whenever the destination isn't the window you started from.
+- **Renaming or Save-As-ing a document in a pane now updates "Reopen last
+  workspace".** The snapshot kept the old path, so reopening came back with a
+  missing file.
+- **The PolicyDebateFlow connection check no longer stalls.** Its 30-second
+  poll restarted on every unrelated settings change, so on a busy window it
+  could go indefinitely without ever running — leaving the chip reading
+  "Connected" on a token the server had already revoked.
+- **The PolicyDebateFlow status chip now pauses instead of disconnecting.**
+  Clicking it while connected used to revoke your token outright — which
+  can't be undone with a click, since reconnecting needs a whole new pairing
+  code. It now just pauses the connection locally (click again to resume);
+  the real disconnect (which does revoke the token) stays in Settings →
+  PolicyDebateFlow's Disconnect button.
+- **Sending a tagline now tells you when PolicyDebateFlow itself is
+  paused**, instead of the generic "isn't open" message — PolicyDebateFlow
+  has its own status chip, and a tab that's open but paused on its end
+  gets its own toast so it's not confused with a closed tab.
+
+---
+
 ## 1.10.0-bcb.2.1 — 2026-09-11
 
 ### Added

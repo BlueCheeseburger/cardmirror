@@ -78,11 +78,13 @@ interface PfPresence {
   focusedCol: number;
 }
 
-/** POST pf-revoke-token — the shared disconnect path for both the
- *  Settings → PolicyDebateFlow row (`buildFlowConnectionEditor` in
- *  `settings-ui.ts`) and the status-bar chip (`flow-chip.ts`), so
- *  disconnecting from either place also flips PolicyDebateFlow's own
- *  status indicator, not just CardMirror's stored token. `200 { ok:
+/** POST pf-revoke-token — the real "unpair" action, used only by
+ *  Settings → PolicyDebateFlow's Disconnect button
+ *  (`buildFlowConnectionEditor` in `settings-ui.ts`). The status-bar
+ *  chip (`flow-chip.ts`) deliberately does NOT call this: a revoke
+ *  deletes the token row server-side, which can't be undone with one
+ *  click, so the chip only pauses/resumes locally
+ *  (`policyDebateFlowEnabled`) and leaves the token alone. `200 { ok:
  *  true }` on success, `401` if the token was already invalid/missing
  *  — either way the caller proceeds to clear the token locally, which
  *  is the authoritative disconnect from CardMirror's side regardless
@@ -101,21 +103,34 @@ export async function revokeFlowToken(token: string): Promise<void> {
 type FlowSendResult =
   | { ok: true; flowName: string; sheetName: string }
   | { ok: false; reason: 'not-open' }
+  | { ok: false; reason: 'paused' }
   | { ok: false; reason: 'expired' }
   | { ok: false; reason: 'error'; message: string };
 
 /** GET pf-presence — confirms a PolicyDebateFlow tab is open and
- *  recently focused, and returns exactly where to send the card. */
+ *  recently focused, and returns exactly where to send the card.
+ *
+ *  `present: false` splits into two distinct reasons: `paused: true`
+ *  (PolicyDebateFlow, commit d912ef2/v2) means the tab is open but the
+ *  user paused delivery from their own status chip — deliberate, so
+ *  the toast should say that rather than the generic "isn't open".
+ *  `paused` only holds for 5 minutes after the pause (the same
+ *  staleness window as ordinary idle presence); past that it degrades
+ *  back to plain `present: false` with no `paused` field, same as a
+ *  closed tab — that's intentional on PolicyDebateFlow's side, not a
+ *  gap to work around here. */
 async function readPresence(
   token: string,
-): Promise<{ ok: true; presence: PfPresence } | { ok: false; reason: 'not-open' | 'expired' | 'error' }> {
+): Promise<
+  { ok: true; presence: PfPresence } | { ok: false; reason: 'not-open' | 'paused' | 'expired' | 'error' }
+> {
   const res = await fetch(`${PF_FUNCTIONS_BASE}/pf-presence`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (res.status === 401) return { ok: false, reason: 'expired' };
   if (!res.ok) return { ok: false, reason: 'error' };
-  const body: { present: boolean } & Partial<PfPresence> = await res.json();
-  if (!body.present) return { ok: false, reason: 'not-open' };
+  const body: { present: boolean; paused?: boolean } & Partial<PfPresence> = await res.json();
+  if (!body.present) return { ok: false, reason: body.paused ? 'paused' : 'not-open' };
   return { ok: true, presence: body as PfPresence };
 }
 
@@ -159,6 +174,7 @@ async function callPolicyDebateFlow(token: string, payload: TaglinePayload): Pro
   if (!presenceResult.ok) {
     if (presenceResult.reason === 'expired') return { ok: false, reason: 'expired' };
     if (presenceResult.reason === 'not-open') return { ok: false, reason: 'not-open' };
+    if (presenceResult.reason === 'paused') return { ok: false, reason: 'paused' };
     return { ok: false, reason: 'error', message: 'Could not reach PolicyDebateFlow' };
   }
   const { presence } = presenceResult;
@@ -197,6 +213,8 @@ export async function sendTaglineToFlowAsync(view: EditorView): Promise<void> {
     showToast(`Sent to ${result.sheetName} – ${result.flowName}`);
   } else if (result.reason === 'not-open') {
     showToast("PolicyDebateFlow isn't open");
+  } else if (result.reason === 'paused') {
+    showToast('PolicyDebateFlow is paused');
   } else if (result.reason === 'expired') {
     showToast('PolicyDebateFlow connection expired — re-pair in Settings');
   } else {
