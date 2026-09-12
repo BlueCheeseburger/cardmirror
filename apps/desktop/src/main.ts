@@ -34,6 +34,11 @@ import {
 import { autoUpdater } from 'electron-updater';
 import { bundlePathFromExe, launchSwapHelper, macBundleSelfUpdatable } from './mac-swap-update.js';
 import { buildChooserPrompt, readChooserResponse } from './multipane-chooser.js';
+import {
+  validateRenameTarget,
+  isSamePathIgnoringCase,
+  type RenameFailure,
+} from './rename-file.js';
 import { registerVoiceIpc } from './voice/ipc';
 import { registerFlowIpc } from './flow-bridge.js';
 import { registerPairingIpc, relayUrl } from './pairing-ipc.js';
@@ -60,6 +65,7 @@ import {
   refreshOwnedBaseline,
   claimBaseline,
   releaseBaseline,
+  transferDiskState,
   releaseBaselinesForWindow,
   baselineFor,
   ownedBaselines,
@@ -2620,6 +2626,56 @@ ipcMain.handle(
     const provider = await cloudProviderFor(norm);
     if (provider) diskWatch.start();
     return { claim, provider };
+  },
+);
+
+// Rename a document in place, same folder (the chrome's double-click
+// rename). The renderer moves its own path claim afterwards via the
+// register/release pair above — this handler is only the disk half.
+//
+// Deliberately refuses to overwrite: renaming onto an existing file
+// would destroy it, and the rename affordance gives no hint that's
+// what's about to happen. A case-only rename is exempt, since on
+// macOS/Windows its target IS the file being renamed.
+ipcMain.handle(
+  'host:rename-file',
+  async (
+    _event,
+    oldPath: string,
+    newName: string,
+  ): Promise<
+    | { ok: true; path: string }
+    | { ok: false; reason: RenameFailure; message?: string }
+  > => {
+    if (typeof oldPath !== 'string' || !oldPath || typeof newName !== 'string') {
+      return { ok: false, reason: 'invalid' };
+    }
+    const validated = validateRenameTarget(oldPath, newName);
+    if (!validated.ok) return { ok: false, reason: validated.reason };
+    const { newPath } = validated;
+    if (path.resolve(newPath) === path.resolve(oldPath)) return { ok: true, path: oldPath };
+    try {
+      if (!isSamePathIgnoringCase(oldPath, newPath)) {
+        const taken = await fs
+          .access(newPath)
+          .then(() => true)
+          .catch(() => false);
+        if (taken) return { ok: false, reason: 'exists' };
+      }
+      await fs.rename(oldPath, newPath);
+      // The old path's read grant doesn't cover the new name.
+      grantReadPath(newPath);
+      // Same bytes, same mtime — carry the changed-on-disk baseline
+      // over, or the next in-place save is refused for having none.
+      transferDiskState(oldPath, newPath);
+      return { ok: true, path: newPath };
+    } catch (err) {
+      return {
+        ok: false,
+        reason: 'failed',
+        message: err instanceof Error ? err.message : String(err),
+      };
+    }
   },
 );
 

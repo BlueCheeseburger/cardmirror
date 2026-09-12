@@ -147,7 +147,9 @@ import {
   saveActiveAsConflictedCopy,
   saveActiveForcingDisk,
   openFileByPath,
+  renameFocusedDoc,
 } from './index.js';
+import { installInlineRename, isInlineRenaming } from './doc-rename.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { sendViewToRecipient } from './pairing/send-to-recipient.js';
 import { isSyncOrigin } from './sync-origin.js';
@@ -765,7 +767,21 @@ class Slot {
     chip.appendChild(this.chipStackBtn);
     this.chipNameEl = document.createElement('span');
     this.chipNameEl.className = 'pmd-pane-chip-name';
+    this.chipNameEl.title = 'Double-click to rename';
     chip.appendChild(this.chipNameEl);
+    // Double-click the name to rename the doc — on disk too. Focus
+    // this slot first (same as the chip's Save / Autosave buttons):
+    // the rename acts on the FOCUSED doc, so clicking a background
+    // pane's name must move focus there before it commits, or it
+    // would rename whichever doc happened to be focused.
+    installInlineRename(this.chipNameEl, {
+      currentName: () => this.visible?.filename ?? null,
+      commit: (typed) => {
+        this.shell.focusSlot(this);
+        void renameFocusedDoc(typed).then(() => this.refreshChipFilename());
+      },
+      restore: () => this.refreshChipFilename(),
+    });
     // Slot-number badge — small fixed glyph immediately left of
     // the expand button. Helps users identify which slot they're
     // looking at when only some slots are occupied (a single doc
@@ -1311,6 +1327,10 @@ class Slot {
   refreshChipFilename(): void {
     const rec = this.visible;
     if (!rec) return;
+    // Leave the label alone while it's being renamed — this fires on
+    // plenty of things that aren't the filename changing, and would
+    // otherwise delete the field under the user's cursor.
+    if (isInlineRenaming(this.chipNameEl)) return;
     this.chipNameEl.textContent = displayFilename(rec.filename);
   }
 

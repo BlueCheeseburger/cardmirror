@@ -10204,6 +10204,40 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   line-height: 1.3;
 }
 
+/* Inline rename field — swapped in where the doc name normally sits
+   (ribbon doc-name chip, pane title chip) on double-click. Sized to
+   the label it replaces so the chrome doesn't jump when editing
+   starts, and inherits the chip's type so the text doesn't move
+   either. */
+.pmd-inline-rename {
+  font: inherit;
+  color: var(--pmd-c-text);
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-accent);
+  border-radius: 4px;
+  padding: 0 0.25rem;
+  margin: -1px 0;
+  /* Sized by its own `size` attribute (set from the text in
+     doc-rename.ts), NOT by the parent: these labels live in
+     content-sized flex rows where a percentage width collapses the
+     field to a sliver. Clamped so a long name can't push the chip's
+     buttons out of the pane. */
+  min-width: 6rem;
+  max-width: 20rem;
+  box-sizing: border-box;
+}
+.pmd-inline-rename:focus {
+  outline: none;
+}
+/* Both labels clip their own text (`overflow: hidden` + ellipsis),
+   which would shave the field's border off top and bottom while it's
+   mounted inside them. The marker is set only for the duration of an
+   edit, so nothing else changes. */
+.pmd-pane-chip-name[data-renaming='true'],
+.pmd-doc-name-chip-text[data-renaming='true'] {
+  overflow: visible;
+}
+
 /* Custom Save's sub-dialog: stacked over the Save As dialog (1000), but
    below route dialogs (1400) so a confirm opened from either still
    lands on top of both. */
