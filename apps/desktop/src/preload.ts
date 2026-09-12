@@ -447,6 +447,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('host:new-doc', listener);
   },
 
+  /** Other live multi-pane windows a doc could move to (right-click a
+   *  pane's title chip). Never includes this window. */
+  listMultiPaneWindows: (): Promise<Array<{ id: number; label: string }>> =>
+    ipcRenderer.invoke('host:list-multipane-windows'),
+
+  /** Hand this doc's current bytes to another live window. */
+  moveDocToWindow: (
+    targetWinId: number,
+    payload: { filename: string; bytes: Uint8Array; handle: string | null; markDirty?: boolean },
+  ): Promise<{ ok: true } | { ok: false; reason: string }> =>
+    ipcRenderer.invoke('host:move-doc-to-window', targetWinId, payload),
+
+  /** Main forwards a doc moved here from another window's "Move
+   *  to…" menu. Returns an unsubscribe. */
+  onReceiveDoc(
+    handler: (payload: {
+      filename: string;
+      bytes: Uint8Array;
+      handle: string | null;
+      markDirty?: boolean;
+    }) => void,
+  ): () => void {
+    const listener = (
+      _event: unknown,
+      payload: { filename: string; bytes: Uint8Array; handle: string | null; markDirty?: boolean },
+    ): void => handler(payload);
+    ipcRenderer.on('host:receive-doc', listener);
+    return () => ipcRenderer.removeListener('host:receive-doc', listener);
+  },
+
   /** Spawn a new BrowserWindow, optionally pre-loaded with a doc. */
   spawnWindow: (payload: {
     filename: string;

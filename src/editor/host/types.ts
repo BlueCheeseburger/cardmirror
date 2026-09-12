@@ -55,6 +55,13 @@ export interface OpenedFile {
    *  a cloud placeholder — those stat at the file's real size, and keep
    *  the "hasn't finished downloading" error. See editor/empty-open.ts. */
   emptyOnDisk?: boolean;
+  /** True when this file's content diverges from what's on disk (or
+   *  it has no disk copy at all) — set only by a cross-window
+   *  move-to-window handoff, whose bytes are the SOURCE pane's live
+   *  in-memory state, not necessarily what `handle` holds on disk.
+   *  Every other opener leaves this unset: an ordinary open's bytes
+   *  and its disk copy are the same thing by definition. */
+  markDirty?: boolean;
 }
 
 /** Result of a successful `Host.saveAs` — confirmation that the

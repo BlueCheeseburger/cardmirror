@@ -8,6 +8,35 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.10.0-bcb.3.2 — 2026-09-12
+
+### Added
+
+- **Move a document to another window.** Right-click a pane's title chip for
+  a "Move to…" menu listing every other open three-pane window, plus New
+  Window. The doc's current content — including unsaved edits — goes with
+  it; picking a window it can't reach leaves it exactly where it was. Chip
+  drag still covers moving a doc between panes in the SAME window; this
+  reaches across windows, which dragging can't.
+- **Save As: pick a save mode and a location, then hit "Save As."** As-Is,
+  Send Doc, Read Doc, Marked Doc, and Custom Save are now a list you select
+  from, not buttons that save the instant you click them — so "what would
+  Send Doc leave out" is safe to check without committing to it. Custom
+  Save's five checkboxes now show inline under its own option instead of in
+  a separate dialog. "Save in a previously saved location" is the same kind
+  of list now too: select a remembered folder (or "Choose location when
+  saving," the default) alongside whichever save mode you picked, then Save
+  As applies both together.
+
+### Fixed
+
+- **Dragging a doc onto an occupied pane now swaps it, instead of doing
+  nothing you could see.** With docs in panes 1 and 2, dragging pane 2's
+  onto pane 1 used to push it onto pane 1's stack — pane 1 ended up with
+  both docs (one hidden behind the other) and pane 2 went empty, which read
+  as the drop being refused. It now swaps: pane 2's doc takes pane 1, and
+  pane 1's previous doc lands in pane 2.
+
 ## 1.10.0-bcb.3.1 — 2026-09-12
 
 ### Fixed
