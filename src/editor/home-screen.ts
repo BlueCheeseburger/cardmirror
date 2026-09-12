@@ -35,6 +35,8 @@ import {
 import {
   listRecentWorkspaces,
   removeRecentWorkspace,
+  clearRecentWorkspaces,
+  subscribeRecentWorkspaces,
   type RecentWorkspace,
 } from './recent-workspaces-store.js';
 import { learnStore, localToday } from './learn-store-host.js';
@@ -69,8 +71,10 @@ export interface HomeScreenCallbacks {
    *  does. Omitted on hosts that can't reopen by path (the web
    *  edition), in which case the Workspace section isn't rendered. */
   reopenWorkspace?: (snapshot: WorkspaceSnapshot) => void;
-  /** Reopen a recently closed multi-pane workspace from the Recent
-   *  Workspaces list. Omitted on hosts that can't reopen by path. */
+  /** Reopen a recently closed multi-pane workspace, offered inline in
+   *  the unified Recent list alongside plain recent files. Omitted on
+   *  hosts that can't reopen by path (the web edition), in which case
+   *  no workspace rows are rendered there. */
   reopenRecentWorkspace?: (ws: RecentWorkspace) => void;
   /** Open the Quick Cards manage overlay. */
   manageQuickCards: () => void;
@@ -91,8 +95,6 @@ export interface HomeScreenCallbacks {
 
 class HomeScreen {
   private root!: HTMLDivElement;
-  private workspacesSection!: HTMLElement;
-  private workspacesEl!: HTMLDivElement;
   private recentsEl!: HTMLDivElement;
   private workspaceSection!: HTMLElement;
   private workspaceEl!: HTMLDivElement;
@@ -251,7 +253,12 @@ class HomeScreen {
     this.workspaceSection.appendChild(this.workspaceEl);
     inner.appendChild(this.workspaceSection);
 
-    // Recent files.
+    // Recent — unified list of recently opened single files AND recently
+    // closed multi-pane workspaces (2+ docs), interleaved newest-first by
+    // timestamp (renderRecents()). A workspace entry gets the same-sized
+    // row as a file, instead of being pushed into its own cramped
+    // secondary section, so a 1.10.0-era "reopen this workspace"
+    // suggestion is exactly as visible as a plain recent file.
     const recentsSection = document.createElement('section');
     recentsSection.className = 'pmd-home-recents-section';
     const recentsHeader = document.createElement('div');
@@ -264,8 +271,11 @@ class HomeScreen {
     clearBtn.type = 'button';
     clearBtn.className = 'pmd-home-recents-clear';
     clearBtn.textContent = 'Clear';
-    clearBtn.title = 'Clear the recent-files list';
-    clearBtn.addEventListener('click', () => clearRecents());
+    clearBtn.title = 'Clear recent files and workspaces';
+    clearBtn.addEventListener('click', () => {
+      clearRecents();
+      clearRecentWorkspaces();
+    });
     recentsHeader.appendChild(clearBtn);
     recentsSection.appendChild(recentsHeader);
 
@@ -376,6 +386,7 @@ class HomeScreen {
     parent.appendChild(this.root);
 
     this.unsubscribe = subscribeRecents(() => this.renderRecents());
+    subscribeRecentWorkspaces(() => this.renderRecents());
     subscribeLastWorkspace(() => {
       if (!this.workspaceSelfWrite) this.renderWorkspace();
     });
@@ -383,7 +394,6 @@ class HomeScreen {
     learnStore.subscribe(() => this.renderLearn());
     subscribeSessionRecords(() => void this.renderSessions());
     this.renderRecents();
-    this.renderWorkspaces();
     void this.renderSessions();
     this.renderLearn();
   }
@@ -484,22 +494,9 @@ class HomeScreen {
     return btn;
   }
 
-  /** Rebuild the Recent Workspaces section. Hidden entirely when the
-   *  store has nothing (no callback wired, or no multi-pane window has
-   *  ever closed with 2+ real-path docs open). */
-  private renderWorkspaces(): void {
-    if (!this.workspacesSection) return;
-    const workspaces = this.callbacks?.reopenRecentWorkspace ? listRecentWorkspaces() : [];
-    this.workspacesSection.hidden = workspaces.length === 0;
-    this.workspacesEl.innerHTML = '';
-    for (const ws of workspaces) {
-      this.workspacesEl.appendChild(this.workspaceRow(ws));
-    }
-  }
-
   private workspaceRow(ws: RecentWorkspace): HTMLDivElement {
     const wrap = document.createElement('div');
-    wrap.className = 'pmd-home-workspace';
+    wrap.className = 'pmd-home-recent-workspace';
 
     const row = document.createElement('button');
     row.type = 'button';
@@ -540,19 +537,29 @@ class HomeScreen {
     return wrap;
   }
 
+  /** Rebuild the unified Recent list: recently opened single files and
+   *  recently closed multi-pane workspaces (2+ docs), interleaved
+   *  newest-first by timestamp so a workspace suggestion sits exactly
+   *  where its recency puts it instead of being confined to its own
+   *  section. Workspaces are omitted when the host can't reopen one
+   *  (reopenRecentWorkspace undefined, e.g. the web edition). */
   private renderRecents(): void {
     const recents = listRecents();
+    const workspaces = this.callbacks?.reopenRecentWorkspace ? listRecentWorkspaces() : [];
     this.recentsEl.innerHTML = '';
-    if (recents.length === 0) {
+    if (recents.length === 0 && workspaces.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'pmd-home-recents-empty';
-      empty.textContent = 'No recent files yet.';
+      empty.textContent = 'Nothing recent yet.';
       this.recentsEl.appendChild(empty);
       return;
     }
-    for (const r of recents) {
-      this.recentsEl.appendChild(this.recentRow(r));
-    }
+    const rows: Array<{ ts: number; el: HTMLElement }> = [
+      ...recents.map((r) => ({ ts: r.lastOpenedAt, el: this.recentRow(r) })),
+      ...workspaces.map((ws) => ({ ts: ws.closedAt, el: this.workspaceRow(ws) })),
+    ];
+    rows.sort((a, b) => b.ts - a.ts);
+    for (const row of rows) this.recentsEl.appendChild(row.el);
   }
 
   /** Rebuild the Sessions section from the collab store. Hidden when

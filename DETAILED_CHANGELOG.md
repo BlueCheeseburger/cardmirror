@@ -10,7 +10,257 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## 1.10.0-bcb.2.1 — 2026-09-11
+## 1.10.0-bcb.3 — 2026-09-12
+
+### Changed: New Document routes through the cross-window chooser (`main.ts`, `multipane-chooser.ts`, `index.ts`)
+
+`onNewDocClicked` had two paths and neither could reach another
+window: single-doc always called `spawnWindow(null)`, and multi-pane
+offered slots in the CURRENT window only. Opening a file from
+Finder/Dock has asked which window since 1.8.0
+(`pickMultiPaneTarget`), so New now asks main the same question
+(`host:new-doc-target`); the chosen window is sent `host:new-doc` and
+runs its own slot picker, making the two flows identical. Zero
+candidates still spawns a window, which is the old behavior for
+someone who never uses three-pane mode.
+
+`pickMultiPaneTarget` gained a `withCancel` option. The OS-open path
+leaves it off — a file the OS handed us has to land somewhere, so Esc
+there still spawns a window — while New Document passes it, because
+dismissing "New document in:" should create nothing. The button-index
+arithmetic that distinction turns on moved to `multipane-chooser.ts`
+with tests: an off-by-one there silently routes a new doc into the
+wrong window. The renderer splits into `onNewDocClicked` (asks main)
+and `createNewDocLocally` (the old routing), so the window that
+RECEIVES the handoff doesn't bounce the question back to main.
+
+### Added: Save As remembers save locations; Custom Save becomes a button (`save-as-ui.ts`, `save-locations-store.ts`, `index.ts`, `style.css`)
+
+The Include checkboxes were inline in the dialog, giving the least-used
+save mode more vertical space than the four one-click presets combined.
+Custom Save is now the fifth preset (the 3-column grid wraps 3 + 2, so
+it lands directly right of Marked Doc) and opens a sub-dialog holding
+those five checkboxes — its own overlay token and modal keys, at
+z-index 1100 so it stacks over the Save As dialog (1000) but under
+route dialogs (1400), which keeps a confirm opened from either on top.
+
+In the freed space: "Save in a previously saved location", a
+disclosure over the folders you've saved into
+(`save-locations-store.ts`, localStorage, pinned-first then
+by recency, unpinned capped at 8). A click resolves the dialog with
+`destinationDir` set, and `runSaveAsFlowInner` writes there via
+`writeFileAtPath` instead of `host.saveAs`, producing the same
+`{name, handle}` so the commit path below it is untouched. Both paths
+then record the directory, which is how the list fills.
+
+Folders rather than full file paths: the filename comes from the Name
+field, so one folder serves every doc, and a click can't turn into
+"overwrite that specific file". The OS picker's own overwrite prompt
+is absent on this path, so `saveIntoDirectory` writes with
+`failIfExists` and only replaces after an explicit confirm.
+`allowSaveLocations` gates the whole section — the web edition has no
+`writeFileAtPath`, and the recovery-draft Save As doesn't opt in.
+
+### Added: Double-click-to-rename, on disk (`doc-rename.ts`, `rename-file.ts`, `main.ts`, `doc-writes.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+`installInlineRename` swaps an input into a label on double-click
+(Enter/blur commits, Esc cancels), and marks the label
+`data-renaming` for the duration so the refreshes that rewrite those
+labels — `updateWindowTitle`, `refreshChipFilename` — leave the field
+alone instead of deleting it under the cursor. The same attribute
+un-clips the two labels, which both use `overflow: hidden` for their
+ellipsis and would otherwise shave the field's border. The field is
+sized by its `size` attribute, not a percentage width: both labels are
+content-sized flex children where a percentage has nothing to resolve
+against. Keydowns stop propagating, so plain letters stay text.
+
+Wired to the ribbon's `#doc-name-chip-text` (still behind Settings →
+Appearance → "Show doc name in ribbon") and each pane's
+`.pmd-pane-chip-name`. The pane's handler focuses its slot before
+committing, the same thing its Save and Autosave buttons do, so
+renaming from a background pane can't rename the focused doc instead.
+
+`resolveRenameFilename` decides what the typed text means: no
+extension keeps the current one, the same extension passes through,
+and a DIFFERENT known extension is refused — that's a format
+conversion, and it would leave .cmir bytes in a file named .docx.
+`validateRenameTarget` (main) refuses separators, `.`/`..`, NUL, and
+on Windows the rest of its illegal set, so a typed name can never move
+the file out of its folder. An existing target is refused; a case-only
+rename is exempt, since on macOS/Windows its target resolves to the
+file being renamed.
+
+The subtle part is `transferDiskState` in `doc-writes.ts`. A rename
+changes neither bytes nor mtime, but the changed-on-disk guard keys
+its baseline by path and refuses any save to a path it has no baseline
+for ("was not read here") — so before this, the first Mod-S after any
+rename failed as changed-on-disk. The handler moves both the baseline
+and the candidate read-state to the new path, which also makes the
+renderer's re-register resolve `fresh` rather than `unknown`. Tests
+cover both directions, including that a real external write to the
+renamed file is still caught.
+
+### Added: Drag a pane's title chip to move its doc to another slot (`pane-drag.ts`, `multi-pane-shell.ts`, `style.css`)
+
+Moving a doc between panes already existed as `sendDocToSlotN` —
+unbound by default, so in practice it existed for nobody. The chip is
+the obvious handle (it's the strip users already read as "this
+document"), so it's now draggable onto any pane.
+
+Pointer events, not HTML5 drag-and-drop: the window already binds
+`dragover`/`drop` for opening dropped files, and a chip drag riding
+the same channel would have to be told apart from a real file
+mid-gesture. `pane-drag.ts` owns the gesture — a 6px threshold before
+anything starts (so the chip's click-to-focus and the name's
+double-click-to-rename are untouched), a pointer-following label, Esc
+to abandon, and teardown on `pointercancel` as well as `pointerup`. It
+takes NO pointer capture and tracks on the document instead: capture
+retargets the pointer's compatibility mouse events to the capturing
+element, which would have eaten the very `dblclick` the rename needs.
+Commit order is deliberate — `onDragEnd` (undress the row) always runs
+before `onDrop` (move the doc), so the cleanup never has to unwind a
+layout the move has already changed. Tested in jsdom against a fake
+pointer: threshold, off-chip tracking, Esc, cancel, buttons opting
+out, and drop-over-nothing.
+
+The shell side is `beginChipDrag` / `endChipDrag` / `highlightDropSlot`
+/ `dropChipOnSlot` on `MultiPaneShell`, plus `slotIdAtPoint`
+(`elementFromPoint` → `.pmd-pane` → `dataset.slot`, so a pane scrolled
+out of the wide-scroll row answers honestly). The drop itself reuses
+the existing `releaseVisible()` + `push()` pair, which is exactly what
+`sendVisibleToSlotByIndex` does — so a doc dropped on an occupied slot
+joins its stack, matching the behavior that already existed rather
+than inventing a swap.
+
+The one genuinely new piece of UI is the empty-slot drop zone. An
+empty pane is `[hidden]`, so the slot you'd most want to drop into
+isn't on screen to aim at; `showAsDropZone()` reveals it for the
+duration of the drag with a "Drop in Slot N" placeholder, at a fixed
+narrow width (`flex: 0 0 clamp(110px, 13%, 200px)`) so the occupied
+panes give up a sliver instead of the row reflowing under the user's
+cursor. Dragging is refused in expand mode, where exactly one pane is
+visible and there is nowhere to aim at all; the keyboard commands
+still work there.
+
+### Changed: an empty workspace skips the slot picker (`multi-pane-shell.ts`)
+
+`promptForSlot` now resolves `slot1` immediately when every slot's
+stack is empty. The case that matters is a window spawned by "New
+window" from either chooser: it boots empty, `routeInitialDocIntoWorkspace`
+routes the payload through `routeOpenedFile` → `onFileOpen`, and the
+user got a second dialog whose three slots all read "(empty)" and
+whose "New window" option would have produced another empty workspace.
+The picker still appears the moment any slot holds a doc, which is
+when the question has more than one real answer.
+
+### Fixed: a save into a remembered folder wasn't reopenable by path (`main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`)
+
+`host:save-as` calls `grantReadPath(result.filePath)` — without it
+`host:read-file-at-path` refuses the file (see `read-scope.ts`), which
+is what Recent, workspace restore and the file-search open path all
+use. The new save-into-a-remembered-folder shortcut writes through
+`host:write-file-at-path` instead, which granted nothing, so a file
+saved that way landed in Recent as an entry that could never be
+opened. The pre-existing new-speech-doc auto-save (same channel, also
+adopts the file it writes) had the identical gap.
+
+Fixed with an opt-in `grantRead` flag on that channel rather than an
+unconditional grant: the other callers on it (bulk convert, the style
+cleaner) write hundreds of files nobody adopted, and the grant journal
+is LRU-capped at 500 — granting those would evict the recents grants
+this is meant to protect.
+
+### Fixed: New Document could hand your doc to a window you never picked (`main.ts`)
+
+`pickMultiPaneTarget` skips the dialog when there's exactly one
+candidate window. Correct for an OS open (the file has to land
+somewhere and there's no window that "asked"), wrong for New
+Document: with one three-pane workspace open beside the single-doc
+window you were typing in, New silently routed the doc there and
+pulled focus with it. `host:new-doc-target` now passes
+`autoRouteOnlyTo: <requesting window id>`, so the silent shortcut
+applies only when the single candidate IS the window you pressed New
+in; anything else asks.
+
+### Fixed: a window that closed during the chooser crashed the handoff (`main.ts`)
+
+A `showMessageBox` stays open as long as the user leaves it there, and
+`webContents.send` on a destroyed window throws — which rejected the
+`host:new-doc-target` invoke and, on the OS-open path, surfaced as an
+unhandled rejection with the file silently dropped. `focusForHandoff`
+became `handOffToWindow`, which checks `isDestroyed()` first and
+returns false; both callers treat that as "nothing took it" and spawn
+a window instead.
+
+### Fixed: a pane's path change left the workspace snapshot stale (`multi-pane-shell.ts`)
+
+`adoptFileForRecord` is where a pane's doc takes a new path (Save As
+minting one, the new rename moving it), but it never re-reported the
+workspace — so "Reopen last workspace" kept pointing at where the file
+used to be and came back with a missing file. Single-doc mode already
+handled this through `setCurrentDocHandle` → `reportSingleDocWorkspace`;
+the pane path now calls `reportWorkspace()` the same way. Reachable
+before this change via Save As, and much more reachable now that a
+rename is two clicks.
+
+### Fixed: the PolicyDebateFlow presence poll could never fire (`flow-chip.ts`)
+
+`render()` runs on every settings change of any kind, and it called
+`schedulePoll()` unconditionally while connected — which clears and
+re-arms the 30-second timer. A window writing a setting more often
+than that (chrome scale, read mode, autosave flags) would push the
+deadline back forever and never poll, leaving the chip reading
+"Connected" on a token the server had already revoked. It now arms
+only on the transition into the connected state, and a poll whose
+request was in flight while the user paused no longer re-arms itself.
+
+### Fixed: `installInlineRename().destroy()` stranded the label (`doc-rename.ts`)
+
+`destroy()` dropped its reference to the field without removing it
+from the DOM or clearing `data-renaming`. Every label refresh checks
+`isInlineRenaming()` first and bails, so a torn-down-mid-edit chip
+would have kept showing whatever name it had when the edit started,
+forever. It now routes through the same `end()` the Escape path uses.
+No live call site (the handle is returned, never stored), so this was
+latent — fixed rather than left as a trap.
+
+### Fixed: Recent Workspaces never rendered; merged into a unified Recent list (`home-screen.ts`, `recent-workspaces-store.ts`, `style.css`)
+
+`recent-workspaces-store.ts` (the "reopen these N docs as the
+workspace they were" suggestion, 1.10.0) and `home-screen.ts`'s
+`workspaceRow()`/`renderWorkspaces()` were both fully implemented,
+but `renderWorkspaces()` guarded on `this.workspacesSection`, a field
+that was declared and never assigned — no code in `mount()` ever
+created or appended a "Recent Workspaces" section element. Every call
+was a silent no-op; the feature was completely invisible since its
+introduction.
+
+Rather than wire up the missing section, folded workspace rows
+directly into the existing Recent list (`renderRecents()`): it now
+builds one array from `listRecents()` and `listRecentWorkspaces()`,
+tags each with its own timestamp (`lastOpenedAt` / `closedAt`), sorts
+newest-first, and renders the mix — a `recentRow()` button for a file,
+a `workspaceRow()` for a workspace (its own "N DOCS" chip, joined
+filenames, "closed Xm ago", and a "✕" to dismiss via
+`removeRecentWorkspace`). A workspace suggestion now gets exactly the
+same row weight as a file instead of being squeezed into (or in this
+case, silently dropped from) a separate section.
+
+The dead `workspacesSection`/`workspacesEl` fields and
+`renderWorkspaces()` are removed. `workspaceRow()`'s wrapper class was
+renamed `pmd-home-workspace` → `pmd-home-recent-workspace` (the old
+name was unstyled in `style.css` and collided with the unrelated "Last
+workspace" snapshot section's container, which reuses the same class
+for a different element) and given its own flex-row rule, mirroring
+`.pmd-home-session`.
+
+The home screen now also subscribes to `recent-workspaces-store.ts`
+(`subscribeRecentWorkspaces`), so a workspace closing in another
+window updates an already-open home screen the same way a recent-file
+write already did. The "Clear" button on the unified list now calls a
+new `clearRecentWorkspaces()` export alongside `clearRecents()`, so it
+empties both underlying stores together — consistent with the fact
+that, visually, they're now one list.
 
 ### Added: Settings button on the home screen (`home-screen.ts`, `style.css`)
 
@@ -26,6 +276,13 @@ the top-right corner.
 ### Added / Fixed: PolicyDebateFlow status chip; the send-tagline hotkey now actually fires
 
 See [CHANGELOG.md § 1.10.0-bcb.2.1](./CHANGELOG.md#1100-bcb21--2026-09-11)
+for the user-facing summary. Full implementation details in
+[Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-flow-chipts-settingsts-settings-uits-ribbon-commandsts-ribbon-groupsts)
+below.
+
+### Fixed: PolicyDebateFlow status chip pauses instead of disconnecting
+
+See [CHANGELOG.md § 1.10.0-bcb.3](./CHANGELOG.md#1100-bcb3--2026-09-12)
 for the user-facing summary. Full implementation details in
 [Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-flow-chipts-settingsts-settings-uits-ribbon-commandsts-ribbon-groupsts)
 below.
@@ -248,7 +505,16 @@ Functions, no Supabase anon key needed on CardMirror's side:
 1. `GET /pf-presence` — confirms a flow tab is actually open (present
    within the last 5 minutes) and returns the live focused
    flow/sheet/row/col to target. `present: false` stops here with a
-   "PolicyDebateFlow isn't open" toast — no send attempted.
+   toast — no send attempted. Two distinct reasons, both `present:
+   false`: a closed/stale tab ("PolicyDebateFlow isn't open") vs. an
+   open tab whose OWN status chip paused delivery on PolicyDebateFlow's
+   side (`paused: true`, "PolicyDebateFlow is paused") — a real,
+   separate case from CardMirror's own local pause (which never even
+   reaches this call, since `sendTaglineToFlowAsync` bails on
+   `policyDebateFlowEnabled` being false before any network access).
+   `paused` itself degrades back to plain `present: false` after the
+   same 5-minute staleness window, by PolicyDebateFlow's own design —
+   not distinguished from a closed tab past that point.
 2. `POST /pf-send-card` with `{taglineText, authorDate, sheetId,
    targetRow, targetCol}` taken straight from the presence read. The
    flow tab applies it directly (walking forward from the target cell to
@@ -274,21 +540,33 @@ outer-editor global-hotkey normalizer (`ribbonKeyStringFor`) to emit
 it as `Shift+\`` / `⇧\`` rather than a raw tilde.
 
 **Status-bar connection chip (`flow-chip.ts`).** A `Flow · Connected` /
-`Flow · Off` pill next to the collaboration chip, visible whenever
-`policyDebateFlowEnabled` is on. Mirrors the connection indicator
-PolicyDebateFlow itself shows in its own flow editor (green dot +
-"CardMirror: Connected" / grey + "Off"), polling `GET /pf-presence`
-every 30 seconds to match that cadence — a 401 clears the stored token
-and flips the chip to "Off" without the user needing to click
-anything, whether the token expired or was revoked from
-PolicyDebateFlow's side. Clicking the chip while connected disconnects;
-clicking it while off opens Settings. `POST /pf-revoke-token` (`{ok:
-true}` on success, 401 if the token was already gone) is now the
-shared disconnect path — pulled out to a `revokeFlowToken` export in
-`flow-send.ts` so both the status-bar chip and the existing Settings →
-PolicyDebateFlow "Disconnect" button call it, keeping PolicyDebateFlow's
-own status button in sync with either place CardMirror disconnects
-from.
+`Flow · Off` pill next to the collaboration chip, visible once a token
+is paired. Polls `GET /pf-presence` every 30 seconds while connected —
+a 401 means the token itself is dead (expired, or revoked from
+PolicyDebateFlow's side) and clears it, falling back to the same
+"never paired" Off state as before any token existed.
+
+Clicking the chip is a purely **local, instant pause/resume** — it
+toggles `policyDebateFlowEnabled` (the existing master switch,
+independent of the credential) and never touches the token or the
+network. That's deliberate, not a first draft: a hard revoke via
+`POST /pf-revoke-token` deletes the token row server-side, which
+can't be undone with a click — "reconnecting" after one would mean a
+whole new pairing (a fresh code generated in PolicyDebateFlow, pasted
+back into Settings), which is a bad trade for what's meant to be a
+quick status toggle. `flow-send.ts`'s own enabled check already makes
+`sendToFlowAtCursor` a no-op while paused, so the pause is fully
+effective without CardMirror losing its saved token or PolicyDebateFlow
+losing its side of the pairing. The one case where the chip still
+calls `openSettings()` instead of toggling: no token exists yet at
+all, since there's nothing local to pause — that's the "connect for
+the first time" bootstrap path, unchanged.
+
+The real disconnect (revoking the token) stays exactly where it was:
+Settings → PolicyDebateFlow's Disconnect button, via the shared
+`revokeFlowToken` export in `flow-send.ts` (`POST /pf-revoke-token`,
+`{ok: true}` on success or 401 if already gone, either way followed by
+clearing `policyDebateFlowToken` locally). The chip never calls it.
 
 ---
 

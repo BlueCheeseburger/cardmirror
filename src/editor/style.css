@@ -4711,6 +4711,17 @@ html.pmd-home-active #speech-doc-banner {
   background: var(--pmd-c-hover);
   color: var(--pmd-c-text);
 }
+/* A recently-closed multi-pane workspace, interleaved into the unified
+   Recent list (home-screen.ts's renderRecents()) alongside plain recent
+   files — same row-level layout as a session row (open button + a
+   dismiss "✕"), reusing .pmd-home-workspace-open / .pmd-home-recent-*
+   for the chip/name/meta scaffolding so a workspace row reads the same
+   size as a file row instead of being squeezed into its own section. */
+.pmd-home-recent-workspace {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
 .pmd-home-recents-empty {
   margin: 0.25rem 0;
   color: var(--pmd-c-text-muted);
@@ -10172,9 +10183,10 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   margin-bottom: 0.1rem;
 }
 
-/* One-click preset saves (As-Is / Send Doc / Read Doc). Three equal
-   columns, each a primary (blue) button with its description as a
-   caption below. Sits between the format section and custom save. */
+/* One-click preset saves (As-Is / Send Doc / Read Doc / Marked Doc /
+   Custom Save). Three equal columns, each a primary (blue) button with
+   its description as a caption below; the five wrap to 3 + 2, which is
+   what puts Custom Save directly right of Marked Doc. */
 .pmd-save-as-presets {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -10191,11 +10203,170 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   color: var(--pmd-c-text-muted);
   line-height: 1.3;
 }
-/* Custom Save button sits below the Include checkboxes, aligned
-   to the left edge of the section directly under them. */
-.pmd-save-as-custom-save {
-  align-self: flex-start;
-  margin-top: 0.35rem;
+
+/* Inline rename field — swapped in where the doc name normally sits
+   (ribbon doc-name chip, pane title chip) on double-click. Sized to
+   the label it replaces so the chrome doesn't jump when editing
+   starts, and inherits the chip's type so the text doesn't move
+   either. */
+.pmd-inline-rename {
+  font: inherit;
+  color: var(--pmd-c-text);
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-accent);
+  border-radius: 4px;
+  padding: 0 0.25rem;
+  margin: -1px 0;
+  /* Sized by its own `size` attribute (set from the text in
+     doc-rename.ts), NOT by the parent: these labels live in
+     content-sized flex rows where a percentage width collapses the
+     field to a sliver. Clamped so a long name can't push the chip's
+     buttons out of the pane. */
+  min-width: 6rem;
+  max-width: 20rem;
+  box-sizing: border-box;
+}
+.pmd-inline-rename:focus {
+  outline: none;
+}
+/* Both labels clip their own text (`overflow: hidden` + ellipsis),
+   which would shave the field's border off top and bottom while it's
+   mounted inside them. The marker is set only for the duration of an
+   edit, so nothing else changes. */
+.pmd-pane-chip-name[data-renaming='true'],
+.pmd-doc-name-chip-text[data-renaming='true'] {
+  overflow: visible;
+}
+
+/* Custom Save's sub-dialog: stacked over the Save As dialog (1000), but
+   below route dialogs (1400) so a confirm opened from either still
+   lands on top of both. */
+.pmd-save-as-custom-overlay {
+  z-index: 1100;
+}
+.pmd-save-as-custom-dialog {
+  max-width: 360px;
+}
+.pmd-save-as-custom-footer {
+  justify-content: flex-end;
+}
+
+/* "Save in a previously saved location" — a disclosure whose state
+   persists (save-locations-store). Collapsed, it's one quiet row; open,
+   it's a scrolling list of folders that each save on click. */
+.pmd-save-as-locations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pmd-save-as-locations-toggle {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pmd-c-text-muted);
+  text-align: left;
+}
+.pmd-save-as-locations-toggle:hover {
+  color: var(--pmd-c-text);
+}
+/* Caret: a CSS triangle so there's no icon dependency. Points right
+   when collapsed, down when open. */
+.pmd-save-as-locations-caret {
+  flex: 0 0 auto;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+  transition: transform 120ms ease;
+}
+.pmd-save-as-locations-open .pmd-save-as-locations-caret {
+  transform: rotate(90deg);
+}
+.pmd-save-as-locations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Scrolls past ~6 rows so a long history can't push Cancel off
+     screen — same reasoning as the home screen's sessions list. */
+  max-height: 12rem;
+  overflow-y: auto;
+}
+.pmd-save-as-locations-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-save-as-location {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.pmd-save-as-location-open {
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  color: var(--pmd-c-text);
+}
+.pmd-save-as-location-open:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-save-as-location-path {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Truncate the LEFT side (ellipsis at the line's end edge under rtl)
+     so a deep path keeps the folder that identifies it visible. The JS
+     side wraps the path in LRM guards. */
+  direction: rtl;
+  text-align: left;
+}
+.pmd-save-as-location-pin {
+  appearance: none;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  color: var(--pmd-c-text-muted);
+  /* Appears on hover, per the row it belongs to — but a pinned row
+     always shows its star, or there'd be no way to see the pin. */
+  opacity: 0;
+}
+.pmd-save-as-location:hover .pmd-save-as-location-pin,
+.pmd-save-as-location-pin:focus-visible,
+.pmd-save-as-location-pinned .pmd-save-as-location-pin {
+  opacity: 1;
+}
+.pmd-save-as-location-pinned .pmd-save-as-location-pin {
+  color: var(--pmd-c-accent);
+}
+.pmd-save-as-location-pin:hover {
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text);
 }
 
 .pmd-save-as-option {
@@ -11859,6 +12030,94 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--pmd-c-text);
+}
+
+/* ── Chip drag: move a doc between slots ─────────────────────────
+   The chip is the handle. `grab` on the strip itself, but never on
+   its controls (they keep the pointer cursor from their own rules),
+   and never while the name is being renamed in place. */
+.pmd-pane-chip {
+  cursor: grab;
+}
+.pmd-pane-chip:has(.pmd-inline-rename) {
+  cursor: default;
+}
+.pmd-pane-chip-dragging {
+  cursor: grabbing;
+  opacity: 0.55;
+}
+/* While a drag is live: one cursor everywhere, and no text selection
+   sweeping across the editors the pointer passes over. */
+body.pmd-pane-dragging,
+body.pmd-pane-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+/* The label following the pointer. Positioned from the top-left
+   corner by `transform`, so a move is one compositor-level write per
+   pointer event. */
+.pmd-pane-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2100;
+  pointer-events: none;
+  max-width: 18rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  background: var(--pmd-c-surface);
+  color: var(--pmd-c-text);
+  border: 1px solid var(--pmd-c-border-soft);
+  box-shadow: 0 6px 16px var(--pmd-c-shadow);
+  opacity: 0.92;
+}
+/* Over a slot that will take the drop — same accent the target pane
+   picks up, so the two read as one answer. */
+.pmd-pane-drag-ghost-armed {
+  border-color: var(--pmd-c-accent);
+  box-shadow: 0 6px 16px var(--pmd-c-shadow), 0 0 0 2px var(--pmd-c-accent);
+}
+
+/* An empty slot, revealed for the drag only. It is normally `hidden`
+   (`.pmd-pane[hidden] { display: none }`), which this outranks on
+   specificity; narrow and fixed-width so the occupied panes give up a
+   sliver instead of the row re-flowing under the cursor. */
+.pmd-pane.pmd-pane-dropzone[hidden] {
+  display: flex;
+}
+.pmd-pane-dropzone {
+  flex: 0 0 clamp(110px, 13%, 200px) !important;
+  min-width: 0;
+  background: var(--pmd-c-surface);
+}
+.pmd-pane-dropzone-hint {
+  position: absolute;
+  inset: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.5rem;
+  border: 2px dashed var(--pmd-c-border-soft);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-muted);
+  pointer-events: none;
+}
+
+/* The pending destination — occupied pane or revealed drop zone. */
+.pmd-pane-drop-target {
+  box-shadow: inset 0 0 0 2px var(--pmd-c-accent);
+}
+.pmd-pane-drop-target .pmd-pane-dropzone-hint {
+  border-color: var(--pmd-c-accent);
+  color: var(--pmd-c-accent);
 }
 
 /* Slot-number badge — a single digit (1/2/3) shown to the left of

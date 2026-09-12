@@ -147,7 +147,10 @@ import {
   saveActiveAsConflictedCopy,
   saveActiveForcingDisk,
   openFileByPath,
+  renameFocusedDoc,
 } from './index.js';
+import { installInlineRename, isInlineRenaming } from './doc-rename.js';
+import { installPaneChipDrag } from './pane-drag.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { sendViewToRecipient } from './pairing/send-to-recipient.js';
 import { isSyncOrigin } from './sync-origin.js';
@@ -212,6 +215,12 @@ function adoptFileForRecord(
   record.owner.refreshChipFilename();
   pushPaneDocInfo(record.uid, record.filename);
   refreshWindowTitle();
+  // The doc's PATH just changed (Save As minted one, a rename moved
+  // it), and the last-workspace snapshot is keyed by path — without
+  // this it keeps pointing at where the file used to be, and "Reopen
+  // last workspace" comes back with a missing file. Single-doc mode
+  // already re-reports through `setCurrentDocHandle`.
+  record.owner.shell.reportWorkspace();
 }
 
 /** Push a pane's current filename to main so the Select-Speech-Doc
@@ -673,6 +682,12 @@ class Slot {
   /** Top-level pane element (chip + editor + footer). Hidden when
    *  the stack is empty. */
   readonly paneEl: HTMLElement;
+  /** The title chip itself — the strip the user drags to move this
+   *  slot's visible doc to another pane. */
+  private chipEl!: HTMLElement;
+  /** "Drop in Slot N" placeholder, present only while an empty pane is
+   *  standing in as a drop zone during a chip drag. */
+  private dropHintEl: HTMLElement | null = null;
   /** Title chip text container. */
   private chipNameEl: HTMLElement;
   /** Title chip stack dropdown trigger (shown when stack has 2+). */
@@ -765,7 +780,38 @@ class Slot {
     chip.appendChild(this.chipStackBtn);
     this.chipNameEl = document.createElement('span');
     this.chipNameEl.className = 'pmd-pane-chip-name';
+    this.chipNameEl.title = 'Double-click to rename';
     chip.appendChild(this.chipNameEl);
+    // Double-click the name to rename the doc — on disk too. Focus
+    // this slot first (same as the chip's Save / Autosave buttons):
+    // the rename acts on the FOCUSED doc, so clicking a background
+    // pane's name must move focus there before it commits, or it
+    // would rename whichever doc happened to be focused.
+    installInlineRename(this.chipNameEl, {
+      currentName: () => this.visible?.filename ?? null,
+      commit: (typed) => {
+        this.shell.focusSlot(this);
+        void renameFocusedDoc(typed).then(() => this.refreshChipFilename());
+      },
+      restore: () => this.refreshChipFilename(),
+    });
+    // Drag the chip onto another pane to move this doc there — the
+    // same operation as the `sendDocToSlotN` commands, reachable
+    // without knowing they exist. Installed on the whole chip (its
+    // buttons opt out inside the helper) so the grab target is the
+    // strip the user already reads as "this document".
+    this.chipEl = chip;
+    installPaneChipDrag(chip, {
+      // Expand mode shows exactly one pane, so there is nowhere
+      // visible to drop; the keyboard commands still work there.
+      canDrag: () => this.visible !== null && !this.shell.isExpanded(),
+      label: () => (this.visible ? displayFilename(this.visible.filename) : ''),
+      slotAtPoint: (x, y) => this.shell.slotIdAtPoint(x, y),
+      onDragStart: () => this.shell.beginChipDrag(this),
+      onDragEnd: () => this.shell.endChipDrag(),
+      onHover: (id) => this.shell.highlightDropSlot(this, id),
+      onDrop: (id) => this.shell.dropChipOnSlot(this, id),
+    });
     // Slot-number badge — small fixed glyph immediately left of
     // the expand button. Helps users identify which slot they're
     // looking at when only some slots are occupied (a single doc
@@ -1286,6 +1332,33 @@ class Slot {
     refreshWindowTitle();
   }
 
+  /** Reveal this empty pane for the duration of a chip drag, as a
+   *  labelled drop zone. CSS un-hides `.pmd-pane-dropzone` and sizes
+   *  it narrow, so the occupied panes only give up a sliver rather
+   *  than the layout jumping under the user's cursor mid-drag. */
+  showAsDropZone(): void {
+    if (this.dropHintEl) return;
+    const hint = document.createElement('div');
+    hint.className = 'pmd-pane-dropzone-hint';
+    hint.textContent = `Drop in ${this.id.replace('slot', 'Slot ')}`;
+    this.dropHintEl = hint;
+    this.paneEl.appendChild(hint);
+    this.paneEl.classList.add('pmd-pane-dropzone');
+  }
+
+  /** Undo `showAsDropZone` + any hover highlight. Safe on a slot that
+   *  was never a drop zone. */
+  clearDropZone(): void {
+    this.dropHintEl?.remove();
+    this.dropHintEl = null;
+    this.paneEl.classList.remove('pmd-pane-dropzone', 'pmd-pane-drop-target');
+  }
+
+  /** Light this pane up as the drag's pending destination. */
+  setDropHighlight(on: boolean): void {
+    this.paneEl.classList.toggle('pmd-pane-drop-target', on);
+  }
+
   /** Re-render this slot's cloud-sync badge from current state — call
    *  after anything that could change whether it should be frozen
    *  (read mode) without going through `mountVisible`. */
@@ -1311,6 +1384,10 @@ class Slot {
   refreshChipFilename(): void {
     const rec = this.visible;
     if (!rec) return;
+    // Leave the label alone while it's being renamed — this fires on
+    // plenty of things that aren't the filename changing, and would
+    // otherwise delete the field under the user's cursor.
+    if (isInlineRenaming(this.chipNameEl)) return;
     this.chipNameEl.textContent = displayFilename(rec.filename);
   }
 
@@ -2276,6 +2353,68 @@ class MultiPaneShell {
     targetSlot.visible?.view.focus();
   }
 
+  /** Is a slot currently expanded (one-pane mode)? */
+  isExpanded(): boolean {
+    return this.expandedSlot !== null;
+  }
+
+  /** Which slot's pane sits under this viewport point, or null. Used
+   *  by the chip drag to find its drop target — `elementFromPoint`
+   *  rather than per-pane rects so a pane scrolled out of the
+   *  wide-scroll row, or covered by a dropdown, answers honestly. */
+  slotIdAtPoint(x: number, y: number): SlotId | null {
+    const el = document.elementFromPoint(x, y);
+    const pane = el instanceof Element ? el.closest('.pmd-pane') : null;
+    if (!(pane instanceof HTMLElement)) return null;
+    const id = pane.dataset['slot'];
+    return SLOT_IDS.find((s) => s === id) ?? null;
+  }
+
+  /** A chip drag started: dress the row for dropping, and bring the
+   *  EMPTY slots back into the layout as drop zones. An empty pane is
+   *  `hidden`, so without this the one place you'd most want to drop a
+   *  doc — the slot with nothing in it — isn't on screen to aim at. */
+  beginChipDrag(source: Slot): void {
+    this.rowEl.classList.add('pmd-multi-row-dragging');
+    for (const id of SLOT_IDS) {
+      const slot = this.slots[id];
+      if (slot === source || slot.stack.length > 0) continue;
+      slot.showAsDropZone();
+    }
+  }
+
+  /** The drag ended (dropped, cancelled, or abandoned): undo
+   *  everything `beginChipDrag` and `highlightDropSlot` changed. */
+  endChipDrag(): void {
+    this.rowEl.classList.remove('pmd-multi-row-dragging');
+    for (const id of SLOT_IDS) this.slots[id].clearDropZone();
+  }
+
+  /** Mark the hovered slot as the pending destination. The source
+   *  slot never lights up — dropping a doc back where it started is a
+   *  no-op, and pretending otherwise would promise a move. */
+  highlightDropSlot(source: Slot, slotId: string | null): void {
+    for (const id of SLOT_IDS) {
+      const slot = this.slots[id];
+      slot.setDropHighlight(slot !== source && slot.id === slotId);
+    }
+  }
+
+  /** Commit a chip drag: move `source`'s visible doc into `slotId`.
+   *  A doc landing in an occupied slot joins its stack, exactly as
+   *  "Send doc to slot N" has always done — the chip's ▾ switcher is
+   *  then how you get between them. */
+  dropChipOnSlot(source: Slot, slotId: string): void {
+    const target = SLOT_IDS.find((s) => s === slotId);
+    if (!target) return;
+    const targetSlot = this.slots[target];
+    if (targetSlot === source) return;
+    const record = source.releaseVisible();
+    if (!record) return;
+    targetSlot.push(record);
+    targetSlot.visible?.view.focus();
+  }
+
   /** Toggle expand-mode on the focused slot. Used by the
    *  `toggleSlotExpand` ribbon command. */
   toggleFocusedSlotExpand(): void {
@@ -3171,6 +3310,14 @@ class MultiPaneShell {
     opts: { allowNewWindow?: boolean } = {},
   ): Promise<SlotId | 'new-window' | null> {
     const offerNewWindow = !!opts.allowNewWindow && getHost().canSpawnWindow;
+    // An empty workspace has nothing to choose between: every slot is
+    // (empty), and a new window would just be another empty workspace.
+    // This is the window a doc opened via "New window" boots into, so
+    // asking there made every such open a two-step where the second
+    // step had one real answer.
+    if (SLOT_IDS.every((id) => this.slots[id].stack.length === 0)) {
+      return Promise.resolve(SLOT_IDS[0]!);
+    }
     return new Promise((resolve) => {
       // Register on the shared overlay stack so background number-key
       // handlers stand down — without this, picking a slot with '1'/'2'/

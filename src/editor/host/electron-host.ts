@@ -12,6 +12,13 @@ import type { LearnOp } from '../learn-store.js';
 import type { UpdateChipState } from '../update-chip.js';
 import type { DiskBase, CloudProvider } from './types.js';
 export type ClaimResult = 'fresh' | 'journaled' | 'changed' | 'unknown';
+
+/** Outcome of an in-place file rename (`host:rename-file`). `reason` is
+ *  main's `RenameFailure`, plus 'unsupported' for a preload too old to
+ *  have the channel at all. */
+export type RenameFileResult =
+  | { ok: true; path: string }
+  | { ok: false; reason: string; message?: string };
 import type {
   FileFilter,
   HistoryEnvelope,
@@ -261,7 +268,7 @@ interface ElectronAPI {
   writeFileAtPath(
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean },
   ): Promise<'collision' | void>;
   bulkCompress(
     dir: string,
@@ -302,6 +309,15 @@ interface ElectronAPI {
   /** Main forwards an OS-opened file (absolute path) to this window
    *  when it's an existing multi-pane workspace. Returns unsubscribe. */
   onExternalOpen(handler: (payload: { path: string }) => void): () => void;
+  /** Route a New Document request through main's "which window?"
+   *  chooser. Optional — an older preload lacks the channel. */
+  pickNewDocTarget?(): Promise<'sent' | 'new-window' | 'cancel'>;
+  /** Rename a file in place, same folder. Optional — an older preload
+   *  lacks the channel. */
+  renameFile?(oldPath: string, newName: string): Promise<RenameFileResult>;
+  /** Main forwards a New Document request the chooser routed here.
+   *  Optional, same reason. Returns unsubscribe. */
+  onNewDoc?(handler: () => void): () => void;
   closeSelf(): Promise<void>;
   /** Report that a close-request ended without closing (Cancel or a
    *  failed Save) so main can drop any pending quit intent. Optional
@@ -865,10 +881,14 @@ export class ElectronHost implements Host {
     return true;
   }
 
+  /** `grantRead` marks the write as one whose file the caller adopts
+   *  as the live document, so main keeps it reopenable by path (the
+   *  same grant a Save As dialog pick gets). Bulk writers leave it
+   *  off. */
   async writeFileAtPath(
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean },
   ): Promise<'collision' | void> {
     return await api().writeFileAtPath(filePath, bytes, opts);
   }
@@ -998,6 +1018,29 @@ export class ElectronHost implements Host {
   onExternalOpen(handler: (payload: { path: string }) => void): () => void {
     const fn = api().onExternalOpen;
     return typeof fn === 'function' ? fn(handler) : () => {};
+  }
+
+  /** Ask main which window should take a New Document. Resolves
+   *  'unavailable' on an older preload (no channel) so the caller
+   *  falls back to its own local routing rather than assuming either
+   *  answer. */
+  async pickNewDocTarget(): Promise<'sent' | 'new-window' | 'cancel' | 'unavailable'> {
+    const fn = api().pickNewDocTarget;
+    return typeof fn === 'function' ? await fn() : 'unavailable';
+  }
+
+  onNewDoc(handler: () => void): () => void {
+    const fn = api().onNewDoc;
+    return typeof fn === 'function' ? fn(handler) : () => {};
+  }
+
+  /** Rename a document on disk, in its own folder. An older preload
+   *  (no channel) reports 'unsupported' so the caller can say why
+   *  rather than appearing to succeed. */
+  async renameFile(oldPath: string, newName: string): Promise<RenameFileResult> {
+    const fn = api().renameFile;
+    if (typeof fn !== 'function') return { ok: false, reason: 'unsupported' };
+    return await fn(oldPath, newName);
   }
 
   /** Programmatic "close this window." Called after the renderer
