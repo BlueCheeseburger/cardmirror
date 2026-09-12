@@ -175,6 +175,7 @@ import {
   migrateAutoUpdateOptOut, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
 import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.js';
+import { resolveRenameFilename, installInlineRename, isInlineRenaming } from './doc-rename.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { viewportSpellcheckPlugin } from './viewport-spellcheck.js';
 import { commentsPlugin, commentsKey, loadThreads, getCommentsState, gcOrphanThreads, newCommentId, setCommentIdSessionResolver } from './comments-plugin.js';
@@ -8142,9 +8143,20 @@ function activeFile(): { filename: string | null; handle: unknown | null; format
   return { filename: currentDocFilename, handle: currentDocHandle, format: currentDocFormat };
 }
 
-/** Apply a save result back into the active file's record — chip
- *  label, in-place-save handle, and format all update together. */
-function commitSaveResult(filename: string, handle: unknown | null, format: 'cmir' | 'docx'): void {
+/** Point the focused doc at a (possibly new) name / path / format and
+ *  bring the surfaces that mirror it back in step: window title, the
+ *  cross-window path claim (via the layout's own setter), recents, and
+ *  a live collab session's published title.
+ *
+ *  Shared by Save As and rename — the two ways a doc's on-disk identity
+ *  changes under a live editor. Save-specific bookkeeping (clearing the
+ *  recovered-draft mark, clearing an autosave failure) stays with the
+ *  save path; a rename proves neither of those things. */
+function adoptFileIdentity(
+  filename: string,
+  handle: unknown | null,
+  format: 'cmir' | 'docx',
+): void {
   if (multiDocActive && multiDocSetFocusedFile) {
     multiDocSetFocusedFile({ filename, handle, format });
   } else {
@@ -8157,23 +8169,105 @@ function commitSaveResult(filename: string, handle: unknown | null, format: 'cmi
   // moment the host saves, and joiners adopt it via the meta watcher.
   // `?.` on the module promise: never force-loads collab for a plain save.
   void collabUiModule?.then((m) => m.republishSessionTitle(activeDocIdentity().sessionUid));
+  updateWindowTitle();
+  recordRecent({
+    handle: typeof handle === 'string' ? handle : null,
+    filename,
+    format,
+  });
+}
+
+/** The ribbon chip is rebuilt in place rather than re-created, so its
+ *  double-click handler is installed exactly once and then left alone. */
+let ribbonChipRenameInstalled = false;
+function installRibbonChipRename(chipText: HTMLElement): void {
+  if (ribbonChipRenameInstalled) return;
+  ribbonChipRenameInstalled = true;
+  installInlineRename(chipText, {
+    currentName: () => activeFile().filename ?? null,
+    commit: (typed) => {
+      void renameFocusedDoc(typed).then(() => updateWindowTitle());
+    },
+    restore: () => updateWindowTitle(),
+  });
+}
+
+/** Why a rename attempt didn't happen, in the user's terms. Keyed by
+ *  main's `RenameFailure` plus the renderer-side refusals. */
+const RENAME_FAILURE_MESSAGES: Record<string, string> = {
+  empty: 'A document needs a name.',
+  separator: 'A document name can’t contain “/” or “\\”. Use Save As to move it.',
+  reserved: 'That name is reserved by the filesystem.',
+  'illegal-char': 'That name contains characters the filesystem won’t allow.',
+  exists: 'A file with that name already exists in this folder.',
+  'format-change':
+    'Renaming can’t change a document’s format — use Save As to convert between .cmir and .docx.',
+  unsupported: 'This build can’t rename files. Use Save As instead.',
+  invalid: 'That name can’t be used.',
+};
+
+/** Rename the focused doc — on disk as well as in the chrome.
+ *
+ *  Renaming only ever changes the name: the file stays in its folder
+ *  and keeps its format (see `resolveRenameFilename`). A doc that has
+ *  never been saved has no file to move, so it just takes the new label
+ *  and carries it into its eventual Save As.
+ *
+ *  Returns whether the name actually changed, so a caller can leave the
+ *  label alone when nothing happened. */
+export async function renameFocusedDoc(typed: string): Promise<boolean> {
+  const file = activeFile();
+  const current = file.filename ?? '';
+  const resolved = resolveRenameFilename(current, typed);
+  if (!resolved.ok) {
+    // 'unchanged' and 'empty' are both "the user didn't ask for
+    // anything" — back out quietly rather than scolding them.
+    if (resolved.reason === 'format-change') {
+      void alertDialog(RENAME_FAILURE_MESSAGES['format-change']!);
+    }
+    return false;
+  }
+  const { filename } = resolved;
+  const handle = file.handle;
+  // Never saved: nothing on disk to move, so the new name is simply
+  // what this doc is called from here on.
+  if (typeof handle !== 'string' || !handle) {
+    adoptFileIdentity(filename, handle ?? null, file.format ?? settings.get('defaultSaveFormat'));
+    return true;
+  }
+  const electron = getElectronHost();
+  if (!electron) {
+    void alertDialog(RENAME_FAILURE_MESSAGES['unsupported']!);
+    return false;
+  }
+  const result = await electron.renameFile(handle, filename);
+  if (!result.ok) {
+    const reason = RENAME_FAILURE_MESSAGES[result.reason];
+    void alertDialog(
+      reason ?? `Couldn’t rename this document: ${result.message ?? result.reason}`,
+    );
+    return false;
+  }
+  // The file moved: drop the stale recents entry before adopting the
+  // new identity (which records the new path), or the list would offer
+  // a path that no longer exists.
+  removeRecent(handle);
+  adoptFileIdentity(filename, result.path, file.format ?? 'cmir');
+  showToast(`Renamed to ${displayFilename(filename)}`);
+  return true;
+}
+
+function commitSaveResult(filename: string, handle: unknown | null, format: 'cmir' | 'docx'): void {
+  adoptFileIdentity(filename, handle, format);
   // A committed save (e.g. Save-As of a recovered draft) writes the content
   // to a real file, so it's no longer a stale-recovery-overwrite candidate.
   clearRecoveredDraftMark(activeDocIdentity().sessionUid);
-  updateWindowTitle();
   // Format/handle may have changed (e.g., Save-As from unsaved →
   // .cmir-with-handle), which flips the autosave button between
   // inert and effective states. A new handle also moots any earlier
   // autosave failure (the stale-path rescue lands here via Save As).
   reportAutosaveSuccess();
   refreshAutosaveBtn();
-  // A save (especially Save-As, which mints a path for a
-  // previously-unsaved doc) makes the file recents-worthy.
-  recordRecent({
-    handle: typeof handle === 'string' ? handle : null,
-    filename,
-    format,
-  });
 }
 
 /** Public refresh hook. Multi-pane callers invoke this whenever a
@@ -8232,9 +8326,12 @@ function updateWindowTitle(): void {
   const chipText = document.getElementById('doc-name-chip-text');
   if (chip && chipText) {
     const shown = focused.filename ? displayFilename(focused.filename) : '';
-    chipText.textContent = shown;
-    chip.setAttribute('title', shown);
+    // Don't clobber a rename in progress: this runs on plenty of
+    // things that aren't the filename changing.
+    if (!isInlineRenaming(chipText)) chipText.textContent = shown;
+    chip.setAttribute('title', shown ? `${shown} — double-click to rename` : '');
     chip.toggleAttribute('hidden', !focused.filename);
+    installRibbonChipRename(chipText);
   }
   // The cloud badge follows the active document — single-doc mode
   // only. Multi-pane mode has its own per-pane badge (embedded in

@@ -430,6 +430,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pickNewDocTarget: (): Promise<'sent' | 'new-window' | 'cancel'> =>
     ipcRenderer.invoke('host:new-doc-target'),
 
+  /** Rename a document on disk, in its own folder (double-click the
+   *  doc name in the chrome). Never overwrites an existing file. */
+  renameFile: (
+    oldPath: string,
+    newName: string,
+  ): Promise<
+    { ok: true; path: string } | { ok: false; reason: string; message?: string }
+  > => ipcRenderer.invoke('host:rename-file', oldPath, newName),
+
   /** Main forwards a New Document request routed to this window by the
    *  chooser above. Returns an unsubscribe. */
   onNewDoc(handler: () => void): () => void {

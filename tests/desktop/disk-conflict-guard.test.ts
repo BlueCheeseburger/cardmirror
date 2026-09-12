@@ -25,6 +25,7 @@ import {
   conflictedCopyPath,
   fileNameSafe,
   resetDocWritesForTests,
+  transferDiskState,
   CHANGED_ON_DISK_MARKER,
 } from '../../apps/desktop/src/doc-writes.js';
 
@@ -243,5 +244,71 @@ describe('conflicted copy naming', () => {
     expect(path.basename(c)).toBe("Neg Blocks (abc d's conflicted copy 2026-09-06).docx");
     expect(fileNameSafe('   ')).toBe('');
     expect(path.basename(await conflictedCopyPath(p, '', '2026-09-06'))).toContain("user's conflicted copy");
+  });
+});
+
+describe('transferDiskState (rename)', () => {
+  it('carries the baseline to the new path, so the next save is not refused', async () => {
+    const from = docPath('1nc.docx');
+    const to = docPath('2nr.docx');
+    await openInWindow(from, W1);
+
+    // What the rename handler does: move the file, then the state.
+    await fs.rename(from, to);
+    transferDiskState(from, to);
+
+    // Re-registering the new path resolves 'fresh' (the candidate came
+    // across), and the in-place save goes through.
+    expect(await claimBaseline(to, W1)).toBe('fresh');
+    await saveExistingDoc(to, Buffer.from('edited after rename'), { ownerId: W1 });
+    expect(await read(to)).toBe('edited after rename');
+  });
+
+  it('without the transfer, that same save is refused for having no baseline', async () => {
+    // Pins WHY the transfer exists: this is the bug it prevents.
+    const from = docPath('1nc.docx');
+    const to = docPath('2nr.docx');
+    await openInWindow(from, W1);
+    await fs.rename(from, to);
+
+    expect(await claimBaseline(to, W1)).toBe('unknown');
+    await expect(
+      saveExistingDoc(to, Buffer.from('edited after rename'), { ownerId: W1 }),
+    ).rejects.toThrow(/no baseline/u);
+  });
+
+  it('leaves the old path with no baseline of its own', async () => {
+    const from = docPath('1nc.docx');
+    const to = docPath('2nr.docx');
+    await openInWindow(from, W1);
+    await fs.rename(from, to);
+    transferDiskState(from, to);
+    expect(baselineFor(from)).toBeUndefined();
+    expect(baselineFor(to)).toBeDefined();
+  });
+
+  it('is a no-op when the path does not actually change', async () => {
+    const p = docPath('1nc.docx');
+    await openInWindow(p, W1);
+    transferDiskState(p, p);
+    expect(baselineFor(p)).toBeDefined();
+    await saveExistingDoc(p, Buffer.from('still fine'), { ownerId: W1 });
+    expect(await read(p)).toBe('still fine');
+  });
+
+  it('still detects a real external change after the rename', async () => {
+    // The transfer must not become a blanket bypass: a partner's write
+    // to the renamed file is still caught.
+    const from = docPath('1nc.docx');
+    const to = docPath('2nr.docx');
+    await openInWindow(from, W1);
+    await fs.rename(from, to);
+    transferDiskState(from, to);
+    expect(await claimBaseline(to, W1)).toBe('fresh');
+    await externalWrite(to, 'partner version');
+    await expect(
+      saveExistingDoc(to, Buffer.from('mine'), { ownerId: W1 }),
+    ).rejects.toThrow(CHANGED_ON_DISK_MARKER);
+    expect(await read(to)).toBe('partner version');
   });
 });

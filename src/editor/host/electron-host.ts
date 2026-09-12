@@ -12,6 +12,13 @@ import type { LearnOp } from '../learn-store.js';
 import type { UpdateChipState } from '../update-chip.js';
 import type { DiskBase, CloudProvider } from './types.js';
 export type ClaimResult = 'fresh' | 'journaled' | 'changed' | 'unknown';
+
+/** Outcome of an in-place file rename (`host:rename-file`). `reason` is
+ *  main's `RenameFailure`, plus 'unsupported' for a preload too old to
+ *  have the channel at all. */
+export type RenameFileResult =
+  | { ok: true; path: string }
+  | { ok: false; reason: string; message?: string };
 import type {
   FileFilter,
   HistoryEnvelope,
@@ -305,6 +312,9 @@ interface ElectronAPI {
   /** Route a New Document request through main's "which window?"
    *  chooser. Optional — an older preload lacks the channel. */
   pickNewDocTarget?(): Promise<'sent' | 'new-window' | 'cancel'>;
+  /** Rename a file in place, same folder. Optional — an older preload
+   *  lacks the channel. */
+  renameFile?(oldPath: string, newName: string): Promise<RenameFileResult>;
   /** Main forwards a New Document request the chooser routed here.
    *  Optional, same reason. Returns unsubscribe. */
   onNewDoc?(handler: () => void): () => void;
@@ -1018,6 +1028,15 @@ export class ElectronHost implements Host {
   onNewDoc(handler: () => void): () => void {
     const fn = api().onNewDoc;
     return typeof fn === 'function' ? fn(handler) : () => {};
+  }
+
+  /** Rename a document on disk, in its own folder. An older preload
+   *  (no channel) reports 'unsupported' so the caller can say why
+   *  rather than appearing to succeed. */
+  async renameFile(oldPath: string, newName: string): Promise<RenameFileResult> {
+    const fn = api().renameFile;
+    if (typeof fn !== 'function') return { ok: false, reason: 'unsupported' };
+    return await fn(oldPath, newName);
   }
 
   /** Programmatic "close this window." Called after the renderer

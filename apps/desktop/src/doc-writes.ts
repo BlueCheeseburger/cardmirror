@@ -213,6 +213,31 @@ export function releaseBaseline(filePath: string, ownerId: number): void {
   if (baselines.get(key)?.owner === ownerId) baselines.delete(key);
 }
 
+/** Carry a path's disk state to a new path, for a rename.
+ *
+ *  The file's bytes and mtime are untouched by a rename — only its
+ *  name changed — so the baseline that was valid a moment ago is still
+ *  valid. Without this the new path has no baseline at all, and the
+ *  very next in-place save is refused as "changed on disk" (the guard
+ *  can't distinguish "never read here" from "someone else wrote it").
+ *  Moves the candidate read-state too, so the renderer's re-register
+ *  resolves 'fresh' instead of 'unknown'. */
+export function transferDiskState(oldPath: string, newPath: string): void {
+  const from = keyFor(oldPath);
+  const to = keyFor(newPath);
+  if (from === to) return;
+  const read = lastReadState.get(from);
+  if (read) {
+    lastReadState.set(to, read);
+    lastReadState.delete(from);
+  }
+  const base = baselines.get(from);
+  if (base) {
+    baselines.set(to, base);
+    baselines.delete(from);
+  }
+}
+
 /** Window gone (closed, crashed): drop everything it owned. */
 export function releaseBaselinesForWindow(ownerId: number): void {
   for (const [key, b] of baselines) if (b.owner === ownerId) baselines.delete(key);
