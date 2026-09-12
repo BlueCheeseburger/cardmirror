@@ -10,6 +10,29 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## 1.10.0-bcb.2.2 — 2026-09-11
 
+### Added
+
+- **Double-click a document's name to rename it** — in the ribbon's doc-name
+  chip or a pane's title chip. Renames the real file too, so you don't have to
+  go out to Finder/Explorer. Enter or clicking away commits, Esc cancels. The
+  file stays in its folder and keeps its format (use Save As to convert), and
+  an existing file is never overwritten. Desktop only.
+- **Save As remembers where you've saved.** A "Save in a previously saved
+  location" list at the bottom of the dialog: click a folder and the document
+  saves straight into it, no OS dialog. Hover a folder for a pin to keep it at
+  the top. The section starts collapsed and remembers whether you left it open.
+  Desktop only.
+
+### Changed
+
+- **New Document now asks which window**, the same way opening a file from
+  Finder/Dock does, instead of always spawning a new window. With one
+  three-pane workspace open it goes straight to that workspace's slot picker;
+  with several, you pick the window first. Desktop only.
+- **Save As's Include checkboxes moved into a Custom Save button**, sitting
+  right of Marked Doc with the other one-click saves. Clicking it opens a small
+  dialog with the same five options.
+
 ### Fixed
 
 - **Recently closed multi-pane workspaces now actually appear on the home

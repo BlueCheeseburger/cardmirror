@@ -12,6 +12,94 @@ Upstream release details are in the sections below under
 
 ## 1.10.0-bcb.2.2 — 2026-09-11
 
+### Changed: New Document routes through the cross-window chooser (`main.ts`, `multipane-chooser.ts`, `index.ts`)
+
+`onNewDocClicked` had two paths and neither could reach another
+window: single-doc always called `spawnWindow(null)`, and multi-pane
+offered slots in the CURRENT window only. Opening a file from
+Finder/Dock has asked which window since 1.8.0
+(`pickMultiPaneTarget`), so New now asks main the same question
+(`host:new-doc-target`); the chosen window is sent `host:new-doc` and
+runs its own slot picker, making the two flows identical. Zero
+candidates still spawns a window, which is the old behavior for
+someone who never uses three-pane mode.
+
+`pickMultiPaneTarget` gained a `withCancel` option. The OS-open path
+leaves it off — a file the OS handed us has to land somewhere, so Esc
+there still spawns a window — while New Document passes it, because
+dismissing "New document in:" should create nothing. The button-index
+arithmetic that distinction turns on moved to `multipane-chooser.ts`
+with tests: an off-by-one there silently routes a new doc into the
+wrong window. The renderer splits into `onNewDocClicked` (asks main)
+and `createNewDocLocally` (the old routing), so the window that
+RECEIVES the handoff doesn't bounce the question back to main.
+
+### Added: Save As remembers save locations; Custom Save becomes a button (`save-as-ui.ts`, `save-locations-store.ts`, `index.ts`, `style.css`)
+
+The Include checkboxes were inline in the dialog, giving the least-used
+save mode more vertical space than the four one-click presets combined.
+Custom Save is now the fifth preset (the 3-column grid wraps 3 + 2, so
+it lands directly right of Marked Doc) and opens a sub-dialog holding
+those five checkboxes — its own overlay token and modal keys, at
+z-index 1100 so it stacks over the Save As dialog (1000) but under
+route dialogs (1400), which keeps a confirm opened from either on top.
+
+In the freed space: "Save in a previously saved location", a
+disclosure over the folders you've saved into
+(`save-locations-store.ts`, localStorage, pinned-first then
+by recency, unpinned capped at 8). A click resolves the dialog with
+`destinationDir` set, and `runSaveAsFlowInner` writes there via
+`writeFileAtPath` instead of `host.saveAs`, producing the same
+`{name, handle}` so the commit path below it is untouched. Both paths
+then record the directory, which is how the list fills.
+
+Folders rather than full file paths: the filename comes from the Name
+field, so one folder serves every doc, and a click can't turn into
+"overwrite that specific file". The OS picker's own overwrite prompt
+is absent on this path, so `saveIntoDirectory` writes with
+`failIfExists` and only replaces after an explicit confirm.
+`allowSaveLocations` gates the whole section — the web edition has no
+`writeFileAtPath`, and the recovery-draft Save As doesn't opt in.
+
+### Added: Double-click-to-rename, on disk (`doc-rename.ts`, `rename-file.ts`, `main.ts`, `doc-writes.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+`installInlineRename` swaps an input into a label on double-click
+(Enter/blur commits, Esc cancels), and marks the label
+`data-renaming` for the duration so the refreshes that rewrite those
+labels — `updateWindowTitle`, `refreshChipFilename` — leave the field
+alone instead of deleting it under the cursor. The same attribute
+un-clips the two labels, which both use `overflow: hidden` for their
+ellipsis and would otherwise shave the field's border. The field is
+sized by its `size` attribute, not a percentage width: both labels are
+content-sized flex children where a percentage has nothing to resolve
+against. Keydowns stop propagating, so plain letters stay text.
+
+Wired to the ribbon's `#doc-name-chip-text` (still behind Settings →
+Appearance → "Show doc name in ribbon") and each pane's
+`.pmd-pane-chip-name`. The pane's handler focuses its slot before
+committing, the same thing its Save and Autosave buttons do, so
+renaming from a background pane can't rename the focused doc instead.
+
+`resolveRenameFilename` decides what the typed text means: no
+extension keeps the current one, the same extension passes through,
+and a DIFFERENT known extension is refused — that's a format
+conversion, and it would leave .cmir bytes in a file named .docx.
+`validateRenameTarget` (main) refuses separators, `.`/`..`, NUL, and
+on Windows the rest of its illegal set, so a typed name can never move
+the file out of its folder. An existing target is refused; a case-only
+rename is exempt, since on macOS/Windows its target resolves to the
+file being renamed.
+
+The subtle part is `transferDiskState` in `doc-writes.ts`. A rename
+changes neither bytes nor mtime, but the changed-on-disk guard keys
+its baseline by path and refuses any save to a path it has no baseline
+for ("was not read here") — so before this, the first Mod-S after any
+rename failed as changed-on-disk. The handler moves both the baseline
+and the candidate read-state to the new path, which also makes the
+renderer's re-register resolve `fresh` rather than `unknown`. Tests
+cover both directions, including that a real external write to the
+renamed file is still caught.
+
 ### Fixed: Recent Workspaces never rendered; merged into a unified Recent list (`home-screen.ts`, `recent-workspaces-store.ts`, `style.css`)
 
 `recent-workspaces-store.ts` (the "reopen these N docs as the
