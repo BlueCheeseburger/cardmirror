@@ -10123,19 +10123,10 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 
 
 
-.pmd-save-as-options:empty {
-  display: none;
-}
-
-.pmd-save-as-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding-top: 0.25rem;
-}
-
-/* Format picker — radio rows above the filename field. */
-.pmd-save-as-format {
+/* Shared radio-row list — Format, Save mode, and each row of the
+   "previously saved location" list all use this: a radio, a bold
+   title line, a muted blurb line below it. */
+.pmd-save-as-radio-list {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -10143,32 +10134,32 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   border-bottom: 1px solid var(--pmd-c-divider-faint);
 }
 
-.pmd-save-as-format-row {
+.pmd-save-as-radio-row {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
   cursor: pointer;
 }
 
-.pmd-save-as-format-row input[type="radio"] {
+.pmd-save-as-radio-row input[type="radio"] {
   margin: 0.15rem 0 0 0;
   flex: 0 0 auto;
   cursor: pointer;
 }
 
-.pmd-save-as-format-row-text {
+.pmd-save-as-radio-row-text {
   display: flex;
   flex-direction: column;
   gap: 0.05rem;
   min-width: 0;
 }
 
-.pmd-save-as-format-row-label {
+.pmd-save-as-radio-row-label {
   font-size: 0.9rem;
   font-weight: 500;
 }
 
-.pmd-save-as-format-row-blurb {
+.pmd-save-as-radio-row-blurb {
   font-size: 0.78rem;
   color: var(--pmd-c-text-muted);
   line-height: 1.3;
@@ -10183,25 +10174,17 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   margin-bottom: 0.1rem;
 }
 
-/* One-click preset saves (As-Is / Send Doc / Read Doc / Marked Doc /
-   Custom Save). Three equal columns, each a primary (blue) button with
-   its description as a caption below; the five wrap to 3 + 2, which is
-   what puts Custom Save directly right of Marked Doc. */
-.pmd-save-as-presets {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--pmd-c-divider-faint);
+/* Custom Save's five checkboxes — indented under its own radio row,
+   shown only while Custom Save is the selected mode. */
+.pmd-save-as-custom-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-left: 1.6rem;
+  padding: 0.15rem 0 0.35rem;
 }
-
-.pmd-save-as-preset-btn {
-  width: 100%;
-}
-.pmd-save-as-preset-sub {
-  font-size: 0.78rem;
-  color: var(--pmd-c-text-muted);
-  line-height: 1.3;
+.pmd-save-as-custom-options[hidden] {
+  display: none;
 }
 
 /* Inline rename field — swapped in where the doc name normally sits
@@ -10236,19 +10219,6 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 .pmd-pane-chip-name[data-renaming='true'],
 .pmd-doc-name-chip-text[data-renaming='true'] {
   overflow: visible;
-}
-
-/* Custom Save's sub-dialog: stacked over the Save As dialog (1000), but
-   below route dialogs (1400) so a confirm opened from either still
-   lands on top of both. */
-.pmd-save-as-custom-overlay {
-  z-index: 1100;
-}
-.pmd-save-as-custom-dialog {
-  max-width: 360px;
-}
-.pmd-save-as-custom-footer {
-  justify-content: flex-end;
 }
 
 /* "Save in a previously saved location" — a disclosure whose state
@@ -10307,30 +10277,34 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   font-size: 0.82rem;
   color: var(--pmd-c-text-muted);
 }
-.pmd-save-as-location {
+/* Each row (including the permanent "Choose location when saving"
+   row) is a <label> wrapping a radio + the path text, so clicking
+   anywhere on the row selects it — same interaction model as Format
+   and Save mode above, just laid out as a single compact line instead
+   of label-plus-blurb. */
+.pmd-save-as-location,
+.pmd-save-as-location-dialog-row {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-}
-.pmd-save-as-location-open {
-  appearance: none;
-  flex: 1 1 auto;
-  min-width: 0;
-  text-align: left;
-  font: inherit;
-  font-size: 0.85rem;
+  gap: 0.4rem;
   cursor: pointer;
-  background: transparent;
-  border: 1px solid transparent;
   border-radius: 6px;
-  padding: 0.35rem 0.5rem;
-  color: var(--pmd-c-text);
+  padding: 0.3rem 0.5rem;
 }
-.pmd-save-as-location-open:hover {
+.pmd-save-as-location:hover,
+.pmd-save-as-location-dialog-row:hover {
   background: var(--pmd-c-hover);
+}
+.pmd-save-as-location input[type="radio"],
+.pmd-save-as-location-dialog-row input[type="radio"] {
+  flex: 0 0 auto;
+  cursor: pointer;
 }
 .pmd-save-as-location-path {
   display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.85rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
