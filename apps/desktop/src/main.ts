@@ -2147,6 +2147,94 @@ ipcMain.handle('host:new-doc-target', async (event): Promise<'sent' | 'new-windo
   return handOffToWindow(choice.win, 'host:new-doc') ? 'sent' : 'new-window';
 });
 
+// Right-click a pane's title chip → "Move to…": list every OTHER live
+// multi-pane window (never this one — moving a doc "to" the window
+// it's already in is meaningless, and chip-drag already covers
+// same-window rearranging) so the renderer can build the menu.
+ipcMain.handle(
+  'host:list-multipane-windows',
+  async (event): Promise<Array<{ id: number; label: string }>> => {
+    const requester = BrowserWindow.fromWebContents(event.sender);
+    return liveMultiPaneWindows()
+      .filter((w) => w.id !== requester?.id)
+      .map((w) => ({ id: w.id, label: labelForChooser(w) }));
+  },
+);
+
+// Deliver a doc's live bytes to an EXISTING window (the "move to
+// window" menu's non-"New Window" picks). The renderer has already
+// serialized the doc at full fidelity and won't close its own copy
+// until this resolves ok — so a target that died between the
+// right-click and the pick (or dies mid-send) loses nothing; the
+// caller just tries a different destination.
+ipcMain.handle(
+  'host:move-doc-to-window',
+  async (
+    event,
+    targetWinId: number,
+    payload: { filename: string; bytes: unknown; handle: string | null; markDirty?: boolean },
+  ): Promise<{ ok: true } | { ok: false; reason: 'window-gone' | 'invalid' }> => {
+    if (
+      typeof targetWinId !== 'number' ||
+      !payload ||
+      typeof payload.filename !== 'string' ||
+      !payload.filename
+    ) {
+      return { ok: false, reason: 'invalid' };
+    }
+    const win = BrowserWindow.fromId(targetWinId);
+    if (!win) return { ok: false, reason: 'window-gone' };
+    // Transfer the path claim to the target BEFORE relaying — same
+    // steal-from-whoever-holds-it move host:spawn-window does for a
+    // "new window" doc, applied here because the source window (not
+    // "nobody") is almost always the current owner. Order matters: the
+    // source's own release (moments later, once its pane tears down)
+    // is fire-and-forget IPC racing the target's mount, which does its
+    // own duplicate-open check on arrival — done here, inside the one
+    // handler, the target is already the registered owner by the time
+    // that check runs, so it can never lose the race and refuse a doc
+    // that is rightfully becoming its own.
+    if (typeof payload.handle === 'string' && payload.handle) {
+      grantReadPath(payload.handle);
+      const norm = canonicalOpenPath(payload.handle);
+      const prevOwner = openPathOwners.get(norm);
+      if (prevOwner !== undefined && prevOwner !== win.id) {
+        windowOpenPaths.get(prevOwner)?.delete(norm);
+      }
+      openPathOwners.set(norm, win.id);
+      let set = windowOpenPaths.get(win.id);
+      if (!set) {
+        set = new Set();
+        windowOpenPaths.set(win.id, set);
+      }
+      set.add(norm);
+    }
+    const delivered = handOffToWindow(win, 'host:receive-doc', {
+      filename: payload.filename,
+      bytes: payload.bytes,
+      handle: typeof payload.handle === 'string' ? payload.handle : null,
+      markDirty: payload.markDirty === true,
+    });
+    if (!delivered) {
+      // Undelivered — hand the claim back to whoever asked, so a
+      // dead target doesn't leave the source unable to save.
+      const requester = BrowserWindow.fromWebContents(event.sender);
+      if (typeof payload.handle === 'string' && payload.handle && requester) {
+        const norm = canonicalOpenPath(payload.handle);
+        openPathOwners.set(norm, requester.id);
+        let set = windowOpenPaths.get(requester.id);
+        if (!set) {
+          set = new Set();
+          windowOpenPaths.set(requester.id, set);
+        }
+        set.add(norm);
+      }
+      return { ok: false, reason: 'window-gone' };
+    }
+    return { ok: true };
+  },
+);
+
 ipcMain.handle('host:is-first-window', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return false;

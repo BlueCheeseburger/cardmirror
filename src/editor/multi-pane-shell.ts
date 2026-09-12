@@ -148,9 +148,12 @@ import {
   saveActiveForcingDisk,
   openFileByPath,
   renameFocusedDoc,
+  listMoveDocTargets,
+  moveFocusedDocToWindow,
 } from './index.js';
 import { installInlineRename, isInlineRenaming } from './doc-rename.js';
 import { installPaneChipDrag } from './pane-drag.js';
+import { installMoveMenuTrigger } from './pane-move-menu.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { sendViewToRecipient } from './pairing/send-to-recipient.js';
 import { isSyncOrigin } from './sync-origin.js';
@@ -812,6 +815,19 @@ class Slot {
       onHover: (id) => this.shell.highlightDropSlot(this, id),
       onDrop: (id) => this.shell.dropChipOnSlot(this, id),
     });
+    // Right-click the chip → "Move to…": reaches a doc into ANOTHER
+    // WINDOW, which chip-drag (this-window-only) can't. Electron only
+    // — desktop-gated by `listMultiPaneWindows` simply returning
+    // nothing on a host that doesn't support it, same tolerance every
+    // other optional host capability in this file gets.
+    installMoveMenuTrigger(chip, {
+      canMove: () => this.visible !== null && !this.shell.isExpanded(),
+      listCandidates: () => listMoveDocTargets(),
+      onPick: (target) => {
+        this.shell.focusSlot(this);
+        void moveFocusedDocToWindow(target === 'new-window' ? 'new-window' : target);
+      },
+    });
     // Slot-number badge — small fixed glyph immediately left of
     // the expand button. Helps users identify which slot they're
     // looking at when only some slots are occupied (a single doc
@@ -1215,6 +1231,18 @@ class Slot {
     } else if (closing.dirty && !(await runDirtyPrompt())) {
       return false;
     }
+    this.teardownClosingRecord(closing, idx);
+    return true;
+  }
+
+  /** Everything a close does AFTER the decision to close is settled —
+   *  timers, journal, speech designation, cross-window path claim,
+   *  view/nav teardown, and stack / slot-visibility bookkeeping. Shared
+   *  by the prompting close above and `closeVisibleSilently` below,
+   *  which skips straight here because there's nothing left to decide
+   *  — the caller has already established the content isn't being
+   *  lost (a move-to-window handoff that's already landed). */
+  private teardownClosingRecord(closing: DocRecord, idx: number): void {
     this.detachVisible();
     if (closing.heavyUpdateTimer !== null) {
       cancelIdle(closing.heavyUpdateTimer);
@@ -1260,13 +1288,26 @@ class Slot {
       this.shell.refreshLayout();
       // If this slot was focused, hand focus to the next active slot.
       this.shell.handleSlotEmptied(this);
-      return true;
+      return;
     }
     // Show the next-newest doc (the one that was second-from-top).
     this.visibleIndex = Math.min(idx, this.stack.length - 1);
     this.mountVisible();
     this.shell.focusSlot(this);
-    return true;
+  }
+
+  /** Close the visible doc with NO save/discard prompt — only for a
+   *  caller that has ALREADY safely handed the content off elsewhere
+   *  (move-to-window: the bytes are confirmed delivered before this
+   *  ever runs), so there is nothing here for a prompt to protect.
+   *  Never call this for an ordinary close — `closeVisible` is the
+   *  entry point everywhere else, prompt included. No-op on an empty
+   *  slot. */
+  closeVisibleSilently(): void {
+    const idx = this.visibleIndex;
+    if (idx < 0) return;
+    const closing = this.stack[idx]!;
+    this.teardownClosingRecord(closing, idx);
   }
 
   /** Close every doc in this slot except `keep` (if it lives here),
@@ -2401,17 +2442,47 @@ class MultiPaneShell {
   }
 
   /** Commit a chip drag: move `source`'s visible doc into `slotId`.
-   *  A doc landing in an occupied slot joins its stack, exactly as
-   *  "Send doc to slot N" has always done — the chip's ▾ switcher is
-   *  then how you get between them. */
+   *
+   *  Dropping onto an EMPTY slot is a plain move. Dropping onto an
+   *  OCCUPIED one is a SWAP — the target's visible doc comes back and
+   *  takes over `source`'s now-empty spot — not a push onto the
+   *  target's stack: the point of dragging pane 2's doc onto pane 1 is
+   *  to put it in pane 1 and see pane 1's old doc in pane 2, the way
+   *  dragging a tab or a window swaps positions everywhere else. A
+   *  stack-push would instead bury the target's doc a click deep
+   *  behind the ▾ switcher and leave the source pane empty — from
+   *  pane 1 and pane 2 down to "pane 1 has both, pane 2 has neither",
+   *  which reads as the drop being refused (field report, 2026-09-12).
+   *  `sendDocToSlotN` (the ribbon command this began life mirroring)
+   *  keeps its own push behavior — a deliberate keyboard command
+   *  aimed at an occupied slot IS "add to its stack"; a drag's whole
+   *  premise is rearranging where things sit.
+   *
+   *  `arranging` suppresses the empty-workspace home-screen show: with
+   *  exactly two panes occupied (the reported case), releasing both
+   *  visible docs before either push lands passes through an
+   *  all-empty instant that must not be mistaken for the workspace
+   *  actually emptying out. */
   dropChipOnSlot(source: Slot, slotId: string): void {
     const target = SLOT_IDS.find((s) => s === slotId);
     if (!target) return;
     const targetSlot = this.slots[target];
     if (targetSlot === source) return;
-    const record = source.releaseVisible();
-    if (!record) return;
-    targetSlot.push(record);
+    this.arranging = true;
+    try {
+      const incoming = source.releaseVisible();
+      if (!incoming) return;
+      // Only the target's VISIBLE doc swaps out — a stack member
+      // further down stays exactly where it was, now one deeper.
+      const displaced = targetSlot.releaseVisible();
+      // Displaced doc into source FIRST: each push re-focuses its
+      // slot, so the incoming doc's push (target, always last) is the
+      // one that wins — focus lands where the user actually dropped.
+      if (displaced) source.push(displaced);
+      targetSlot.push(incoming);
+    } finally {
+      this.arranging = false;
+    }
     targetSlot.visible?.view.focus();
   }
 
@@ -2434,6 +2505,13 @@ class MultiPaneShell {
     if (!slot || slot.visible === null) return false;
     await slot.closeVisible();
     return true;
+  }
+
+  /** Move-to-window's cleanup step: close the focused doc with no
+   *  prompt, because its bytes have already been confirmed delivered
+   *  to wherever it's going. No-op if nothing is focused. */
+  closeFocusedSilently(): void {
+    this.focusedSlot?.closeVisibleSilently();
   }
 
   /** Web mode-switch (three-pane → one-per-window): the browser can't reopen
@@ -3471,6 +3549,7 @@ class MultiPaneShell {
       format,
       docId,
       threads,
+      markDirty: opened.markDirty,
     });
     slot.push(record);
     // Open-from-disk rejoin gate (same as the single-doc open path):
@@ -3969,6 +4048,10 @@ function buildDocRecord(
      *  over `record`, so a load-threads dispatch earlier in this
      *  function would hit a temporal-dead-zone error. */
     threads?: Thread[];
+    /** Mount already-dirty (a cross-window move: these bytes are the
+     *  source pane's live state, not necessarily what `handle` holds
+     *  on disk). Defaults to clean, matching every other opener. */
+    markDirty?: boolean;
   },
 ): DocRecord {
   const editorEl = document.createElement('div');
@@ -4204,10 +4287,13 @@ function buildDocRecord(
     autosaveTimer: null,
     autosaveError: false,
     docId: opts.docId ?? null,
-    // Fresh doc: clean. Flipped on first doc-changing transaction;
-    // cleared on a successful save (per-record autosave OR the
-    // single-doc save flow firing through the clean-token hook).
-    dirty: false,
+    // Fresh doc: clean, UNLESS the caller says otherwise (a
+    // move-to-window handoff whose bytes have never actually reached
+    // `handle` on disk). Flipped on first doc-changing transaction
+    // either way; cleared on a successful save (per-record autosave
+    // OR the single-doc save flow firing through the clean-token
+    // hook).
+    dirty: opts.markDirty ?? false,
     editGen: 0,
   };
   // Publish (uid, view) so the speech-doc resolver can resolve uids
@@ -4273,6 +4359,7 @@ export function mountMultiPaneShell(): void {
     // through to `createNewDocLocally`'s spawn-a-window fallback for
     // four days — the exact behaviour that commit set out to replace.
     onNewDocWithPicker: () => shell!.newDocWithPicker(),
+    onCloseFocusedSilently: () => shell!.closeFocusedSilently(),
     toggleReadMode: () => shell!.toggleFocusedReadMode(),
     arrangeForSpeech: (side, pct) => shell!.arrangeForSpeech(side, pct),
     toggleReaderView: () => shell!.toggleFocusedReaderView(),
