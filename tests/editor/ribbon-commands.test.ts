@@ -3821,6 +3821,62 @@ describe('F4–F7 promotion strips marks; tag↔analytic preserves them', () => 
     expect(hasMarkOnText(next!.doc, 'AnalyticBold', 'bold')).toBe(true);
   });
 
+  it('Mod-F7 setAnalytic on a card anchor tag: strips a stray font-color (same-tier swap), keeps bold', () => {
+    const bold = schema.marks['bold']!.create();
+    const fontColor = schema.marks['font_color']!.create({ color: 'FF0000' });
+    const fontSize = schema.marks['font_size']!.create({ halfPoints: 28 });
+    const tagNode = schema.nodes['tag']!.create(
+      { id: 'tag-id' },
+      schema.text('TagWithColor', [bold, fontColor, fontSize]),
+    );
+    const cardNode = schema.nodes['card']!.create(null, [tagNode]);
+    const doc = makeDoc([cardNode]);
+    const state = cursorIn(doc, (n) => n.type.name === 'tag');
+    const next = apply(state, setAnalytic());
+    expect(next).not.toBeNull();
+    expect(next!.doc.firstChild!.type.name).toBe('analytic_unit');
+    // Deliberate emphasis survives the swap...
+    expect(hasMarkOnText(next!.doc, 'TagWithColor', 'bold')).toBe(true);
+    // ...but stray direct color/size (commonly left over from a .docx
+    // import) is cleared — same treatment as a same-type re-press —
+    // so the new analytic head isn't painted the tag's leftover color.
+    expect(hasMarkOnText(next!.doc, 'TagWithColor', 'font_color')).toBe(false);
+    expect(hasMarkOnText(next!.doc, 'TagWithColor', 'font_size')).toBe(false);
+  });
+
+  it('F7 setTag on an analytic_unit anchor analytic: strips a stray font-color (same-tier swap), keeps bold', () => {
+    const bold = schema.marks['bold']!.create();
+    const fontColor = schema.marks['font_color']!.create({ color: '1F3864' });
+    const analyticNode = schema.nodes['analytic']!.create(
+      { id: 'analytic-id' },
+      schema.text('AnalyticWithColor', [bold, fontColor]),
+    );
+    const unitNode = schema.nodes['analytic_unit']!.create(null, [analyticNode]);
+    const doc = makeDoc([unitNode]);
+    const state = cursorIn(doc, (n) => n.type.name === 'analytic');
+    const next = apply(state, setTag());
+    expect(next).not.toBeNull();
+    expect(hasMarkOnText(next!.doc, 'AnalyticWithColor', 'bold')).toBe(true);
+    expect(hasMarkOnText(next!.doc, 'AnalyticWithColor', 'font_color')).toBe(false);
+  });
+
+  it('setAnalytic on a SELECTED tag (selection-based same-tier swap): strips font-color, keeps bold', () => {
+    const bold = schema.marks['bold']!.create();
+    const fontColor = schema.marks['font_color']!.create({ color: 'FF0000' });
+    const tagNode = schema.nodes['tag']!.create(
+      { id: 'tag-id' },
+      schema.text('SelectedTag', [bold, fontColor]),
+    );
+    const cardNode = schema.nodes['card']!.create(null, [tagNode]);
+    const doc = makeDoc([cardNode]);
+    const state = selectionAcross(doc, (n) => n.type.name === 'tag', (n) => n.type.name === 'tag');
+    const next = apply(state, setAnalytic());
+    expect(next).not.toBeNull();
+    expect(next!.doc.firstChild!.type.name).toBe('analytic_unit');
+    expect(hasMarkOnText(next!.doc, 'SelectedTag', 'bold')).toBe(true);
+    expect(hasMarkOnText(next!.doc, 'SelectedTag', 'font_color')).toBe(false);
+  });
+
   it('F4 setHeading dissolving a card anchor tag: strips marks (tag → pocket is a real swap)', () => {
     const bold = schema.marks['bold']!.create();
     const tagNode = schema.nodes['tag']!.create(

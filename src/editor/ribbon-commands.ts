@@ -275,6 +275,33 @@ function reapplyClearMarkTypes(): MarkType[] {
   );
 }
 
+/** Strip `REAPPLY_CLEAR_MARK_NAMES` (font-size / font-color) from every
+ *  inline child of a fragment. Used by the tag↔analytic same-tier swap
+ *  (`cardToAnalyticUnitNode` / `analyticUnitToCardNode` / `asTransformed`'s
+ *  `sameTierSwap` branch), which otherwise carries a head's content across
+ *  completely raw so deliberate emphasis (bold/italic/underline) survives
+ *  the swap — but a stray font-size/font-color mark (commonly left behind
+ *  by a .docx import, same as the same-type re-press case above) would
+ *  ride along too and render the new head in the wrong color/size instead
+ *  of its structural type's canonical look. Returns the same fragment
+ *  reference when nothing changes. */
+function stripReapplyMarksOnFragment(fragment: Fragment): Fragment {
+  const markTypes = reapplyClearMarkTypes();
+  let changed = false;
+  const out: PMNode[] = [];
+  fragment.forEach((child) => {
+    let marks = child.marks;
+    for (const mt of markTypes) if (mt.isInSet(marks)) marks = mt.removeFromSet(marks);
+    if (marks !== child.marks) {
+      changed = true;
+      out.push(child.mark(marks));
+    } else {
+      out.push(child);
+    }
+  });
+  return changed ? Fragment.fromArray(out) : fragment;
+}
+
 /** Return a copy of a textblock with its `indent` attr reset to 0 and every
  *  direct font-size / font-color mark stripped from its inline content (type,
  *  spacing, and other attrs preserved). Returns the same node reference when
@@ -809,14 +836,22 @@ function dissolveContainerToUndertag(
 
 /** Pure node transform: a `card` → the equivalent `analytic_unit`. Tag →
  *  analytic is a same-tier swap (same structural role, just cite/analytic
- *  semantic) so direct formatting on the head is preserved; the card's body
+ *  semantic) so deliberate emphasis (bold/italic/underline/highlight/…) on
+ *  the head is preserved — except font-size/font-color, which are cleared
+ *  the same as a same-type re-press (`stripReapplyMarksOnFragment`), since
+ *  those are usually stray .docx-import cruft, not intentional styling, and
+ *  otherwise ride along and render the swapped head in the wrong color/size
+ *  instead of its structural type's canonical look; the card's body
  *  slots map into valid analytic_unit content via `toAnalyticUnitChild`.
  *  Shared by the cursor command and the shadow bulk-replace so both keep the
  *  container intact (rather than dissolving it). */
 function cardToAnalyticUnitNode(card: PMNode): PMNode {
   const tag = card.firstChild!;
   const id = (tag.attrs['id'] as string | null) ?? newHeadingId();
-  const analyticNode = schema.nodes['analytic']!.create({ id }, tag.content);
+  const analyticNode = schema.nodes['analytic']!.create(
+    { id },
+    stripReapplyMarksOnFragment(tag.content),
+  );
   const rest: PMNode[] = [];
   card.forEach((child, _offset, index) => {
     if (index === 0) return;
@@ -3933,7 +3968,10 @@ function liftCardChild(child: PMNode): PMNode {
 function analyticUnitToCardNode(unit: PMNode): PMNode {
   const analytic = unit.firstChild!;
   const id = (analytic.attrs['id'] as string | null) ?? newHeadingId();
-  const tagNode = schema.nodes['tag']!.create({ id }, analytic.content);
+  const tagNode = schema.nodes['tag']!.create(
+    { id },
+    stripReapplyMarksOnFragment(analytic.content),
+  );
   const rest: PMNode[] = [];
   unit.forEach((child, _offset, index) => {
     if (index === 0) return;
@@ -4231,12 +4269,15 @@ function asTransformed(child: PMNode, opts: StructuralMode): PMNode {
   // strip named-style and direct-formatting marks so the new structural
   // block carries only the canonical typography. Exception: tag↔analytic
   // is a same-tier swap (same structural role, different cite/analytic
-  // semantic) so direct formatting carries through.
+  // semantic) so deliberate emphasis carries through — but font-size /
+  // font-color are still cleared (stripReapplyMarksOnFragment), same as a
+  // same-type re-press, so stray .docx-import color/size doesn't ride
+  // along and paint the swapped head in the wrong color.
   const sameTierSwap =
     (opts.mode === 'tag' || opts.mode === 'analytic') &&
     (child.type.name === 'tag' || child.type.name === 'analytic');
   const cleanContent = sameTierSwap
-    ? child.content
+    ? stripReapplyMarksOnFragment(child.content)
     : stripPromotionMarksOnFragment(child.content);
   if (opts.mode === 'undertag') {
     // Undertag has no id and no wrapping container — at doc level it
