@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 /**
- * Save As dialog's reworked bottom half: Custom Save moved out of an
- * inline checkbox block into the preset row (opening its own
- * sub-dialog), and the space it left became the "previously saved
- * location" list, where a click saves straight into that folder.
+ * Save As dialog's radio-list redesign: the five save modes (As-Is /
+ * Send Doc / Read Doc / Marked Doc / Custom Save) and the "previously
+ * saved location" list are both selections now, not immediate-action
+ * buttons — nothing writes anything until "Save As" is clicked (or
+ * Enter is pressed). Custom Save's checkboxes show inline under its
+ * own row instead of in a sub-dialog.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openSaveAs, type SaveAsResult } from '../../src/editor/save-as-ui.js';
+import { settings } from '../../src/editor/settings.js';
 import {
   recordSaveLocation,
   setSaveLocationsExpanded,
@@ -16,8 +19,34 @@ import {
 
 const q = <T extends Element>(sel: string): T | null => document.querySelector<T>(sel);
 const qa = (sel: string): Element[] => Array.from(document.querySelectorAll(sel));
-const presetByLabel = (label: string): HTMLButtonElement =>
-  qa('.pmd-save-as-preset-btn').find((b) => b.textContent === label) as HTMLButtonElement;
+
+/** The mode-section radio row whose label text matches — the row
+ *  itself carries both the radio and its blurb. */
+function modeRow(label: string): HTMLLabelElement {
+  const row = qa('.pmd-save-as-radio-row').find(
+    (el) => el.querySelector('.pmd-save-as-radio-row-label')?.textContent === label,
+  );
+  if (!row) throw new Error(`no mode row for "${label}"`);
+  return row as HTMLLabelElement;
+}
+
+function modeRadio(label: string): HTMLInputElement {
+  return modeRow(label).querySelector('input[type="radio"]')!;
+}
+
+/** Click a mode radio the way a user does — native click + change,
+ *  not just flipping `.checked`. */
+function selectMode(label: string): void {
+  modeRadio(label).click();
+}
+
+function saveAsBtn(): HTMLButtonElement {
+  return q<HTMLButtonElement>('.pmd-save-as-footer .pmd-save-as-btn-primary')!;
+}
+
+function cancelBtn(): HTMLButtonElement {
+  return q<HTMLButtonElement>('.pmd-save-as-footer .pmd-save-as-btn-secondary')!;
+}
 
 function open(opts: { allowSaveLocations?: boolean } = {}): Promise<SaveAsResult | null> {
   return openSaveAs({
@@ -45,38 +74,108 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('Save As — preset row', () => {
-  it('offers Custom Save as the fifth preset, after Marked Doc', async () => {
+describe('Save As — mode selection', () => {
+  it('lists all five modes, As-Is selected by default', async () => {
     const p = open();
-    const labels = qa('.pmd-save-as-preset-btn').map((b) => b.textContent);
+    const labels = qa('.pmd-save-as-radio-row .pmd-save-as-radio-row-label')
+      .map((el) => el.textContent)
+      .filter((t) => t !== 'CardMirror native (.cmir)' && t !== 'Microsoft Word (.docx)');
     expect(labels).toEqual(['As-Is', 'Send Doc', 'Read Doc', 'Marked Doc', 'Custom Save']);
-    // No inline checkboxes left in the main dialog — they moved.
-    expect(qa('.pmd-save-as-option')).toHaveLength(0);
+    expect(modeRadio('As-Is').checked).toBe(true);
+    cancelAll();
+    await p;
+  });
+
+  it('selecting a mode does not save anything by itself', async () => {
+    const p = open();
+    selectMode('Send Doc');
+    // Still open, still unresolved — nothing committed.
+    expect(q('.pmd-save-as-dialog')).not.toBeNull();
     cancelAll();
     expect(await p).toBeNull();
   });
 
-  it('Custom Save opens a sub-dialog and resolves with its checkbox state', async () => {
+  it('Save As with the default selection saves As-Is, no destination', async () => {
     const p = open();
-    presetByLabel('Custom Save').click();
+    saveAsBtn().click();
+    const result = await p;
+    expect(result).toMatchObject({
+      filename: 'R2 1NR.docx',
+      includeComments: true,
+      includeAnalytics: true,
+      includeUndertags: true,
+      readMode: false,
+      markedCardsOnly: false,
+    });
+    expect(result?.destinationDir).toBeUndefined();
+  });
 
-    const sub = q<HTMLElement>('.pmd-save-as-custom-dialog');
-    expect(sub).not.toBeNull();
-    const boxes = Array.from(
-      sub!.querySelectorAll<HTMLInputElement>('.pmd-save-as-option input'),
-    );
+  it('Enter in the Name field submits with the current selection, like Save As', async () => {
+    const p = open();
+    selectMode('Marked Doc');
+    const form = q<HTMLFormElement>('.pmd-save-as-body')!;
+    form.requestSubmit();
+    expect(await p).toMatchObject({ markedCardsOnly: true, includeUndertags: true });
+  });
+
+  it('Send Doc excludes analytics/undertags/comments and takes its prefix', async () => {
+    settings.set('prefixPresetSaveFilenames', true);
+    const p = open();
+    selectMode('Send Doc');
+    saveAsBtn().click();
+    const result = await p;
+    expect(result).toMatchObject({
+      includeComments: false,
+      includeAnalytics: false,
+      includeUndertags: false,
+      readMode: false,
+    });
+    expect(result?.filename.startsWith(settings.get('sendDocPrefix'))).toBe(true);
+  });
+
+  it('Read Doc sets readMode and excludes the include-* layers', async () => {
+    const p = open();
+    selectMode('Read Doc');
+    saveAsBtn().click();
+    expect(await p).toMatchObject({
+      readMode: true,
+      includeComments: false,
+      includeAnalytics: false,
+      includeUndertags: false,
+      markedCardsOnly: false,
+    });
+  });
+
+  it('Custom Save reveals its checkboxes only while selected', async () => {
+    const p = open();
+    const options = q<HTMLElement>('.pmd-save-as-custom-options')!;
+    expect(options.hidden).toBe(true);
+
+    selectMode('Custom Save');
+    expect(options.hidden).toBe(false);
+    const boxes = qa('.pmd-save-as-custom-options .pmd-save-as-option input') as HTMLInputElement[];
     expect(boxes).toHaveLength(5);
-    // Defaults: the three content layers on, the two private ones off.
+    // Defaults match As-Is: the three content layers on, the two
+    // private ones off.
     expect(boxes.map((b) => b.checked)).toEqual([true, true, true, false, false]);
 
+    selectMode('As-Is');
+    expect(options.hidden).toBe(true);
+    cancelAll();
+    await p;
+  });
+
+  it('Custom Save commits exactly the checked boxes, no prefix', async () => {
+    const p = open();
+    selectMode('Custom Save');
+    const boxes = qa('.pmd-save-as-custom-options .pmd-save-as-option input') as HTMLInputElement[];
     boxes[1]!.checked = false; // drop analytics
     boxes[4]!.checked = true; // bake AI comments in
-    sub!.querySelector<HTMLFormElement>('form')!.requestSubmit();
+    saveAsBtn().click();
 
     const result = await p;
     expect(result).toMatchObject({
       filename: 'R2 1NR.docx',
-      format: 'docx',
       includeComments: true,
       includeAnalytics: false,
       includeUndertags: true,
@@ -84,29 +183,23 @@ describe('Save As — preset row', () => {
       readMode: false,
       markedCardsOnly: false,
     });
-    // Saving from the sub-dialog closes both, not just itself.
-    expect(q('.pmd-save-as-custom-dialog')).toBeNull();
-    expect(q('.pmd-save-as-dialog')).toBeNull();
   });
 
-  it('cancelling the sub-dialog leaves the Save As dialog up and unresolved', async () => {
+  it('an empty filename is refused — Save As is a no-op', async () => {
     const p = open();
-    presetByLabel('Custom Save').click();
-    const sub = q<HTMLElement>('.pmd-save-as-custom-dialog')!;
-    sub.querySelector<HTMLButtonElement>('.pmd-save-as-btn-secondary')!.click();
-
-    expect(q('.pmd-save-as-custom-dialog')).toBeNull();
-    expect(q('.pmd-save-as-dialog')).not.toBeNull();
-
-    // Still live: the outer dialog can still save.
-    presetByLabel('As-Is').click();
-    expect(await p).toMatchObject({ filename: 'R2 1NR.docx', includeAnalytics: true });
+    const input = q<HTMLInputElement>('.pmd-save-as-input')!;
+    input.value = '   ';
+    saveAsBtn().click();
+    expect(q('.pmd-save-as-dialog')).not.toBeNull(); // still open
+    cancelAll();
+    expect(await p).toBeNull();
   });
 
-  it('a preset carries no destination — those go through the OS picker', async () => {
+  it('Escape cancels with null, whatever was selected', async () => {
     const p = open();
-    presetByLabel('As-Is').click();
-    expect((await p)?.destinationDir).toBeUndefined();
+    selectMode('Marked Doc');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(await p).toBeNull();
   });
 });
 
@@ -150,12 +243,24 @@ describe('Save As — previously saved locations', () => {
     await second;
   });
 
-  it('clicking a folder resolves with it as the destination, As-Is', async () => {
+  it('"Choose location when saving" is selected by default — no destination', async () => {
     recordSaveLocation('/w/round3');
     setSaveLocationsExpanded(true);
     const p = open({ allowSaveLocations: true });
 
-    q<HTMLButtonElement>('.pmd-save-as-location-open')!.click();
+    const dialogRadio = q<HTMLInputElement>('.pmd-save-as-location-dialog-row input');
+    expect(dialogRadio?.checked).toBe(true);
+    saveAsBtn().click();
+    expect((await p)?.destinationDir).toBeUndefined();
+  });
+
+  it('selecting a folder + Save As resolves with it as the destination', async () => {
+    recordSaveLocation('/w/round3');
+    setSaveLocationsExpanded(true);
+    const p = open({ allowSaveLocations: true });
+
+    q<HTMLInputElement>('.pmd-save-as-location input[type="radio"]')!.click();
+    saveAsBtn().click();
     const result = await p;
     expect(result).toMatchObject({
       filename: 'R2 1NR.docx',
@@ -163,25 +268,53 @@ describe('Save As — previously saved locations', () => {
       includeComments: true,
       includeAnalytics: true,
       includeUndertags: true,
-      readMode: false,
-      markedCardsOnly: false,
     });
   });
 
-  it('the destination follows a format change, like the presets do', async () => {
+  it('a selected location combines with the selected save mode', async () => {
     recordSaveLocation('/w/round3');
     setSaveLocationsExpanded(true);
     const p = open({ allowSaveLocations: true });
 
-    const cmir = qa('.pmd-save-as-format-row input')[0] as HTMLInputElement;
+    selectMode('Send Doc');
+    q<HTMLInputElement>('.pmd-save-as-location input[type="radio"]')!.click();
+    saveAsBtn().click();
+    expect(await p).toMatchObject({
+      destinationDir: '/w/round3',
+      includeComments: false,
+      includeAnalytics: false,
+      includeUndertags: false,
+    });
+  });
+
+  it('reselecting "Choose location when saving" clears a picked folder', async () => {
+    recordSaveLocation('/w/round3');
+    setSaveLocationsExpanded(true);
+    const p = open({ allowSaveLocations: true });
+
+    q<HTMLInputElement>('.pmd-save-as-location input[type="radio"]')!.click();
+    q<HTMLInputElement>('.pmd-save-as-location-dialog-row input')!.click();
+    saveAsBtn().click();
+    expect((await p)?.destinationDir).toBeUndefined();
+  });
+
+  it('the destination survives a format change', async () => {
+    recordSaveLocation('/w/round3');
+    setSaveLocationsExpanded(true);
+    const p = open({ allowSaveLocations: true });
+
+    const cmir = qa('.pmd-save-as-radio-list input[type="radio"]').find(
+      (el) => (el as HTMLInputElement).value === 'cmir',
+    ) as HTMLInputElement;
     cmir.checked = true;
     cmir.dispatchEvent(new Event('change'));
-    q<HTMLButtonElement>('.pmd-save-as-location-open')!.click();
+    q<HTMLInputElement>('.pmd-save-as-location input[type="radio"]')!.click();
+    saveAsBtn().click();
 
     expect(await p).toMatchObject({ filename: 'R2 1NR.cmir', destinationDir: '/w/round3' });
   });
 
-  it('pinning re-orders the row to the top without closing the dialog', async () => {
+  it('pinning re-orders the row to the top, preserves selection, and does not close the dialog', async () => {
     recordSaveLocation('/w/old');
     recordSaveLocation('/w/new');
     setSaveLocationsExpanded(true);
@@ -191,22 +324,44 @@ describe('Save As — previously saved locations', () => {
       qa('.pmd-save-as-location-path').map((el) => el.textContent!.replace(/‎/g, ''));
     expect(pathText()).toEqual(['/w/new', '/w/old']);
 
-    // Pin the older one: it jumps above the more recent folder.
+    // Select the older one, then pin it: it jumps to the top, and
+    // stays selected.
+    const oldRadio = qa('.pmd-save-as-location').find((row) =>
+      row.querySelector('.pmd-save-as-location-path')?.textContent?.includes('/w/old'),
+    )!.querySelector<HTMLInputElement>('input[type="radio"]')!;
+    oldRadio.click();
     (qa('.pmd-save-as-location-pin')[1] as HTMLButtonElement).click();
+
     expect(pathText()).toEqual(['/w/old', '/w/new']);
     expect(listSaveLocations()[0]!.pinnedAt).not.toBeNull();
     expect(q('.pmd-save-as-dialog')).not.toBeNull();
 
-    // The re-rendered row still saves into the right folder.
-    q<HTMLButtonElement>('.pmd-save-as-location-open')!.click();
+    const stillChecked = qa('.pmd-save-as-location').find((row) =>
+      row.querySelector('.pmd-save-as-location-path')?.textContent?.includes('/w/old'),
+    )!.querySelector<HTMLInputElement>('input[type="radio"]')!;
+    expect(stillChecked.checked).toBe(true);
+
+    saveAsBtn().click();
     expect((await p)?.destinationDir).toBe('/w/old');
   });
 
-  it('says so when there is nothing remembered yet', async () => {
+  it('clicking pin never selects that row as the destination', async () => {
+    recordSaveLocation('/w/round3');
+    setSaveLocationsExpanded(true);
+    const p = open({ allowSaveLocations: true });
+
+    q<HTMLButtonElement>('.pmd-save-as-location-pin')!.click();
+    saveAsBtn().click();
+    // The dialog-row default stayed selected — pinning is not selecting.
+    expect((await p)?.destinationDir).toBeUndefined();
+  });
+
+  it('says so when there is nothing remembered yet, but the dialog option is still there', async () => {
     setSaveLocationsExpanded(true);
     const p = open({ allowSaveLocations: true });
     expect(q('.pmd-save-as-locations-empty')).not.toBeNull();
     expect(qa('.pmd-save-as-location')).toHaveLength(0);
+    expect(q('.pmd-save-as-location-dialog-row')).not.toBeNull();
     cancelAll();
     await p;
   });
