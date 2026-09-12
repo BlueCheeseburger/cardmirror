@@ -33,6 +33,7 @@ import {
 } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { bundlePathFromExe, launchSwapHelper, macBundleSelfUpdatable } from './mac-swap-update.js';
+import { buildChooserPrompt, readChooserResponse } from './multipane-chooser.js';
 import { registerVoiceIpc } from './voice/ipc';
 import { registerFlowIpc } from './flow-bridge.js';
 import { registerPairingIpc, relayUrl } from './pairing-ipc.js';
@@ -303,29 +304,53 @@ function labelForChooser(win: BrowserWindow): string {
   return win.getTitle().replace(/ — CardMirror$/, '') || 'Untitled';
 }
 
-/** Which multi-pane window should receive an externally-opened file.
+type MultiPaneChoice =
+  | { kind: 'window'; win: BrowserWindow }
+  | { kind: 'new-window' }
+  | { kind: 'cancel' };
+
+/** Which multi-pane window should receive a doc (an externally-opened
+ *  file, or a New Document request from any window).
  *  With exactly one candidate, use it — no need to ask. With 2+,
  *  always ask: picking the focused window (the old behavior) meant a
  *  Finder/Dock open always landed wherever you were last looking, even
  *  when a DIFFERENT window had the room and was the one actually
  *  meant — there's no way to infer intent from focus alone once
- *  multiple multi-pane windows are in play. Returns null for "New
- *  Window" or a dismissed dialog — both fall through to the caller's
- *  existing spawn-a-new-window path, same as the zero-candidate case. */
-async function pickMultiPaneTarget(filePath: string): Promise<BrowserWindow | null> {
+ *  multiple multi-pane windows are in play. Zero candidates resolves to
+ *  `new-window` (nothing open can take it).
+ *
+ *  `withCancel` adds an explicit Cancel button and makes Esc mean
+ *  cancel. The OS-open path leaves it off: a file the OS handed us has
+ *  to land somewhere, so a dismissed dialog still spawns a window.
+ *  New Document passes it — dismissing that dialog should create
+ *  nothing at all. */
+async function pickMultiPaneTarget(
+  message: string,
+  opts: { withCancel?: boolean } = {},
+): Promise<MultiPaneChoice> {
   const candidates = liveMultiPaneWindows();
-  if (candidates.length === 0) return null;
-  if (candidates.length === 1) return candidates[0]!;
+  if (candidates.length === 0) return { kind: 'new-window' };
+  if (candidates.length === 1) return { kind: 'window', win: candidates[0]! };
   const labels = candidates.map(labelForChooser);
+  const { buttons, cancelId } = buildChooserPrompt(labels, opts);
   const { response } = await dialog.showMessageBox({
     type: 'question',
-    message: `Open "${path.basename(filePath)}" in:`,
-    buttons: [...labels, 'New Window'],
+    message,
+    buttons,
     defaultId: 0,
-    cancelId: labels.length,
+    cancelId,
     noLink: true,
   });
-  return response < candidates.length ? candidates[response]! : null;
+  const parsed = readChooserResponse(response, labels.length, opts);
+  if (parsed.kind === 'window') return { kind: 'window', win: candidates[parsed.index]! };
+  return parsed.kind === 'cancel' ? { kind: 'cancel' } : { kind: 'new-window' };
+}
+
+/** Hand a window a doc-routing message, bringing it forward so the
+ *  slot picker it shows is actually visible. */
+function focusForHandoff(win: BrowserWindow): void {
+  if (win.isMinimized()) win.restore();
+  win.focus();
 }
 
 const CLOUD_WAIT_TIMEOUT_MS = 20_000;
@@ -404,13 +429,12 @@ async function openExternalFile(filePath: string): Promise<void> {
   // already open in another window opens a second, conflicting copy
   // (whichever copy closes first then releases the shared claim).
   if (focusExistingOwner(filePath)) return;
-  const target = await pickMultiPaneTarget(filePath);
-  if (target) {
+  const choice = await pickMultiPaneTarget(`Open "${path.basename(filePath)}" in:`);
+  if (choice.kind === 'window') {
     // Hand off to the existing workspace — it reads the path and shows
     // its slot picker. Bring it forward so the picker is visible.
-    target.webContents.send('host:external-open', { path: filePath });
-    if (target.isMinimized()) target.restore();
-    target.focus();
+    choice.win.webContents.send('host:external-open', { path: filePath });
+    focusForHandoff(choice.win);
     return;
   }
   try {
@@ -2059,6 +2083,24 @@ ipcMain.handle('host:register-multipane', async (event, isMultiPane: boolean) =>
   if (!win) return;
   if (isMultiPane) multiPaneWindows.add(win.id);
   else multiPaneWindows.delete(win.id);
+});
+
+// New Document routes through the SAME "which window?" chooser an
+// OS-opened file does, instead of unconditionally spawning a blank
+// window: with two three-pane workspaces open, "new doc" is nearly
+// always "new doc in one of these", and only the user knows which.
+// The chosen window runs its own slot picker (`host:new-doc`), so the
+// two-step feel matches an external open exactly.
+//   'sent'       — a window took it; the caller is done.
+//   'new-window' — nothing open can take it, or the user asked for a
+//                  fresh window; the caller spawns one.
+//   'cancel'     — the user dismissed the chooser; create nothing.
+ipcMain.handle('host:new-doc-target', async (): Promise<'sent' | 'new-window' | 'cancel'> => {
+  const choice = await pickMultiPaneTarget('New document in:', { withCancel: true });
+  if (choice.kind !== 'window') return choice.kind === 'cancel' ? 'cancel' : 'new-window';
+  choice.win.webContents.send('host:new-doc');
+  focusForHandoff(choice.win);
+  return 'sent';
 });
 
 ipcMain.handle('host:is-first-window', async (event) => {

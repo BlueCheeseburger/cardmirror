@@ -2494,6 +2494,45 @@ if (homeBtn) {
  *     Cancel → bail. Esc / overlay click also cancel.
  */
 async function onNewDocClicked(): Promise<void> {
+  // Desktop: which WINDOW takes the new doc is main's call, through the
+  // same chooser an OS-opened file goes through (`host:new-doc-target`).
+  // With 2+ three-pane workspaces open, "new doc" almost always means
+  // "new doc in one of these" and only the user knows which; before
+  // this, New silently spawned a blank window every time.
+  //   'sent'        — a window took it and is running its own slot picker.
+  //   'cancel'      — user dismissed the chooser; create nothing.
+  //   'new-window'  — nothing open can take it / user asked for a fresh
+  //                   one. Skip the LOCAL slot picker (they already
+  //                   answered that question) and spawn.
+  //   'unavailable' — older preload, no chooser; use local routing.
+  const electron = getElectronHost();
+  if (electron) {
+    const routed = await electron.pickNewDocTarget();
+    if (routed === 'sent' || routed === 'cancel') return;
+    if (routed === 'new-window') {
+      await spawnBlankWindow();
+      return;
+    }
+  }
+  await createNewDocLocally();
+}
+
+/** Spawn a fresh window for a blank doc, surfacing a failure rather
+ *  than dropping it silently. Shared by every "New → a new window"
+ *  path below. */
+async function spawnBlankWindow(): Promise<void> {
+  try {
+    await getHost().spawnWindow(null);
+  } catch (err) {
+    console.error('Spawn window failed:', err);
+    void alertDialog(`Failed to open new window: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+/** Create a new doc in THIS window, with no cross-window chooser —
+ *  the routing the app used before the chooser existed, and what a
+ *  window runs when the chooser hands it the request. */
+async function createNewDocLocally(): Promise<void> {
   const host = getHost();
   // Multi-pane: ask which slot (or a new window), the same picker Open
   // already shows — see `multiDocNewDocWithPicker`'s doc comment for why
@@ -2503,12 +2542,7 @@ async function onNewDocClicked(): Promise<void> {
       await multiDocNewDocWithPicker();
       return;
     }
-    try {
-      await host.spawnWindow(null);
-    } catch (err) {
-      console.error('Spawn window failed:', err);
-      void alertDialog(`Failed to open new window: ${err instanceof Error ? err.message : err}`);
-    }
+    await spawnBlankWindow();
     return;
   }
   // Multi-window mode (single-doc + Electron): New always spawns a
@@ -2518,12 +2552,7 @@ async function onNewDocClicked(): Promise<void> {
   // a request to overwrite. No prompt: nothing in the current
   // window is at risk of being lost.
   if (host.canSpawnWindow) {
-    try {
-      await host.spawnWindow(null);
-    } catch (err) {
-      console.error('Spawn window failed:', err);
-      void alertDialog(`Failed to open new window: ${err instanceof Error ? err.message : err}`);
-    }
+    await spawnBlankWindow();
     return;
   }
   // Web edition: no other window to open into, so New replaces
@@ -7672,6 +7701,12 @@ function installExternalOpenListener(): void {
   if (!electron) return;
   electron.onExternalOpen(({ path }) => {
     void openFileByPath(path, path.replace(/^.*[\\/]/, ''));
+  });
+  // New Document routed here by main's window chooser. Goes straight to
+  // the LOCAL path — re-entering onNewDocClicked would ask main which
+  // window to use all over again, from the window that was just picked.
+  electron.onNewDoc(() => {
+    void createNewDocLocally();
   });
 }
 
