@@ -10,6 +10,38 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.10.0-bcb.3.1 — 2026-09-12
+
+### Fixed: the multi-pane New Document picker was never wired up (`multi-pane-shell.ts`)
+
+`9a24d0d` added `EnableMultiDocOptions.onNewDocWithPicker`, implemented
+`MultiPaneShell.newDocWithPicker()` (documented as "Ribbon/keyboard New
+command's handler"), and added the `createNewDocLocally` branch that
+calls it — but never added the one line passing it in the
+`enableMultiDocMode({ … })` literal. `multiDocNewDocWithPicker` was
+therefore always null, so every New in a three-pane workspace fell
+through to that branch's `spawnBlankWindow()` fallback: a brand-new
+window, booting to its own home screen. The picker the commit existed
+to add has never rendered.
+
+Every hook on that options object is optional, so nothing catches this
+— not the build, not `tsc`, not a runtime error. It fails by quietly
+doing the old thing. `tests/editor/multi-doc-hooks-wired.test.ts` now
+diffs the declared hook names against the ones the shell passes and
+fails on any gap in either direction; it covers all 40 hooks, not just
+this one. The shell can't be instantiated under jsdom (it imports back
+into `index.ts`), so the check reads the two source files — crude, but
+it fails loudly for the whole class of bug, which is what was missing.
+The same defect shape killed the home screen's `renderWorkspaces()`
+(fixed in bcb.3), and both went unnoticed for days.
+
+`promptForSlot` also gained an optional `heading`, so New reads "New
+document in…" rather than "Open Untitled into…" — a new document isn't
+being opened from anywhere, and this dialog is now reachable for the
+first time, so its wording is newly load-bearing. It matches main's
+cross-window chooser ("New document in:"), which is the step
+immediately before it when more than one three-pane window is open.
+
 ## 1.10.0-bcb.3 — 2026-09-12
 
 ### Changed: New Document routes through the cross-window chooser (`main.ts`, `multipane-chooser.ts`, `index.ts`)
