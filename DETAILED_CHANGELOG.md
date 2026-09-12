@@ -100,6 +100,130 @@ renderer's re-register resolve `fresh` rather than `unknown`. Tests
 cover both directions, including that a real external write to the
 renamed file is still caught.
 
+### Added: Drag a pane's title chip to move its doc to another slot (`pane-drag.ts`, `multi-pane-shell.ts`, `style.css`)
+
+Moving a doc between panes already existed as `sendDocToSlotN` —
+unbound by default, so in practice it existed for nobody. The chip is
+the obvious handle (it's the strip users already read as "this
+document"), so it's now draggable onto any pane.
+
+Pointer events, not HTML5 drag-and-drop: the window already binds
+`dragover`/`drop` for opening dropped files, and a chip drag riding
+the same channel would have to be told apart from a real file
+mid-gesture. `pane-drag.ts` owns the gesture — a 6px threshold before
+anything starts (so the chip's click-to-focus and the name's
+double-click-to-rename are untouched), a pointer-following label, Esc
+to abandon, and teardown on `pointercancel` as well as `pointerup`. It
+takes NO pointer capture and tracks on the document instead: capture
+retargets the pointer's compatibility mouse events to the capturing
+element, which would have eaten the very `dblclick` the rename needs.
+Commit order is deliberate — `onDragEnd` (undress the row) always runs
+before `onDrop` (move the doc), so the cleanup never has to unwind a
+layout the move has already changed. Tested in jsdom against a fake
+pointer: threshold, off-chip tracking, Esc, cancel, buttons opting
+out, and drop-over-nothing.
+
+The shell side is `beginChipDrag` / `endChipDrag` / `highlightDropSlot`
+/ `dropChipOnSlot` on `MultiPaneShell`, plus `slotIdAtPoint`
+(`elementFromPoint` → `.pmd-pane` → `dataset.slot`, so a pane scrolled
+out of the wide-scroll row answers honestly). The drop itself reuses
+the existing `releaseVisible()` + `push()` pair, which is exactly what
+`sendVisibleToSlotByIndex` does — so a doc dropped on an occupied slot
+joins its stack, matching the behavior that already existed rather
+than inventing a swap.
+
+The one genuinely new piece of UI is the empty-slot drop zone. An
+empty pane is `[hidden]`, so the slot you'd most want to drop into
+isn't on screen to aim at; `showAsDropZone()` reveals it for the
+duration of the drag with a "Drop in Slot N" placeholder, at a fixed
+narrow width (`flex: 0 0 clamp(110px, 13%, 200px)`) so the occupied
+panes give up a sliver instead of the row reflowing under the user's
+cursor. Dragging is refused in expand mode, where exactly one pane is
+visible and there is nowhere to aim at all; the keyboard commands
+still work there.
+
+### Changed: an empty workspace skips the slot picker (`multi-pane-shell.ts`)
+
+`promptForSlot` now resolves `slot1` immediately when every slot's
+stack is empty. The case that matters is a window spawned by "New
+window" from either chooser: it boots empty, `routeInitialDocIntoWorkspace`
+routes the payload through `routeOpenedFile` → `onFileOpen`, and the
+user got a second dialog whose three slots all read "(empty)" and
+whose "New window" option would have produced another empty workspace.
+The picker still appears the moment any slot holds a doc, which is
+when the question has more than one real answer.
+
+### Fixed: a save into a remembered folder wasn't reopenable by path (`main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`)
+
+`host:save-as` calls `grantReadPath(result.filePath)` — without it
+`host:read-file-at-path` refuses the file (see `read-scope.ts`), which
+is what Recent, workspace restore and the file-search open path all
+use. The new save-into-a-remembered-folder shortcut writes through
+`host:write-file-at-path` instead, which granted nothing, so a file
+saved that way landed in Recent as an entry that could never be
+opened. The pre-existing new-speech-doc auto-save (same channel, also
+adopts the file it writes) had the identical gap.
+
+Fixed with an opt-in `grantRead` flag on that channel rather than an
+unconditional grant: the other callers on it (bulk convert, the style
+cleaner) write hundreds of files nobody adopted, and the grant journal
+is LRU-capped at 500 — granting those would evict the recents grants
+this is meant to protect.
+
+### Fixed: New Document could hand your doc to a window you never picked (`main.ts`)
+
+`pickMultiPaneTarget` skips the dialog when there's exactly one
+candidate window. Correct for an OS open (the file has to land
+somewhere and there's no window that "asked"), wrong for New
+Document: with one three-pane workspace open beside the single-doc
+window you were typing in, New silently routed the doc there and
+pulled focus with it. `host:new-doc-target` now passes
+`autoRouteOnlyTo: <requesting window id>`, so the silent shortcut
+applies only when the single candidate IS the window you pressed New
+in; anything else asks.
+
+### Fixed: a window that closed during the chooser crashed the handoff (`main.ts`)
+
+A `showMessageBox` stays open as long as the user leaves it there, and
+`webContents.send` on a destroyed window throws — which rejected the
+`host:new-doc-target` invoke and, on the OS-open path, surfaced as an
+unhandled rejection with the file silently dropped. `focusForHandoff`
+became `handOffToWindow`, which checks `isDestroyed()` first and
+returns false; both callers treat that as "nothing took it" and spawn
+a window instead.
+
+### Fixed: a pane's path change left the workspace snapshot stale (`multi-pane-shell.ts`)
+
+`adoptFileForRecord` is where a pane's doc takes a new path (Save As
+minting one, the new rename moving it), but it never re-reported the
+workspace — so "Reopen last workspace" kept pointing at where the file
+used to be and came back with a missing file. Single-doc mode already
+handled this through `setCurrentDocHandle` → `reportSingleDocWorkspace`;
+the pane path now calls `reportWorkspace()` the same way. Reachable
+before this change via Save As, and much more reachable now that a
+rename is two clicks.
+
+### Fixed: the PolicyDebateFlow presence poll could never fire (`flow-chip.ts`)
+
+`render()` runs on every settings change of any kind, and it called
+`schedulePoll()` unconditionally while connected — which clears and
+re-arms the 30-second timer. A window writing a setting more often
+than that (chrome scale, read mode, autosave flags) would push the
+deadline back forever and never poll, leaving the chip reading
+"Connected" on a token the server had already revoked. It now arms
+only on the transition into the connected state, and a poll whose
+request was in flight while the user paused no longer re-arms itself.
+
+### Fixed: `installInlineRename().destroy()` stranded the label (`doc-rename.ts`)
+
+`destroy()` dropped its reference to the field without removing it
+from the DOM or clearing `data-renaming`. Every label refresh checks
+`isInlineRenaming()` first and bails, so a torn-down-mid-edit chip
+would have kept showing whatever name it had when the edit started,
+forever. It now routes through the same `end()` the Escape path uses.
+No live call site (the handle is returned, never stored), so this was
+latent — fixed rather than left as a trap.
+
 ### Fixed: Recent Workspaces never rendered; merged into a unified Recent list (`home-screen.ts`, `recent-workspaces-store.ts`, `style.css`)
 
 `recent-workspaces-store.ts` (the "reopen these N docs as the
