@@ -318,6 +318,26 @@ interface ElectronAPI {
   /** Main forwards a New Document request the chooser routed here.
    *  Optional, same reason. Returns unsubscribe. */
   onNewDoc?(handler: () => void): () => void;
+  /** Other live multi-pane windows a doc could move to (right-click a
+   *  pane's title chip's "Move to…" menu). Optional — an older
+   *  preload lacks the channel. */
+  listMultiPaneWindows?(): Promise<Array<{ id: number; label: string }>>;
+  /** Hand this doc's current bytes to another live window. Optional,
+   *  same reason. */
+  moveDocToWindow?(
+    targetWinId: number,
+    payload: { filename: string; bytes: Uint8Array; handle: string | null; markDirty?: boolean },
+  ): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /** Main forwards a doc moved here from another window. Optional,
+   *  same reason. Returns unsubscribe. */
+  onReceiveDoc?(
+    handler: (payload: {
+      filename: string;
+      bytes: Uint8Array;
+      handle: string | null;
+      markDirty?: boolean;
+    }) => void,
+  ): () => void;
   closeSelf(): Promise<void>;
   /** Report that a close-request ended without closing (Cancel or a
    *  failed Save) so main can drop any pending quit intent. Optional
@@ -1032,6 +1052,50 @@ export class ElectronHost implements Host {
   onNewDoc(handler: () => void): () => void {
     const fn = api().onNewDoc;
     return typeof fn === 'function' ? fn(handler) : () => {};
+  }
+
+  /** Other live multi-pane windows a doc could move to. Empty array
+   *  on an older preload (no channel). */
+  async listMultiPaneWindows(): Promise<Array<{ id: number; label: string }>> {
+    const fn = api().listMultiPaneWindows;
+    return typeof fn === 'function' ? await fn() : [];
+  }
+
+  /** Hand this doc's current bytes to another live window. `unsupported`
+   *  on an older preload (no channel), same rationale as renameFile. */
+  async moveDocToWindow(
+    targetWinId: number,
+    payload: { filename: string; bytes: Uint8Array; handle: string | null; markDirty?: boolean },
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const fn = api().moveDocToWindow;
+    if (typeof fn !== 'function') return { ok: false, reason: 'unsupported' };
+    return await fn(targetWinId, payload);
+  }
+
+  /** Main forwards a doc moved here from another window's "Move to…"
+   *  menu. Returns an unsubscribe (no-op on an older preload). */
+  onReceiveDoc(
+    handler: (payload: {
+      filename: string;
+      bytes: Uint8Array;
+      handle: string | null;
+      markDirty?: boolean;
+    }) => void,
+  ): () => void {
+    const fn = api().onReceiveDoc;
+    if (typeof fn !== 'function') return () => {};
+    return fn((payload) => {
+      // Normalize bytes the same defensive way readJournals/openFile
+      // do — the structured clone can hand back a Buffer-shaped
+      // object rather than a real Uint8Array.
+      handler({
+        ...payload,
+        bytes:
+          payload.bytes instanceof Uint8Array
+            ? payload.bytes
+            : new Uint8Array(payload.bytes as ArrayBufferLike),
+      });
+    });
   }
 
   /** Rename a document on disk, in its own folder. An older preload

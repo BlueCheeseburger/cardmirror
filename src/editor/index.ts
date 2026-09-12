@@ -1067,6 +1067,7 @@ let multiDocOnNewDocDefaultSlot: (() => Promise<void> | void) | null = null;
  *  one) or the Home screen's tile instead. Asking mirrors Open's
  *  existing UX rather than guessing either way. See `onNewDocClicked`. */
 let multiDocNewDocWithPicker: (() => Promise<void> | void) | null = null;
+let multiDocCloseFocusedSilently: (() => Promise<void> | void) | null = null;
 /** When the multi-pane shell is active, this delegates the
  *  read-mode ribbon button to the shell's per-pane toggle. */
 let multiDocToggleReadMode: (() => void) | null = null;
@@ -1242,6 +1243,10 @@ export function enableMultiDocMode(opts: {
   showInContext?: (req: ShowInContextRequest) => Promise<void> | void;
   onNewDocDefaultSlot?: () => Promise<void> | void;
   onNewDocWithPicker?: () => Promise<void> | void;
+  /** Move-to-window's cleanup step: close the focused pane's doc with
+   *  no save/discard prompt, because its content has already been
+   *  confirmed delivered to wherever it's going. */
+  onCloseFocusedSilently?: () => Promise<void> | void;
   toggleReadMode?: () => void;
   toggleReaderView?: () => void;
   toggleAutosave?: () => void;
@@ -1325,6 +1330,7 @@ export function enableMultiDocMode(opts: {
   multiDocShowInContext = opts.showInContext ?? null;
   multiDocOnNewDocDefaultSlot = opts.onNewDocDefaultSlot ?? null;
   multiDocNewDocWithPicker = opts.onNewDocWithPicker ?? null;
+  multiDocCloseFocusedSilently = opts.onCloseFocusedSilently ?? null;
   multiDocToggleReadMode = opts.toggleReadMode ?? null;
   multiDocToggleReaderView = opts.toggleReaderView ?? null;
   multiDocToggleAutosave = opts.toggleAutosave ?? null;
@@ -6861,7 +6867,14 @@ const OPEN_FILE_FILTERS = [
 async function resolveOpenedFile(
   opened: OpenedFile,
 ): Promise<
-  | { name: string; bytes: Uint8Array; handle: unknown; format: 'cmir' | 'docx'; recovered: boolean }
+  | {
+      name: string;
+      bytes: Uint8Array;
+      handle: unknown;
+      format: 'cmir' | 'docx';
+      recovered: boolean;
+      markDirty?: boolean;
+    }
   | 'corrupt'
 > {
   if (opened.name.toLowerCase().endsWith('.cmir-journal')) {
@@ -6888,7 +6901,7 @@ async function resolveOpenedFile(
       // Carry the format's extension on the name so every downstream path (incl.
       // multi-pane, which re-derives format from the name) agrees on the format.
       if (formatFromFilename(name) !== format) name = `${name}.${format}`;
-      return { name, bytes, handle: null, format, recovered: true };
+      return { name, bytes, handle: null, format, recovered: true, markDirty: opened.markDirty };
     } catch {
       return 'corrupt';
     }
@@ -6915,6 +6928,7 @@ async function resolveOpenedFile(
     handle: opened.handle ?? null,
     format,
     recovered: false,
+    markDirty: opened.markDirty,
   };
 }
 
@@ -6974,7 +6988,12 @@ async function routeOpenedFile(opened: OpenedFile): Promise<void> {
     // guard (checks every slot's stack) before showing the slot
     // picker.
     try {
-      await multiDocOnFileOpen({ name: src.name, bytes: src.bytes, handle: src.handle });
+      await multiDocOnFileOpen({
+        name: src.name,
+        bytes: src.bytes,
+        handle: src.handle,
+        markDirty: src.markDirty,
+      });
     } catch (err) {
       if (err instanceof NativeDamagedError) {
         await offerDamagedSalvage(src.name, src.bytes);
@@ -7713,6 +7732,13 @@ function installExternalOpenListener(): void {
   electron.onNewDoc(() => {
     void createNewDocLocally();
   });
+  // A doc moved here from another window's pane-chip "Move to…" menu.
+  // `routeOpenedFile` is the exact same funnel an OS open uses — slot
+  // picker, duplicate-open guard, recents — the only difference is the
+  // bytes came from another live window instead of disk.
+  electron.onReceiveDoc?.(({ filename, bytes, handle, markDirty }) => {
+    void routeOpenedFile({ name: filename, bytes, handle, markDirty });
+  });
 }
 
 /** Drag-and-drop file opening (desktop). Dropping a .cmir / .cmir-journal /
@@ -7798,6 +7824,12 @@ async function routeInitialDocIntoWorkspace(): Promise<boolean> {
     bytes: payload.bytes,
     handle: payload.handle ?? null,
     ...(payload.emptyOnDisk === true ? { emptyOnDisk: true } : {}),
+    // A move-to-window spawn (payload.uid null, markDirty true): these
+    // bytes are the source pane's live unsaved state, not what
+    // `handle` holds on disk. Everything else on this path — OS
+    // opens, recents, mode-switch respawns of a saved doc — leaves
+    // markDirty unset, so this is a no-op for them.
+    ...(payload.markDirty === true ? { markDirty: true } : {}),
   });
   return true;
 }
@@ -9051,6 +9083,111 @@ async function serializeActiveForSave(format: 'cmir' | 'docx', docId: string | n
     { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false },
     docId ?? undefined,
   );
+}
+
+/** A live multi-pane window this doc could move to (right-click a
+ *  pane's title chip → "Move to…"). Desktop only. */
+export interface MoveDocWindowCandidate {
+  id: number;
+  label: string;
+}
+
+/** Other windows the focused doc could move to. Empty on a host that
+ *  doesn't support it (web, or an older preload) — the caller then
+ *  offers only "New Window". Never throws: a failed query just means
+ *  no cross-window candidates today. */
+export async function listMoveDocTargets(): Promise<MoveDocWindowCandidate[]> {
+  const electron = getElectronHost();
+  if (!electron?.listMultiPaneWindows) return [];
+  try {
+    return await electron.listMultiPaneWindows();
+  } catch (err) {
+    console.warn('listMultiPaneWindows failed:', err);
+    return [];
+  }
+}
+
+/** Move the FOCUSED pane's doc to another window — an existing one
+ *  (`target` a window id) or a fresh one (`target: 'new-window'`).
+ *
+ *  Serializes the doc's CURRENT bytes, live edits included, at full
+ *  fidelity (same options as an ordinary Save) — this hands off a
+ *  live document, not an export. The handoff is confirmed delivered
+ *  BEFORE this pane's own copy is closed, so a destination that
+ *  vanished between the right-click and the pick (window closed,
+ *  spawn failed) leaves the source untouched rather than losing the
+ *  document. Returns whether the move completed.
+ *
+ *  Refuses a doc in a live collaboration session: its content lives
+ *  in the Loro binding tied to THIS EditorView, not just in its
+ *  bytes, so handing off bytes alone would silently fork the session
+ *  rather than move it. Leaving the session first (Settings, or the
+ *  session's own controls) makes it plain .cmir/.docx and movable. */
+export async function moveFocusedDocToWindow(
+  target: number | 'new-window',
+): Promise<boolean> {
+  const electron = getElectronHost();
+  if (!electron) return false;
+  const { docId, sessionUid } = activeDocIdentity();
+  if (collabCopresenceFor(sessionUid) != null) {
+    void alertDialog(
+      'Can’t move a document that’s in a live collaboration session — leave the session first.',
+    );
+    return false;
+  }
+  const file = activeFile();
+  if (!file.filename) return false; // nothing focused to move
+  const format = file.format ?? settings.get('defaultSaveFormat');
+  let bytes: Uint8Array;
+  try {
+    bytes = await serializeActiveForSave(format, docId);
+  } catch (err) {
+    void alertDialog(
+      `Couldn’t prepare this document to move: ${err instanceof Error ? err.message : err}`,
+    );
+    return false;
+  }
+  // The move preserves live edits, not just the bytes-vs-disk
+  // relationship: if this pane had unsaved changes, the destination
+  // must open dirty too, or the "no unsaved changes" indicator would
+  // lie — those edits still exist nowhere on `handle`'s actual disk
+  // content.
+  const dirty = multiDocGetFocusedFile?.()?.dirty ?? false;
+  const payload = {
+    filename: file.filename,
+    bytes,
+    handle: typeof file.handle === 'string' ? file.handle : null,
+    markDirty: dirty,
+  };
+  if (target === 'new-window') {
+    try {
+      await electron.spawnWindow({ ...payload, format, uid: null });
+    } catch (err) {
+      console.error('Move to new window failed:', err);
+      void alertDialog(
+        `Couldn’t open a new window: ${err instanceof Error ? err.message : err}`,
+      );
+      return false;
+    }
+  } else {
+    if (!electron.moveDocToWindow) return false;
+    const result = await electron.moveDocToWindow(target, payload);
+    if (!result.ok) {
+      void alertDialog(
+        result.reason === 'window-gone'
+          ? 'That window closed — pick another destination.'
+          : 'Couldn’t move this document.',
+      );
+      return false;
+    }
+  }
+  // Delivered (or the new window is spawned and owns the path claim
+  // via its own boot — see routeInitialDocIntoWorkspace) — only now
+  // is it safe to drop this pane's own copy.
+  if (multiDocActive && multiDocCloseFocusedSilently) {
+    await multiDocCloseFocusedSilently();
+  }
+  return true;
 }
 
 /** Badge action: "Keep mine as a copy" without a prior refused save.
