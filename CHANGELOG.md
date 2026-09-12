@@ -23,8 +23,19 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   the top. The section starts collapsed and remembers whether you left it open.
   Desktop only.
 
+- **Drag a pane's title chip onto another pane to move that document there.**
+  Grab the strip with the filename and drop it on the slot you want; an empty
+  slot appears as a labelled drop zone while you drag, and Esc backs out. A
+  document dropped on an occupied slot joins its stack (the ▾ switcher gets you
+  between them) — the same thing "Send doc to slot N" has always done, now
+  without needing to know the command exists.
+
 ### Changed
 
+- **Opening a document into an empty workspace no longer asks which slot.** A
+  brand-new three-pane window has nothing in any slot, so the "Open X into…"
+  picker had one real answer; documents now land in Slot 1. The picker still
+  appears as soon as any slot is occupied.
 - **New Document now asks which window**, the same way opening a file from
   Finder/Dock does, instead of always spawning a new window. With one
   three-pane workspace open it goes straight to that workspace's slot picker;
@@ -42,6 +53,22 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   and merged into the Recent list: a workspace suggestion now appears right
   alongside recently opened single files, sorted by recency, instead of
   competing for its own separate space.
+- **A document saved into a remembered folder can be reopened from Recent.**
+  Saving through the new location list skipped the step that keeps a file
+  readable by path, so its Recent entry — and the same window's own reopen —
+  came back "file moved or deleted". Also fixes the same gap for a new speech
+  document auto-saved into your default speech-doc folder.
+- **New Document no longer hands your document to a window you didn't pick.**
+  With one three-pane workspace open beside the window you were working in,
+  New silently routed the document there and pulled focus with it. It now asks
+  whenever the destination isn't the window you started from.
+- **Renaming or Save-As-ing a document in a pane now updates "Reopen last
+  workspace".** The snapshot kept the old path, so reopening came back with a
+  missing file.
+- **The PolicyDebateFlow connection check no longer stalls.** Its 30-second
+  poll restarted on every unrelated settings change, so on a busy window it
+  could go indefinitely without ever running — leaving the chip reading
+  "Connected" on a token the server had already revoked.
 - **The PolicyDebateFlow status chip now pauses instead of disconnecting.**
   Clicking it while connected used to revoke your token outright — which
   can't be undone with a click, since reconnecting needs a whole new pairing
