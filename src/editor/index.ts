@@ -1067,7 +1067,7 @@ let multiDocOnNewDocDefaultSlot: (() => Promise<void> | void) | null = null;
  *  one) or the Home screen's tile instead. Asking mirrors Open's
  *  existing UX rather than guessing either way. See `onNewDocClicked`. */
 let multiDocNewDocWithPicker: (() => Promise<void> | void) | null = null;
-let multiDocCloseFocusedSilently: (() => Promise<void> | void) | null = null;
+let multiDocCloseFocusedSilently: ((uid: string) => Promise<void> | void) | null = null;
 /** When the multi-pane shell is active, this delegates the
  *  read-mode ribbon button to the shell's per-pane toggle. */
 let multiDocToggleReadMode: (() => void) | null = null;
@@ -1243,10 +1243,11 @@ export function enableMultiDocMode(opts: {
   showInContext?: (req: ShowInContextRequest) => Promise<void> | void;
   onNewDocDefaultSlot?: () => Promise<void> | void;
   onNewDocWithPicker?: () => Promise<void> | void;
-  /** Move-to-window's cleanup step: close the focused pane's doc with
-   *  no save/discard prompt, because its content has already been
+  /** Move-to-window's cleanup step: close the doc with this uid (no
+   *  matter which pane it's in by the time this runs) with no
+   *  save/discard prompt, because its content has already been
    *  confirmed delivered to wherever it's going. */
-  onCloseFocusedSilently?: () => Promise<void> | void;
+  onCloseFocusedSilently?: (uid: string) => Promise<void> | void;
   toggleReadMode?: () => void;
   toggleReaderView?: () => void;
   toggleAutosave?: () => void;
@@ -9170,8 +9171,20 @@ export async function moveFocusedDocToWindow(
       return false;
     }
   } else {
-    if (!electron.moveDocToWindow) return false;
-    const result = await electron.moveDocToWindow(target, payload);
+    if (!electron.moveDocToWindow) {
+      void alertDialog('This build can’t move documents between windows.');
+      return false;
+    }
+    let result: { ok: true } | { ok: false; reason: string };
+    try {
+      result = await electron.moveDocToWindow(target, payload);
+    } catch (err) {
+      console.error('Move to window failed:', err);
+      void alertDialog(
+        `Couldn’t move this document: ${err instanceof Error ? err.message : err}`,
+      );
+      return false;
+    }
     if (!result.ok) {
       void alertDialog(
         result.reason === 'window-gone'
@@ -9183,9 +9196,11 @@ export async function moveFocusedDocToWindow(
   }
   // Delivered (or the new window is spawned and owns the path claim
   // via its own boot — see routeInitialDocIntoWorkspace) — only now
-  // is it safe to drop this pane's own copy.
+  // is it safe to drop this pane's own copy. By uid, not "whatever's
+  // focused": the moving-doc's own pane may no longer be focused by
+  // now (the user is free to click around during the awaits above).
   if (multiDocActive && multiDocCloseFocusedSilently) {
-    await multiDocCloseFocusedSilently();
+    await multiDocCloseFocusedSilently(sessionUid);
   }
   return true;
 }

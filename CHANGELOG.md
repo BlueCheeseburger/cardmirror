@@ -8,6 +8,29 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.10.0-bcb.3.3 — 2026-09-12
+
+### Fixed
+
+A follow-up hardening pass on 1.10.0-bcb.3.2's move-to-window and Save As
+work — every issue below was caught in review before shipping, not from a
+user report, but each was a real race with a real bad outcome if hit:
+
+- **A document moved to another window could mount with a stale "no unsaved
+  changes" state** if the receiving window's own picker was then used to
+  send it to a THIRD window — the second hop dropped the flag that says
+  "this content isn't actually on disk yet."
+- **The "Move to…" menu could occasionally get stuck open** if you
+  right-clicked a second pane's chip before the first one's menu had
+  finished loading — the first, now-orphaned menu couldn't be dismissed by
+  Escape or clicking away.
+- **The "Move to…" menu could act on the wrong document** if the pane's
+  content changed while the menu was loading, or right after it opened.
+  It now re-checks before showing anything, and again before acting on a
+  pick.
+- A failed move to an existing window now shows an error message and
+  leaves your document in place, instead of failing silently.
+
 ## 1.10.0-bcb.3.2 — 2026-09-12
 
 ### Added
