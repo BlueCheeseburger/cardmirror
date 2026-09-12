@@ -8,6 +8,20 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.10.0-bcb.3.1 — 2026-09-12
+
+### Fixed
+
+- **New Document in a three-pane workspace now asks where to put it.** It was
+  still spawning a whole new window — landing you on that window's home screen
+  — even with an empty pane sitting right there in the workspace you were
+  working in. The slot picker ("New document in… Slot 1 / Slot 2 / Slot 3 /
+  New window") was written and documented back in 1.10.0-bcb.1 but never
+  actually hooked up to the New command, so it has never once appeared. With
+  two three-pane windows open you now get the window chooser first, then that
+  window's slot picker — the same two steps as opening a file from
+  Finder/Dock.
+
 ## 1.10.0-bcb.3 — 2026-09-12
 
 ### Added

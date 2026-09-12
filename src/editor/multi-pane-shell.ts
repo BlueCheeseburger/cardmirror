@@ -3307,7 +3307,7 @@ class MultiPaneShell {
    *  that can't just get the plain slot picker, same as before. */
   private promptForSlot(
     filename: string,
-    opts: { allowNewWindow?: boolean } = {},
+    opts: { allowNewWindow?: boolean; heading?: string } = {},
   ): Promise<SlotId | 'new-window' | null> {
     const offerNewWindow = !!opts.allowNewWindow && getHost().canSpawnWindow;
     // An empty workspace has nothing to choose between: every slot is
@@ -3351,7 +3351,9 @@ class MultiPaneShell {
       dialog.className = 'pmd-route-dialog';
       const header = document.createElement('div');
       header.className = 'pmd-route-header';
-      header.textContent = `Open ${filename} into…`;
+      // `heading` for callers where "Open X into…" is the wrong verb —
+      // a new document isn't being opened from anywhere.
+      header.textContent = opts.heading ?? `Open ${filename} into…`;
       dialog.appendChild(header);
       const row = document.createElement('div');
       row.className = 'pmd-route-buttons';
@@ -3557,7 +3559,13 @@ class MultiPaneShell {
    *  empty one — or spawning a whole separate window; there was no way
    *  to reach an empty pane that's merely hidden, not absent. */
   async newDocWithPicker(): Promise<void> {
-    const choice = await this.promptForSlot('Untitled', { allowNewWindow: true });
+    const choice = await this.promptForSlot('Untitled', {
+      allowNewWindow: true,
+      // Matches main's cross-window chooser ("New document in:"), which
+      // is the step immediately before this one when more than one
+      // three-pane window is open.
+      heading: 'New document in…',
+    });
     if (!choice) return;
     if (choice === 'new-window') {
       try {
@@ -4260,6 +4268,11 @@ export function mountMultiPaneShell(): void {
     onFileOpen: (file) => shell!.onFileOpen(file),
     showInContext: (req) => shell!.showInContext(req),
     onNewDocDefaultSlot: () => shell!.newDocIntoFirstEmptySlot(),
+    // The ribbon / keyboard New command. Declared and implemented in
+    // 9a24d0d but never passed here, so New in a three-pane window fell
+    // through to `createNewDocLocally`'s spawn-a-window fallback for
+    // four days — the exact behaviour that commit set out to replace.
+    onNewDocWithPicker: () => shell!.newDocWithPicker(),
     toggleReadMode: () => shell!.toggleFocusedReadMode(),
     arrangeForSpeech: (side, pct) => shell!.arrangeForSpeech(side, pct),
     toggleReaderView: () => shell!.toggleFocusedReaderView(),
