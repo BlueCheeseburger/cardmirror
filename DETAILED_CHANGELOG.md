@@ -10,6 +10,104 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.10.0-bcb.3.3 — 2026-09-12
+
+A dedicated review pass over bcb.3.2's move-to-window and Save As work,
+done before any user report — the user explicitly asked for the time to
+do it right rather than shipping and waiting. Four real issues, all races
+narrow enough that nothing in the automated suite could have caught them
+without deliberately simulating the interleaving.
+
+### Fixed: a second hop through "New window" dropped the dirty flag (`multi-pane-shell.ts`)
+
+`onFileOpen`'s `choice === 'new-window'` branch — reached when the
+window a doc was just moved TO shows its own slot picker (because it,
+too, doesn't know which slot to use) and the user picks "New window"
+from THAT — builds its own `spawnWindow` payload from the `OpenedFile`
+it received, but never forwarded `opened.markDirty`. A doc moved with
+unsaved edits, then immediately relayed onward through this specific
+path, would mount clean in its third home — the exact bug bcb.3.2's
+`markDirty` plumbing existed to prevent, just one hop further down a
+chain that hadn't been traced all the way through. Fixed by forwarding
+`markDirty` here too, closing the loop completely.
+
+### Fixed: two "Move to…" menu races (`pane-move-menu.ts`)
+
+`listCandidates()` is an IPC round trip to main — real, unbounded time
+during which state can change out from under the menu that's waiting
+on it:
+
+1. **Two right-clicks on different panes before the first's candidate
+   list resolves.** Both calls would go on to build and append a
+   menu; whichever's `listCandidates()` resolved LAST would win
+   `openMenuEl`, orphaning the other in the DOM — not tracked by the
+   module's own state, so neither Escape nor an outside click could
+   ever remove it. Fixed with a sequence counter (`openSeq`):
+   `openMoveMenu` captures its own value before the await and checks
+   it's still current after — a superseded call abandons instead of
+   appending anything.
+2. **The right-clicked pane's own content changing while the menu was
+   still loading (or, more narrowly, while it sat open waiting for a
+   click).** `canMove()` was checked once, before the await — a doc
+   closing (or a different one landing in the same slot) during the
+   IPC round trip left the menu open for a pane that no longer had
+   anything movable, and picking an item from it would act on
+   whatever was FOCUSED at click time, not what was actually
+   right-clicked. Now re-checked twice: once in `openMoveMenu` right
+   after `listCandidates()` resolves (abandon, show nothing, if it's
+   gone false), and once more in the Slot's `onPick` handler right
+   before acting (no-op on an emptied pane rather than falling through
+   to whatever else is focused).
+
+`tests/editor/pane-move-menu.test.ts` gained two cases pinning both —
+verified each fails with its fix reverted and passes with it restored,
+same as every other fix in this entry. The test file also gained an
+`afterEach` that dispatches Escape to close anything a test
+deliberately left open, so the module's `window`-level mousedown /
+keydown listeners (registered per open, only ever removed by
+`closeMoveMenu`) don't accumulate silently across test cases — a
+latent version of exactly the kind of cross-test pollution this
+session already chased down once before, in `flow-chip.test.ts`.
+
+### Fixed: a thrown IPC error on the existing-window relay path went unhandled (`index.ts`)
+
+`moveFocusedDocToWindow`'s "new window" branch already wrapped
+`spawnWindow` in a try/catch; the "existing window" branch's
+`electron.moveDocToWindow(...)` call did not — an unexpected rejection
+(a real main-process throw, not the ordinary `{ok:false}` failure
+path) would propagate as an unhandled promise rejection from the
+`void`-called caller instead of surfacing an error message, and the
+source pane's own copy stays intact either way (the failure is caught
+before the confirmed-delivery gate that triggers the silent close, so
+nothing here risked losing the document — just the error reporting
+was missing). Also gives the "this build can't move documents between
+windows" fallback (no `moveDocToWindow` on the host) a user-facing
+message instead of silently doing nothing.
+
+### Fixed: the move's cleanup could close the wrong pane (`index.ts`, `multi-pane-shell.ts`)
+
+`onCloseFocusedSilently` closed whatever was CURRENTLY focused when it
+ran — reasonable when written, but the move it cleans up after can
+take a while (bytes serialization, one or two IPC round trips), and
+the user is free to click around during that gap. If focus moved
+elsewhere before the cleanup ran, it would silently close the WRONG
+document — one the user never asked to move, with no prompt, because
+"nothing here needs a prompt" was true only for the ORIGINAL doc.
+
+The hook now takes the moving doc's `uid` (captured once, at the start
+of `moveFocusedDocToWindow`, before any of the awaits) instead of
+implicitly meaning "whatever's focused." `MultiPaneShell.closeSilently
+ByUid(uid)` replaces `closeFocusedSilently()`, searching every slot's
+VISIBLE record for a match rather than trusting `focusedSlot` — the
+doc's own pane may not be the focused one any more by the time this
+runs. If the uid isn't visible anywhere (the user closed it in the
+meantime, or it got pushed under something else in its own slot's
+stack), this deliberately does nothing rather than disrupt whatever
+the user is now looking at; the worst case left behind is a harmless
+duplicate the user can close by hand, not a wrongly-destroyed
+document. Confirmed via the existing `multi-doc-hooks-wired.test.ts`
+that the renamed wiring is still actually connected.
+
 ## 1.10.0-bcb.3.2 — 2026-09-12
 
 ### Fixed: chip drag onto an occupied pane now swaps instead of stacking (`multi-pane-shell.ts`)
