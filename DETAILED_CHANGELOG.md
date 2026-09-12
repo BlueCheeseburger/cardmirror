@@ -10,6 +10,167 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.10.0-bcb.3.2 — 2026-09-12
+
+### Fixed: chip drag onto an occupied pane now swaps instead of stacking (`multi-pane-shell.ts`)
+
+`dropChipOnSlot` (bcb.3) pushed the incoming doc onto the target
+slot's stack whenever the target already held a doc — the same thing
+`sendDocToSlotN` has always done — which for a drag reads as the drop
+being refused: with docs in panes 1 and 2, dragging pane 2's chip onto
+pane 1 left pane 1 holding both (one hidden behind the ▾ switcher) and
+emptied pane 2, so the ONE pane you could see change was the one you
+dragged FROM going blank (field report, 2026-09-12).
+
+It now swaps: only the target's VISIBLE record comes back out (a
+deeper stack member stays exactly where it is, one slot further down)
+and lands in `source`, while the incoming doc takes `target`. The
+whole thing runs under the shell's `arranging` flag (the same guard
+`arrangeForSpeech`'s multi-step reshuffle already used) — releasing
+both visible docs before either push lands passes through an instant
+where every slot reads empty, which must not trip the "workspace is
+empty → show the home screen" check. Push order is deliberate:
+displaced-into-source first, incoming-into-target last, since `push()`
+re-focuses its slot every time — the LAST push is what decides where
+focus (and the ribbon's chrome) end up, and that has to be the pane
+the user actually dropped onto.
+
+`sendDocToSlotN` (the ribbon/keyboard command this began life
+mirroring) is untouched — a deliberate command aimed at an occupied
+slot still means "add to its stack"; a drag's whole premise is
+rearranging where things sit, so the two now diverge on purpose.
+
+### Added: move a document to another window (`pane-move-menu.ts`, `multi-pane-shell.ts`, `index.ts`, `main.ts`, `preload.ts`, `electron-host.ts`, `types.ts`, `style.css`)
+
+Chip drag (bcb.3) only reaches panes in THIS window. Right-clicking a
+pane's title chip now opens a "Move to…" menu — every other live
+multi-pane window, plus "New Window" — built fresh on each open
+(`host:list-multipane-windows`, excluding the requesting window: chip
+drag already covers same-window rearranging, and "move to the window
+it's already in" is meaningless). `pane-move-menu.ts` is a new,
+independently-testable module (`tests/editor/pane-move-menu.test.ts`,
+8 cases) following the exact `image-context-menu-plugin.ts` /
+`nav-panel.ts` context-menu pattern — same `.pmd-nav-context-menu`
+styling, same deferred close-listener registration, same
+`context-menu-registry.ts` mutual exclusion.
+
+Picking a target calls `index.ts`'s new `moveFocusedDocToWindow`,
+which:
+
+1. Refuses a doc in a live collaboration session — its content lives
+   in the Loro binding tied to THIS `EditorView`, not just its bytes,
+   so a bytes-only handoff would fork the session rather than move it.
+2. Serializes the doc's CURRENT bytes via the existing
+   `serializeActiveForSave` (same fidelity as an ordinary Save — this
+   moves a live document, not an export).
+3. Delivers them — `host:move-doc-to-window` (relay to an existing
+   window) or `spawnWindow` (new window) — and only on CONFIRMED
+   delivery closes this pane's own copy, via a new silent-close path
+   (below). A destination that died between the right-click and the
+   pick, or mid-send, leaves the source pane untouched; the user just
+   picks a different one.
+
+**The dirty flag has to travel with the bytes, not just the bytes.**
+A doc with unsaved edits, handed off and reopened via the normal
+`routeOpenedFile` path, would have mounted CLEAN — matching every
+other opener's assumption that its bytes equal what's on disk — which
+is false here: those edits were never written to `handle`'s actual
+file. A `markDirty` flag threads end-to-end for this: `OpenedFile`
+(new optional field) → `resolveOpenedFile`'s two return branches →
+`routeOpenedFile`'s call into `multiDocOnFileOpen` →
+`loadOpenedIntoSlot` → `buildDocRecord`'s `dirty: opts.markDirty ??
+false` (was unconditionally `false`) → and, for the new-window path
+specifically, `routeInitialDocIntoWorkspace` (which previously dropped
+`SpawnWindowPayload.markDirty` entirely when forwarding into
+`routeOpenedFile` — `emptyOnDisk` got the same conditional-spread
+treatment already; `markDirty` just never had a reason to need it
+until now). Every existing caller on all of these leaves the field
+unset, so this is additive — no other opener's behavior changes.
+
+**The cross-window path-claim race.** `host:move-doc-to-window`
+transfers `openPathOwners` to the target BEFORE relaying the doc —
+copied from the exact steal-from-whoever-holds-it logic
+`host:spawn-window` already runs for a new-window doc. Without this,
+the source's own claim release (fire-and-forget IPC, fired only once
+its pane tears down — see `teardownClosingRecord` below) would be
+racing the target's OWN duplicate-open check on arrival
+(`isFileOpenInAnotherWindow` → `openPathCheck`), and could lose: the
+target would see the path as still owned by the source and refuse the
+open outright, silently dropping the moved doc. Doing the transfer
+inside the ONE synchronous main-process handler, before the target
+ever sees the doc, makes that race impossible — the target is already
+the registered owner by the time its own check runs. If the target
+turns out to be dead (`handOffToWindow` returns false), the claim is
+handed straight back to the requester, so a vanished destination never
+leaves the source unable to save its own file.
+
+**The silent close.** A move's teardown must not prompt — the content
+is confirmed safe elsewhere, and "unsaved changes: discard?" would be
+asking about edits that are NOT being discarded. `closeVisibleInner`'s
+post-decision tail (timers, journal, speech designation, path-claim
+release, view/nav teardown, stack bookkeeping) is now
+`teardownClosingRecord`, called both by the ordinary prompting close
+and by the new `Slot.closeVisibleSilently()` / `Shell.closeFocused
+Silently()` pair — reachable only via a new `onCloseFocusedSilently`
+hook on `EnableMultiDocOptions`, wired in
+`enableMultiDocMode({ ... })` and immediately confirmed by
+`tests/editor/multi-doc-hooks-wired.test.ts` (added in bcb.3.1 for
+exactly this failure mode — it caught this hook the moment it was
+declared, before this commit even wired it).
+
+### Added: Save As redesigned around select-then-commit (`save-as-ui.ts`, `style.css`)
+
+The five save "presets" (As-Is / Send Doc / Read Doc / Marked Doc /
+Custom Save) were buttons that wrote the file the instant you clicked
+— including Custom Save, whose sub-dialog saved on ITS OWN submit.
+"Save in a previously saved location" was the same shape: click a
+folder, it saves there, As-Is, no way to pick a different mode first.
+Neither could be used to just LOOK at what a mode would do.
+
+Both are now selections. The five modes are a `MODE_DEFS`-driven radio
+list (shared `buildRadioRow` helper, reused for Format too — the old
+Format-specific CSS classes were generalized to `.pmd-save-as-radio-
+row` / `-row-text` / `-row-label` / `-row-blurb` rather than adding a
+near-duplicate set). Custom Save's five checkboxes moved from a
+`pushOverlay`-backed sub-dialog into an inline block right under its
+own row (`.pmd-save-as-custom-options`, toggled via `hidden` in
+`applyModeVisibility`) — the sub-dialog's whole overlay/focus/modal-
+keys scaffolding is gone, along with its now-dead CSS
+(`.pmd-save-as-custom-overlay` etc.). The locations list gained a
+permanent first row, "Choose location when saving" (radio value `''`
+— note an `<input type="radio">` with no explicit `value` defaults to
+`"on"`, not `""`, so this is set explicitly, and so are the Format /
+mode rows' values now that `buildRadioRow` doesn't set one itself),
+selected by default; each remembered folder is a peer radio row below
+it. A single "Save As" button (`type="submit"`) at the bottom — same
+target Enter already hits — commits the CURRENTLY selected mode +
+location together via `commit()`, which replaces the old
+`confirmWith(opts, prefix, destinationDir?)` call-per-preset. Pin
+stays a nested `<button>` inside each `<label>` row; its click handler
+gained `e.preventDefault()` alongside the existing `stopPropagation()`
+— now that the row IS the radio's own `<label>`, a plain click
+forwards to activate the radio unless the nested control's own default
+is prevented, which the old (non-label) row shape didn't need to
+worry about.
+
+`SaveAsResult`'s shape, and everything `index.ts`'s
+`runSaveAsFlowInner` does with it (`destinationDir` routing through
+`saveIntoDirectory`, the content-option flags reaching the exporter),
+is completely unchanged — this redesign is contained entirely to how
+`save-as-ui.ts` DECIDES that result, not what it means downstream.
+
+Tests: `tests/editor/save-as-ui.test.ts` rewritten for the new flow
+(21 cases) — selecting a mode/location commits nothing by itself,
+Save As / Enter commits the live selection, Custom Save's checkboxes
+show only while selected and commit exactly their checked state, a
+selected location survives a format change and combines with a
+selected mode, pinning preserves the current selection, clicking pin
+never selects that row, and the permanent "Choose location when
+saving" row is present even with zero remembered folders.
+
+Verified in Chromium (light + dark): default As-Is state, Custom
+Save's inline reveal, and the locations list with a pinned folder.
+
 ## 1.10.0-bcb.3.1 — 2026-09-12
 
 ### Fixed: the multi-pane New Document picker was never wired up (`multi-pane-shell.ts`)
