@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## 1.10.0-bcb.2.2 — 2026-09-11
+## 1.10.0-bcb.3 — 2026-09-12
 
 ### Added
 

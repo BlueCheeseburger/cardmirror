@@ -15,8 +15,7 @@
 >    are fully independent, each with its own three-pane (or single-doc)
 >    layout and open documents, instead of all windows sharing one layout
 >    mode. Documents move between panes by drag: grab a pane's title chip
->    and drop it on the slot you want, empty ones included. (main; the chip
->    drag is on an open PR)
+>    and drop it on the slot you want, empty ones included. (main)
 > 2. **Per-pane cloud-sync badge** — in a multi-pane workspace, each pane
 >    shows its own Dropbox/OneDrive/Google Drive/iCloud sync status in its
 >    own footer, instead of one shared pill that left it ambiguous which

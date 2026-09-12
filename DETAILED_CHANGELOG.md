@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## 1.10.0-bcb.2.2 — 2026-09-11
+## 1.10.0-bcb.3 — 2026-09-12
 
 ### Changed: New Document routes through the cross-window chooser (`main.ts`, `multipane-chooser.ts`, `index.ts`)
 
@@ -282,7 +282,7 @@ below.
 
 ### Fixed: PolicyDebateFlow status chip pauses instead of disconnecting
 
-See [CHANGELOG.md § 1.10.0-bcb.2.2](./CHANGELOG.md#1100-bcb22--2026-09-11)
+See [CHANGELOG.md § 1.10.0-bcb.3](./CHANGELOG.md#1100-bcb3--2026-09-12)
 for the user-facing summary. Full implementation details in
 [Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-flow-chipts-settingsts-settings-uits-ribbon-commandsts-ribbon-groupsts)
 below.
