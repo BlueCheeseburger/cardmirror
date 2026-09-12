@@ -10183,9 +10183,10 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   margin-bottom: 0.1rem;
 }
 
-/* One-click preset saves (As-Is / Send Doc / Read Doc). Three equal
-   columns, each a primary (blue) button with its description as a
-   caption below. Sits between the format section and custom save. */
+/* One-click preset saves (As-Is / Send Doc / Read Doc / Marked Doc /
+   Custom Save). Three equal columns, each a primary (blue) button with
+   its description as a caption below; the five wrap to 3 + 2, which is
+   what puts Custom Save directly right of Marked Doc. */
 .pmd-save-as-presets {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -10202,11 +10203,136 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   color: var(--pmd-c-text-muted);
   line-height: 1.3;
 }
-/* Custom Save button sits below the Include checkboxes, aligned
-   to the left edge of the section directly under them. */
-.pmd-save-as-custom-save {
-  align-self: flex-start;
-  margin-top: 0.35rem;
+
+/* Custom Save's sub-dialog: stacked over the Save As dialog (1000), but
+   below route dialogs (1400) so a confirm opened from either still
+   lands on top of both. */
+.pmd-save-as-custom-overlay {
+  z-index: 1100;
+}
+.pmd-save-as-custom-dialog {
+  max-width: 360px;
+}
+.pmd-save-as-custom-footer {
+  justify-content: flex-end;
+}
+
+/* "Save in a previously saved location" — a disclosure whose state
+   persists (save-locations-store). Collapsed, it's one quiet row; open,
+   it's a scrolling list of folders that each save on click. */
+.pmd-save-as-locations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pmd-save-as-locations-toggle {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pmd-c-text-muted);
+  text-align: left;
+}
+.pmd-save-as-locations-toggle:hover {
+  color: var(--pmd-c-text);
+}
+/* Caret: a CSS triangle so there's no icon dependency. Points right
+   when collapsed, down when open. */
+.pmd-save-as-locations-caret {
+  flex: 0 0 auto;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+  transition: transform 120ms ease;
+}
+.pmd-save-as-locations-open .pmd-save-as-locations-caret {
+  transform: rotate(90deg);
+}
+.pmd-save-as-locations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Scrolls past ~6 rows so a long history can't push Cancel off
+     screen — same reasoning as the home screen's sessions list. */
+  max-height: 12rem;
+  overflow-y: auto;
+}
+.pmd-save-as-locations-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-save-as-location {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.pmd-save-as-location-open {
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  color: var(--pmd-c-text);
+}
+.pmd-save-as-location-open:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-save-as-location-path {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Truncate the LEFT side (ellipsis at the line's end edge under rtl)
+     so a deep path keeps the folder that identifies it visible. The JS
+     side wraps the path in LRM guards. */
+  direction: rtl;
+  text-align: left;
+}
+.pmd-save-as-location-pin {
+  appearance: none;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  color: var(--pmd-c-text-muted);
+  /* Appears on hover, per the row it belongs to — but a pinned row
+     always shows its star, or there'd be no way to see the pin. */
+  opacity: 0;
+}
+.pmd-save-as-location:hover .pmd-save-as-location-pin,
+.pmd-save-as-location-pin:focus-visible,
+.pmd-save-as-location-pinned .pmd-save-as-location-pin {
+  opacity: 1;
+}
+.pmd-save-as-location-pinned .pmd-save-as-location-pin {
+  color: var(--pmd-c-accent);
+}
+.pmd-save-as-location-pin:hover {
+  background: var(--pmd-c-hover);
+  color: var(--pmd-c-text);
 }
 
 .pmd-save-as-option {
