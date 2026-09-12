@@ -174,6 +174,7 @@ import {
   CHROME_SCALE_MAX_PCT,
   migrateAutoUpdateOptOut, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
+import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { viewportSpellcheckPlugin } from './viewport-spellcheck.js';
 import { commentsPlugin, commentsKey, loadThreads, getCommentsState, gcOrphanThreads, newCommentId, setCommentIdSessionResolver } from './comments-plugin.js';
@@ -8450,6 +8451,45 @@ export async function runSaveAsFlow(): Promise<boolean> {
   }
 }
 
+/** Write `bytes` into a remembered folder as `filename`, skipping the
+ *  OS picker. Resolves the same `{name, handle}` `host.saveAs` does, or
+ *  null when the user backs out of overwriting / the write fails.
+ *
+ *  The picker's own overwrite prompt is gone on this path, so the
+ *  collision check has to happen here: `failIfExists` first, and only
+ *  an explicit confirmation writes over an existing file. Silently
+ *  clobbering a teammate's file because a folder was one click away is
+ *  exactly the failure this shortcut must not introduce. */
+async function saveIntoDirectory(
+  dir: string,
+  filename: string,
+  bytes: Uint8Array,
+): Promise<{ name: string; handle: string } | null> {
+  const electron = getElectronHost();
+  if (!electron?.writeFileAtPath) {
+    void alertDialog('This build can’t save straight to a folder — use Save As instead.');
+    return null;
+  }
+  const target = joinPath(dir, filename);
+  try {
+    const collided = await electron.writeFileAtPath(target, bytes, { failIfExists: true });
+    if (collided === 'collision') {
+      const overwrite = await confirmDialog(
+        `“${filename}” already exists in ${dir}. Replace it?`,
+        { title: 'File exists', okLabel: 'Replace', cancelLabel: 'Cancel' },
+      );
+      if (!overwrite) return null;
+      await electron.writeFileAtPath(target, bytes);
+    }
+    return { name: filename, handle: target };
+  } catch (err) {
+    void alertDialog(
+      `Couldn’t save into ${dir}: ${err instanceof Error ? err.message : err}`,
+    );
+    return null;
+  }
+}
+
 async function runSaveAsFlowInner(): Promise<boolean> {
   const file = activeFile();
   const suggestedName = basenameWithoutExt(file.filename ?? 'untitled');
@@ -8460,6 +8500,9 @@ async function runSaveAsFlowInner(): Promise<boolean> {
   const choice = await openSaveAs({
     initialFilename: suggestedName,
     defaultFormat,
+    // Only the desktop host can write to a bare directory path, which
+    // is what a remembered location is.
+    allowSaveLocations: !!getElectronHost()?.writeFileAtPath,
   });
   if (!choice) return false;
   // Writing to .docx flattens live views / linked copies — confirm first.
@@ -8510,13 +8553,25 @@ async function runSaveAsFlowInner(): Promise<boolean> {
       ),
       choice.filename,
     );
-    const result = await getHost().saveAs(choice.filename, bytes, {
-      filters: saveFiltersForFormat(choice.format),
-      // Open the dialog next to the doc's current path (or, after a
-      // rename/move broke it, the nearest surviving parent folder).
-      ...(typeof file.handle === 'string' && file.handle ? { nearPath: file.handle } : {}),
-    });
+    // A remembered folder writes straight there; everything else goes
+    // through the OS picker. Both produce the same {name, handle}, so
+    // the commit path below is identical either way.
+    const result = choice.destinationDir
+      ? await saveIntoDirectory(choice.destinationDir, choice.filename, bytes)
+      : await getHost().saveAs(choice.filename, bytes, {
+          filters: saveFiltersForFormat(choice.format),
+          // Open the dialog next to the doc's current path (or, after a
+          // rename/move broke it, the nearest surviving parent folder).
+          ...(typeof file.handle === 'string' && file.handle ? { nearPath: file.handle } : {}),
+        });
     if (!result) return false;
+    // Remember where this landed so it's offered next time. Covers the
+    // OS-picker path too — that's how the list fills up in the first
+    // place — and re-recording a remembered folder refreshes its
+    // recency so the list stays ordered by actual use.
+    if (typeof result.handle === 'string' && result.handle) {
+      recordSaveLocation(dirnameOf(result.handle));
+    }
     if (isFullSave) {
       // Read the pre-fork identity before committing the new file
       // (commitSaveResult leaves docId untouched, but read first to be
