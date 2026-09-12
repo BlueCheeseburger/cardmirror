@@ -423,6 +423,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('host:external-open', listener);
   },
 
+  /** Ask main to route a New Document request through the same
+   *  "which window?" chooser an OS-opened file uses. Resolves 'sent'
+   *  (a window took it — it runs its own slot picker), 'new-window'
+   *  (spawn a fresh one), or 'cancel' (the user dismissed). */
+  pickNewDocTarget: (): Promise<'sent' | 'new-window' | 'cancel'> =>
+    ipcRenderer.invoke('host:new-doc-target'),
+
+  /** Main forwards a New Document request routed to this window by the
+   *  chooser above. Returns an unsubscribe. */
+  onNewDoc(handler: () => void): () => void {
+    const listener = (): void => handler();
+    ipcRenderer.on('host:new-doc', listener);
+    return () => ipcRenderer.removeListener('host:new-doc', listener);
+  },
+
   /** Spawn a new BrowserWindow, optionally pre-loaded with a doc. */
   spawnWindow: (payload: {
     filename: string;

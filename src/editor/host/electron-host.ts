@@ -302,6 +302,12 @@ interface ElectronAPI {
   /** Main forwards an OS-opened file (absolute path) to this window
    *  when it's an existing multi-pane workspace. Returns unsubscribe. */
   onExternalOpen(handler: (payload: { path: string }) => void): () => void;
+  /** Route a New Document request through main's "which window?"
+   *  chooser. Optional — an older preload lacks the channel. */
+  pickNewDocTarget?(): Promise<'sent' | 'new-window' | 'cancel'>;
+  /** Main forwards a New Document request the chooser routed here.
+   *  Optional, same reason. Returns unsubscribe. */
+  onNewDoc?(handler: () => void): () => void;
   closeSelf(): Promise<void>;
   /** Report that a close-request ended without closing (Cancel or a
    *  failed Save) so main can drop any pending quit intent. Optional
@@ -997,6 +1003,20 @@ export class ElectronHost implements Host {
 
   onExternalOpen(handler: (payload: { path: string }) => void): () => void {
     const fn = api().onExternalOpen;
+    return typeof fn === 'function' ? fn(handler) : () => {};
+  }
+
+  /** Ask main which window should take a New Document. Resolves
+   *  'unavailable' on an older preload (no channel) so the caller
+   *  falls back to its own local routing rather than assuming either
+   *  answer. */
+  async pickNewDocTarget(): Promise<'sent' | 'new-window' | 'cancel' | 'unavailable'> {
+    const fn = api().pickNewDocTarget;
+    return typeof fn === 'function' ? await fn() : 'unavailable';
+  }
+
+  onNewDoc(handler: () => void): () => void {
+    const fn = api().onNewDoc;
     return typeof fn === 'function' ? fn(handler) : () => {};
   }
 
