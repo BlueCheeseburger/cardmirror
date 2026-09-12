@@ -824,6 +824,14 @@ class Slot {
       canMove: () => this.visible !== null && !this.shell.isExpanded(),
       listCandidates: () => listMoveDocTargets(),
       onPick: (target) => {
+        // The menu can sit open for a moment before the user clicks —
+        // re-check rather than trust the state from when it opened.
+        // (canMove() is already re-checked once, right after the
+        // candidate-list IPC round trip — this is the second, shorter
+        // gap: menu visible, waiting on the click.) An emptied pane
+        // silently no-ops here rather than falling through to whatever
+        // else happens to be focused.
+        if (this.visible === null) return;
         this.shell.focusSlot(this);
         void moveFocusedDocToWindow(target === 'new-window' ? 'new-window' : target);
       },
@@ -2507,11 +2515,26 @@ class MultiPaneShell {
     return true;
   }
 
-  /** Move-to-window's cleanup step: close the focused doc with no
-   *  prompt, because its bytes have already been confirmed delivered
-   *  to wherever it's going. No-op if nothing is focused. */
-  closeFocusedSilently(): void {
-    this.focusedSlot?.closeVisibleSilently();
+  /** Move-to-window's cleanup step: close whichever pane currently
+   *  shows `uid` as its VISIBLE doc, no prompt — its bytes have
+   *  already been confirmed delivered elsewhere. Searches every slot,
+   *  not just the focused one: the move that led here can take a
+   *  while (bytes serialization, an IPC round trip, maybe a second
+   *  one), and the user is free to click around during that gap, so
+   *  by the time this runs the doc's own slot may no longer be
+   *  focused. If `uid` isn't visible anywhere any more — closed by
+   *  the user in the meantime, or pushed under something else in its
+   *  own slot's stack — this deliberately does nothing rather than
+   *  disrupt whatever the user is now looking at; the worst case is a
+   *  harmless duplicate left behind for them to close by hand. */
+  closeSilentlyByUid(uid: string): void {
+    for (const id of SLOT_IDS) {
+      const slot = this.slots[id];
+      if (slot.visible?.uid === uid) {
+        slot.closeVisibleSilently();
+        return;
+      }
+    }
   }
 
   /** Web mode-switch (three-pane → one-per-window): the browser can't reopen
@@ -3263,6 +3286,13 @@ class MultiPaneShell {
           handle: typeof opened.handle === 'string' ? opened.handle : null,
           format,
           uid: null,
+          // A doc arriving here from another window's "Move to…" (or
+          // a chain of them) carries markDirty when it had unsaved
+          // edits there — forward it, or a second hop through "New
+          // window" silently drops the flag and the new window shows
+          // "no unsaved changes" on content that was never written
+          // to `handle`'s actual disk file.
+          markDirty: opened.markDirty,
         });
       } catch (err) {
         console.error('Spawn window failed:', err);
@@ -4359,7 +4389,7 @@ export function mountMultiPaneShell(): void {
     // through to `createNewDocLocally`'s spawn-a-window fallback for
     // four days — the exact behaviour that commit set out to replace.
     onNewDocWithPicker: () => shell!.newDocWithPicker(),
-    onCloseFocusedSilently: () => shell!.closeFocusedSilently(),
+    onCloseFocusedSilently: (uid) => shell!.closeSilentlyByUid(uid),
     toggleReadMode: () => shell!.toggleFocusedReadMode(),
     arrangeForSpeech: (side, pct) => shell!.arrangeForSpeech(side, pct),
     toggleReaderView: () => shell!.toggleFocusedReaderView(),

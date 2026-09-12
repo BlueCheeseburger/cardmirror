@@ -6,7 +6,7 @@
  * multi-pane window, entirely.
  */
 
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { installMoveMenuTrigger } from '../../src/editor/pane-move-menu.js';
 
 function makeChip(): HTMLElement {
@@ -33,6 +33,16 @@ async function flush(): Promise<void> {
 
 beforeEach(() => {
   document.body.innerHTML = '';
+});
+
+afterEach(() => {
+  // Several cases above deliberately leave a menu open (they're
+  // testing that it opened, not exercising a close path) — close
+  // whatever's left the real way, through the module's own Escape
+  // handling, so its `window`-level mousedown/keydown listeners don't
+  // accumulate across tests. (A harmless no-op when nothing is open —
+  // nothing is listening.)
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 });
 
 describe('pane move menu', () => {
@@ -157,6 +167,57 @@ describe('pane move menu', () => {
     await flush();
     expect(document.querySelectorAll('.pmd-nav-context-menu')).toHaveLength(1);
     expect(document.body.textContent).toContain('B target');
+  });
+
+  it('a right-click on another chip before the first resolves never leaves an orphaned menu', async () => {
+    // Two chips right-clicked back-to-back, BEFORE either's async
+    // listCandidates() resolves — the real race a slow IPC round trip
+    // to main can produce. Whichever resolves last must be the only
+    // one that ends up in the DOM; the other must contribute nothing,
+    // not an unclosable leftover.
+    const chipA = makeChip();
+    const chipB = makeChip();
+    let resolveA!: (v: import('../../src/editor/pane-move-menu.js').MoveMenuCandidate[]) => void;
+    const pendingA = new Promise<import('../../src/editor/pane-move-menu.js').MoveMenuCandidate[]>(
+      (r) => (resolveA = r),
+    );
+    installMoveMenuTrigger(chipA, { canMove: () => true, listCandidates: () => pendingA, onPick: vi.fn() });
+    installMoveMenuTrigger(chipB, {
+      canMove: () => true,
+      listCandidates: () => Promise.resolve([{ id: 2, label: 'B target' }]),
+      onPick: vi.fn(),
+    });
+
+    rightClick(chipA); // starts, but pendingA never resolves yet
+    rightClick(chipB); // supersedes it, and resolves quickly
+    await flush();
+    expect(document.querySelectorAll('.pmd-nav-context-menu')).toHaveLength(1);
+    expect(document.body.textContent).toContain('B target');
+
+    // A's stale listCandidates() finally resolves — must not append
+    // a second, orphaned menu now that B owns the slot.
+    resolveA([{ id: 1, label: 'A target' }]);
+    await flush();
+    expect(document.querySelectorAll('.pmd-nav-context-menu')).toHaveLength(1);
+    expect(document.body.textContent).toContain('B target');
+  });
+
+  it('re-checks canMove() after the candidate list resolves — a pane that emptied in the meantime shows no menu', async () => {
+    const chip = makeChip();
+    let movable = true;
+    installMoveMenuTrigger(chip, {
+      canMove: () => movable,
+      listCandidates: () => {
+        // The pane's doc closes WHILE this (IPC-bound, in reality) call
+        // is in flight.
+        movable = false;
+        return Promise.resolve([{ id: 1, label: 'X' }]);
+      },
+      onPick: vi.fn(),
+    });
+    rightClick(chip);
+    await flush();
+    expect(document.querySelector('.pmd-nav-context-menu')).toBeNull();
   });
 
   it('preventDefault() lets a more specific contextmenu handler win', () => {

@@ -31,6 +31,15 @@ export interface MoveMenuOptions {
 }
 
 let openMenuEl: HTMLElement | null = null;
+/** Bumped on every `openMoveMenu` call; a call whose `listCandidates()`
+ *  is still pending when a NEWER call starts checks this after its own
+ *  await and abandons instead of appending — otherwise two right-
+ *  clicks on different chips in quick succession (before the first's
+ *  IPC round trip to main resolves) could both go on to build and
+ *  append a menu, leaving the first ORPHANED: not tracked by
+ *  `openMenuEl`, so neither Escape nor an outside click could ever
+ *  remove it. */
+let openSeq = 0;
 
 function closeMoveMenu(): void {
   if (!openMenuEl) return;
@@ -55,7 +64,19 @@ function maybeCloseMoveMenu(e: MouseEvent | KeyboardEvent): void {
  *  entry point. */
 export async function openMoveMenu(x: number, y: number, opts: MoveMenuOptions): Promise<void> {
   closeMoveMenu();
+  const mySeq = ++openSeq;
   const candidates = await opts.listCandidates();
+  // A newer right-click already started (and possibly finished) its
+  // own openMoveMenu call while this one was awaiting — let IT own the
+  // menu; this one has nothing left to contribute.
+  if (mySeq !== openSeq) return;
+  // listCandidates() is an IPC round trip to main — real time during
+  // which the pane this menu is FOR can stop having anything to move
+  // (its doc closed, or expand mode kicked in). Re-check rather than
+  // showing a menu for a pane that's no longer in a movable state —
+  // clicking an item in it would act on whatever's focused NOW, not
+  // what the user actually right-clicked.
+  if (!opts.canMove()) return;
 
   const menu = document.createElement('div');
   menu.className = 'pmd-nav-context-menu';
