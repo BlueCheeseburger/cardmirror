@@ -10105,6 +10105,14 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   box-shadow: 0 8px 32px var(--pmd-c-shadow-deep);
   width: 90%;
   max-width: 420px;
+  /* Bounds the dialog to the viewport — without this, a short window
+     centers a taller-than-viewport dialog around its own midpoint,
+     clipping the header off the top AND the footer's Save As/Cancel
+     buttons off the bottom with no way to reach either (field report
+     2026-09-14). `.pmd-save-as-body` below scrolls internally once the
+     dialog hits this cap, mirroring the same max-height + overflow-y
+     pattern `.pmd-clod-dialog`/`.pmd-settings-dialog` already use. */
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   font-family: var(--pmd-ui-font);
@@ -10125,6 +10133,10 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  /* The scrollable region once the dialog hits its max-height — the
+     footer (Cancel/Save As) lives inside this form, so it scrolls into
+     view along with the rest rather than being clipped off-screen. */
+  overflow-y: auto;
 }
 
 .pmd-save-as-field {
