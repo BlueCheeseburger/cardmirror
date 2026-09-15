@@ -10,6 +10,99 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.10.0-bcb.3.4 — 2026-09-15
+
+### Added: formatting panel corner shortcut badges (`index.ts`, `style.css`)
+
+Every formatting-panel button (Pocket, Hat, Block, Tag, Analytic, Undertag,
+Cite, Underline, Emphasis, Clear) now carries a small badge in its
+bottom-right corner showing the F-key that triggers it, visible without
+hovering for a tooltip. Requested directly: "add the function key that
+triggers the verbatim styles... in the bottom right corner of the button."
+
+The badge uses a SYMBOL-compact form of the shortcut (`compactKeyForBadge`
+in `index.ts`) rather than `formatKeyForDisplay`'s spelled-out form used
+everywhere else (tooltips, Settings) — a two-key combo like Mod-F7
+(Analytic) rendered as "Ctrl+F7" ran directly over the button's own label
+text ("Analytic"/"Undertag" already fill their column at the panel's
+equal-width `1fr` grid). The compact form uses the same modifier glyphs
+`formatKeyForDisplay` already uses on macOS (⌘/⌃/⇧/⌥) on EVERY platform,
+producing e.g. "⌃F7" instead — short enough to fit. Given its own small
+opaque chip background (`.formatting-panel-key`, `var(--pmd-c-bg)`) rather
+than bare overlaid text, since the button's shared 1.45rem ribbon-row
+height (used for cross-panel alignment throughout the ribbon — undo/redo,
+file, quickcards, color stacks all match it) couldn't grow just for this
+button without breaking that rhythm, and bare text would otherwise sit
+under a vertically-centered label's descender (the "y" in "Analytic").
+Shown only in the default `formattingPanelMode: 'labels'` display — the
+`'shortcuts'`/`'both'` modes already put the key on the button's main
+label, so the corner badge would just duplicate it there.
+
+The button's label text is now built from a persistent `Text` node plus
+the badge `<span>`, both created once and only their `.data`/`.textContent`
+updated on a mode change (`applyFormattingPanel`) — the original code did
+`btn.textContent = ...`, which would have wiped the badge span out on
+every redraw.
+
+### Fixed: Tag ↔ Analytic swap could leave stray color/size on the new block (`ribbon-commands.ts`)
+
+Reported directly: switching a paragraph to Analytic and typing showed
+black text where Analytic's blue was expected, sometimes fixable by
+reselecting and reapplying the style, sometimes not.
+
+Root cause: the Tag ↔ Analytic "same-tier swap" (`cardToAnalyticUnitNode`,
+`analyticUnitToCardNode`, and `asTransformed`'s `sameTierSwap` branch) is
+deliberately designed to carry a head's existing marks across UNCHANGED —
+unlike every other structural conversion, which strips all direct
+formatting — so that word-level emphasis (bold/italic/underline) a user
+applied by hand survives switching between Tag and Analytic. But it was
+carrying `font_color`/`font_size` across just as raw as the emphasis marks.
+A stray color/size mark — commonly left behind by a `.docx` import, the
+same phenomenon `clearReapplyFormatting`'s same-type re-press cleanup
+already exists to fix — would ride along and paint the new head, and any
+text typed right after it (new text inherits marks from its neighbors),
+in the wrong color/size instead of the target style's own canonical look.
+
+Fixed with a new `stripReapplyMarksOnFragment` helper — the same
+`font_size`/`font_color` mark set `clearReapplyFormatting` already strips
+on a same-type re-press, applied here to the fragment carried across the
+swap instead of a full node. Deliberate emphasis (bold/italic/underline/
+highlight/shading) still survives the swap unchanged; only the two marks
+already treated as accidental cruft elsewhere in this same file are now
+also cleared here. 3 new regression tests cover the cursor-based swap
+(both directions, via `cardToAnalyticUnitNode`/`analyticUnitToCardNode`)
+and the selection-based swap (via `asTransformed`), each verified to
+fail without the fix before being confirmed fixed.
+
+### Fixed: Save As dialog could clip off both ends of a short window (`style.css`)
+
+Reported directly, with a screenshot: the dialog cut off at both the top
+(header) and bottom (Cancel/Save As buttons) on a short window, with no
+way to scroll down to reach either.
+
+`.pmd-save-as-dialog` had no `max-height` at all (a gap from the Save As
+redesign in 1.10.0-bcb.3.2, which made the dialog considerably taller —
+Save-mode and Location radio lists, Custom Save's inline checkboxes —
+without anyone testing a short window against the new height). The
+overlay centers the dialog (`align-items: center`); with no height cap, a
+dialog taller than the viewport gets centered around its own vertical
+midpoint, overflowing equally off the top and bottom of the screen with no
+scrollbar to reach either.
+
+Fixed by giving `.pmd-save-as-dialog` a `max-height: 85vh` (matching
+`.pmd-clod-dialog`/`.pmd-settings-dialog`'s existing pattern) and
+`.pmd-save-as-body` `overflow-y: auto`. The dialog's footer lives inside
+the scrollable `<form>` (`.pmd-save-as-body`), not as a separate pinned
+sibling like the clod/settings dialogs — so on a short window the
+Cancel/Save As buttons scroll into view along with the rest of the form
+rather than staying permanently visible, but they're always reachable now
+within a dialog box that itself never exceeds 85% of the viewport.
+Verified with a 900×480 Playwright viewport: dialog box height 408px
+(85vh of 480), fully on-screen top to bottom; the body's `scrollHeight`
+(504px) exceeds its `clientHeight` (353px), confirming the scroll
+actually engages, and scrolling it to the bottom brings Cancel/Save As
+into view.
+
 ## 1.10.0-bcb.3.3 — 2026-09-12
 
 A dedicated review pass over bcb.3.2's move-to-window and Save As work,
