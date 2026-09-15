@@ -362,7 +362,13 @@ import {
   formatNumber,
   type ReadAloudCounts,
 } from './word-count.js';
-import { liveContainerSegment, orderWordCountSegments, primaryReadSegment, remainingReadSegment } from './live-read-time.js';
+import {
+  hasLaySpeeds,
+  liveContainerSegment,
+  orderWordCountSegments,
+  primaryReadSegment,
+  remainingReadSegment,
+} from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import {
   installGlobalErrorSurface,
@@ -3001,6 +3007,12 @@ if (cardMenuBtn) {
 readModeBtn.addEventListener('click', () => runRibbon('toggleReadMode'));
 autoScrollBtn?.addEventListener('click', () => runRibbon('toggleAutoScroll'));
 wordCountBtn.addEventListener('click', () => runRibbon('wordCountSelection'));
+// The readout itself (distinct from the Σ button above) toggles every
+// shown reader between their flow and lay-speaking rate. Always wired
+// (not gated on hasLaySpeeds()): the bar's own edit-time refresh keeps
+// the `pmd-wc-lay-capable` class current, so CSS alone controls whether
+// the click affordance is visible.
+wordCountText.addEventListener('click', () => toggleLaySpeaking());
 
 /** Push the current `navPaneVisible` setting into a body class so
  *  the CSS rules at the top of style.css can hide/show the nav
@@ -5393,6 +5405,18 @@ function effectiveFontSizeForDisplay(state: EditorState): FontSizeInfo {
  *  just to restore the whole-doc readout. */
 let lastWholeDocWords: ReadAloudCounts | null = null;
 
+/** Per-doc lay-speaking toggle for the single-doc status bar — session
+ *  state, never persisted, mirroring `readerViewOn` below. Flipped by
+ *  clicking the readout itself (`word-count-text`); switches every
+ *  reader shown from their flow rate (`wpm`/`tagWpm`) to their lay rate
+ *  (`layWpm`), or "—" for a reader with no lay rate configured. */
+let laySpeakingOn = false;
+
+function toggleLaySpeaking(): void {
+  laySpeakingOn = !laySpeakingOn;
+  refreshWordCount();
+}
+
 function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
   // In multi-doc mode the shared status-bar word counter is hidden
   // (each pane shows its own in its footer). Skip the O(doc-size)
@@ -5415,6 +5439,7 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
     primary = primaryReadSegment(countReadAloudSplit(view.state.doc, sel.from, sel.to), {
       selection: true,
       selectionLabel: 'Selection',
+      useLay: laySpeakingOn,
     });
   } else if (settings.get('liveDocWordCount')) {
     let counts: ReadAloudCounts;
@@ -5427,7 +5452,7 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
       counts = countReadAloudSplit(view.state.doc);
       lastWholeDocWords = counts;
     }
-    primary = primaryReadSegment(counts, { selection: false, selectionLabel: 'Selection' });
+    primary = primaryReadSegment(counts, { selection: false, selectionLabel: 'Selection', useLay: laySpeakingOn });
   } else {
     // Whole-doc readout off and nothing selected: no O(doc) walk at all —
     // the bar belongs to whichever of the other segments are on. Drop the
@@ -5444,10 +5469,12 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
   const order = settings.get(settings.get('readMode') ? 'wordCountOrderReadMode' : 'wordCountOrder');
   const segments = orderWordCountSegments(order, {
     doc: primary,
-    container: liveContainerSegment(view.state),
-    remaining: remainingReadSegment(view.state),
+    container: liveContainerSegment(view.state, laySpeakingOn),
+    remaining: remainingReadSegment(view.state, laySpeakingOn),
   });
   wordCountText.textContent = segments.join(' | ');
+  wordCountText.classList.toggle('pmd-active', laySpeakingOn);
+  wordCountText.classList.toggle('pmd-wc-lay-capable', hasLaySpeeds());
 }
 
 /**
