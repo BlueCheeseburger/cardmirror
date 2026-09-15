@@ -6,8 +6,8 @@ name: Release
 #   1. `prepare-release` (one runner) creates an empty draft on
 #      GitHub Releases for the tag. Idempotent — if a draft already
 #      exists (e.g., a re-triggered run), it's a no-op.
-#   2. `build` (3-OS matrix) builds desktop installers and uploads
-#      them to the draft via electron-builder's GitHub provider.
+#   2. `build` (macOS + Windows matrix) builds desktop installers and
+#      uploads them to the draft via electron-builder's GitHub provider.
 #
 # The two-stage shape avoids the matrix-race we hit on alpha.2:
 # without a pre-existing draft, three matrix jobs concurrently
@@ -23,6 +23,13 @@ name: Release
 #
 # This fork does not build or publish the CardMirror Lite variant —
 # every release is the standard app only (fork decision, 2026-09-07).
+#
+# This fork also does not build or publish Linux installers, and the
+# release build no longer runs the test suite — ubuntu-latest was the
+# only platform doing either (fork decision, 2026-09-15; see CLAUDE.md).
+# PR CI (ci.yml) still runs the full suite on macOS + Windows before
+# anything reaches `main`, so the release build itself no longer re-runs
+# it.
 
 on:
   push:
@@ -162,9 +169,14 @@ jobs:
   build:
     name: Build & publish (${{ matrix.os }})
     needs: prepare-release
+    # This fork does not build or publish Linux installers (fork decision,
+    # 2026-09-15 — see CLAUDE.md). ubuntu-latest was also the only leg that
+    # ran the release build's own test pass; PR CI (ci.yml) already runs
+    # the full suite on macOS + Windows before anything reaches `main`, so
+    # dropping it here isn't a coverage gap, just a redundant re-run.
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-latest, windows-latest]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -209,25 +221,6 @@ jobs:
           npm --prefix apps/desktop install --no-save --force \
             "@koromix/koffi-darwin-x64@$KOFFI_VER" \
             "@koromix/koffi-darwin-arm64@$KOFFI_VER"
-
-      - name: Install Linux build tools
-        # fpm (the Ruby tool electron-builder shells out to for
-        # .pacman / .deb) needs `bsdtar` to assemble the package's
-        # .MTREE file. Ubuntu runners don't ship libarchive-tools
-        # by default — install it here.
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
-
-      - name: Run tests
-        # Same as the CI workflow — runs against ubuntu but we let
-        # the other platforms skip to save build minutes; the
-        # build itself catches any platform-specific issues.
-        if: matrix.os == 'ubuntu-latest'
-        env:
-          # Heavy transclusion/collab fuzz suites peak past the default ~4 GB
-          # V8 heap on a CI runner — give the vitest fork workers more room.
-          NODE_OPTIONS: --max-old-space-size=6144
-        run: npm test
 
       - name: Import the stable mac signing identity
         # The self-signed "CardMirror Local Signing" cert (see
