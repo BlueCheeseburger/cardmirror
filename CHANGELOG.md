@@ -8,6 +8,27 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.10.0-bcb.3.4 — 2026-09-15
+
+### Added
+
+- **Formatting panel buttons show their shortcut key.** Pocket, Hat, Block,
+  Tag, Analytic, Undertag, Cite, Underline, Emphasis, and Clear each now
+  carry a small badge in their bottom-right corner with the F-key that
+  triggers them, visible without hovering for a tooltip.
+
+### Fixed
+
+- **Switching a Tag block to Analytic (or back) could leave the new block
+  the wrong color.** A leftover color/size mark — commonly left behind by
+  a `.docx` import — could carry across the swap and paint the new block,
+  and anything typed right after it, in the old color instead of
+  Analytic's blue. The swap still preserves deliberate bold/italic/
+  underline, just not stray color or size.
+- **The Save As dialog could get clipped off both the top and the bottom
+  on a short window**, with no way to scroll down to the Save As button.
+  It now caps its own height and scrolls internally instead.
+
 ## 1.10.0-bcb.3.3 — 2026-09-12
 
 ### Fixed
