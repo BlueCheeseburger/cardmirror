@@ -284,6 +284,7 @@ class SaveAsModal {
 
     const form = document.createElement('form');
     form.className = 'pmd-save-as-body';
+    form.id = 'pmd-save-as-form';
     // Enter anywhere in the form (the Name field, or a focused radio)
     // is the keyboard equivalent of clicking Save As — commits with
     // whatever's currently selected, same as the button.
@@ -302,6 +303,14 @@ class SaveAsModal {
     // hosts that can't write to a bare directory path.
     if (this.opts.allowSaveLocations) form.appendChild(this.buildLocationsSection());
 
+    this.dialog.appendChild(form);
+
+    // Footer is a SIBLING of the form, not a child — pinned to the
+    // bottom of the dialog by the flex column layout instead of
+    // scrolling away with the rest of the form's content (field report
+    // 2026-09-15: reaching Cancel/Save As meant scrolling all the way
+    // down first). The Save As button still submits `form` via the
+    // HTML `form` attribute rather than DOM nesting.
     const footer = document.createElement('footer');
     footer.className = 'pmd-save-as-footer';
     const cancel = document.createElement('button');
@@ -312,12 +321,11 @@ class SaveAsModal {
     footer.appendChild(cancel);
     const save = document.createElement('button');
     save.type = 'submit';
+    save.setAttribute('form', form.id);
     save.className = 'pmd-save-as-btn pmd-save-as-btn-primary';
     save.textContent = 'Save As';
     footer.appendChild(save);
-    form.appendChild(footer);
-
-    this.dialog.appendChild(form);
+    this.dialog.appendChild(footer);
   }
 
   /** FILE NAME section: a heading + the file-name input. */

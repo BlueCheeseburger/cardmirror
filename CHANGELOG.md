@@ -21,6 +21,17 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   instead of a stale flow number, so it's always clear who still needs one
   set up.
 
+### Fixed
+
+- **The Save As dialog's Cancel/Save As buttons took up more room than
+  needed, and required scrolling all the way down to reach** on a dialog
+  tall enough to scroll. They're now a compact row pinned to the bottom of
+  the dialog at all times — only the fields above them scroll.
+- **"Save in a previously saved location" could grow to 8 remembered
+  folders**, making the list longer than it needed to be. It's now capped
+  at the 5 most recently used (pinned folders are still exempt and never
+  rotate out).
+
 ## 1.10.0-bcb.3.4 — 2026-09-15
 
 ### Added

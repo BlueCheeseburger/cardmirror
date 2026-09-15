@@ -89,13 +89,13 @@ describe('save locations store', () => {
     expect(listSaveLocations()[0]!.pinnedAt).not.toBeNull();
   });
 
-  it('caps unpinned folders at 8, rotating the oldest out', () => {
-    for (let i = 1; i <= 10; i++) {
+  it('caps unpinned folders at 5, rotating the oldest out', () => {
+    for (let i = 1; i <= 7; i++) {
       recordSaveLocation(`/w/${i}`);
       vi.advanceTimersByTime(10);
     }
-    expect(dirs()).toHaveLength(8);
-    expect(dirs()[0]).toBe('/w/10');
+    expect(dirs()).toHaveLength(5);
+    expect(dirs()[0]).toBe('/w/7');
     expect(dirs()).not.toContain('/w/1');
     expect(dirs()).not.toContain('/w/2');
   });
@@ -103,14 +103,14 @@ describe('save locations store', () => {
   it('pinned folders are exempt from the cap — they never rotate out', () => {
     recordSaveLocation('/w/keep');
     toggleSaveLocationPin('/w/keep');
-    for (let i = 1; i <= 12; i++) {
+    for (let i = 1; i <= 9; i++) {
       vi.advanceTimersByTime(10);
       recordSaveLocation(`/w/${i}`);
     }
     expect(dirs()).toContain('/w/keep');
     expect(dirs()[0]).toBe('/w/keep');
     // Still capped overall: the pin is extra, not a bigger window.
-    expect(dirs()).toHaveLength(9);
+    expect(dirs()).toHaveLength(6);
   });
 
   it('removeSaveLocation forgets a folder, pinned or not', () => {
