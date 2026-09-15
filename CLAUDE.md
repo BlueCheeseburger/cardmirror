@@ -57,6 +57,25 @@ local dev-only convenience scripts, not part of the automated release
 pipeline, so leaving them doesn't reintroduce Lite into releases. Don't
 add the upload step back to `release.yml` without the user asking again.
 
+## Never build on `ubuntu-latest` in this repo — dropped from CI and releases
+
+The user asked (2026-09-15) to never build on `ubuntu-latest` anywhere in
+this repo, after noticing it was the slowest leg of a release (it alone
+ran the full test suite in `release.yml`, adding ~4 minutes the other
+platforms didn't pay). Removed from both workflows' matrices:
+`release.yml`'s `build` job is now macOS + Windows only (no more Linux
+`.AppImage`/`.pacman` installers, and the release build no longer runs
+tests at all — PR CI already covers that before merge); `ci.yml`'s `test`
+job is now macOS + Windows only, with `check:links` (previously
+ubuntu-gated) moved to run on `macos-latest` instead so it isn't silently
+lost. Net effect: macOS is now the only platform running the FULL test
+suite on every PR (Windows stays scoped to `tests/desktop`) — a real
+coverage reduction, accepted knowingly, not an oversight. `prepare-release`
+and `publish-release` (the two glue jobs that only shell out to `gh`, no
+app build) are untouched — still `ubuntu-latest`, since that's not what
+"build" meant here. Don't re-add an `ubuntu-latest` build/test leg to
+either workflow without the user asking again.
+
 ## Never re-add `docx` to `apps/desktop/package.json`'s top-level `fileAssociations`
 
 `16a3060` ("Windows: .docx becomes Open-With-only; heal machines we
