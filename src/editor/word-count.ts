@@ -35,10 +35,13 @@ export interface ReadAloudCounts {
 }
 
 /** The reader shape the time math needs (a subset of settings'
- *  ReaderConfig). `tagWpm` absent/invalid → `wpm` covers everything. */
+ *  ReaderConfig). `tagWpm` absent/invalid → `wpm` covers everything.
+ *  `layWpm` is the optional flat lay-speaking rate, used only when a
+ *  caller explicitly asks for the lay time (see `readTimeSeconds`). */
 export interface ReaderRates {
   wpm: number;
   tagWpm?: number;
+  layWpm?: number;
 }
 
 /**
@@ -121,8 +124,24 @@ function countWords(s: string): number {
 
 /** Seconds a reader needs for the split counts: body at `wpm`, the
  *  structural read at `tagWpm` when set (blank → everything at `wpm`).
- *  Null when no usable rate exists. */
-export function readTimeSeconds(counts: ReadAloudCounts, reader: ReaderRates): number | null {
+ *  Null when no usable rate exists.
+ *
+ *  With `useLay` true, this ignores `wpm`/`tagWpm` entirely and uses
+ *  `layWpm` instead — a single flat rate over the combined word count,
+ *  since lay delivery doesn't split body vs. structural the way flow
+ *  reading does. Null when the reader has no usable `layWpm` — callers
+ *  must NOT fall back to the flow rate in lay mode, or an unconfigured
+ *  reader would silently keep showing their flow time while everyone
+ *  else's numbers move, reading as a bug rather than "not set up yet". */
+export function readTimeSeconds(
+  counts: ReadAloudCounts,
+  reader: ReaderRates,
+  useLay = false,
+): number | null {
+  if (useLay) {
+    if (!Number.isFinite(reader.layWpm) || (reader.layWpm as number) <= 0) return null;
+    return ((counts.body + counts.other) / (reader.layWpm as number)) * 60;
+  }
   if (!Number.isFinite(reader.wpm) || reader.wpm <= 0) return null;
   const otherRate =
     reader.tagWpm != null && Number.isFinite(reader.tagWpm) && reader.tagWpm > 0
@@ -131,9 +150,10 @@ export function readTimeSeconds(counts: ReadAloudCounts, reader: ReaderRates): n
   return (counts.body / reader.wpm + counts.other / otherRate) * 60;
 }
 
-/** Format a reader's time over split counts as "M:SS". */
-export function formatReadTimeFor(counts: ReadAloudCounts, reader: ReaderRates): string {
-  const seconds = readTimeSeconds(counts, reader);
+/** Format a reader's time over split counts as "M:SS" — or their lay
+ *  time when `useLay` is true (see `readTimeSeconds`). */
+export function formatReadTimeFor(counts: ReadAloudCounts, reader: ReaderRates, useLay = false): string {
+  const seconds = readTimeSeconds(counts, reader, useLay);
   return seconds === null ? '—' : formatSeconds(seconds);
 }
 
