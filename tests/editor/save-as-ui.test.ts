@@ -74,6 +74,27 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
+describe('Save As — dialog layout', () => {
+  it('the footer is a sibling of the form, not scrolled-past inside it, and Save As still submits', async () => {
+    const p = open();
+    const dialog = q('.pmd-save-as-dialog')!;
+    const form = q('form.pmd-save-as-body')!;
+    const footer = q('.pmd-save-as-footer')!;
+    // Direct children of the dialog — the footer stays pinned to the
+    // dialog's own flex layout instead of scrolling away inside the
+    // form when the dialog hits its max-height (field report 2026-09-15).
+    expect(footer.parentElement).toBe(dialog);
+    expect(form.parentElement).toBe(dialog);
+    expect(footer.contains(form)).toBe(false);
+    expect(form.contains(footer)).toBe(false);
+    // The Save As button submits the form from outside it via the HTML
+    // `form` attribute, not DOM nesting.
+    expect(saveAsBtn().getAttribute('form')).toBe(form.id);
+    saveAsBtn().click();
+    expect(await p).not.toBeNull();
+  });
+});
+
 describe('Save As — mode selection', () => {
   it('lists all five modes, As-Is selected by default', async () => {
     const p = open();

@@ -2479,7 +2479,34 @@ body:not(.pmd-multi-doc) #app {
 }
 
 #word-count-text {
+  /* Now a <button> (was a <span>) so the readout itself can toggle
+     flow/lay speeds on click — reset button chrome back to plain
+     inline text. */
+  font: inherit;
   font-variant-numeric: tabular-nums;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: default;
+}
+
+/* Lay-speaking toggle affordance: only look clickable when clicking
+   would actually change something (see hasLaySpeeds() in
+   live-read-time.ts) — otherwise every reader's time would just
+   replace with "—". Shared by the single-pane status bar
+   (#word-count-text) and each pane's own footer readout (.pmd-pane-wc,
+   in multi-pane-shell.ts), which toggle the same way for their own doc. */
+.pmd-wc-lay-capable {
+  cursor: pointer;
+}
+.pmd-wc-lay-capable:hover {
+  text-decoration: underline;
+}
+#word-count-text.pmd-active,
+.pmd-pane-wc.pmd-active {
+  color: var(--pmd-c-accent);
 }
 
 #cursor-color-display {
@@ -7158,6 +7185,14 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 
 
+.pmd-reader-row {
+  /* Name + two wpm fields + the lay-speaking dropdown/field + move/
+     delete buttons don't all fit on one line in a narrow settings
+     dialog — wrap rather than clip or force horizontal scroll. */
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
+}
+
 .pmd-reader-rank {
   flex: 0 0 1.7rem;
   font-size: 0.7rem;
@@ -7182,6 +7217,17 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   border: 1px solid var(--pmd-c-border);
   border-radius: 3px;
   padding: 0.2rem 0.4rem;
+}
+
+.pmd-reader-lay-mode {
+  flex: 0 0 auto;
+  font-family: inherit;
+  font-size: 0.8rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  padding: 0.2rem 0.3rem;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
 }
 
 
@@ -10133,9 +10179,13 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  /* The scrollable region once the dialog hits its max-height — the
-     footer (Cancel/Save As) lives inside this form, so it scrolls into
-     view along with the rest rather than being clipped off-screen. */
+  /* The scrollable region once the dialog hits its max-height. The
+     footer (Cancel/Save As) is now a SIBLING pinned below this element
+     (see .pmd-save-as-footer) rather than a child that scrolled along
+     with the rest of the form — `flex: 1 1 auto` is what lets this
+     element be the one that shrinks and scrolls while the footer keeps
+     its natural size at the bottom. */
+  flex: 1 1 auto;
   overflow-y: auto;
 }
 
@@ -10402,10 +10452,17 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 }
 
 .pmd-save-as-footer {
+  /* Pinned below .pmd-save-as-body (a sibling now, not a scrolled-past
+     child — see the comment there) and kept deliberately shrink-wrapped
+     (`flex: 0 0 auto`, own compact padding) rather than inheriting the
+     body's roomier 1rem — this row doesn't need the same breathing room
+     as the form fields above it. */
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.5rem;
-  padding-top: 0.75rem;
+  padding: 0.55rem 1.25rem;
   border-top: 1px solid var(--pmd-c-divider-faint);
 }
 
@@ -12441,11 +12498,20 @@ body.pmd-pane-dragging * {
 }
 .pmd-pane-wc-btn:hover { background: var(--pmd-c-hover); }
 .pmd-pane-wc {
+  /* A <button> (toggles flow/lay speeds on click) styled back to plain
+     inline text — same reset as #word-count-text. */
   flex: 1 1 auto;
+  font: inherit;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--pmd-c-text-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: default;
 }
 .pmd-pane-open,
 .pmd-pane-new {

@@ -10,7 +10,133 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## 1.10.0-bcb.3.4 — 2026-09-15
+## 1.10.0-bcb.3.5 — 2026-09-15
+
+### Added: per-reader lay-speaking rate + status-bar toggle (`settings.ts`, `word-count.ts`, `live-read-time.ts`, `index.ts`, `multi-pane-shell.ts`, `settings-ui.ts`, `mobile-settings-ui.ts`)
+
+Requested directly: a way to see read times at a lay-speaking pace, not
+just flow, without having to swap a reader's wpm back and forth by hand.
+
+`ReaderConfig` (`settings.ts`) gains an optional third rate, `layWpm` —
+orthogonal to the existing `wpm`/`tagWpm` split (body vs. structural read).
+Unlike that split, lay speaking is a single FLAT rate over the combined
+word count: `readTimeSeconds`/`formatReadTimeFor` (`word-count.ts`) take a
+new `useLay` argument that, when true, ignores `wpm`/`tagWpm` entirely and
+divides by `layWpm` — or returns null/"—" when that reader has no usable
+`layWpm`, rather than silently falling back to their flow rate. A reader
+with a flow rate but no lay rate must show "—" in lay mode, not a stale
+flow number that looks unchanged and reads as a bug.
+
+Settings (`buildReadersEditor` in `settings-ui.ts`): each reader row gets a
+`<select>` ("Flow" / "Lay speaking") next to the existing wpm/tagWpm
+fields. Its value is DERIVED from whether `layWpm` is already set, not
+stored separately — picking "Lay speaking" reveals a wpm input (uncommitted
+until the user actually types a value, so an empty field is never
+persisted as 0); picking "Flow" hides it and clears `layWpm`. Mirrored in
+`mobile-settings-ui.ts` as a plain always-visible optional field (parity
+with that editor's existing `tagWpm` treatment, matching its simpler
+style rather than adding a dropdown there too).
+
+The toggle itself: `primaryReadSegment`, `liveContainerSegment`, and
+`remainingReadSegment` (`live-read-time.ts`) now take a `useLay` argument
+threaded through from the CALLER, not read from `settings` — the toggle is
+per-doc/per-pane session state (mirroring `readMode`), so two panes with
+different toggle states must render differently, and reading a shared
+global inside those functions would make that impossible. Each reader's
+chunk renders as `Name (lay): M:SS` while lay mode is on, vs. plain
+`Name: M:SS` in flow — the "(lay)" suffix is deliberately the toggle's only
+visible state beyond the numbers themselves, so a click's effect is never
+silently indistinguishable from "nothing happened."
+
+`word-count-text` (single-pane status bar, `index.ts`) and each pane's own
+`.pmd-pane-wc` footer readout (`multi-pane-shell.ts`) changed from a plain
+`<span>` to a `<button>` — clicking it flips a per-doc/per-pane boolean
+(`laySpeakingOn` module flag single-pane; `rec.laySpeaking` per-record
+multi-pane, both session-only, never persisted) and re-renders. A new
+`hasLaySpeeds()` export checks whether either of the first two readers
+shown live (matching the "#1"/"#2" rank in Settings — readers beyond that
+never appear in the bar regardless of mode) has a usable `layWpm`, and
+gates the `.pmd-wc-lay-capable` CSS class that makes the readout look
+clickable (`cursor: pointer` + hover underline) — with nothing configured,
+toggling would just replace every time with "—", so the bar shouldn't
+invite the click. Both button elements are reset in CSS back to plain
+inline text (no border/background/padding) to preserve their prior visual
+appearance; the shared ribbon-row height (`1.45rem`, load-bearing for
+cross-panel alignment elsewhere) was left untouched.
+
+Deliberately untouched: the Word Count Selection modal (`word-count-ui.ts`)
+— the request named Settings and the status bar specifically. Read-rate
+consumers outside the live readout (`auto-scroll.ts`'s pacing,
+`learn-scheduler.ts`, the WPM-preset helpers in `settings.ts` and
+`card-cutter-port.ts`/`card-cutter-ui.ts`) all call the existing flow-only
+paths (`reader.wpm` directly, or `readTimeSeconds`/`formatReadTimeFor` with
+`useLay` omitted/false) and are unaffected — widening `ReaderRates` with an
+optional field doesn't widen their behavior.
+
+New tests: `word-count.test.ts` (the flat-rate lay math, the "no fallback
+to flow" null/dash contract), `live-read-time.test.ts` (`useLay` threading
+through all three segment functions, `hasLaySpeeds()`'s first-two-only and
+usable-value-only rules), `settings-backup.test.ts` (the sanitizer keeps a
+usable `layWpm`, drops an unusable one, rounds like `wpm`/`tagWpm` do).
+
+### Fixed: Save As footer pinned to the bottom instead of scrolling with the form (`save-as-ui.ts`, `style.css`)
+
+Reported directly, as a follow-up to 3.4's Save As max-height fix: the
+Cancel/Save As row was still a CHILD of `.pmd-save-as-body` (the scrollable
+form) rather than a sibling, so on a dialog tall enough to scroll, reaching
+either button meant scrolling all the way down past every field section
+first — exactly the same "can't reach the buttons" complaint 3.4 fixed for
+the dialog's own edges, just one level in.
+
+Fixed by moving the `<footer>` out of the `<form>` entirely: it's now built
+and appended as a sibling of `form` directly under `.pmd-save-as-dialog`
+(itself already `display: flex; flex-direction: column` from 3.4). The
+"Save As" button is `type="submit"` but no longer a DOM descendant of the
+form it submits, so it now carries `form="pmd-save-as-form"` (the HTML5
+form-association attribute) pointing at the form's new `id` — clicking it,
+or pressing Enter in the Name field, still calls the same `submit` handler
+and resolves the dialog's promise exactly as before. `.pmd-save-as-body`
+gained `flex: 1 1 auto` so IT is the flex item that shrinks and scrolls
+within the dialog's `max-height: 85vh`, leaving `.pmd-save-as-footer` (now
+`flex: 0 0 auto`) pinned at its natural size at the bottom — standard
+"scrollable middle, pinned header/footer" flex-column layout, the same
+shape `.pmd-clod-dialog`'s footer already used (this dialog just hadn't
+been restructured to match when 3.4's height cap went in, per that
+entry's own note about deferring the restructure as scope creep at the
+time).
+
+Also shrunk the footer's own vertical footprint per the same report: it
+now has its own compact `padding: 0.55rem 1.25rem` instead of inheriting
+`.pmd-save-as-body`'s roomier 1rem outer padding plus a redundant
+`padding-top` on top of the flex `gap` — this dialog's shared
+`.pmd-save-as-btn` button padding (used by other prompt/clod/quickcard
+dialogs too) was deliberately left untouched so this change doesn't
+resize buttons anywhere else.
+
+Verified visually via a temporary local dev server + Playwright at a
+900×500 viewport (short enough to force the body to scroll): the footer's
+bottom edge sits flush with the dialog's own bottom edge regardless of
+scroll position, `.pmd-save-as-body`'s `scrollHeight` exceeds its
+`clientHeight` (confirming it's actually the scrolling element, not the
+footer riding along), and the footer is confirmed NOT a descendant of the
+form in the rendered DOM. New test in `save-as-ui.test.ts` locks in the
+DOM shape (footer/form as dialog siblings, neither containing the other,
+the `form` attribute wiring) and that Save As still submits successfully
+from outside the form.
+
+### Fixed: "previously saved location" list capped at 5 recent folders, down from 8 (`save-locations-store.ts`)
+
+Requested directly, alongside the footer fix above: `MAX_UNPINNED` in
+`save-locations-store.ts` — the recency window `recordSaveLocation` trims
+unpinned entries to — lowered from 8 to 5. Pinned folders are unaffected
+(they were already exempt from this cap and still never rotate out); this
+only shrinks how many UNPINNED folders the "Save in a previously saved
+location" list can grow to before the oldest starts rotating out. No
+display-layer change was needed — `save-as-ui.ts`'s `renderLocations`
+already renders whatever `listSaveLocations()` returns, so lowering the
+one constant that governs storage is also what governs what's shown.
+`save-locations-store.test.ts`'s two cap tests (the rotation itself, and
+that pins stay exempt) updated to assert against 5 instead of 8.
 
 ### Added: formatting panel corner shortcut badges (`index.ts`, `style.css`)
 

@@ -136,3 +136,25 @@ describe('two-rate read time', () => {
     expect(formatReadTimeFor(counts, { wpm: 0 })).toBe('—');
   });
 });
+
+describe('lay-speaking rate (useLay)', () => {
+  const counts = { body: 100, other: 50 };
+
+  it('useLay uses layWpm as a single flat rate over body+other, ignoring wpm/tagWpm', () => {
+    // 150 total words @ 100 layWpm = 90s — NOT the wpm/tagWpm split math.
+    expect(readTimeSeconds(counts, { wpm: 200, tagWpm: 300, layWpm: 100 }, true)).toBe(90);
+    expect(formatReadTimeFor(counts, { wpm: 200, tagWpm: 300, layWpm: 100 }, true)).toBe('1:30');
+  });
+
+  it('useLay false (the default) is unaffected by a configured layWpm', () => {
+    expect(readTimeSeconds(counts, { wpm: 200, layWpm: 100 })).toBe(45);
+    expect(formatReadTimeFor(counts, { wpm: 200, layWpm: 100 })).toBe(formatReadTime(150, 200));
+  });
+
+  it('useLay with no usable layWpm renders as a dash — never falls back to the flow rate', () => {
+    expect(readTimeSeconds(counts, { wpm: 200 }, true)).toBeNull();
+    expect(formatReadTimeFor(counts, { wpm: 200 }, true)).toBe('—');
+    expect(readTimeSeconds(counts, { wpm: 200, layWpm: 0 }, true)).toBeNull();
+    expect(readTimeSeconds(counts, { wpm: 200, layWpm: -5 }, true)).toBeNull();
+  });
+});

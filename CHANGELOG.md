@@ -8,6 +8,30 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.10.0-bcb.3.5 — 2026-09-15
+
+### Added
+
+- **Lay-speaking read times, alongside your flow speed.** Each reader in
+  Settings can now carry an optional lay-speaking rate — pick "Lay speaking"
+  from the new dropdown next to their wpm fields and enter it. Click the
+  read-time readout at the bottom of the editor (or a pane's own footer in
+  a three-pane window) to switch every shown reader between their flow
+  time and their lay time; a reader with no lay rate configured shows "—"
+  instead of a stale flow number, so it's always clear who still needs one
+  set up.
+
+### Fixed
+
+- **The Save As dialog's Cancel/Save As buttons took up more room than
+  needed, and required scrolling all the way down to reach** on a dialog
+  tall enough to scroll. They're now a compact row pinned to the bottom of
+  the dialog at all times — only the fields above them scroll.
+- **"Save in a previously saved location" could grow to 8 remembered
+  folders**, making the list longer than it needed to be. It's now capped
+  at the 5 most recently used (pinned folders are still exempt and never
+  rotate out).
+
 ## 1.10.0-bcb.3.4 — 2026-09-15
 
 ### Added
