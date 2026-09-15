@@ -10179,9 +10179,13 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  /* The scrollable region once the dialog hits its max-height — the
-     footer (Cancel/Save As) lives inside this form, so it scrolls into
-     view along with the rest rather than being clipped off-screen. */
+  /* The scrollable region once the dialog hits its max-height. The
+     footer (Cancel/Save As) is now a SIBLING pinned below this element
+     (see .pmd-save-as-footer) rather than a child that scrolled along
+     with the rest of the form — `flex: 1 1 auto` is what lets this
+     element be the one that shrinks and scrolls while the footer keeps
+     its natural size at the bottom. */
+  flex: 1 1 auto;
   overflow-y: auto;
 }
 
@@ -10448,10 +10452,17 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 }
 
 .pmd-save-as-footer {
+  /* Pinned below .pmd-save-as-body (a sibling now, not a scrolled-past
+     child — see the comment there) and kept deliberately shrink-wrapped
+     (`flex: 0 0 auto`, own compact padding) rather than inheriting the
+     body's roomier 1rem — this row doesn't need the same breathing room
+     as the form fields above it. */
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.5rem;
-  padding-top: 0.75rem;
+  padding: 0.55rem 1.25rem;
   border-top: 1px solid var(--pmd-c-divider-faint);
 }
 
