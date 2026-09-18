@@ -19,17 +19,31 @@ import { newHeadingId } from '../schema/index.js';
 import { flattenSelfRefsInSlice, fragmentHasSelfRef } from './self-transclusion.js';
 import { fragmentHasZone } from './transclusion.js';
 import { rememberLinkedCopy, clearLinkedCopy } from './clipboard-link-cache.js';
+import { readModePlugin, filterSliceForReadMode } from './read-mode-plugin.js';
 
 export interface DocRange {
   from: number;
   to: number;
 }
 
+/** Self-ref-flattened, and — while `view` is in read mode — also reduced
+ *  to what read mode actually shows (see `transformCopied` in index.ts,
+ *  which every OTHER copy path runs through; these commands build their
+ *  own payload and skip it, so they need the same read-mode filter
+ *  applied explicitly or a copy from here would leak hidden text same
+ *  as the bug `transformCopied`'s filter fixes). */
+function readModeAware(view: EditorView, flat: Slice, range: DocRange): Slice {
+  return readModePlugin.getState(view.state)?.on
+    ? filterSliceForReadMode(flat, { doc: view.state.doc, from: range.from, to: range.to })
+    : flat;
+}
+
 /** The slice a copy of `[from, to]` puts on the clipboard: live views
  *  materialized against this document. Linked copies stay as they are —
  *  the paste side unwraps them (paste-plugin.ts). */
 export function clipboardSlice(view: EditorView, range: DocRange): Slice {
-  return flattenSelfRefsInSlice(view.state.doc.slice(range.from, range.to), view.state.doc, newHeadingId);
+  const flat = flattenSelfRefsInSlice(view.state.doc.slice(range.from, range.to), view.state.doc, newHeadingId);
+  return readModeAware(view, flat, range);
 }
 
 /** HTML + plain text for one or more ranges (concatenated in the order
@@ -44,7 +58,7 @@ export function serializeRangesForClipboard(view: EditorView, ranges: readonly D
   let clipboard = Fragment.empty;
   for (const range of ranges) {
     const raw = view.state.doc.slice(range.from, range.to);
-    const flat = flattenSelfRefsInSlice(raw, view.state.doc, newHeadingId);
+    const flat = readModeAware(view, flattenSelfRefsInSlice(raw, view.state.doc, newHeadingId), range);
     tmp.appendChild(serializer.serializeFragment(flat.content));
     texts.push(flat.content.textBetween(0, flat.content.size, '\n', '\n'));
     original = original.append(raw.content);

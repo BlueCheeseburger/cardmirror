@@ -611,9 +611,16 @@ export class BrowserHost implements Host {
     // id in the URL, which the new window reads back in `getInitialDoc`. Written
     // BEFORE the open so the payload is present by the time the (slower-booting)
     // new window looks for it.
-    let query = '';
+    //
+    // The `?spawn=<id>` marker is minted even for a null payload (e.g. "New
+    // document" opening a blank window) — `isFirstWindow` below reads its mere
+    // presence as "this window was spawned, not independently opened", so it
+    // has to survive a payload-less spawn too. It used to only appear when
+    // there was something to hand off, which made a blank spawn
+    // indistinguishable from the app's actual first window and landed it on
+    // the home screen instead of a blank doc (field report, 2026-09-18).
+    const id = crypto.randomUUID();
     if (payload) {
-      const id = crypto.randomUUID();
       try {
         const db = await openDb();
         await new Promise<void>((resolve, reject) => {
@@ -623,13 +630,14 @@ export class BrowserHost implements Host {
           tx.onerror = (): void => reject(tx.error ?? new Error('spawn write failed'));
           tx.onabort = (): void => reject(tx.error ?? new Error('spawn write aborted'));
         });
-        query = `?spawn=${id}`;
       } catch (err) {
         console.warn('BrowserHost: spawn handoff store failed', err);
-        // Fall through and open a blank window rather than nothing.
+        // Fall through and open the window anyway — worst case
+        // `getInitialDoc` finds no stored entry for `id` and treats it
+        // like a blank spawn, same as when there was no payload at all.
       }
     }
-    const url = window.location.origin + window.location.pathname + query;
+    const url = `${window.location.origin}${window.location.pathname}?spawn=${id}`;
     openNewWindow(url);
   }
 
@@ -670,9 +678,11 @@ export class BrowserHost implements Host {
   }
 
   async isFirstWindow(): Promise<boolean> {
-    // A spawned window (carrying a ?spawn handoff) opened a specific doc — it's
-    // not the session's first window and shouldn't run the recovery prompt.
-    // Other web tabs each boot fresh and are "first" for their own recovery.
+    // Any spawned window (the `?spawn=` marker `spawnWindow` always mints,
+    // whether or not it's actually carrying a doc payload) isn't the
+    // session's first window and shouldn't run the recovery prompt or show
+    // the home screen. Other web tabs each boot fresh and are "first" for
+    // their own recovery.
     return !SPAWN_ID;
   }
 

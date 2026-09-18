@@ -22,8 +22,11 @@ const STORAGE_KEY = 'pmd-save-locations';
 const OPEN_KEY = 'pmd-save-locations-open';
 
 /** Unpinned folders are a recency window, not a history — old ones
- *  rotate out. Pinned folders are exempt and never counted here. */
-const MAX_UNPINNED = 8;
+ *  rotate out. Pinned folders are exempt and never counted here.
+ *  (2026-09-15: lowered from 8 — the dialog's list was getting long
+ *  enough that pin the one you actually want back stopped being worth
+ *  it; 5 keeps the list to "recent", not "every folder ever used".) */
+const MAX_UNPINNED = 5;
 
 export interface SaveLocation {
   /** Absolute directory path, no trailing separator. */

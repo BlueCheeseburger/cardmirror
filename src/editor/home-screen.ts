@@ -85,6 +85,10 @@ export interface HomeScreenCallbacks {
    *  hosts that can't do recursive folder I/O (the web edition), in
    *  which case the button isn't shown. */
   bulkConvert?: () => void;
+  /** Open "Compare documents" — a line-by-line text diff of two picked
+   *  files. Host-agnostic (just `openFile()` twice), unlike Clean/
+   *  Convert/Compress, so always present rather than optional. */
+  compareDocuments: () => void;
   /** Open the (temporary) bulk-compress migration tool. Electron-only,
    *  same as bulkConvert. */
   bulkCompress?: () => void;
@@ -200,6 +204,7 @@ class HomeScreen {
     if (callbacks.clean) runners.push(() => this.callbacks?.clean?.());
     if (callbacks.bulkConvert) runners.push(() => this.callbacks?.bulkConvert?.());
     if (callbacks.bulkCompress) runners.push(() => this.callbacks?.bulkCompress?.());
+    runners.push(() => this.callbacks?.compareDocuments());
     runners.push(() => this.callbacks?.manageQuickCards());
     runners.push(() => {
       if (learnStore.totalCount({ kind: 'all' }) > 0) {
@@ -304,10 +309,10 @@ class HomeScreen {
 
     // Utilities — below Recent. Each is its own labeled group (heading
     // + button) sitting side by side in a card-width grid. Order:
-    // Clean, Convert, Compress (gated), Quick Cards, Learn — the same
-    // order as the number-key runners above, so the two stay in sync and
-    // reflow together: with Compress gated off, Quick Cards takes its
-    // slot and the shortcuts renumber.
+    // Clean, Convert, Compress (gated), Compare, Quick Cards, Learn —
+    // the same order as the number-key runners above, so the two stay
+    // in sync and reflow together: with Compress gated off, Compare
+    // takes its slot and the shortcuts renumber.
     const qcSection = document.createElement('section');
     qcSection.className = 'pmd-home-qc-section';
     const qcGrid = document.createElement('div');
@@ -361,6 +366,19 @@ class HomeScreen {
         ),
       );
     }
+    // Compare — line-by-line text diff of two picked files. Works the
+    // same on every host (no folder-recursive I/O involved), so it's
+    // always rendered, unlike Clean/Convert/Compress above.
+    qcGrid.appendChild(
+      labeledGroup(
+        'Compare',
+        this.actionCard(
+          'Compare documents',
+          'See a line-by-line diff between two .cmir or .docx files.',
+          () => this.callbacks?.compareDocuments(),
+        ),
+      ),
+    );
     qcGrid.appendChild(
       labeledGroup(
         'Quick Cards',

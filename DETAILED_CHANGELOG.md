@@ -10,7 +10,439 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## 1.10.0-bcb.3.4 — 2026-09-15
+## 1.10.0-bcb.3.5 — 2026-09-15
+
+### Added: Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `home-screen.ts`, `index.ts`, `style.css`)
+
+Requested directly: a way to see the differences between two documents —
+this year's file vs. last year's, a partner's edit vs. yours, a draft
+before and after cutting — rendered the way a code diff shows changes,
+without either file becoming the live working document.
+
+`doc-diff.ts` is the pure core, DOM- and Electron-free so it's cheap to
+unit test directly against hand-built docs (`tests/editor/doc-diff.test.ts`,
+18 tests):
+- `extractDiffLines(doc)` flattens a document to one line of plain text per
+  leaf textblock (tag, cite, body, undertag, heading paragraphs — whatever
+  the schema nests text in), in document order, dropping marks/formatting
+  entirely (this is a TEXT diff, like `git diff`, not a rich-text one). A
+  blank line is inserted before each top-level `card`/`analytic_unit`
+  (after the first) so the flattened transcript keeps a whiff of the
+  document's own structure, the way blank lines between functions read in
+  a code diff.
+- `diffLines(a, b)` is a textbook LCS line diff via the standard dynamic-
+  programming table — O(n·m) time and space over what's left after
+  stripping the common prefix/suffix first (always safe for LCS; for two
+  versions of mostly the same document — the expected case here — it
+  often shrinks the table to just the differing middle instead of the
+  whole document). What remains is capped at `MAX_DIFF_CELLS`
+  (25,000,000 — generously covers thousands of genuinely DIFFERING
+  lines while keeping the table's peak allocation in the tens of MB,
+  not hundreds): past that, `diffLines` throws `DiffTooLargeError`
+  rather than let two large, wildly different documents (this app's own
+  README calls out "multi-megabyte evidence files" as the normal case)
+  try to allocate a table sized for the untrimmed input.
+  `doc-diff-ui.ts`'s `runCompare` catches it and shows the message
+  instead of crashing. Returns the edit sequence in document order (a
+  `remove` run immediately followed by an `add` run is a "changed"
+  region).
+- `toDiffRows(lines)` pairs that sequence into side-by-side rows for a
+  split view: an `equal` line occupies both columns on one row; a run of
+  consecutive `remove`/`add` lines zips removes against adds position-for-
+  position, padding the shorter side with a `blank` cell — the same
+  alignment a GitHub-style split diff shows. `summarize(lines)` gives the
+  `+N −M` counts for the header.
+
+`doc-diff-ui.ts` is the one caller that touches the DOM or a file picker —
+a single overlay (`pushOverlay`/`popOverlay`, `installModalKeys`,
+`captureFocusForDialog`/`armDialogFocus`, same scaffolding
+`save-as-ui.ts` uses) whose content swaps in place across two steps
+(same convention as `web-file-tools.ts`'s progress modal):
+1. **Picker** — two rows ("First document" / "Second document"), each a
+   `getHost().openFile({ filters: [...] })` call (host-agnostic: the SAME
+   call on both Electron and the web edition, unlike Clean/Convert/
+   Compress which split desktop-bulk vs. web-single-file — comparing two
+   files never needs recursive folder I/O, so there's nothing to split).
+   Compare is disabled until both are picked.
+2. **Results** — parses both picked files' bytes (`bytesLookLikeDocx`
+   sniffs for the docx zip signature the same way `index.ts`'s own open
+   path does, kept as a small LOCAL copy rather than importing from that
+   large, side-effecting module; `.docx` → `fromDocxFull`, everything else
+   → `parseNative`), diffs them, and renders a split table — a colored
+   `+`/`−` gutter marker and a tinted row background per cell
+   (`--pmd-c-success-soft` / `--pmd-c-error-bg`, the existing theme tokens,
+   so dark mode needs no separate override).
+
+The dialog fills the viewport — a fixed topbar (title/names + Cancel-
+Compare or Back-Close) over independently-scrolling panes below it —
+rather than a bounded, centered popup: the original popup capped itself
+at `max-height: 85vh` with the WHOLE dialog as one scroll container,
+which on a real document's worth of rows left no reliable way to reach
+the content below the fold (field report, 2026-09-18, with a screenshot
+showing the table cut off and unscrollable). The results step also gains
+an outline rail on each side of the table, built from `collectHeadings`
+(`headings.ts`) — the SAME doc-only heading walk `nav-panel.ts` itself
+calls, requested explicitly ("use the same code from the actual doc
+viewers") — with `skipCite: true` (this view has no use for cite text,
+the bulk of that function's cost on a long doc). Since neither document
+is ever mounted into an EditorView, there's no live position to jump to;
+clicking an outline entry instead scrolls the matching row into view by
+TEXT match against a `Map<string, HTMLElement[]>` built while the table
+renders (one side each), with an occurrence counter so two same-named
+headings (a repeated tag like "Extend" is common in a debate doc) jump
+to their own row instead of both landing on the first. A heading whose
+text produced no diff line (an empty-titled heading, e.g.) renders
+disabled rather than being hidden, so the outline still reflects the
+document's real structure. "Compare different files" goes back to the
+picker; Close tears the whole thing down. Below 900px, both outlines and
+the two-column split table don't fit — the outlines are dropped and the
+table stacks left-above-right per row instead, same as the original
+phone-width fallback.
+
+`home-screen.ts`: `HomeScreenCallbacks` gains a required (not optional,
+unlike `clean`/`bulkConvert`/`bulkCompress`) `compareDocuments` field —
+required because, being host-agnostic, it's always available, unlike
+those three which split by platform. New "Compare" labeled group in the
+utilities grid, between Compress and Quick Cards; the number-key shortcut
+runners array gained a matching entry in the same position, which shifted
+Quick Cards'/Learn's shortcut numbers down by one when Compress is off —
+`home-screen-shortcuts.test.ts`'s two reflow tests updated for the new
+numbering (their own doc comment already documented this "numbers close
+the gap" behavior for the Compress-gated case; this is the same
+mechanism, just with one more tile in the sequence).
+
+`tests/editor/doc-diff.test.ts` (21 tests, up from an initial 18) adds
+coverage for the trim/cap safety net: a large shared prefix+suffix
+around a small changed middle still diffs correctly (locks in the trim
+boundaries, not just that they're fast), a deliberately huge pair with
+no shared prefix/suffix throws `DiffTooLargeError`, and a document-sized
+diff (a few thousand differing lines each side) stays comfortably under
+the cap.
+
+`tests/editor/doc-diff-ui.test.ts` (15 tests) mocks `getHost()` to return
+picked-file results directly (no native file picker in a test), driving
+the real dialog code end to end: both picker-step behaviors (Compare
+staying disabled, a cancelled pick leaving a row empty), the full
+results render (correct add/remove/equal cell placement for a changed
+line, the `+N −M` summary, "No differences." for identical inputs, both
+topbar buttons, the dialog filling the viewport rather than a bounded
+popup), one case built from REAL `.docx` bytes (`toDocx`), exercising
+`fromDocxFull` end to end (the first two rounds of testing this feature
+only ever exercised `.cmir` bytes, which never touched that branch at
+all despite `.docx` being the format this app exists to interoperate
+with — `fromDocxFull` does real async zip reads, unlike `.cmir`'s
+synchronous `parseNative`, so that test polls for the results view
+(`vi.waitFor`) rather than the fixed microtask flush the `.cmir` tests
+get away with), and a dedicated "outline rails" describe block: one
+entry per heading on each side, clicking an entry calls `scrollIntoView`
+on the matching row (`Element.prototype.scrollIntoView` stubbed —
+jsdom doesn't implement it), an empty-titled heading renders disabled
+rather than hidden, and two same-named headings on one side resolve to
+their own occurrence rather than both landing on the first row with
+that text. Verified visually end to end with a temporary local dev
+server + Playwright too, including with the file-picker fallback
+(`<input type="file">`, forced by deleting `window.showOpenFilePicker`
+so Playwright's `filechooser` event could drive it) actually picking two
+real `.cmir` files built in-page via `serializeNative`, comparing them,
+and clicking an outline entry to confirm the scroll + highlight.
+
+Known limit, left as-is: `parseDiffDoc` doesn't run
+`maybeDecryptForOpen`, which every other open path in the app does — a
+password-protected `.docx` picked here surfaces the generic "Couldn't
+read one of the documents" instead of a password prompt. Reasonable for
+a read-only comparison tool; revisit if it turns out people actually
+compare password-protected files.
+
+### Added: per-reader lay-speaking rate + status-bar toggle (`settings.ts`, `word-count.ts`, `live-read-time.ts`, `index.ts`, `multi-pane-shell.ts`, `settings-ui.ts`, `mobile-settings-ui.ts`)
+
+Requested directly: a way to see read times at a lay-speaking pace, not
+just flow, without having to swap a reader's wpm back and forth by hand.
+
+`ReaderConfig` (`settings.ts`) gains an optional third rate, `layWpm` —
+orthogonal to the existing `wpm`/`tagWpm` split (body vs. structural read).
+Unlike that split, lay speaking is a single FLAT rate over the combined
+word count: `readTimeSeconds`/`formatReadTimeFor` (`word-count.ts`) take a
+new `useLay` argument that, when true, ignores `wpm`/`tagWpm` entirely and
+divides by `layWpm` — or returns null/"—" when that reader has no usable
+`layWpm`, rather than silently falling back to their flow rate. A reader
+with a flow rate but no lay rate must show "—" in lay mode, not a stale
+flow number that looks unchanged and reads as a bug.
+
+Settings (`buildReadersEditor` in `settings-ui.ts`): each reader row gets a
+`<select>` ("Flow" / "Lay speaking") next to the existing wpm/tagWpm
+fields. Its value is DERIVED from whether `layWpm` is already set, not
+stored separately — picking "Lay speaking" reveals a wpm input (uncommitted
+until the user actually types a value, so an empty field is never
+persisted as 0); picking "Flow" hides it and clears `layWpm`. Mirrored in
+`mobile-settings-ui.ts` as a plain always-visible optional field (parity
+with that editor's existing `tagWpm` treatment, matching its simpler
+style rather than adding a dropdown there too).
+
+The toggle itself: `primaryReadSegment`, `liveContainerSegment`, and
+`remainingReadSegment` (`live-read-time.ts`) now take a `useLay` argument
+threaded through from the CALLER, not read from `settings` — the toggle is
+per-doc/per-pane session state (mirroring `readMode`), so two panes with
+different toggle states must render differently, and reading a shared
+global inside those functions would make that impossible. Each reader's
+chunk renders as `Name (lay): M:SS` while lay mode is on, vs. plain
+`Name: M:SS` in flow — the "(lay)" suffix is deliberately the toggle's only
+visible state beyond the numbers themselves, so a click's effect is never
+silently indistinguishable from "nothing happened."
+
+`word-count-text` (single-pane status bar, `index.ts`) and each pane's own
+`.pmd-pane-wc` footer readout (`multi-pane-shell.ts`) changed from a plain
+`<span>` to a `<button>` — clicking it flips a per-doc/per-pane boolean
+(`laySpeakingOn` module flag single-pane; `rec.laySpeaking` per-record
+multi-pane, both session-only, never persisted) and re-renders. A new
+`hasLaySpeeds()` export checks whether either of the first two readers
+shown live (matching the "#1"/"#2" rank in Settings — readers beyond that
+never appear in the bar regardless of mode) has a usable `layWpm`, and
+gates the `.pmd-wc-lay-capable` CSS class that makes the readout look
+clickable (`cursor: pointer` + hover underline) — with nothing configured,
+toggling would just replace every time with "—", so the bar shouldn't
+invite the click. Both button elements are reset in CSS back to plain
+inline text (no border/background/padding) to preserve their prior visual
+appearance; the shared ribbon-row height (`1.45rem`, load-bearing for
+cross-panel alignment elsewhere) was left untouched.
+
+Deliberately untouched: the Word Count Selection modal (`word-count-ui.ts`)
+— the request named Settings and the status bar specifically. Read-rate
+consumers outside the live readout (`auto-scroll.ts`'s pacing,
+`learn-scheduler.ts`, the WPM-preset helpers in `settings.ts` and
+`card-cutter-port.ts`/`card-cutter-ui.ts`) all call the existing flow-only
+paths (`reader.wpm` directly, or `readTimeSeconds`/`formatReadTimeFor` with
+`useLay` omitted/false) and are unaffected — widening `ReaderRates` with an
+optional field doesn't widen their behavior.
+
+New tests: `word-count.test.ts` (the flat-rate lay math, the "no fallback
+to flow" null/dash contract), `live-read-time.test.ts` (`useLay` threading
+through all three segment functions, `hasLaySpeeds()`'s first-two-only and
+usable-value-only rules), `settings-backup.test.ts` (the sanitizer keeps a
+usable `layWpm`, drops an unusable one, rounds like `wpm`/`tagWpm` do).
+
+### Fixed: Save As footer pinned to the bottom instead of scrolling with the form (`save-as-ui.ts`, `style.css`)
+
+Reported directly, as a follow-up to 3.4's Save As max-height fix: the
+Cancel/Save As row was still a CHILD of `.pmd-save-as-body` (the scrollable
+form) rather than a sibling, so on a dialog tall enough to scroll, reaching
+either button meant scrolling all the way down past every field section
+first — exactly the same "can't reach the buttons" complaint 3.4 fixed for
+the dialog's own edges, just one level in.
+
+Fixed by moving the `<footer>` out of the `<form>` entirely: it's now built
+and appended as a sibling of `form` directly under `.pmd-save-as-dialog`
+(itself already `display: flex; flex-direction: column` from 3.4). The
+"Save As" button is `type="submit"` but no longer a DOM descendant of the
+form it submits, so it now carries `form="pmd-save-as-form"` (the HTML5
+form-association attribute) pointing at the form's new `id` — clicking it,
+or pressing Enter in the Name field, still calls the same `submit` handler
+and resolves the dialog's promise exactly as before. `.pmd-save-as-body`
+gained `flex: 1 1 auto` so IT is the flex item that shrinks and scrolls
+within the dialog's `max-height: 85vh`, leaving `.pmd-save-as-footer` (now
+`flex: 0 0 auto`) pinned at its natural size at the bottom — standard
+"scrollable middle, pinned header/footer" flex-column layout, the same
+shape `.pmd-clod-dialog`'s footer already used (this dialog just hadn't
+been restructured to match when 3.4's height cap went in, per that
+entry's own note about deferring the restructure as scope creep at the
+time).
+
+Also shrunk the footer's own vertical footprint per the same report: it
+now has its own compact `padding: 0.55rem 1.25rem` instead of inheriting
+`.pmd-save-as-body`'s roomier 1rem outer padding plus a redundant
+`padding-top` on top of the flex `gap` — this dialog's shared
+`.pmd-save-as-btn` button padding (used by other prompt/clod/quickcard
+dialogs too) was deliberately left untouched so this change doesn't
+resize buttons anywhere else.
+
+Verified visually via a temporary local dev server + Playwright at a
+900×500 viewport (short enough to force the body to scroll): the footer's
+bottom edge sits flush with the dialog's own bottom edge regardless of
+scroll position, `.pmd-save-as-body`'s `scrollHeight` exceeds its
+`clientHeight` (confirming it's actually the scrolling element, not the
+footer riding along), and the footer is confirmed NOT a descendant of the
+form in the rendered DOM. New test in `save-as-ui.test.ts` locks in the
+DOM shape (footer/form as dialog siblings, neither containing the other,
+the `form` attribute wiring) and that Save As still submits successfully
+from outside the form.
+
+### Fixed: "previously saved location" list capped at 5 recent folders, down from 8 (`save-locations-store.ts`)
+
+Requested directly, alongside the footer fix above: `MAX_UNPINNED` in
+`save-locations-store.ts` — the recency window `recordSaveLocation` trims
+unpinned entries to — lowered from 8 to 5. Pinned folders are unaffected
+(they were already exempt from this cap and still never rotate out); this
+only shrinks how many UNPINNED folders the "Save in a previously saved
+location" list can grow to before the oldest starts rotating out. No
+display-layer change was needed — `save-as-ui.ts`'s `renderLocations`
+already renders whatever `listSaveLocations()` returns, so lowering the
+one constant that governs storage is also what governs what's shown.
+`save-locations-store.test.ts`'s two cap tests (the rotation itself, and
+that pins stay exempt) updated to assert against 5 instead of 8.
+
+### Fixed: read-mode copy leaked hidden (non-highlighted) text onto the clipboard (`read-mode-plugin.ts`, `index.ts`, `clipboard-slice.ts`)
+
+Read mode only CSS-hides the text it isn't showing (`pmd-rm-hide` /
+`display: none`) — the doc model keeps it, so a DOM selection drawn over
+the VISIBLE spans still maps back to model positions that SPAN the hidden
+runs in between, and `state.doc.slice(from, to)` (what `transformCopied`
+starts from) naturally includes them. Nothing in the copy path filtered
+them back out, so copy/paste in read mode carried the full underlying
+text regardless of what was actually on screen.
+
+New `filterSliceForReadMode(slice, source?)` (`read-mode-plugin.ts`)
+reduces a clipboard slice down to exactly what read mode shows, reusing
+the same `isReadKept`/`keepsWholeParagraph`/`readKeptKind` rules the
+live decorations use. It recurses the slice's tree; a textblock read
+mode governs (cite/body paragraphs, undertags) gets its inline children
+rebuilt from only the kept runs, bridging a dropped gap with a single
+space (mirroring the `pmd-rm-separator` widget the live view renders at
+the same boundary) unless either side already has whitespace there. A
+heading-kind textblock (always shown) and any other container pass
+through unchanged, recursing into their own children.
+
+Two structural gotchas `source` exists to fix, both confirmed against
+`Node.slice`'s actual source (not assumed):
+- A selection that never leaves one textblock comes back from
+  `doc.slice` as BARE inline content — no wrapping cite_paragraph/
+  card_body node at all, `openStart`/`openEnd` both 0 (`Node.slice`
+  picks `depth = $from.sharedDepth(to)`, which for a same-block
+  selection IS the block's own depth, so it returns that block's inner
+  content directly). This is the common case a plain select-and-copy
+  hits, and without a governing parent to read `type.name` off of,
+  there's nothing to filter against — `source.doc`/`source.from` resolve
+  `$from.parent` to know which rule (if any) applies.
+- A selection that DOES cross a block boundary shows up with a real,
+  but PARTIAL, wrapped node at the slice's edge. "Read mode: keep entire
+  cite" decides whole-paragraph visibility by scanning the paragraph for
+  ANY kept run — which the partial node might not contain even though
+  the full paragraph (and so the live view) does. `fullSpine(doc, pos,
+  depth)` walks `$pos.node(d)` for the boundary's open depth to hand the
+  filter the paragraph's real, complete sibling content for that
+  decision, while the actual output still comes from the partial node's
+  own children — never from the full one's.
+
+Applied in `index.ts`'s `transformCopied` (gated on
+`readModePlugin.getState(view.state)?.on`, source = the view's own doc +
+current selection) — the single hook every ordinary copy/cut/drag
+already ran through. Also applied in `clipboard-slice.ts`'s
+`clipboardSlice`/`serializeRangesForClipboard` — the outline's Copy /
+Cut, Copy Current Heading, discontinuous copy, and cut-in-place build
+their own clipboard payload and bypass `transformCopied` entirely (by
+design, see that file's own doc comment), so they needed the same filter
+applied explicitly or they'd leak hidden text via a completely different
+door. New `tests/editor/read-mode-copy-filter.test.ts` (10 tests) covers
+plain highlight filtering, cite marks, "keep entire cite" (whole and
+partial slices, with and without `source`), nested containers/tables,
+non-text inline leaves passing through untouched, and `openStart`/
+`openEnd` preservation.
+
+### Fixed: the Emphasis formatting-panel button already previewed its own bold + box style — verified, not changed
+
+Reported as broken (screenshot of an applied Emphasis mark showing bold +
+box, asking for the button to preview the same). Traced the button's
+CSS (`#ribbon .ribbon-cite-panel.style-preview .formatting-panel-emphasis`
+plus the `.pmd-emphasis-bold`/`.pmd-emphasis-box` document-root classes
+`applyDisplayTypography` sets) and confirmed, both by reading the rule
+chain and by a live Playwright render at default settings, that the
+button already shows bold text with a visibly darker box border than its
+plain sibling buttons (`--pmd-c-emphasis-box` vs. the base
+`--pmd-c-border`). Also confirmed the ribbon is a single shared instance
+between single-pane and multi-pane — the cite panel isn't rebuilt per
+pane — so this isn't a mode-specific gap either. No code changed; if
+this is still not showing for the reporter, the likely explanation is a
+non-default `formattingPanelPreview` / `emphasisBold` / `emphasisBox`
+setting, or a stale build predating the feature, not a code defect.
+
+### Fixed: Save As wrote a folder structure when the filename contained a slash (`save-as-ui.ts`)
+
+`commit()` took the Name field's trimmed value straight through to
+`joinPath(dir, filename)` (`saveIntoDirectory`) or the host's `saveAs`
+with no sanitization — a name like `R3 2NC (redo 9/17/26).docx` has the
+slash read as a path separator by the eventual filesystem write, turning
+one file into a nested folder chain (`R3 2NC (redo 9/17/26).docx` →
+folder `R3 2NC (redo 9` → …). Now sanitized through
+`sanitizeFilename` (`speech-filename.ts`) before anything else touches
+it — the same trust-boundary sanitizer already used for auto-generated
+speech-doc names, for the identical reason (its own doc comment: "a
+speech name of `1NC/../../evil` would otherwise write outside the
+user's chosen folder"). Path separators and colons become a hyphen
+(readable, keeps date-shaped names like `9/17/26` intact as `9-17-26`
+instead of mushing the digits together); the rest of the Windows-illegal
+set is dropped; Windows' reserved device-name basenames get an
+underscore prefix. New test in `save-as-ui.test.ts` locks in the
+end-to-end `filename` result for a slash-bearing Name field.
+
+### Fixed: the "reset to 100%" zoom button faded to near-invisible instead of reading as disabled (`index.ts`)
+
+`updateZoomStatus` disabled `zoomResetBtn` whenever the live zoom was
+already 100% — semantically reasonable (nothing to reset), but the only
+visual cue was the generic `#ribbon button:disabled` rule's `opacity:
+0.4`, which on this particular icon-only button against the ribbon's
+light background read as the button having vanished rather than as
+"disabled" (confirmed with a Playwright render: at 0.4 opacity the reset
+icon is essentially unreadable, fully legible at 1.0). Reported as "only
+shows up when zoom isn't 100%, goes away if you go to 90% then back to
+100%" — an accurate description of working-as-coded behavior that read
+as broken. Fix: stopped disabling the button at all. It now stays fully
+visible and clickable at every zoom level; clicking it while already at
+100% is a harmless no-op (`applyZoom(100)` on an already-100% doc
+changes nothing).
+
+### Fixed: "New document → New window" landed the new window on the home screen instead of a blank document (`host/types.ts`, `host/browser-host.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+Two independent bugs, one in each host, both stemming from the same
+design gap: `spawnWindow(null)` — the call both `spawnBlankWindow()`
+(index.ts, single-pane's "New" when another window is already open) and
+`newDocWithPicker`'s 'new-window' arm (multi-pane-shell.ts) made — told
+the new window nothing beyond "you weren't handed a doc," which is
+indistinguishable from "you're the app's actual first window of this
+session."
+
+**Web/browser host:** `spawnWindow`'s `?spawn=<id>` URL marker (the
+signal `isFirstWindow()` reads to know a window was spawned, not
+independently opened) was only minted when there was an IndexedDB
+payload to hand off — a `null`-payload spawn got no marker, so
+`isFirstWindow()` read `true` for it, same as a genuine first launch.
+Fixed by minting the marker unconditionally in `spawnWindow`; the
+IndexedDB write still only happens when there's an actual payload
+(`getInitialDoc` already resolved cleanly to `null` for a marked-but-
+empty entry, so nothing downstream needed to change).
+
+**Both hosts, and the deeper gap:** even with `isFirstWindow()` correct,
+a bare `null` payload only ever told a spawned window "mount SOMETHING
+blank" — single-pane's boot has a fallback for that (`mountView
+(currentDoc)`), so it degraded to "just needlessly risked showing home
+on top of a correct blank mount" there. Multi-pane's boot has NO such
+fallback: any payload-less spawn fell straight through to "blank
+multi-pane launch → show the home screen," unconditionally, with no
+`isFirst` check involved at all — every "New document → New window"
+click in multi-pane hit this, 100% of the time, regardless of
+`isFirstWindow()`.
+
+Fixed with an explicit signal instead of an absence to infer:
+`SpawnWindowPayload` gains `blank?: boolean` (`host/types.ts`), alongside
+a `blankSpawnPayload()` helper building the placeholder-filled payload —
+same convention as the existing `joinShareCode`/`resumeRoomId` fields,
+whose doc comments already note "the doc fields above are placeholders
+in this case." Both `null`-passing call sites now pass
+`blankSpawnPayload()` instead. On the receiving end: `initSingleDocBoot`
+checks `payload.blank` before `mountFromSpawnPayload` and calls the same
+`mountFreshBlankDoc()` the home screen's own "New document" button uses,
+then returns — skipping home entirely, no `isFirst` dependency needed.
+`routeInitialDocIntoWorkspace` (shared boot-routing, multi-pane) checks
+`payload.blank` alongside its existing `joinShareCode`/`resumeRoomId`
+branches and calls `multiDocOnNewDocDefaultSlot()` — the same handler
+the home screen's "New document" card uses in multi-pane mode — into the
+first empty slot, then returns `true` so the "blank launch → home" branch
+below it never runs.
+
+New `tests/editor/browser-host-spawn.test.ts` (6 tests, using
+`fake-indexeddb` for the real IndexedDB round trip) locks in: the
+`?spawn=` marker appears for a null payload, `isFirstWindow()` reads
+correctly for a marked vs. unmarked window, `getInitialDoc` resolves
+`null` for a marker with nothing stored, `blankSpawnPayload()`'s shape,
+and the full `spawnWindow` → new-window `getInitialDoc()` round trip
+resolving `{ blank: true }` as the new window would actually see it.
 
 ### Added: formatting panel corner shortcut badges (`index.ts`, `style.css`)
 

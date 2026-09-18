@@ -47,7 +47,7 @@
 
 import type { EditorState } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
-import { settings } from './settings.js';
+import { settings, type ReaderConfig } from './settings.js';
 import {
   countReadAloudSplit,
   totalWords,
@@ -139,10 +139,28 @@ export {
  *  give the bar to the container / remaining segments alone. The
  *  "Doc:" label appears only while the container segment is on, so the
  *  two sides read symmetrically; with it off the readout is the
- *  pre-feature bare number. */
+ *  pre-feature bare number.
+ *
+ *  `useLay` is the per-doc lay-speaking toggle (the status-bar readout
+ *  is a click target — see `refreshWordCount` in index.ts /
+ *  multi-pane-shell.ts). It's a caller-supplied argument, not read from
+ *  `settings`, because the toggle is per-doc/per-pane session state:
+ *  two panes with different toggle states must render differently. */
+/** Whether at least one of the readers shown live in the bar (the
+ *  first two — matching the "#1"/"#2" rank shown in Settings) has a
+ *  usable lay-speaking rate. Gates the readout's clickable affordance:
+ *  with nothing configured, toggling would just replace every time
+ *  with "—", so the bar shouldn't invite the click at all. */
+export function hasLaySpeeds(): boolean {
+  return settings
+    .get('readers')
+    .slice(0, 2)
+    .some((r) => Number.isFinite(r.layWpm) && (r.layWpm as number) > 0);
+}
+
 export function primaryReadSegment(
   counts: ReadAloudCounts,
-  opts: { selection: boolean; selectionLabel: 'Selection' | 'Sel' },
+  opts: { selection: boolean; selectionLabel: 'Selection' | 'Sel'; useLay?: boolean },
 ): string | null {
   if (!opts.selection && !settings.get('liveDocWordCount')) return null;
   const words = formatNumber(totalWords(counts));
@@ -153,12 +171,12 @@ export function primaryReadSegment(
       : words;
   const parts = [head];
   for (const r of settings.get('readers').slice(0, 2)) {
-    parts.push(`${r.name}: ${formatReadTimeFor(counts, r)}`);
+    parts.push(readerTimePart(r, counts, opts.useLay ?? false));
   }
   return parts.join(' · ');
 }
 
-export function liveContainerSegment(state: EditorState): string | null {
+export function liveContainerSegment(state: EditorState, useLay = false): string | null {
   if (!settings.get('liveContainerReadTime')) return null;
   const sel = state.selection;
   let label: string;
@@ -175,15 +193,24 @@ export function liveContainerSegment(state: EditorState): string | null {
     label = container.label;
     counts = countCached(state.doc, container.from, container.to);
   }
-  return formatSegment(label, counts);
+  return formatSegment(label, counts, useLay);
+}
+
+/** One reader's "Name: M:SS" chunk — or "Name (lay): M:SS" (or "—" when
+ *  that reader has no lay rate configured) while `useLay` is on. The
+ *  "(lay)" suffix is the toggle's only visible state beyond the numbers
+ *  themselves, so a click's effect is never silent. */
+function readerTimePart(r: ReaderConfig, counts: ReadAloudCounts, useLay: boolean): string {
+  const name = useLay ? `${r.name} (lay)` : r.name;
+  return `${name}: ${formatReadTimeFor(counts, r, useLay)}`;
 }
 
 /** One segment's text: the labelled word count plus the first two
  *  readers' times, exactly as the primary readout formats its own. */
-function formatSegment(label: string, counts: ReadAloudCounts): string {
+function formatSegment(label: string, counts: ReadAloudCounts, useLay = false): string {
   const parts = [`${label}: ${formatNumber(totalWords(counts))}`];
   for (const r of settings.get('readers').slice(0, 2)) {
-    parts.push(`${r.name}: ${formatReadTimeFor(counts, r)}`);
+    parts.push(readerTimePart(r, counts, useLay));
   }
   return parts.join(' · ');
 }
@@ -261,11 +288,11 @@ function countRemaining(doc: PMNode, pos: number): ReadAloudCounts {
 /** The readout tail for what's still unread ("Left: 1,204 · Amy: 6:31 ·
  *  Ben: 5:44"), or null when the feature is off. Callers join it after
  *  the container segment with " | ". */
-export function remainingReadSegment(state: EditorState): string | null {
+export function remainingReadSegment(state: EditorState, useLay = false): string | null {
   if (!settings.get('liveRemainingReadTime')) return null;
   // Measured from `selection.to`, not `from`: the end of a selection is
   // the furthest point the user has accounted for, so a selection reads
   // as "I've gone through this much" and what's left starts after it.
   // With a bare cursor the two coincide.
-  return formatSegment('Left', countRemaining(state.doc, state.selection.to));
+  return formatSegment('Left', countRemaining(state.doc, state.selection.to), useLay);
 }

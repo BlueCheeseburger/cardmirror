@@ -80,7 +80,13 @@ import {
   formatNumber,
   type ReadAloudCounts,
 } from './word-count.js';
-import { liveContainerSegment, orderWordCountSegments, primaryReadSegment, remainingReadSegment } from './live-read-time.js';
+import {
+  hasLaySpeeds,
+  liveContainerSegment,
+  orderWordCountSegments,
+  primaryReadSegment,
+  remainingReadSegment,
+} from './live-read-time.js';
 import { openWordCount } from './word-count-ui.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
 import {
@@ -167,6 +173,7 @@ import {
 import { icon, setIcon } from './icons';
 import { formatSpeechFilename } from './speech-filename.js';
 import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
+import { blankSpawnPayload } from './host/types.js';
 
 type SlotId = 'slot1' | 'slot2' | 'slot3';
 const SLOT_IDS: SlotId[] = ['slot1', 'slot2', 'slot3'];
@@ -514,6 +521,12 @@ interface DocRecord {
    *  property of an individual open doc — the ribbon toggle flips
    *  this for the focused pane only, leaving other panes untouched. */
   readMode: boolean;
+  /** Per-doc lay-speaking toggle for THIS pane's footer readout — same
+   *  per-doc story as `readMode`: session-only, never persisted, and
+   *  flipped only for the pane whose readout was clicked. Switches every
+   *  reader shown from their flow rate to their lay rate (`layWpm`), or
+   *  "—" for a reader with no lay rate configured. */
+  laySpeaking: boolean;
   /** Reading view (paginated columns) — same per-doc story as
    *  `readMode`; session-only, never persisted. */
   readerView: boolean;
@@ -712,7 +725,7 @@ class Slot {
   /** Editor body — DocRecord.editorEl mounts here. */
   private bodyEl: HTMLElement;
   /** Footer word count. */
-  private wcEl: HTMLElement;
+  private wcEl: HTMLButtonElement;
   /** Footer co-editing indicator — status text + presence dots for THIS slot's
    *  visible doc's session. Hidden when that doc has no live session. */
   private copresenceEl: HTMLElement;
@@ -939,9 +952,20 @@ class Slot {
       openWordCount(rec.view);
     });
     footer.appendChild(wcBtn);
-    this.wcEl = document.createElement('span');
+    // The readout itself (distinct from the Σ button above) toggles this
+    // pane's shown readers between their flow and lay-speaking rate.
+    this.wcEl = document.createElement('button');
+    this.wcEl.type = 'button';
     this.wcEl.className = 'pmd-pane-wc';
     this.wcEl.textContent = '—';
+    this.wcEl.addEventListener('mousedown', (e) => e.preventDefault());
+    this.wcEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rec = this.visible;
+      if (!rec) return;
+      rec.laySpeaking = !rec.laySpeaking;
+      this.refreshWordCount();
+    });
     footer.appendChild(this.wcEl);
     // Per-slot co-editing indicator (this doc's session status + who's here).
     // Empty/hidden until the slot's visible doc joins a session.
@@ -1568,6 +1592,7 @@ class Slot {
       primary = primaryReadSegment(countReadAloudSplit(rec.view.state.doc, sel.from, sel.to), {
         selection: true,
         selectionLabel: 'Sel',
+        useLay: rec.laySpeaking,
       });
     } else if (settings.get('liveDocWordCount')) {
       let counts: ReadAloudCounts;
@@ -1577,7 +1602,7 @@ class Slot {
         counts = countReadAloudSplit(rec.view.state.doc);
         this.wcDocCache = { doc: rec.view.state.doc, counts };
       }
-      primary = primaryReadSegment(counts, { selection: false, selectionLabel: 'Sel' });
+      primary = primaryReadSegment(counts, { selection: false, selectionLabel: 'Sel', useLay: rec.laySpeaking });
     }
     // Whole-doc readout off and nothing selected: no doc walk, the
     // footer belongs to the other segments (mirroring single-pane).
@@ -1586,10 +1611,12 @@ class Slot {
     const order = settings.get(rec.readMode ? 'wordCountOrderReadMode' : 'wordCountOrder');
     const segments = orderWordCountSegments(order, {
       doc: primary,
-      container: liveContainerSegment(rec.view.state),
-      remaining: remainingReadSegment(rec.view.state),
+      container: liveContainerSegment(rec.view.state, rec.laySpeaking),
+      remaining: remainingReadSegment(rec.view.state, rec.laySpeaking),
     });
     this.wcEl.textContent = segments.join(' | ');
+    this.wcEl.classList.toggle('pmd-active', rec.laySpeaking);
+    this.wcEl.classList.toggle('pmd-wc-lay-capable', hasLaySpeeds());
   }
 
   /** Open a small dropdown over the chip listing every doc in this
@@ -3678,7 +3705,7 @@ class MultiPaneShell {
     if (!choice) return;
     if (choice === 'new-window') {
       try {
-        await getHost().spawnWindow(null);
+        await getHost().spawnWindow(blankSpawnPayload());
       } catch (err) {
         console.error('Spawn window failed:', err);
         showToast(`Failed to open a new window: ${err instanceof Error ? err.message : err}`);
@@ -4307,6 +4334,10 @@ function buildDocRecord(
     // New docs always start with read mode OFF. The user toggles
     // it per-pane via the ribbon command after opening.
     readMode: false,
+    // New docs always start showing flow speeds — same story as read
+    // mode: session-only, toggled per-pane by clicking that pane's
+    // footer readout.
+    laySpeaking: false,
     readerView: false,
     zoomPct: settings.get('defaultZoomPct'),
     // Autosave is per-pane in multi-doc — same intent as read mode.
