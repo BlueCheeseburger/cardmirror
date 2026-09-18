@@ -41,7 +41,7 @@ function cardBytes(tag: string, body: string): Uint8Array {
 async function waitForResults(): Promise<void> {
   await vi.waitFor(
     () => {
-      if (!document.querySelector('.pmd-doc-diff-results-header')) {
+      if (!document.querySelector('.pmd-doc-diff-names')) {
         throw new Error('results view not rendered yet');
       }
     },
@@ -54,7 +54,7 @@ function pickerButtons(): HTMLButtonElement[] {
 }
 
 function compareBtn(): HTMLButtonElement {
-  return q<HTMLButtonElement>('.pmd-doc-diff-footer .pmd-doc-diff-btn-primary')!;
+  return q<HTMLButtonElement>('.pmd-doc-diff-topbar-actions .pmd-doc-diff-btn-primary')!;
 }
 
 async function flush(): Promise<void> {
@@ -99,7 +99,7 @@ describe('Compare documents — the picker step', () => {
 
   it('Cancel closes the dialog', () => {
     openDocDiff();
-    const cancel = qa('.pmd-doc-diff-footer .pmd-doc-diff-btn').find((b) => b.textContent === 'Cancel');
+    const cancel = qa('.pmd-doc-diff-topbar-actions .pmd-doc-diff-btn').find((b) => b.textContent === 'Cancel');
     (cancel as HTMLButtonElement).click();
     expect(q('.pmd-doc-diff-dialog')).toBeNull();
   });
@@ -151,7 +151,7 @@ describe('Compare documents — the results step', () => {
     // Smoke-test the button exists and switches views without asserting
     // internal state — the picker-step tests above cover that view.
     return runCompare(cardBytes('T', 'A'), cardBytes('T', 'B')).then(() => {
-      const back = qa('.pmd-doc-diff-footer .pmd-doc-diff-btn').find((b) => b.textContent === 'Compare different files');
+      const back = qa('.pmd-doc-diff-topbar-actions .pmd-doc-diff-btn').find((b) => b.textContent === 'Compare different files');
       (back as HTMLButtonElement).click();
       expect(qa('.pmd-doc-diff-picker-row')).toHaveLength(2);
     });
@@ -159,7 +159,7 @@ describe('Compare documents — the results step', () => {
 
   it('Close closes the dialog', async () => {
     await runCompare(cardBytes('T', 'A'), cardBytes('T', 'B'));
-    const close = qa('.pmd-doc-diff-footer .pmd-doc-diff-btn').find((b) => b.textContent === 'Close');
+    const close = qa('.pmd-doc-diff-topbar-actions .pmd-doc-diff-btn').find((b) => b.textContent === 'Close');
     (close as HTMLButtonElement).click();
     expect(q('.pmd-doc-diff-dialog')).toBeNull();
   });
@@ -174,5 +174,115 @@ describe('Compare documents — the results step', () => {
     expect(equalRow!.querySelector('.pmd-doc-diff-cell-left .pmd-doc-diff-text')?.textContent).toBe('Tag');
     expect(changedRow!.querySelector('.pmd-doc-diff-cell-remove .pmd-doc-diff-text')?.textContent).toBe('Old body');
     expect(changedRow!.querySelector('.pmd-doc-diff-cell-add .pmd-doc-diff-text')?.textContent).toBe('New body');
+  });
+
+  it('fills the viewport as a page, not a bounded popup', async () => {
+    await runCompare(cardBytes('T', 'A'), cardBytes('T', 'B'));
+    const dialog = q<HTMLElement>('.pmd-doc-diff-dialog')!;
+    expect(dialog.style.maxWidth).toBe('');
+    expect(dialog.classList.contains('pmd-doc-diff-dialog-wide')).toBe(false); // no such class anymore
+  });
+});
+
+describe('Compare documents — the outline rails', () => {
+  // jsdom doesn't implement scrollIntoView; stub it so clicking an
+  // outline entry doesn't throw, and so the click can be observed.
+  let scrollSpy: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+  });
+
+  function multiCardBytes(cards: Array<[tag: string, body: string]>): Uint8Array {
+    const doc = schema.nodes['doc']!.createChecked(
+      null,
+      cards.map(([tag, body]) =>
+        schema.nodes['card']!.createChecked(null, [
+          schema.nodes['tag']!.create({ id: newHeadingId() }, schema.text(tag)),
+          schema.nodes['card_body']!.create(null, schema.text(body)),
+        ]),
+      ),
+    );
+    return serializeNative(doc);
+  }
+
+  async function runCompare(bytesA: Uint8Array, bytesB: Uint8Array): Promise<void> {
+    openFileMock.mockResolvedValueOnce({ name: 'a.cmir', bytes: bytesA }).mockResolvedValueOnce({ name: 'b.cmir', bytes: bytesB });
+    openDocDiff();
+    pickerButtons()[0]!.click();
+    await flush();
+    pickerButtons()[1]!.click();
+    await flush();
+    compareBtn().click();
+    await waitForResults();
+  }
+
+  it('lists one outline entry per heading, on both sides', async () => {
+    await runCompare(
+      multiCardBytes([
+        ['First tag', 'body one'],
+        ['Second tag', 'body two'],
+      ]),
+      multiCardBytes([['First tag', 'body one']]),
+    );
+    const left = qa('.pmd-doc-diff-outline-left .pmd-doc-diff-outline-entry').map((e) => e.textContent);
+    const right = qa('.pmd-doc-diff-outline-right .pmd-doc-diff-outline-entry').map((e) => e.textContent);
+    expect(left).toEqual(['First tag', 'Second tag']);
+    expect(right).toEqual(['First tag']);
+  });
+
+  it('clicking an outline entry scrolls the matching diff row into view', async () => {
+    await runCompare(
+      multiCardBytes([
+        ['First tag', 'body one'],
+        ['Second tag', 'body two'],
+      ]),
+      multiCardBytes([
+        ['First tag', 'body one'],
+        ['Second tag', 'body two'],
+      ]),
+    );
+    const entries = qa('.pmd-doc-diff-outline-left .pmd-doc-diff-outline-entry') as HTMLButtonElement[];
+    const secondTagEntry = entries.find((e) => e.textContent === 'Second tag')!;
+    expect(secondTagEntry.disabled).toBe(false);
+    secondTagEntry.click();
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+    // The scrolled element is the row cell actually holding "Second tag".
+    const scrolledEl = scrollSpy.mock.contexts[0] as HTMLElement;
+    expect(scrolledEl.textContent).toContain('Second tag');
+  });
+
+  it('a heading with no matching diff line (e.g. untitled) renders disabled, not hidden', async () => {
+    const untitled = schema.nodes['doc']!.createChecked(null, [
+      schema.nodes['card']!.createChecked(null, [
+        schema.nodes['tag']!.create({ id: newHeadingId() }), // empty tag text
+        schema.nodes['card_body']!.create(null, schema.text('body')),
+      ]),
+    ]);
+    await runCompare(serializeNative(untitled), cardBytes('Tag', 'body'));
+    const entry = qa('.pmd-doc-diff-outline-left .pmd-doc-diff-outline-entry')[0] as HTMLButtonElement;
+    expect(entry.disabled).toBe(true);
+    expect(entry.textContent).toContain('untitled');
+  });
+
+  it('two same-named headings on one side jump to their own occurrence, not always the first', async () => {
+    await runCompare(
+      multiCardBytes([
+        ['Extend', 'first occurrence body'],
+        ['Extend', 'second occurrence body'],
+      ]),
+      multiCardBytes([['Extend', 'first occurrence body']]),
+    );
+    const entries = qa('.pmd-doc-diff-outline-left .pmd-doc-diff-outline-entry') as HTMLButtonElement[];
+    expect(entries).toHaveLength(2);
+    entries[1]!.click();
+    const scrolledEl = scrollSpy.mock.contexts[0] as HTMLElement;
+    // The second "Extend" entry must resolve to the SECOND row with that
+    // text (the one belonging to the second card), not the first again.
+    const allExtendCells = qa('.pmd-doc-diff-cell-left').filter(
+      (e) => e.querySelector('.pmd-doc-diff-text')?.textContent === 'Extend',
+    );
+    expect(allExtendCells).toHaveLength(2);
+    expect(scrolledEl).toBe(allExtendCells[1]);
   });
 });

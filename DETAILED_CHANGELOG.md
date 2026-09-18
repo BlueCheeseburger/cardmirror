@@ -71,10 +71,33 @@ a single overlay (`pushOverlay`/`popOverlay`, `installModalKeys`,
    → `parseNative`), diffs them, and renders a split table — a colored
    `+`/`−` gutter marker and a tinted row background per cell
    (`--pmd-c-success-soft` / `--pmd-c-error-bg`, the existing theme tokens,
-   so dark mode needs no separate override). "Compare different files"
-   goes back to the picker; Close tears the whole thing down. A collapsed
-   single-column layout takes over at phone width (`@media (max-width:
-   640px)`), since a two-column split can't fit there.
+   so dark mode needs no separate override).
+
+The dialog fills the viewport — a fixed topbar (title/names + Cancel-
+Compare or Back-Close) over independently-scrolling panes below it —
+rather than a bounded, centered popup: the original popup capped itself
+at `max-height: 85vh` with the WHOLE dialog as one scroll container,
+which on a real document's worth of rows left no reliable way to reach
+the content below the fold (field report, 2026-09-18, with a screenshot
+showing the table cut off and unscrollable). The results step also gains
+an outline rail on each side of the table, built from `collectHeadings`
+(`headings.ts`) — the SAME doc-only heading walk `nav-panel.ts` itself
+calls, requested explicitly ("use the same code from the actual doc
+viewers") — with `skipCite: true` (this view has no use for cite text,
+the bulk of that function's cost on a long doc). Since neither document
+is ever mounted into an EditorView, there's no live position to jump to;
+clicking an outline entry instead scrolls the matching row into view by
+TEXT match against a `Map<string, HTMLElement[]>` built while the table
+renders (one side each), with an occurrence counter so two same-named
+headings (a repeated tag like "Extend" is common in a debate doc) jump
+to their own row instead of both landing on the first. A heading whose
+text produced no diff line (an empty-titled heading, e.g.) renders
+disabled rather than being hidden, so the outline still reflects the
+document's real structure. "Compare different files" goes back to the
+picker; Close tears the whole thing down. Below 900px, both outlines and
+the two-column split table don't fit — the outlines are dropped and the
+table stacks left-above-right per row instead, same as the original
+phone-width fallback.
 
 `home-screen.ts`: `HomeScreenCallbacks` gains a required (not optional,
 unlike `clean`/`bulkConvert`/`bulkCompress`) `compareDocuments` field —
@@ -96,25 +119,32 @@ no shared prefix/suffix throws `DiffTooLargeError`, and a document-sized
 diff (a few thousand differing lines each side) stays comfortably under
 the cap.
 
-`tests/editor/doc-diff-ui.test.ts` (10 tests) mocks `getHost()` to return
+`tests/editor/doc-diff-ui.test.ts` (15 tests) mocks `getHost()` to return
 picked-file results directly (no native file picker in a test), driving
 the real dialog code end to end: both picker-step behaviors (Compare
-staying disabled, a cancelled pick leaving a row empty) and the full
+staying disabled, a cancelled pick leaving a row empty), the full
 results render (correct add/remove/equal cell placement for a changed
 line, the `+N −M` summary, "No differences." for identical inputs, both
-footer buttons) — including one case built from REAL `.docx` bytes
-(`toDocx`), exercising `fromDocxFull` end to end: the first two rounds of
-testing this feature only ever exercised `.cmir` bytes, which never
-touched that branch at all despite `.docx` being the format this app
-exists to interoperate with. `fromDocxFull` does real async zip reads
-(unlike `.cmir`'s synchronous `parseNative`), so that test polls for the
-results view (`vi.waitFor`) rather than the fixed microtask flush the
-`.cmir` tests get away with. Verified visually end to end with a
-temporary local dev server + Playwright too, including with the
-file-picker fallback (`<input type="file">`, forced by deleting
-`window.showOpenFilePicker` so Playwright's `filechooser` event could
-drive it) actually picking two real `.cmir` files built in-page via
-`serializeNative` and comparing them.
+topbar buttons, the dialog filling the viewport rather than a bounded
+popup), one case built from REAL `.docx` bytes (`toDocx`), exercising
+`fromDocxFull` end to end (the first two rounds of testing this feature
+only ever exercised `.cmir` bytes, which never touched that branch at
+all despite `.docx` being the format this app exists to interoperate
+with — `fromDocxFull` does real async zip reads, unlike `.cmir`'s
+synchronous `parseNative`, so that test polls for the results view
+(`vi.waitFor`) rather than the fixed microtask flush the `.cmir` tests
+get away with), and a dedicated "outline rails" describe block: one
+entry per heading on each side, clicking an entry calls `scrollIntoView`
+on the matching row (`Element.prototype.scrollIntoView` stubbed —
+jsdom doesn't implement it), an empty-titled heading renders disabled
+rather than hidden, and two same-named headings on one side resolve to
+their own occurrence rather than both landing on the first row with
+that text. Verified visually end to end with a temporary local dev
+server + Playwright too, including with the file-picker fallback
+(`<input type="file">`, forced by deleting `window.showOpenFilePicker`
+so Playwright's `filechooser` event could drive it) actually picking two
+real `.cmir` files built in-page via `serializeNative`, comparing them,
+and clicking an outline entry to confirm the scroll + highlight.
 
 Known limit, left as-is: `parseDiffDoc` doesn't run
 `maybeDecryptForOpen`, which every other open path in the app does — a
