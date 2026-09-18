@@ -2350,10 +2350,11 @@ class QuickCardSearchUI {
       const visibleParts = relativeParts.length >= 2
         ? ['…', ...relativeParts.slice(-2)]
         : fullParts;
-      this.browseHeaderEl.textContent = visibleParts.join(' / ');
-      this.browseHeaderEl.title = fullParts.join(' / ');
+      const path = document.createElement('span');
+      path.className = 'pmd-qcs-browse-path';
+      path.textContent = visibleParts.join(' / ');
+      this.browseHeaderEl.replaceChildren(path);
     } else {
-      this.browseHeaderEl.removeAttribute('title');
       const title = document.createElement('span');
       title.textContent = 'Browse folders';
       const currentHint = document.createElement('span');

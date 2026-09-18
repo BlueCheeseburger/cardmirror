@@ -10373,6 +10373,11 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   text-overflow: ellipsis;
 }
 .pmd-qcs-browse-header[hidden] { display: none; }
+.pmd-qcs-browse-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .pmd-qcs-browse-current-hint {
   color: var(--pmd-c-text-muted);
   font-weight: 400;
