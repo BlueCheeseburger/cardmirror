@@ -1026,6 +1026,8 @@ class QuickCardSearchUI {
   private browseGen = 0;
   private browseGenApplied = 0;
   private lastBrowseSuffix = '';
+  /** Whether the active `/c` invocation moved to a different folder. */
+  private browseCurrentJumpMoved = false;
   private browseNotice: string | null = null;
 
   // ── File-search state (the `f` prefix) ──────────────────────────────
@@ -1204,6 +1206,7 @@ class QuickCardSearchUI {
     this.browseQueryKey = null;
     this.browseQueryPending = null;
     this.lastBrowseSuffix = '';
+    this.browseCurrentJumpMoved = false;
     this.browseNotice = null;
   }
 
@@ -1341,16 +1344,20 @@ class QuickCardSearchUI {
         this.selected = 0;
       }
       if (suffix === 'c' && this.lastBrowseSuffix !== 'c') {
+        this.browseCurrentJumpMoved = false;
         this.lastBrowseSuffix = suffix;
         this.runBrowse();
         void this.jumpBrowseToCurrent();
       } else {
         if (suffix === '' && this.lastBrowseSuffix === 'c') {
-          this.browseLocation = null;
-          this.browseQueryKey = null;
+          if (this.browseCurrentJumpMoved) {
+            this.browseLocation = null;
+            this.browseQueryKey = null;
+            this.visibleCount = RESULT_PAGE_SIZE;
+            this.selected = 0;
+          }
+          this.browseCurrentJumpMoved = false;
           this.browseNotice = null;
-          this.visibleCount = RESULT_PAGE_SIZE;
-          this.selected = 0;
         } else if (suffix !== '' && suffix !== 'c') {
           this.browseNotice = 'Unknown browse shortcut. Use / for roots or /c for the current file’s folder.';
         } else if (suffix !== 'c') {
@@ -1545,7 +1552,13 @@ class QuickCardSearchUI {
       if (token !== this.asyncToken || !this.root || !this.browseActive || this.lastBrowseSuffix !== 'c') return;
       if (located.ok) {
         this.browseNotice = null;
-        this.setBrowseLocation(located.location);
+        const current = this.browseLocation;
+        const moved = !current
+          || current.root !== located.location.root
+          || current.relativeDirectory !== located.location.relativeDirectory;
+        this.browseCurrentJumpMoved = moved;
+        if (moved) this.setBrowseLocation(located.location);
+        else this.runBrowse();
       } else {
         this.browseNotice = located.reason === 'excluded'
           ? 'The current file is excluded from file search. Remove that exclusion to use /c.'
@@ -2329,13 +2342,20 @@ class QuickCardSearchUI {
     this.browseNoticeEl.hidden = !show || !this.browseNotice;
     if (!show) return;
     if (this.browseLocation) {
-      this.browseHeaderEl.textContent = [
+      const relativeParts = pathParts(this.browseLocation.relativeDirectory);
+      const fullParts = [
         pathBase(this.browseLocation.root),
-        ...pathParts(this.browseLocation.relativeDirectory),
-      ].join(' / ');
+        ...relativeParts,
+      ];
+      const visibleParts = relativeParts.length >= 2
+        ? ['…', ...relativeParts.slice(-2)]
+        : fullParts;
+      this.browseHeaderEl.textContent = visibleParts.join(' / ');
+      this.browseHeaderEl.title = fullParts.join(' / ');
     } else {
+      this.browseHeaderEl.removeAttribute('title');
       const title = document.createElement('span');
-      title.textContent = 'File-search folders';
+      title.textContent = 'Browse folders';
       const currentHint = document.createElement('span');
       currentHint.className = 'pmd-qcs-browse-current-hint';
       currentHint.textContent = 'type C to jump to the Current Folder';
