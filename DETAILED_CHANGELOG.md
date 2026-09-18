@@ -12,6 +12,117 @@ Upstream release details are in the sections below under
 
 ## 1.10.0-bcb.3.5 — 2026-09-15
 
+### Added: Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `home-screen.ts`, `index.ts`, `style.css`)
+
+Requested directly: a way to see the differences between two documents —
+this year's file vs. last year's, a partner's edit vs. yours, a draft
+before and after cutting — rendered the way a code diff shows changes,
+without either file becoming the live working document.
+
+`doc-diff.ts` is the pure core, DOM- and Electron-free so it's cheap to
+unit test directly against hand-built docs (`tests/editor/doc-diff.test.ts`,
+18 tests):
+- `extractDiffLines(doc)` flattens a document to one line of plain text per
+  leaf textblock (tag, cite, body, undertag, heading paragraphs — whatever
+  the schema nests text in), in document order, dropping marks/formatting
+  entirely (this is a TEXT diff, like `git diff`, not a rich-text one). A
+  blank line is inserted before each top-level `card`/`analytic_unit`
+  (after the first) so the flattened transcript keeps a whiff of the
+  document's own structure, the way blank lines between functions read in
+  a code diff.
+- `diffLines(a, b)` is a textbook LCS line diff via the standard dynamic-
+  programming table — O(n·m) time and space over what's left after
+  stripping the common prefix/suffix first (always safe for LCS; for two
+  versions of mostly the same document — the expected case here — it
+  often shrinks the table to just the differing middle instead of the
+  whole document). What remains is capped at `MAX_DIFF_CELLS`
+  (25,000,000 — generously covers thousands of genuinely DIFFERING
+  lines while keeping the table's peak allocation in the tens of MB,
+  not hundreds): past that, `diffLines` throws `DiffTooLargeError`
+  rather than let two large, wildly different documents (this app's own
+  README calls out "multi-megabyte evidence files" as the normal case)
+  try to allocate a table sized for the untrimmed input.
+  `doc-diff-ui.ts`'s `runCompare` catches it and shows the message
+  instead of crashing. Returns the edit sequence in document order (a
+  `remove` run immediately followed by an `add` run is a "changed"
+  region).
+- `toDiffRows(lines)` pairs that sequence into side-by-side rows for a
+  split view: an `equal` line occupies both columns on one row; a run of
+  consecutive `remove`/`add` lines zips removes against adds position-for-
+  position, padding the shorter side with a `blank` cell — the same
+  alignment a GitHub-style split diff shows. `summarize(lines)` gives the
+  `+N −M` counts for the header.
+
+`doc-diff-ui.ts` is the one caller that touches the DOM or a file picker —
+a single overlay (`pushOverlay`/`popOverlay`, `installModalKeys`,
+`captureFocusForDialog`/`armDialogFocus`, same scaffolding
+`save-as-ui.ts` uses) whose content swaps in place across two steps
+(same convention as `web-file-tools.ts`'s progress modal):
+1. **Picker** — two rows ("First document" / "Second document"), each a
+   `getHost().openFile({ filters: [...] })` call (host-agnostic: the SAME
+   call on both Electron and the web edition, unlike Clean/Convert/
+   Compress which split desktop-bulk vs. web-single-file — comparing two
+   files never needs recursive folder I/O, so there's nothing to split).
+   Compare is disabled until both are picked.
+2. **Results** — parses both picked files' bytes (`bytesLookLikeDocx`
+   sniffs for the docx zip signature the same way `index.ts`'s own open
+   path does, kept as a small LOCAL copy rather than importing from that
+   large, side-effecting module; `.docx` → `fromDocxFull`, everything else
+   → `parseNative`), diffs them, and renders a split table — a colored
+   `+`/`−` gutter marker and a tinted row background per cell
+   (`--pmd-c-success-soft` / `--pmd-c-error-bg`, the existing theme tokens,
+   so dark mode needs no separate override). "Compare different files"
+   goes back to the picker; Close tears the whole thing down. A collapsed
+   single-column layout takes over at phone width (`@media (max-width:
+   640px)`), since a two-column split can't fit there.
+
+`home-screen.ts`: `HomeScreenCallbacks` gains a required (not optional,
+unlike `clean`/`bulkConvert`/`bulkCompress`) `compareDocuments` field —
+required because, being host-agnostic, it's always available, unlike
+those three which split by platform. New "Compare" labeled group in the
+utilities grid, between Compress and Quick Cards; the number-key shortcut
+runners array gained a matching entry in the same position, which shifted
+Quick Cards'/Learn's shortcut numbers down by one when Compress is off —
+`home-screen-shortcuts.test.ts`'s two reflow tests updated for the new
+numbering (their own doc comment already documented this "numbers close
+the gap" behavior for the Compress-gated case; this is the same
+mechanism, just with one more tile in the sequence).
+
+`tests/editor/doc-diff.test.ts` (21 tests, up from an initial 18) adds
+coverage for the trim/cap safety net: a large shared prefix+suffix
+around a small changed middle still diffs correctly (locks in the trim
+boundaries, not just that they're fast), a deliberately huge pair with
+no shared prefix/suffix throws `DiffTooLargeError`, and a document-sized
+diff (a few thousand differing lines each side) stays comfortably under
+the cap.
+
+`tests/editor/doc-diff-ui.test.ts` (10 tests) mocks `getHost()` to return
+picked-file results directly (no native file picker in a test), driving
+the real dialog code end to end: both picker-step behaviors (Compare
+staying disabled, a cancelled pick leaving a row empty) and the full
+results render (correct add/remove/equal cell placement for a changed
+line, the `+N −M` summary, "No differences." for identical inputs, both
+footer buttons) — including one case built from REAL `.docx` bytes
+(`toDocx`), exercising `fromDocxFull` end to end: the first two rounds of
+testing this feature only ever exercised `.cmir` bytes, which never
+touched that branch at all despite `.docx` being the format this app
+exists to interoperate with. `fromDocxFull` does real async zip reads
+(unlike `.cmir`'s synchronous `parseNative`), so that test polls for the
+results view (`vi.waitFor`) rather than the fixed microtask flush the
+`.cmir` tests get away with. Verified visually end to end with a
+temporary local dev server + Playwright too, including with the
+file-picker fallback (`<input type="file">`, forced by deleting
+`window.showOpenFilePicker` so Playwright's `filechooser` event could
+drive it) actually picking two real `.cmir` files built in-page via
+`serializeNative` and comparing them.
+
+Known limit, left as-is: `parseDiffDoc` doesn't run
+`maybeDecryptForOpen`, which every other open path in the app does — a
+password-protected `.docx` picked here surfaces the generic "Couldn't
+read one of the documents" instead of a password prompt. Reasonable for
+a read-only comparison tool; revisit if it turns out people actually
+compare password-protected files.
+
 ### Added: per-reader lay-speaking rate + status-bar toggle (`settings.ts`, `word-count.ts`, `live-read-time.ts`, `index.ts`, `multi-pane-shell.ts`, `settings-ui.ts`, `mobile-settings-ui.ts`)
 
 Requested directly: a way to see read times at a lay-speaking pace, not

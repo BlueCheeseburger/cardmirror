@@ -16,6 +16,7 @@ function makeCallbacks(): HomeScreenCallbacks & { newDoc: ReturnType<typeof vi.f
     open: vi.fn(),
     openRecent: vi.fn(),
     manageQuickCards: vi.fn(),
+    compareDocuments: vi.fn(),
   };
 }
 
@@ -81,29 +82,40 @@ describe('home-screen shortcuts reflow around the gated Compress tile', () => {
       open: vi.fn(),
       openRecent: vi.fn(),
       manageQuickCards: vi.fn(),
+      compareDocuments: vi.fn(),
       clean: vi.fn(),
       bulkConvert: vi.fn(),
       ...extra,
-    } as HomeScreenCallbacks & { manageQuickCards: ReturnType<typeof vi.fn> };
+    } as HomeScreenCallbacks & {
+      manageQuickCards: ReturnType<typeof vi.fn>;
+      compareDocuments: ReturnType<typeof vi.fn>;
+    };
     homeScreen.mount(document.body, cb);
     homeScreen.show();
     return cb;
   }
 
-  it('Compress gated OFF: key 6 runs Manage quick cards (numbers close the gap)', () => {
-    // Runners: 1 New, 2 New speech, 3 Open, 4 Clean, 5 Convert, 6 Quick Cards.
+  it('Compress gated OFF: key 6 runs Compare, key 7 runs Manage quick cards (numbers close the gap)', () => {
+    // Runners: 1 New, 2 New speech, 3 Open, 4 Clean, 5 Convert, 6 Compare, 7 Quick Cards.
     const cb = mountWith({}); // no bulkCompress supplied
     press('6');
+    expect(cb.compareDocuments).toHaveBeenCalledTimes(1);
+    expect(cb.manageQuickCards).not.toHaveBeenCalled();
+    press('7');
     expect(cb.manageQuickCards).toHaveBeenCalledTimes(1);
   });
 
-  it('Compress gated ON: key 6 runs Compress, key 7 runs Manage quick cards', () => {
+  it('Compress gated ON: key 6 runs Compress, key 7 runs Compare, key 8 runs Manage quick cards', () => {
     const bulkCompress = vi.fn();
     const cb = mountWith({ bulkCompress });
     press('6');
     expect(bulkCompress).toHaveBeenCalledTimes(1);
+    expect(cb.compareDocuments).not.toHaveBeenCalled();
     expect(cb.manageQuickCards).not.toHaveBeenCalled();
     press('7');
+    expect(cb.compareDocuments).toHaveBeenCalledTimes(1);
+    expect(cb.manageQuickCards).not.toHaveBeenCalled();
+    press('8');
     expect(cb.manageQuickCards).toHaveBeenCalledTimes(1);
   });
 });

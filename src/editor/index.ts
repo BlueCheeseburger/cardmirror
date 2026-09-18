@@ -137,6 +137,7 @@ import { openBulkConvert, runConvertSingleFileWeb } from './bulk-convert-ui.js';
 import { openBulkCompress, runCompressSingleFileWeb } from './bulk-compress-ui.js';
 import { bulkCompressEnabled } from './bulk-compress-gate.js';
 import { openClean, runCleanSingleFileWeb } from './clean-ui.js';
+import { openDocDiff } from './doc-diff-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
 import { recordRecent, removeRecent, listRecents, type RecentFile } from './recents-store.js';
 import { recordRecentWorkspace, type RecentWorkspace } from './recent-workspaces-store.js';
@@ -7513,6 +7514,9 @@ const homeCallbacks: HomeScreenCallbacks = {
   },
   manageQuickCards: () => {
     void quickCardsManageUI.open();
+  },
+  compareDocuments: () => {
+    openDocDiff();
   },
   // Clean: Electron gets the folder-recursive modal; web cleans one file at a time.
   clean:

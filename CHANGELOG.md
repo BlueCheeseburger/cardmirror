@@ -12,6 +12,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **Compare documents.** A new "Compare" card on the home screen picks two
+  `.cmir`/`.docx` files and shows a line-by-line diff of their text, side by
+  side, with added/removed lines colored the way a code diff shows them.
+  Neither file is opened as your working document — the diff is read-only.
 - **Lay-speaking read times, alongside your flow speed.** Each reader in
   Settings can now carry an optional lay-speaking rate — pick "Lay speaking"
   from the new dropdown next to their wpm fields and enter it. Click the
