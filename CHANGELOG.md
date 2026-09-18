@@ -31,6 +31,22 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   folders**, making the list longer than it needed to be. It's now capped
   at the 5 most recently used (pinned folders are still exempt and never
   rotate out).
+- **Copying text in read mode copied everything, not just what was
+  visible.** Hidden filler text (everything the highlighting/cite marks
+  don't call out) stays in the document underneath read mode's display —
+  copying used to carry it along onto the clipboard anyway. Copy and
+  paste now match what's actually on screen.
+- **Saving a file whose name contained a slash wrote a folder structure
+  instead of one file** — a name like `R3 2NC (redo 9/17/26)` split on the
+  slash into nested folders. Slashes (and other characters a filesystem
+  can't use in a name) are now swapped for a hyphen before saving.
+- **The "reset to 100%" zoom button faded to near-invisible at 100%
+  zoom** instead of just looking disabled, reading as if it had
+  disappeared. It now stays fully visible at every zoom level; clicking
+  it while already at 100% is a no-op.
+- **"New document" → "New window" opened a new window on the home
+  screen instead of a fresh document.** The new window now opens
+  straight into the blank document it was asked for.
 
 ## 1.10.0-bcb.3.4 — 2026-09-15
 

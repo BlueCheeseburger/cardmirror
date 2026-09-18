@@ -28,6 +28,7 @@ import { settings } from './settings.js';
 import { setIcon } from './icons';
 import { pushOverlay, popOverlay } from './overlay-stack.js';
 import { installModalKeys, captureFocusForDialog } from './text-prompt.js';
+import { sanitizeFilename } from './speech-filename.js';
 import {
   listSaveLocations,
   toggleSaveLocationPin,
@@ -580,7 +581,14 @@ class SaveAsModal {
   private commit(): void {
     const trimmed = this.filenameInput.value.trim();
     if (!trimmed) return;
-    const named = withExtension(trimmed, this.currentFormat);
+    // A slash (or other path-separator-ish character) in the Name field
+    // used to reach the filesystem write untouched — `joinPath(dir,
+    // filename)` then a name like "R3 2NC (redo 9/17/26)" split into a
+    // literal nested-folder write instead of one file (field report,
+    // 2026-09-18). Same trust-boundary sanitizer `speech-filename.ts`
+    // already uses for the same reason.
+    const safe = sanitizeFilename(trimmed);
+    const named = withExtension(safe, this.currentFormat);
     const def = MODE_DEFS.find((d) => d.id === this.currentMode)!;
     const prefix = def.prefixSetting ? settings.get(def.prefixSetting) : '';
     const usePrefix = !!prefix && settings.get('prefixPresetSaveFilenames');

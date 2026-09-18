@@ -173,6 +173,7 @@ import {
 import { icon, setIcon } from './icons';
 import { formatSpeechFilename } from './speech-filename.js';
 import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
+import { blankSpawnPayload } from './host/types.js';
 
 type SlotId = 'slot1' | 'slot2' | 'slot3';
 const SLOT_IDS: SlotId[] = ['slot1', 'slot2', 'slot3'];
@@ -3704,7 +3705,7 @@ class MultiPaneShell {
     if (!choice) return;
     if (choice === 'new-window') {
       try {
-        await getHost().spawnWindow(null);
+        await getHost().spawnWindow(blankSpawnPayload());
       } catch (err) {
         console.error('Spawn window failed:', err);
         showToast(`Failed to open a new window: ${err instanceof Error ? err.message : err}`);

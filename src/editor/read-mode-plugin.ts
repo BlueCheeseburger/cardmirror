@@ -36,7 +36,7 @@
 import { Plugin } from 'prosemirror-state';
 import type { Command } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
-import type { Node as PMNode } from 'prosemirror-model';
+import { Fragment, Slice, type Node as PMNode } from 'prosemirror-model';
 import { undo, redo, undoDepth, redoDepth } from 'prosemirror-history';
 import { changedRange, expandToTopLevel } from './decoration-range.js';
 import { isSyncOrigin } from './sync-origin.js';
@@ -272,6 +272,158 @@ export function isReadModeKeptText(child: PMNode, parent: PMNode): boolean {
   if (kind === 'heading') return true;
   if (kind === null) return false;
   return isReadKept(child, kind) || keepsWholeParagraph(parent, kind);
+}
+
+/** Source-doc context for `filterSliceForReadMode`: the full document the
+ *  slice was cut from, and the range it was cut with. Lets the filter
+ *  consult the FULL (un-cut) boundary paragraph for "Read mode: keep
+ *  entire cite" instead of just the partial one the slice carries — see
+ *  the doc comment on `filterSliceForReadMode`. */
+export interface ReadModeFilterSource {
+  doc: PMNode;
+  from: number;
+  to: number;
+}
+
+/**
+ * Copy-time filter: reduce a clipboard slice down to the text read mode
+ * actually shows, so copying while in read mode can't leak `pmd-rm-hide`
+ * filler onto the clipboard just because it's still present in the doc
+ * model. Non-destructive — the live document is untouched; this only
+ * reshapes what `transformCopied` hands to the clipboard.
+ *
+ * Recurses through the slice's tree. A textblock read mode decorates
+ * (cite/body paragraphs, undertags) gets its inline children rebuilt
+ * from only the kept runs, with a single space inserted wherever a
+ * hidden gap separated two kept runs — mirroring the `pmd-rm-separator`
+ * widget the live view renders at the same boundary, so words don't
+ * fuse together once the filler is gone. A heading-kind textblock (read
+ * mode always shows its text) and any other container pass through
+ * unchanged, recursing into their children.
+ *
+ * `source`, when given, fixes two boundary cases stemming from the same
+ * root cause: ProseMirror's `Node.slice` represents a selection that
+ * never leaves a single textblock as BARE INLINE content — no
+ * cite_paragraph/card_body wrapper at all (`openStart`/`openEnd` both
+ * 0) — since that's the common case (select some text, copy), a slice
+ * like that has no node of its own to carry `parent.type.name`, so
+ * without `source` there's no way to know which read-mode rule even
+ * applies. And even when a selection DOES cross a block boundary and a
+ * partial paragraph shows up wrapped at the slice's edge, "Read mode:
+ * keep entire cite" decides whole-paragraph visibility by scanning for
+ * ANY kept run in the paragraph — which that partial node might not
+ * contain even though the FULL paragraph (and so the live view) does.
+ * Threading the source doc resolves both: the immediate parent of a
+ * bare-inline slice, and the real, complete paragraph behind a partial
+ * boundary node.
+ */
+export function filterSliceForReadMode(slice: Slice, source?: ReadModeFilterSource): Slice {
+  if (slice.content.size === 0) return slice;
+  if (slice.content.firstChild?.isInline) {
+    if (!source) return slice; // no context to know which rule (if any) governs this text
+    const parent = source.doc.resolve(clampPos(source.doc, source.from)).parent;
+    const kind = readKeptKind(parent.type.name);
+    if (kind === null || kind === 'heading') return slice;
+    return new Slice(filterInlineFragment(slice.content, kind, parent), slice.openStart, slice.openEnd);
+  }
+  let leftSpine: readonly PMNode[] = [];
+  let rightSpine: readonly PMNode[] = [];
+  if (source) {
+    if (slice.openStart > 0) leftSpine = fullSpine(source.doc, source.from, slice.openStart);
+    if (slice.openEnd > 0) rightSpine = fullSpine(source.doc, source.to, slice.openEnd);
+  }
+  return new Slice(filterFragmentForReadMode(slice.content, leftSpine, rightSpine), slice.openStart, slice.openEnd);
+}
+
+function clampPos(doc: PMNode, pos: number): number {
+  return Math.max(0, Math.min(pos, doc.content.size));
+}
+
+/** The FULL (un-cut) ancestor chain a slice's open boundary spine was cut
+ *  from: `depth` nodes, outermost first, matching `$pos.node(d)` for
+ *  `d` from `$pos.depth - depth + 1` to `$pos.depth`. */
+function fullSpine(doc: PMNode, pos: number, depth: number): readonly PMNode[] {
+  const $pos = doc.resolve(clampPos(doc, pos));
+  const spine: PMNode[] = [];
+  for (let d = $pos.depth - depth + 1; d <= $pos.depth; d++) {
+    if (d < 0) continue;
+    spine.push($pos.node(d));
+  }
+  return spine;
+}
+
+function filterFragmentForReadMode(
+  frag: Fragment,
+  leftSpine: readonly PMNode[],
+  rightSpine: readonly PMNode[],
+): Fragment {
+  const out: PMNode[] = [];
+  const last = frag.childCount - 1;
+  frag.forEach((node, _offset, index) => {
+    if (node.isText) {
+      out.push(node);
+      return;
+    }
+    const onLeft = index === 0 && leftSpine.length > 0;
+    const onRight = index === last && rightSpine.length > 0;
+    const full = onLeft ? leftSpine[0] : onRight ? rightSpine[0] : undefined;
+    const childLeft = onLeft ? leftSpine.slice(1) : [];
+    const childRight = onRight ? rightSpine.slice(1) : [];
+    const kind = readKeptKind(node.type.name);
+    if (kind === null) {
+      out.push(node.content.size ? node.copy(filterFragmentForReadMode(node.content, childLeft, childRight)) : node);
+      return;
+    }
+    if (kind === 'heading') {
+      out.push(node);
+      return;
+    }
+    out.push(node.copy(filterInlineFragment(node.content, kind, full ?? node)));
+  });
+  return Fragment.fromArray(out);
+}
+
+/** Rebuild one textblock's inline content (or a bare inline fragment cut
+ *  from one, with no wrapper node of its own — see `filterSliceForReadMode`)
+ *  down to its read-mode-kept runs. `fullNode` is the complete paragraph
+ *  this content came from — used only to decide "keep entire cite" (which
+ *  needs to see runs outside the cut range); the actual output is still
+ *  built from `frag`'s own (possibly partial) children, never from
+ *  `fullNode`'s. A non-text inline leaf (e.g. an image) carries no
+ *  rm-keep/hide decoration in the live view either — always visible — so
+ *  it passes through untouched. */
+function filterInlineFragment(frag: Fragment, markNames: readonly string[], fullNode: PMNode): Fragment {
+  const whole = keepsWholeParagraph(fullNode, markNames);
+  const out: PMNode[] = [];
+  let sawGap = false;
+  frag.forEach((child) => {
+    if (!child.isText) {
+      out.push(child);
+      sawGap = false;
+      return;
+    }
+    if (!child.text) return;
+    const keep = whole || isReadKept(child, markNames);
+    if (!keep) {
+      sawGap = true;
+      return;
+    }
+    // Bridge a dropped gap with a single space — but not if either side
+    // already ends/starts with whitespace, or the two kept runs would
+    // read as double-spaced on the clipboard (the live view's CSS
+    // collapses that; plain-text paste doesn't).
+    if (sawGap && out.length > 0 && !/\s$/.test(lastText(out)) && !/^\s/.test(child.text)) {
+      out.push(child.type.schema.text(' '));
+    }
+    sawGap = false;
+    out.push(child);
+  });
+  return Fragment.fromArray(out);
+}
+
+function lastText(nodes: readonly PMNode[]): string {
+  const last = nodes[nodes.length - 1];
+  return last && last.isText && last.text ? last.text : '';
 }
 
 /**

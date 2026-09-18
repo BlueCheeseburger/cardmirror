@@ -195,6 +195,7 @@ import {
   PMD_READ_MODE_TOGGLE,
   readModeAwareUndo,
   readModeAwareRedo,
+  filterSliceForReadMode,
 } from './read-mode-plugin.js';
 import { markUnreadPlugin, MARK_UNREAD_TOGGLE } from './mark-unread-plugin.js';
 import { makeSelfRefPlugin } from './self-transclusion-plugin.js';
@@ -320,6 +321,7 @@ import {
   conflictedCopyUserName,
 } from './disk-conflict.js';
 import type { DiskBase } from './host/types.js';
+import { blankSpawnPayload } from './host/types.js';
 import { makeBlankDoc } from './blank-doc.js';
 import { opensAsBlank, blankDocumentBytes } from './empty-open.js';
 import { indentParagraph, outdentParagraph } from './indent-keymap.js';
@@ -2540,7 +2542,7 @@ async function onNewDocClicked(): Promise<void> {
  *  path below. */
 async function spawnBlankWindow(): Promise<void> {
   try {
-    await getHost().spawnWindow(null);
+    await getHost().spawnWindow(blankSpawnPayload());
   } catch (err) {
     console.error('Spawn window failed:', err);
     void alertDialog(`Failed to open new window: ${err instanceof Error ? err.message : err}`);
@@ -3555,11 +3557,14 @@ function applyZoom(pct: number): void {
   updateZoomStatus(pct);
 }
 
-/** Status-bar % label + reset-button state only — shared by the single-pane
- *  applyZoom and the multi-pane per-pane path. */
+/** Status-bar % label only — shared by the single-pane applyZoom and the
+ *  multi-pane per-pane path. The reset button stays enabled at every zoom
+ *  level (clicking it at 100% is a harmless no-op): disabling it AT 100%
+ *  used to fade it to the generic `#ribbon button:disabled` 0.4 opacity,
+ *  which against the ribbon's light background read as the button having
+ *  vanished rather than as "disabled" — field report, 2026-09-18. */
 function updateZoomStatus(pct: number): void {
   zoomPct.textContent = `${pct}%`;
-  zoomResetBtn.disabled = pct === 100;
 }
 
 /** Apply body zoom to a SPECIFIC editor surface — multi-pane uses this per pane
@@ -6114,8 +6119,27 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
         // slice keyed by this view; the paste handler restores it when the paste
         // lands back in the same doc. Cache only when there's actually a link to
         // preserve; a link-less copy clears it.
+        //
+        // While the source view is in read mode, ALSO filter the flattened
+        // content down to what read mode actually shows (highlights, cites,
+        // headings) — otherwise the still-present-but-hidden text read mode
+        // only CSS-hides would ride along on copy (the doc model keeps it;
+        // read mode never deletes anything). The signature used to match a
+        // same-doc paste-back is taken from this same filtered result, so
+        // link restoration still recognizes its own copy; the restored
+        // original (on a match) is the full, unfiltered doc content, same
+        // as an unfiltered copy — read mode is a display lens, not something
+        // a same-doc link-restore should re-apply.
         transformCopied(slice, view) {
-          const clipboard = flattenSelfRefsInSlice(slice, view.state.doc, newHeadingId);
+          const flattened = flattenSelfRefsInSlice(slice, view.state.doc, newHeadingId);
+          const rm = readModePlugin.getState(view.state);
+          const clipboard = rm?.on
+            ? filterSliceForReadMode(flattened, {
+                doc: view.state.doc,
+                from: view.state.selection.from,
+                to: view.state.selection.to,
+              })
+            : flattened;
           if (fragmentHasSelfRef(slice.content) || fragmentHasZone(slice.content)) {
             rememberLinkedCopy(slice, view, clipboard);
           } else {
@@ -7884,6 +7908,17 @@ async function routeInitialDocIntoWorkspace(): Promise<boolean> {
   if (payload.resumeRoomId) {
     const m = await loadCollabUi();
     await m.resumeSessionFlow(makeMultiPaneSessionDeps(), payload.resumeRoomId);
+    return true;
+  }
+  if (payload.blank) {
+    // Explicit "spawn a blank doc" request ("New document → New
+    // window"). Multi-pane has no fallback for a payload-less spawn —
+    // unlike single-doc it never auto-mounts a starter — so without this
+    // branch a blank spawn fell all the way through to "blank multi-pane
+    // launch → home screen" below, same as a genuine first launch (field
+    // report, 2026-09-18). Straight into the default slot, no picker:
+    // this window has nothing else in it yet.
+    await multiDocOnNewDocDefaultSlot?.();
     return true;
   }
   await routeOpenedFile({
@@ -11147,6 +11182,16 @@ async function initSingleDocBoot(): Promise<void> {
     }
     if (payload.resumeRoomId) {
       await mountResumedSession(payload.resumeRoomId);
+      return;
+    }
+    if (payload.blank) {
+      // Explicit "spawn a blank doc" request ("New document → New
+      // window") — mount it directly and skip the home screen, same as
+      // any other spawn payload. Unlike a plain `null` payload, this
+      // isn't ambiguous with a genuine first launch (see `blank`'s doc
+      // comment in host/types.ts).
+      mountFreshBlankDoc();
+      view?.focus();
       return;
     }
     await mountFromSpawnPayload(payload);
