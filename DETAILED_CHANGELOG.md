@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## 1.10.0-bcb.3.5 — 2026-09-15
+## 1.10.0-bcb.4 — 2026-09-18
 
 ### Added: Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `home-screen.ts`, `index.ts`, `style.css`)
 
