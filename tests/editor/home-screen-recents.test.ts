@@ -36,6 +36,7 @@ function makeCallbacks(): HomeScreenCallbacks & {
     open: vi.fn(),
     openRecent: vi.fn(),
     manageQuickCards: vi.fn(),
+    compareDocuments: vi.fn(),
     reopenRecentWorkspace: vi.fn(),
   };
 }
