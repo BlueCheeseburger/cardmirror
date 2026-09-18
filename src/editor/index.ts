@@ -137,6 +137,7 @@ import { openBulkConvert, runConvertSingleFileWeb } from './bulk-convert-ui.js';
 import { openBulkCompress, runCompressSingleFileWeb } from './bulk-compress-ui.js';
 import { bulkCompressEnabled } from './bulk-compress-gate.js';
 import { openClean, runCleanSingleFileWeb } from './clean-ui.js';
+import { openDocDiff } from './doc-diff-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
 import { recordRecent, removeRecent, listRecents, type RecentFile } from './recents-store.js';
 import { recordRecentWorkspace, type RecentWorkspace } from './recent-workspaces-store.js';
@@ -195,6 +196,7 @@ import {
   PMD_READ_MODE_TOGGLE,
   readModeAwareUndo,
   readModeAwareRedo,
+  filterSliceForReadMode,
 } from './read-mode-plugin.js';
 import { markUnreadPlugin, MARK_UNREAD_TOGGLE } from './mark-unread-plugin.js';
 import { makeSelfRefPlugin } from './self-transclusion-plugin.js';
@@ -320,6 +322,7 @@ import {
   conflictedCopyUserName,
 } from './disk-conflict.js';
 import type { DiskBase } from './host/types.js';
+import { blankSpawnPayload } from './host/types.js';
 import { makeBlankDoc } from './blank-doc.js';
 import { opensAsBlank, blankDocumentBytes } from './empty-open.js';
 import { indentParagraph, outdentParagraph } from './indent-keymap.js';
@@ -362,7 +365,13 @@ import {
   formatNumber,
   type ReadAloudCounts,
 } from './word-count.js';
-import { liveContainerSegment, orderWordCountSegments, primaryReadSegment, remainingReadSegment } from './live-read-time.js';
+import {
+  hasLaySpeeds,
+  liveContainerSegment,
+  orderWordCountSegments,
+  primaryReadSegment,
+  remainingReadSegment,
+} from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import {
   installGlobalErrorSurface,
@@ -2534,7 +2543,7 @@ async function onNewDocClicked(): Promise<void> {
  *  path below. */
 async function spawnBlankWindow(): Promise<void> {
   try {
-    await getHost().spawnWindow(null);
+    await getHost().spawnWindow(blankSpawnPayload());
   } catch (err) {
     console.error('Spawn window failed:', err);
     void alertDialog(`Failed to open new window: ${err instanceof Error ? err.message : err}`);
@@ -3001,6 +3010,12 @@ if (cardMenuBtn) {
 readModeBtn.addEventListener('click', () => runRibbon('toggleReadMode'));
 autoScrollBtn?.addEventListener('click', () => runRibbon('toggleAutoScroll'));
 wordCountBtn.addEventListener('click', () => runRibbon('wordCountSelection'));
+// The readout itself (distinct from the Σ button above) toggles every
+// shown reader between their flow and lay-speaking rate. Always wired
+// (not gated on hasLaySpeeds()): the bar's own edit-time refresh keeps
+// the `pmd-wc-lay-capable` class current, so CSS alone controls whether
+// the click affordance is visible.
+wordCountText.addEventListener('click', () => toggleLaySpeaking());
 
 /** Push the current `navPaneVisible` setting into a body class so
  *  the CSS rules at the top of style.css can hide/show the nav
@@ -3543,11 +3558,14 @@ function applyZoom(pct: number): void {
   updateZoomStatus(pct);
 }
 
-/** Status-bar % label + reset-button state only — shared by the single-pane
- *  applyZoom and the multi-pane per-pane path. */
+/** Status-bar % label only — shared by the single-pane applyZoom and the
+ *  multi-pane per-pane path. The reset button stays enabled at every zoom
+ *  level (clicking it at 100% is a harmless no-op): disabling it AT 100%
+ *  used to fade it to the generic `#ribbon button:disabled` 0.4 opacity,
+ *  which against the ribbon's light background read as the button having
+ *  vanished rather than as "disabled" — field report, 2026-09-18. */
 function updateZoomStatus(pct: number): void {
   zoomPct.textContent = `${pct}%`;
-  zoomResetBtn.disabled = pct === 100;
 }
 
 /** Apply body zoom to a SPECIFIC editor surface — multi-pane uses this per pane
@@ -5393,6 +5411,18 @@ function effectiveFontSizeForDisplay(state: EditorState): FontSizeInfo {
  *  just to restore the whole-doc readout. */
 let lastWholeDocWords: ReadAloudCounts | null = null;
 
+/** Per-doc lay-speaking toggle for the single-doc status bar — session
+ *  state, never persisted, mirroring `readerViewOn` below. Flipped by
+ *  clicking the readout itself (`word-count-text`); switches every
+ *  reader shown from their flow rate (`wpm`/`tagWpm`) to their lay rate
+ *  (`layWpm`), or "—" for a reader with no lay rate configured. */
+let laySpeakingOn = false;
+
+function toggleLaySpeaking(): void {
+  laySpeakingOn = !laySpeakingOn;
+  refreshWordCount();
+}
+
 function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
   // In multi-doc mode the shared status-bar word counter is hidden
   // (each pane shows its own in its footer). Skip the O(doc-size)
@@ -5415,6 +5445,7 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
     primary = primaryReadSegment(countReadAloudSplit(view.state.doc, sel.from, sel.to), {
       selection: true,
       selectionLabel: 'Selection',
+      useLay: laySpeakingOn,
     });
   } else if (settings.get('liveDocWordCount')) {
     let counts: ReadAloudCounts;
@@ -5427,7 +5458,7 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
       counts = countReadAloudSplit(view.state.doc);
       lastWholeDocWords = counts;
     }
-    primary = primaryReadSegment(counts, { selection: false, selectionLabel: 'Selection' });
+    primary = primaryReadSegment(counts, { selection: false, selectionLabel: 'Selection', useLay: laySpeakingOn });
   } else {
     // Whole-doc readout off and nothing selected: no O(doc) walk at all —
     // the bar belongs to whichever of the other segments are on. Drop the
@@ -5444,10 +5475,12 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
   const order = settings.get(settings.get('readMode') ? 'wordCountOrderReadMode' : 'wordCountOrder');
   const segments = orderWordCountSegments(order, {
     doc: primary,
-    container: liveContainerSegment(view.state),
-    remaining: remainingReadSegment(view.state),
+    container: liveContainerSegment(view.state, laySpeakingOn),
+    remaining: remainingReadSegment(view.state, laySpeakingOn),
   });
   wordCountText.textContent = segments.join(' | ');
+  wordCountText.classList.toggle('pmd-active', laySpeakingOn);
+  wordCountText.classList.toggle('pmd-wc-lay-capable', hasLaySpeeds());
 }
 
 /**
@@ -6087,8 +6120,27 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
         // slice keyed by this view; the paste handler restores it when the paste
         // lands back in the same doc. Cache only when there's actually a link to
         // preserve; a link-less copy clears it.
+        //
+        // While the source view is in read mode, ALSO filter the flattened
+        // content down to what read mode actually shows (highlights, cites,
+        // headings) — otherwise the still-present-but-hidden text read mode
+        // only CSS-hides would ride along on copy (the doc model keeps it;
+        // read mode never deletes anything). The signature used to match a
+        // same-doc paste-back is taken from this same filtered result, so
+        // link restoration still recognizes its own copy; the restored
+        // original (on a match) is the full, unfiltered doc content, same
+        // as an unfiltered copy — read mode is a display lens, not something
+        // a same-doc link-restore should re-apply.
         transformCopied(slice, view) {
-          const clipboard = flattenSelfRefsInSlice(slice, view.state.doc, newHeadingId);
+          const flattened = flattenSelfRefsInSlice(slice, view.state.doc, newHeadingId);
+          const rm = readModePlugin.getState(view.state);
+          const clipboard = rm?.on
+            ? filterSliceForReadMode(flattened, {
+                doc: view.state.doc,
+                from: view.state.selection.from,
+                to: view.state.selection.to,
+              })
+            : flattened;
           if (fragmentHasSelfRef(slice.content) || fragmentHasZone(slice.content)) {
             rememberLinkedCopy(slice, view, clipboard);
           } else {
@@ -7463,6 +7515,9 @@ const homeCallbacks: HomeScreenCallbacks = {
   manageQuickCards: () => {
     void quickCardsManageUI.open();
   },
+  compareDocuments: () => {
+    openDocDiff();
+  },
   // Clean: Electron gets the folder-recursive modal; web cleans one file at a time.
   clean:
     getHost().kind === 'electron'
@@ -7857,6 +7912,17 @@ async function routeInitialDocIntoWorkspace(): Promise<boolean> {
   if (payload.resumeRoomId) {
     const m = await loadCollabUi();
     await m.resumeSessionFlow(makeMultiPaneSessionDeps(), payload.resumeRoomId);
+    return true;
+  }
+  if (payload.blank) {
+    // Explicit "spawn a blank doc" request ("New document → New
+    // window"). Multi-pane has no fallback for a payload-less spawn —
+    // unlike single-doc it never auto-mounts a starter — so without this
+    // branch a blank spawn fell all the way through to "blank multi-pane
+    // launch → home screen" below, same as a genuine first launch (field
+    // report, 2026-09-18). Straight into the default slot, no picker:
+    // this window has nothing else in it yet.
+    await multiDocOnNewDocDefaultSlot?.();
     return true;
   }
   await routeOpenedFile({
@@ -11120,6 +11186,16 @@ async function initSingleDocBoot(): Promise<void> {
     }
     if (payload.resumeRoomId) {
       await mountResumedSession(payload.resumeRoomId);
+      return;
+    }
+    if (payload.blank) {
+      // Explicit "spawn a blank doc" request ("New document → New
+      // window") — mount it directly and skip the home screen, same as
+      // any other spawn payload. Unlike a plain `null` payload, this
+      // isn't ambiguous with a genuine first launch (see `blank`'s doc
+      // comment in host/types.ts).
+      mountFreshBlankDoc();
+      view?.focus();
       return;
     }
     await mountFromSpawnPayload(payload);

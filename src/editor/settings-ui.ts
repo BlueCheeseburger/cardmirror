@@ -2751,6 +2751,82 @@ function buildReadersEditor(): HTMLElement {
       tagWpmLabel.title = tagWpmInput.title;
       row.appendChild(tagWpmLabel);
 
+      // Lay-speaking rate: an orthogonal THIRD speed (flat, no body/tag
+      // split) toggled live from the status-bar readout. Unlike tagWpm
+      // (always visible, blank = unset) this field is hidden until the
+      // dropdown picks "Lay speaking" — the dropdown's own value is
+      // derived from whether layWpm is already set, so it needs no
+      // separate stored state of its own.
+      const layModeSelect = document.createElement('select');
+      layModeSelect.className = 'pmd-reader-lay-mode';
+      layModeSelect.title =
+        'Flow: the main rate above, read live in the status bar. '
+        + 'Lay speaking: an optional slower rate for a lay audience — '
+        + 'click the status-bar readout to switch between them.';
+      const flowOpt = document.createElement('option');
+      flowOpt.value = 'flow';
+      flowOpt.textContent = 'Flow';
+      const layOpt = document.createElement('option');
+      layOpt.value = 'lay';
+      layOpt.textContent = 'Lay speaking';
+      layModeSelect.append(flowOpt, layOpt);
+      layModeSelect.value = reader.layWpm != null ? 'lay' : 'flow';
+      row.appendChild(layModeSelect);
+
+      const layWpmInput = document.createElement('input');
+      layWpmInput.type = 'number';
+      layWpmInput.className = 'pmd-reader-wpm pmd-reader-laywpm';
+      layWpmInput.min = '1';
+      layWpmInput.step = '1';
+      layWpmInput.value = reader.layWpm != null ? String(reader.layWpm) : '';
+      layWpmInput.placeholder = 'e.g. 150';
+      layWpmInput.hidden = reader.layWpm == null;
+      layWpmInput.setAttribute('aria-label', `${reader.name} lay-speaking words per minute`);
+      layWpmInput.addEventListener('change', () => {
+        const trimmed = layWpmInput.value.trim();
+        const clear = trimmed === '';
+        const v = parseInt(trimmed, 10);
+        if (!clear && (!Number.isFinite(v) || v <= 0)) {
+          layWpmInput.value = reader.layWpm != null ? String(reader.layWpm) : '';
+          return;
+        }
+        const next = settings.get('readers').map((r, i) => {
+          if (i !== idx) return r;
+          const { layWpm: _prev, ...rest } = r;
+          return clear ? rest : { ...rest, layWpm: v };
+        });
+        commit(next);
+      });
+      row.appendChild(layWpmInput);
+
+      const layWpmLabel = document.createElement('span');
+      layWpmLabel.className = 'pmd-reader-wpm-label';
+      layWpmLabel.textContent = 'lay wpm';
+      layWpmLabel.hidden = reader.layWpm == null;
+      row.appendChild(layWpmLabel);
+
+      layModeSelect.addEventListener('change', () => {
+        if (layModeSelect.value === 'lay') {
+          // Reveal the field but don't commit yet — an empty layWpm
+          // shouldn't be persisted, so wait for the user to actually
+          // type a value (the change handler above commits it).
+          layWpmInput.hidden = false;
+          layWpmLabel.hidden = false;
+          layWpmInput.focus();
+        } else {
+          layWpmInput.hidden = true;
+          layWpmLabel.hidden = true;
+          if (reader.layWpm != null) {
+            const next = settings.get('readers').map((r, i) => {
+              if (i !== idx) return r;
+              const { layWpm: _prev, ...rest } = r;
+              return rest;
+            });
+            commit(next);
+          }
+        }
+      });
+
       const upBtn = document.createElement('button');
       upBtn.type = 'button';
       upBtn.className = 'pmd-reader-move';

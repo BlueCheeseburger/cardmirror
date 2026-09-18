@@ -23,6 +23,7 @@ import {
   liveContainerSegment,
   remainingReadSegment,
   primaryReadSegment,
+  hasLaySpeeds,
 } from '../../src/editor/live-read-time.js';
 import { countReadAloudSplit, totalWords } from '../../src/editor/word-count.js';
 import { settings } from '../../src/editor/settings.js';
@@ -372,5 +373,72 @@ describe('primaryReadSegment (the whole-document readout)', () => {
     expect(seg).toContain('Reader 1:');
     expect(seg).toContain('Reader 2:');
     expect(seg.split(' · ')).toHaveLength(3);
+  });
+});
+
+describe('useLay — the per-doc lay-speaking toggle', () => {
+  const doc = schema.nodes['doc']!.createChecked(null, [card('Tag one', 'alpha bravo charlie'), card('Tag two', 'delta echo')]);
+  const counts = () => countReadAloudSplit(doc);
+  const children = [heading('block', 'Block One'), card('Alpha tag', 'alpha body two three')];
+
+  it('defaults to flow (useLay omitted) — no "(lay)" suffix, flow-rate numbers', () => {
+    settings.set('readers', [
+      { name: 'Amy', wpm: 200, layWpm: 80 },
+      { name: 'Ben', wpm: 100 },
+    ]);
+    const seg = primaryReadSegment(counts(), { selection: false, selectionLabel: 'Selection' })!;
+    expect(seg).not.toContain('(lay)');
+    expect(seg).toContain('Amy: ');
+  });
+
+  it('useLay true labels every reader "(lay)" and switches to layWpm', () => {
+    settings.set('readers', [
+      { name: 'Amy', wpm: 200, layWpm: 80 },
+      { name: 'Ben', wpm: 100 },
+    ]);
+    const seg = primaryReadSegment(counts(), {
+      selection: false,
+      selectionLabel: 'Selection',
+      useLay: true,
+    })!;
+    expect(seg).toContain('Amy (lay): ');
+    // Ben has no layWpm — shows "—", not a silently-stale flow number,
+    // so an unconfigured reader can never look like it just didn't move.
+    expect(seg).toContain('Ben (lay): —');
+  });
+
+  it('liveContainerSegment and remainingReadSegment also thread useLay', () => {
+    settings.set('readers', [{ name: 'Amy', wpm: 200, layWpm: 80 }]);
+    settings.set('liveRemainingReadTime', true);
+    const state = stateAt(children, 'alpha body');
+    expect(liveContainerSegment(state, true)).toContain('Amy (lay): ');
+    expect(remainingReadSegment(state, true)).toContain('Amy (lay): ');
+    settings.set('liveRemainingReadTime', false);
+  });
+});
+
+describe('hasLaySpeeds', () => {
+  it('false when no reader among the first two shown has a usable layWpm', () => {
+    settings.set('readers', [{ name: 'Amy', wpm: 200 }, { name: 'Ben', wpm: 100 }]);
+    expect(hasLaySpeeds()).toBe(false);
+  });
+
+  it('true when at least one of the first two readers has a usable layWpm', () => {
+    settings.set('readers', [{ name: 'Amy', wpm: 200, layWpm: 80 }, { name: 'Ben', wpm: 100 }]);
+    expect(hasLaySpeeds()).toBe(true);
+  });
+
+  it('a layWpm on a third-plus reader (never shown live) does not count', () => {
+    settings.set('readers', [
+      { name: 'Amy', wpm: 200 },
+      { name: 'Ben', wpm: 100 },
+      { name: 'Cal', wpm: 300, layWpm: 80 },
+    ]);
+    expect(hasLaySpeeds()).toBe(false);
+  });
+
+  it('an invalid layWpm (zero/negative) does not count', () => {
+    settings.set('readers', [{ name: 'Amy', wpm: 200, layWpm: 0 }]);
+    expect(hasLaySpeeds()).toBe(false);
   });
 });

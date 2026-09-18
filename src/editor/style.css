@@ -2479,7 +2479,34 @@ body:not(.pmd-multi-doc) #app {
 }
 
 #word-count-text {
+  /* Now a <button> (was a <span>) so the readout itself can toggle
+     flow/lay speeds on click — reset button chrome back to plain
+     inline text. */
+  font: inherit;
   font-variant-numeric: tabular-nums;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: default;
+}
+
+/* Lay-speaking toggle affordance: only look clickable when clicking
+   would actually change something (see hasLaySpeeds() in
+   live-read-time.ts) — otherwise every reader's time would just
+   replace with "—". Shared by the single-pane status bar
+   (#word-count-text) and each pane's own footer readout (.pmd-pane-wc,
+   in multi-pane-shell.ts), which toggle the same way for their own doc. */
+.pmd-wc-lay-capable {
+  cursor: pointer;
+}
+.pmd-wc-lay-capable:hover {
+  text-decoration: underline;
+}
+#word-count-text.pmd-active,
+.pmd-pane-wc.pmd-active {
+  color: var(--pmd-c-accent);
 }
 
 #cursor-color-display {
@@ -6068,7 +6095,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 .pmd-save-as-overlay,
 .pmd-qc-add-overlay,
 .pmd-reference-overlay,
-.pmd-route-overlay {
+.pmd-route-overlay,
+.pmd-doc-diff-overlay {
   position: fixed;
   inset: 0;
   background: var(--pmd-c-overlay);
@@ -7158,6 +7186,14 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 
 
+.pmd-reader-row {
+  /* Name + two wpm fields + the lay-speaking dropdown/field + move/
+     delete buttons don't all fit on one line in a narrow settings
+     dialog — wrap rather than clip or force horizontal scroll. */
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
+}
+
 .pmd-reader-rank {
   flex: 0 0 1.7rem;
   font-size: 0.7rem;
@@ -7182,6 +7218,17 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   border: 1px solid var(--pmd-c-border);
   border-radius: 3px;
   padding: 0.2rem 0.4rem;
+}
+
+.pmd-reader-lay-mode {
+  flex: 0 0 auto;
+  font-family: inherit;
+  font-size: 0.8rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  padding: 0.2rem 0.3rem;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
 }
 
 
@@ -10133,9 +10180,13 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  /* The scrollable region once the dialog hits its max-height — the
-     footer (Cancel/Save As) lives inside this form, so it scrolls into
-     view along with the rest rather than being clipped off-screen. */
+  /* The scrollable region once the dialog hits its max-height. The
+     footer (Cancel/Save As) is now a SIBLING pinned below this element
+     (see .pmd-save-as-footer) rather than a child that scrolled along
+     with the rest of the form — `flex: 1 1 auto` is what lets this
+     element be the one that shrinks and scrolls while the footer keeps
+     its natural size at the bottom. */
+  flex: 1 1 auto;
   overflow-y: auto;
 }
 
@@ -10402,10 +10453,17 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 }
 
 .pmd-save-as-footer {
+  /* Pinned below .pmd-save-as-body (a sibling now, not a scrolled-past
+     child — see the comment there) and kept deliberately shrink-wrapped
+     (`flex: 0 0 auto`, own compact padding) rather than inheriting the
+     body's roomier 1rem — this row doesn't need the same breathing room
+     as the form fields above it. */
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.5rem;
-  padding-top: 0.75rem;
+  padding: 0.55rem 1.25rem;
   border-top: 1px solid var(--pmd-c-divider-faint);
 }
 
@@ -12441,11 +12499,20 @@ body.pmd-pane-dragging * {
 }
 .pmd-pane-wc-btn:hover { background: var(--pmd-c-hover); }
 .pmd-pane-wc {
+  /* A <button> (toggles flow/lay speeds on click) styled back to plain
+     inline text — same reset as #word-count-text. */
   flex: 1 1 auto;
+  font: inherit;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--pmd-c-text-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: default;
 }
 .pmd-pane-open,
 .pmd-pane-new {
@@ -16889,4 +16956,313 @@ body.pmd-multi-doc #collab-chip {
   border-radius: 0.6rem;
   pointer-events: none;
   z-index: 4;
+}
+
+/* ---- Compare documents (doc-diff-ui.ts) ----
+   Fullscreen page, not a centered popup (field request, 2026-09-18: the
+   original bounded/centered dialog made a long diff impossible to
+   scroll). The dialog itself fills the viewport; the topbar is a fixed
+   header and everything scrollable lives in independently-scrolling
+   panes below it (each outline, and the diff table), the same "outline
+   rail + content" shape the real document viewers use. */
+
+.pmd-doc-diff-dialog {
+  background: var(--pmd-c-bg);
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--pmd-ui-font);
+}
+
+.pmd-doc-diff-topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--pmd-c-divider);
+}
+.pmd-doc-diff-topbar-info {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.pmd-doc-diff-topbar-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pmd-doc-diff-heading {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.pmd-doc-diff-blurb {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--pmd-c-text-muted);
+}
+
+/* Picker step: centered form on the fullscreen canvas, not a cramped
+   little card. */
+.pmd-doc-diff-picker-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+}
+.pmd-doc-diff-picker-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 520px;
+}
+.pmd-doc-diff-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 6px;
+  background: var(--pmd-c-surface);
+}
+.pmd-doc-diff-picker-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pmd-c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  flex: 0 0 auto;
+}
+.pmd-doc-diff-picker-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.88rem;
+}
+.pmd-doc-diff-picker-name-empty {
+  color: var(--pmd-c-text-faint);
+  font-style: italic;
+}
+.pmd-doc-diff-picker-compare {
+  align-self: flex-end;
+  margin-top: 0.25rem;
+}
+
+.pmd-doc-diff-working {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  color: var(--pmd-c-text-muted);
+}
+
+.pmd-doc-diff-btn {
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--pmd-c-border);
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.pmd-doc-diff-btn:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-doc-diff-btn-primary {
+  background: var(--pmd-c-accent);
+  border-color: var(--pmd-c-accent);
+  color: var(--pmd-c-text-on-accent);
+}
+.pmd-doc-diff-btn-primary:hover {
+  filter: brightness(1.05);
+  background: var(--pmd-c-accent);
+}
+.pmd-doc-diff-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pmd-doc-diff-names {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pmd-doc-diff-name-remove { color: var(--pmd-c-error); }
+.pmd-doc-diff-name-add { color: var(--pmd-c-success); }
+.pmd-doc-diff-vs {
+  color: var(--pmd-c-text-faint);
+  flex: 0 0 auto;
+  font-weight: 400;
+}
+.pmd-doc-diff-summary {
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--pmd-c-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pmd-doc-diff-summary-add { color: var(--pmd-c-success); font-weight: 600; }
+.pmd-doc-diff-summary-remove { color: var(--pmd-c-error); font-weight: 600; }
+
+.pmd-doc-diff-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pmd-c-text-muted);
+  font-size: 0.9rem;
+}
+
+/* Results body: outline rail | diff table | outline rail. Each scrolls
+   independently — this is what actually fixes "can't scroll", since the
+   old design relied on the whole dialog's own bounded overflow instead
+   of a dedicated scroll region for the content. */
+.pmd-doc-diff-results-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.pmd-doc-diff-outline {
+  flex: 0 0 auto;
+  width: 240px;
+  overflow-y: auto;
+  padding: 0.6rem 0;
+  font-size: 0.8rem;
+}
+.pmd-doc-diff-outline-left {
+  border-right: 1px solid var(--pmd-c-divider);
+}
+.pmd-doc-diff-outline-right {
+  border-left: 1px solid var(--pmd-c-divider);
+}
+.pmd-doc-diff-outline-title {
+  margin: 0 0.75rem 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--pmd-c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+.pmd-doc-diff-outline-empty {
+  margin: 0 0.75rem;
+  color: var(--pmd-c-text-faint);
+  font-style: italic;
+}
+.pmd-doc-diff-outline-entry {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.25rem 0.75rem;
+  color: var(--pmd-c-text);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pmd-doc-diff-outline-entry:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-doc-diff-outline-entry:disabled {
+  color: var(--pmd-c-text-faint);
+  cursor: default;
+}
+.pmd-doc-diff-outline-entry:disabled:hover {
+  background: none;
+}
+
+/* The diff table itself — one row per paired line, two cells (left /
+   right) split 50/50, matching a GitHub-style split diff. This pane is
+   its own scroll container (see .pmd-doc-diff-results-body above). */
+.pmd-doc-diff-table {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.pmd-doc-diff-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.pmd-doc-diff-row + .pmd-doc-diff-row {
+  border-top: 1px solid var(--pmd-c-divider);
+}
+.pmd-doc-diff-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  overflow-wrap: anywhere;
+  min-height: 1.6em;
+}
+.pmd-doc-diff-cell-left {
+  border-right: 1px solid var(--pmd-c-divider);
+}
+.pmd-doc-diff-cell-equal {
+  background: transparent;
+}
+.pmd-doc-diff-cell-remove {
+  background: var(--pmd-c-error-bg);
+}
+.pmd-doc-diff-cell-add {
+  background: var(--pmd-c-success-soft);
+}
+.pmd-doc-diff-cell-blank {
+  background: var(--pmd-c-surface);
+}
+.pmd-doc-diff-cell-highlight {
+  outline: 2px solid var(--pmd-c-accent);
+  outline-offset: -2px;
+}
+.pmd-doc-diff-marker {
+  flex: 0 0 auto;
+  width: 1em;
+  font-family: var(--pmd-f-mono, ui-monospace, monospace);
+  font-weight: 700;
+  text-align: center;
+}
+.pmd-doc-diff-cell-remove .pmd-doc-diff-marker { color: var(--pmd-c-error); }
+.pmd-doc-diff-cell-add .pmd-doc-diff-marker { color: var(--pmd-c-success); }
+.pmd-doc-diff-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  /* Both outlines and a two-column split don't fit a narrow screen —
+     drop the outlines and stack left above right per row instead, each
+     still carrying its own marker/color. */
+  .pmd-doc-diff-outline {
+    display: none;
+  }
+  .pmd-doc-diff-row {
+    grid-template-columns: 1fr;
+  }
+  .pmd-doc-diff-cell-left {
+    border-right: none;
+    border-bottom: 1px solid var(--pmd-c-divider);
+  }
 }

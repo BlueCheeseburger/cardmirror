@@ -83,11 +83,19 @@ const SECRET_SETTING_KEYS = new Set<string>([
  *  `tagWpm` is the optional SECOND speed most readers actually have —
  *  the rate for tags, analytics, and cites (the structural read), with
  *  `wpm` then covering just highlighted card bodies. Absent → `wpm`
- *  covers everything. */
+ *  covers everything.
+ *
+ *  `layWpm` is an orthogonal optional THIRD speed: the reader's lay
+ *  (non-flow) speaking pace — a single flat rate covering everything,
+ *  no body/tag split, since lay delivery doesn't distinguish them the
+ *  way flow reading does. Absent → this reader has no lay speed
+ *  configured, and the status-bar toggle shows "—" for them while
+ *  still showing other readers' lay times. */
 export interface ReaderConfig {
   name: string;
   wpm: number;
   tagWpm?: number;
+  layWpm?: number;
 }
 
 /** A paired machine you can send cards to. `code` is that machine's
@@ -5853,6 +5861,9 @@ function sanitizeReaders(raw: unknown): ReaderConfig[] {
     // anything else reads as blank ("main rate covers everything").
     const tagWpm = Number((r as ReaderConfig).tagWpm);
     if (Number.isFinite(tagWpm) && tagWpm > 0) reader.tagWpm = Math.round(tagWpm);
+    // Optional lay-speaking rate: same "keep only a usable value" rule.
+    const layWpm = Number((r as ReaderConfig).layWpm);
+    if (Number.isFinite(layWpm) && layWpm > 0) reader.layWpm = Math.round(layWpm);
     out.push(reader);
   }
   return out.length > 0 ? out : [...DEFAULTS.readers];

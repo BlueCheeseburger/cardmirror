@@ -399,4 +399,23 @@ export interface SpawnWindowPayload {
    *  new window. Used so resuming while a real doc is open doesn't overwrite
    *  it. The doc fields above are placeholders in this case. */
   resumeRoomId?: string;
+  /** When set, the spawned window mounts a genuinely blank, never-saved
+   *  document — no filename, no handle, no recents entry — instead of
+   *  parsing the doc fields above (placeholders, same convention as
+   *  joinShareCode / resumeRoomId). Used by "New document → New window":
+   *  a `null` payload used to mean "figure out what to show yourself",
+   *  which a spawned (non-first) window couldn't tell apart from a blank
+   *  first launch and so it landed on the home screen instead of a fresh
+   *  doc — worse in multi-pane, which has no fallback at all for a
+   *  payload-less spawn and showed home unconditionally (field report,
+   *  2026-09-18). This makes "spawn a blank doc" an explicit, unambiguous
+   *  request instead of the absence of one. */
+  blank?: boolean;
+}
+
+/** A `SpawnWindowPayload` requesting a blank doc — the doc fields are
+ *  unused placeholders (see `blank`'s doc comment), filled in only so
+ *  the type stays fully-populated like every other payload. */
+export function blankSpawnPayload(): SpawnWindowPayload {
+  return { blank: true, filename: '', bytes: new Uint8Array(0), handle: null, format: null, uid: null };
 }

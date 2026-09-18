@@ -77,6 +77,27 @@ describe('settings import (replaceAll)', () => {
     expect(s.get('keyboardMacros')).toEqual([]);
   });
 
+  it('readers: keeps a usable layWpm, drops an unusable one, blank stays absent', () => {
+    const s = new SettingsStore();
+    s.replaceAll({
+      readers: [
+        { name: 'Amy', wpm: 200, layWpm: 90 },
+        { name: 'Ben', wpm: 150, layWpm: 0 },
+        { name: 'Cal', wpm: 100 },
+      ],
+    });
+    const readers = s.get('readers');
+    expect(readers[0]).toEqual({ name: 'Amy', wpm: 200, layWpm: 90 });
+    expect(readers[1]).toEqual({ name: 'Ben', wpm: 150 }); // unusable layWpm dropped
+    expect(readers[2]).toEqual({ name: 'Cal', wpm: 100 }); // never had one
+  });
+
+  it('readers: layWpm rounds like wpm/tagWpm do', () => {
+    const s = new SettingsStore();
+    s.replaceAll({ readers: [{ name: 'Amy', wpm: 200.4, layWpm: 89.6 }] });
+    expect(s.get('readers')[0]).toEqual({ name: 'Amy', wpm: 200, layWpm: 90 });
+  });
+
   it('accessibilityTreeEnabled: defaults off and only an explicit boolean true sticks', () => {
     // Mirrors the main-process pref's fail-safe: anything but `true` reads as off,
     // so a restored/garbled backup can never silently re-enable the AX crash path.

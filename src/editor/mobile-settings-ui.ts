@@ -446,6 +446,30 @@ function buildReadersEditor(): HTMLElement {
         }
         settings.set('readers', next);
       });
+      // Optional third rate: lay-speaking pace (flat, no body/tag
+      // split), toggled live from the desktop status bar — parity with
+      // the desktop editor's dropdown-revealed field, kept as a plain
+      // optional input here to match this editor's minimal style.
+      const layWpm = document.createElement('input');
+      layWpm.type = 'number';
+      layWpm.value = r.layWpm != null ? String(r.layWpm) : '';
+      layWpm.placeholder = 'lay wpm';
+      layWpm.setAttribute('aria-label', `${r.name} lay-speaking words per minute`);
+      layWpm.addEventListener('change', () => {
+        const trimmed = layWpm.value.trim();
+        const n = Number(trimmed);
+        const next = settings.get('readers').slice();
+        if (trimmed === '') {
+          const { layWpm: _drop, ...rest } = next[i]!;
+          next[i] = rest;
+        } else if (!Number.isFinite(n) || n <= 0) {
+          layWpm.value = r.layWpm != null ? String(r.layWpm) : '';
+          return;
+        } else {
+          next[i] = { ...next[i]!, layWpm: Math.round(n) };
+        }
+        settings.set('readers', next);
+      });
       const del = document.createElement('button');
       del.type = 'button';
       del.textContent = '✕';
@@ -459,6 +483,7 @@ function buildReadersEditor(): HTMLElement {
       row.appendChild(name);
       row.appendChild(wpm);
       row.appendChild(tagWpm);
+      row.appendChild(layWpm);
       row.appendChild(del);
       wrap.appendChild(row);
     });
