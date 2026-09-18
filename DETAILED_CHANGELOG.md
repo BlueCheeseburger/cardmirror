@@ -138,6 +138,171 @@ one constant that governs storage is also what governs what's shown.
 `save-locations-store.test.ts`'s two cap tests (the rotation itself, and
 that pins stay exempt) updated to assert against 5 instead of 8.
 
+### Fixed: read-mode copy leaked hidden (non-highlighted) text onto the clipboard (`read-mode-plugin.ts`, `index.ts`, `clipboard-slice.ts`)
+
+Read mode only CSS-hides the text it isn't showing (`pmd-rm-hide` /
+`display: none`) — the doc model keeps it, so a DOM selection drawn over
+the VISIBLE spans still maps back to model positions that SPAN the hidden
+runs in between, and `state.doc.slice(from, to)` (what `transformCopied`
+starts from) naturally includes them. Nothing in the copy path filtered
+them back out, so copy/paste in read mode carried the full underlying
+text regardless of what was actually on screen.
+
+New `filterSliceForReadMode(slice, source?)` (`read-mode-plugin.ts`)
+reduces a clipboard slice down to exactly what read mode shows, reusing
+the same `isReadKept`/`keepsWholeParagraph`/`readKeptKind` rules the
+live decorations use. It recurses the slice's tree; a textblock read
+mode governs (cite/body paragraphs, undertags) gets its inline children
+rebuilt from only the kept runs, bridging a dropped gap with a single
+space (mirroring the `pmd-rm-separator` widget the live view renders at
+the same boundary) unless either side already has whitespace there. A
+heading-kind textblock (always shown) and any other container pass
+through unchanged, recursing into their own children.
+
+Two structural gotchas `source` exists to fix, both confirmed against
+`Node.slice`'s actual source (not assumed):
+- A selection that never leaves one textblock comes back from
+  `doc.slice` as BARE inline content — no wrapping cite_paragraph/
+  card_body node at all, `openStart`/`openEnd` both 0 (`Node.slice`
+  picks `depth = $from.sharedDepth(to)`, which for a same-block
+  selection IS the block's own depth, so it returns that block's inner
+  content directly). This is the common case a plain select-and-copy
+  hits, and without a governing parent to read `type.name` off of,
+  there's nothing to filter against — `source.doc`/`source.from` resolve
+  `$from.parent` to know which rule (if any) applies.
+- A selection that DOES cross a block boundary shows up with a real,
+  but PARTIAL, wrapped node at the slice's edge. "Read mode: keep entire
+  cite" decides whole-paragraph visibility by scanning the paragraph for
+  ANY kept run — which the partial node might not contain even though
+  the full paragraph (and so the live view) does. `fullSpine(doc, pos,
+  depth)` walks `$pos.node(d)` for the boundary's open depth to hand the
+  filter the paragraph's real, complete sibling content for that
+  decision, while the actual output still comes from the partial node's
+  own children — never from the full one's.
+
+Applied in `index.ts`'s `transformCopied` (gated on
+`readModePlugin.getState(view.state)?.on`, source = the view's own doc +
+current selection) — the single hook every ordinary copy/cut/drag
+already ran through. Also applied in `clipboard-slice.ts`'s
+`clipboardSlice`/`serializeRangesForClipboard` — the outline's Copy /
+Cut, Copy Current Heading, discontinuous copy, and cut-in-place build
+their own clipboard payload and bypass `transformCopied` entirely (by
+design, see that file's own doc comment), so they needed the same filter
+applied explicitly or they'd leak hidden text via a completely different
+door. New `tests/editor/read-mode-copy-filter.test.ts` (10 tests) covers
+plain highlight filtering, cite marks, "keep entire cite" (whole and
+partial slices, with and without `source`), nested containers/tables,
+non-text inline leaves passing through untouched, and `openStart`/
+`openEnd` preservation.
+
+### Fixed: the Emphasis formatting-panel button already previewed its own bold + box style — verified, not changed
+
+Reported as broken (screenshot of an applied Emphasis mark showing bold +
+box, asking for the button to preview the same). Traced the button's
+CSS (`#ribbon .ribbon-cite-panel.style-preview .formatting-panel-emphasis`
+plus the `.pmd-emphasis-bold`/`.pmd-emphasis-box` document-root classes
+`applyDisplayTypography` sets) and confirmed, both by reading the rule
+chain and by a live Playwright render at default settings, that the
+button already shows bold text with a visibly darker box border than its
+plain sibling buttons (`--pmd-c-emphasis-box` vs. the base
+`--pmd-c-border`). Also confirmed the ribbon is a single shared instance
+between single-pane and multi-pane — the cite panel isn't rebuilt per
+pane — so this isn't a mode-specific gap either. No code changed; if
+this is still not showing for the reporter, the likely explanation is a
+non-default `formattingPanelPreview` / `emphasisBold` / `emphasisBox`
+setting, or a stale build predating the feature, not a code defect.
+
+### Fixed: Save As wrote a folder structure when the filename contained a slash (`save-as-ui.ts`)
+
+`commit()` took the Name field's trimmed value straight through to
+`joinPath(dir, filename)` (`saveIntoDirectory`) or the host's `saveAs`
+with no sanitization — a name like `R3 2NC (redo 9/17/26).docx` has the
+slash read as a path separator by the eventual filesystem write, turning
+one file into a nested folder chain (`R3 2NC (redo 9/17/26).docx` →
+folder `R3 2NC (redo 9` → …). Now sanitized through
+`sanitizeFilename` (`speech-filename.ts`) before anything else touches
+it — the same trust-boundary sanitizer already used for auto-generated
+speech-doc names, for the identical reason (its own doc comment: "a
+speech name of `1NC/../../evil` would otherwise write outside the
+user's chosen folder"). Path separators and colons become a hyphen
+(readable, keeps date-shaped names like `9/17/26` intact as `9-17-26`
+instead of mushing the digits together); the rest of the Windows-illegal
+set is dropped; Windows' reserved device-name basenames get an
+underscore prefix. New test in `save-as-ui.test.ts` locks in the
+end-to-end `filename` result for a slash-bearing Name field.
+
+### Fixed: the "reset to 100%" zoom button faded to near-invisible instead of reading as disabled (`index.ts`)
+
+`updateZoomStatus` disabled `zoomResetBtn` whenever the live zoom was
+already 100% — semantically reasonable (nothing to reset), but the only
+visual cue was the generic `#ribbon button:disabled` rule's `opacity:
+0.4`, which on this particular icon-only button against the ribbon's
+light background read as the button having vanished rather than as
+"disabled" (confirmed with a Playwright render: at 0.4 opacity the reset
+icon is essentially unreadable, fully legible at 1.0). Reported as "only
+shows up when zoom isn't 100%, goes away if you go to 90% then back to
+100%" — an accurate description of working-as-coded behavior that read
+as broken. Fix: stopped disabling the button at all. It now stays fully
+visible and clickable at every zoom level; clicking it while already at
+100% is a harmless no-op (`applyZoom(100)` on an already-100% doc
+changes nothing).
+
+### Fixed: "New document → New window" landed the new window on the home screen instead of a blank document (`host/types.ts`, `host/browser-host.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+Two independent bugs, one in each host, both stemming from the same
+design gap: `spawnWindow(null)` — the call both `spawnBlankWindow()`
+(index.ts, single-pane's "New" when another window is already open) and
+`newDocWithPicker`'s 'new-window' arm (multi-pane-shell.ts) made — told
+the new window nothing beyond "you weren't handed a doc," which is
+indistinguishable from "you're the app's actual first window of this
+session."
+
+**Web/browser host:** `spawnWindow`'s `?spawn=<id>` URL marker (the
+signal `isFirstWindow()` reads to know a window was spawned, not
+independently opened) was only minted when there was an IndexedDB
+payload to hand off — a `null`-payload spawn got no marker, so
+`isFirstWindow()` read `true` for it, same as a genuine first launch.
+Fixed by minting the marker unconditionally in `spawnWindow`; the
+IndexedDB write still only happens when there's an actual payload
+(`getInitialDoc` already resolved cleanly to `null` for a marked-but-
+empty entry, so nothing downstream needed to change).
+
+**Both hosts, and the deeper gap:** even with `isFirstWindow()` correct,
+a bare `null` payload only ever told a spawned window "mount SOMETHING
+blank" — single-pane's boot has a fallback for that (`mountView
+(currentDoc)`), so it degraded to "just needlessly risked showing home
+on top of a correct blank mount" there. Multi-pane's boot has NO such
+fallback: any payload-less spawn fell straight through to "blank
+multi-pane launch → show the home screen," unconditionally, with no
+`isFirst` check involved at all — every "New document → New window"
+click in multi-pane hit this, 100% of the time, regardless of
+`isFirstWindow()`.
+
+Fixed with an explicit signal instead of an absence to infer:
+`SpawnWindowPayload` gains `blank?: boolean` (`host/types.ts`), alongside
+a `blankSpawnPayload()` helper building the placeholder-filled payload —
+same convention as the existing `joinShareCode`/`resumeRoomId` fields,
+whose doc comments already note "the doc fields above are placeholders
+in this case." Both `null`-passing call sites now pass
+`blankSpawnPayload()` instead. On the receiving end: `initSingleDocBoot`
+checks `payload.blank` before `mountFromSpawnPayload` and calls the same
+`mountFreshBlankDoc()` the home screen's own "New document" button uses,
+then returns — skipping home entirely, no `isFirst` dependency needed.
+`routeInitialDocIntoWorkspace` (shared boot-routing, multi-pane) checks
+`payload.blank` alongside its existing `joinShareCode`/`resumeRoomId`
+branches and calls `multiDocOnNewDocDefaultSlot()` — the same handler
+the home screen's "New document" card uses in multi-pane mode — into the
+first empty slot, then returns `true` so the "blank launch → home" branch
+below it never runs.
+
+New `tests/editor/browser-host-spawn.test.ts` (6 tests, using
+`fake-indexeddb` for the real IndexedDB round trip) locks in: the
+`?spawn=` marker appears for a null payload, `isFirstWindow()` reads
+correctly for a marked vs. unmarked window, `getInitialDoc` resolves
+`null` for a marker with nothing stored, `blankSpawnPayload()`'s shape,
+and the full `spawnWindow` → new-window `getInitialDoc()` round trip
+resolving `{ blank: true }` as the new window would actually see it.
+
 ### Added: formatting panel corner shortcut badges (`index.ts`, `style.css`)
 
 Every formatting-panel button (Pocket, Hat, Block, Tag, Analytic, Undertag,

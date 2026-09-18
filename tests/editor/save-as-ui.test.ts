@@ -216,6 +216,14 @@ describe('Save As — mode selection', () => {
     expect(await p).toBeNull();
   });
 
+  it('a slash in the Name field becomes a hyphen instead of writing as a folder structure', async () => {
+    const p = open();
+    const input = q<HTMLInputElement>('.pmd-save-as-input')!;
+    input.value = 'R3 2NC (redo 9/17/26)';
+    saveAsBtn().click();
+    expect(await p).toMatchObject({ filename: 'R3 2NC (redo 9-17-26).docx' });
+  });
+
   it('Escape cancels with null, whatever was selected', async () => {
     const p = open();
     selectMode('Marked Doc');
