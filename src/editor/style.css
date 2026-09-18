@@ -16958,27 +16958,44 @@ body.pmd-multi-doc #collab-chip {
   z-index: 4;
 }
 
-/* ---- Compare documents (doc-diff-ui.ts) ---- */
+/* ---- Compare documents (doc-diff-ui.ts) ----
+   Fullscreen page, not a centered popup (field request, 2026-09-18: the
+   original bounded/centered dialog made a long diff impossible to
+   scroll). The dialog itself fills the viewport; the topbar is a fixed
+   header and everything scrollable lives in independently-scrolling
+   panes below it (each outline, and the diff table), the same "outline
+   rail + content" shape the real document viewers use. */
 
 .pmd-doc-diff-dialog {
   background: var(--pmd-c-bg);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px var(--pmd-c-shadow-deep);
-  padding: 1.25rem 1.5rem;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  width: 90%;
-  max-width: 480px;
-  max-height: 85vh;
-  overflow-y: auto;
   font-family: var(--pmd-ui-font);
 }
-/* The results step needs real width for two columns of prose side by
-   side — the picker step stays a normal-sized dialog. */
-.pmd-doc-diff-dialog.pmd-doc-diff-dialog-wide {
-  max-width: 1100px;
-  width: 94vw;
+
+.pmd-doc-diff-topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--pmd-c-divider);
+}
+.pmd-doc-diff-topbar-info {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.pmd-doc-diff-topbar-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.5rem;
 }
 
 .pmd-doc-diff-heading {
@@ -16987,16 +17004,29 @@ body.pmd-multi-doc #collab-chip {
   font-weight: 600;
 }
 .pmd-doc-diff-blurb {
-  margin: 0;
+  margin: 0.2rem 0 0;
   font-size: 0.85rem;
   color: var(--pmd-c-text-muted);
 }
 
+/* Picker step: centered form on the fullscreen canvas, not a cramped
+   little card. */
+.pmd-doc-diff-picker-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+}
 .pmd-doc-diff-picker-rows {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  margin: 0.25rem 0;
+  width: 100%;
+  max-width: 520px;
 }
 .pmd-doc-diff-picker-row {
   display: flex;
@@ -17027,20 +17057,20 @@ body.pmd-multi-doc #collab-chip {
   color: var(--pmd-c-text-faint);
   font-style: italic;
 }
+.pmd-doc-diff-picker-compare {
+  align-self: flex-end;
+  margin-top: 0.25rem;
+}
 
 .pmd-doc-diff-working {
-  padding: 1.5rem 0;
-  text-align: center;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.9rem;
   color: var(--pmd-c-text-muted);
 }
 
-.pmd-doc-diff-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-}
 .pmd-doc-diff-btn {
   padding: 0.4rem 0.9rem;
   border-radius: 6px;
@@ -17067,19 +17097,12 @@ body.pmd-multi-doc #collab-chip {
   cursor: not-allowed;
 }
 
-.pmd-doc-diff-results-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding-bottom: 0.6rem;
-  border-bottom: 1px solid var(--pmd-c-divider);
-}
 .pmd-doc-diff-names {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: 0.9rem;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .pmd-doc-diff-name-remove { color: var(--pmd-c-error); }
@@ -17087,8 +17110,10 @@ body.pmd-multi-doc #collab-chip {
 .pmd-doc-diff-vs {
   color: var(--pmd-c-text-faint);
   flex: 0 0 auto;
+  font-weight: 400;
 }
 .pmd-doc-diff-summary {
+  margin-top: 0.15rem;
   font-size: 0.8rem;
   color: var(--pmd-c-text-muted);
   font-variant-numeric: tabular-nums;
@@ -17097,21 +17122,83 @@ body.pmd-multi-doc #collab-chip {
 .pmd-doc-diff-summary-remove { color: var(--pmd-c-error); font-weight: 600; }
 
 .pmd-doc-diff-empty {
-  padding: 1.5rem 0;
-  text-align: center;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--pmd-c-text-muted);
   font-size: 0.9rem;
 }
 
-/* The diff table itself — one row per paired line, two cells (left /
-   right) split 50/50, matching a GitHub-style split diff. Rows scroll
-   as a block; the dialog's own overflow handles the vertical scroll. */
-.pmd-doc-diff-table {
+/* Results body: outline rail | diff table | outline rail. Each scrolls
+   independently — this is what actually fixes "can't scroll", since the
+   old design relied on the whole dialog's own bounded overflow instead
+   of a dedicated scroll region for the content. */
+.pmd-doc-diff-results-body {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
-  flex-direction: column;
-  border: 1px solid var(--pmd-c-border-soft);
-  border-radius: 6px;
   overflow: hidden;
+}
+
+.pmd-doc-diff-outline {
+  flex: 0 0 auto;
+  width: 240px;
+  overflow-y: auto;
+  padding: 0.6rem 0;
+  font-size: 0.8rem;
+}
+.pmd-doc-diff-outline-left {
+  border-right: 1px solid var(--pmd-c-divider);
+}
+.pmd-doc-diff-outline-right {
+  border-left: 1px solid var(--pmd-c-divider);
+}
+.pmd-doc-diff-outline-title {
+  margin: 0 0.75rem 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--pmd-c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+.pmd-doc-diff-outline-empty {
+  margin: 0 0.75rem;
+  color: var(--pmd-c-text-faint);
+  font-style: italic;
+}
+.pmd-doc-diff-outline-entry {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.25rem 0.75rem;
+  color: var(--pmd-c-text);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pmd-doc-diff-outline-entry:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-doc-diff-outline-entry:disabled {
+  color: var(--pmd-c-text-faint);
+  cursor: default;
+}
+.pmd-doc-diff-outline-entry:disabled:hover {
+  background: none;
+}
+
+/* The diff table itself — one row per paired line, two cells (left /
+   right) split 50/50, matching a GitHub-style split diff. This pane is
+   its own scroll container (see .pmd-doc-diff-results-body above). */
+.pmd-doc-diff-table {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
   font-size: 0.82rem;
   line-height: 1.45;
 }
@@ -17145,6 +17232,10 @@ body.pmd-multi-doc #collab-chip {
 .pmd-doc-diff-cell-blank {
   background: var(--pmd-c-surface);
 }
+.pmd-doc-diff-cell-highlight {
+  outline: 2px solid var(--pmd-c-accent);
+  outline-offset: -2px;
+}
 .pmd-doc-diff-marker {
   flex: 0 0 auto;
   width: 1em;
@@ -17160,13 +17251,13 @@ body.pmd-multi-doc #collab-chip {
   white-space: pre-wrap;
 }
 
-@media (max-width: 640px) {
-  .pmd-doc-diff-dialog.pmd-doc-diff-dialog-wide {
-    width: 98vw;
-    max-width: none;
+@media (max-width: 900px) {
+  /* Both outlines and a two-column split don't fit a narrow screen —
+     drop the outlines and stack left above right per row instead, each
+     still carrying its own marker/color. */
+  .pmd-doc-diff-outline {
+    display: none;
   }
-  /* Split columns don't fit a phone-width screen — stack left above
-     right per row instead, each still carrying its own marker/color. */
   .pmd-doc-diff-row {
     grid-template-columns: 1fr;
   }
