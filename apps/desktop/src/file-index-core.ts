@@ -7,8 +7,9 @@
  *     same file, same format as before),
  *   - recursive scans + background revalidation of search roots,
  *   - pruning roots that left settings (pruneIndexRoots),
- *   - and SEARCH itself: ranked, exclusion- and format-filtered,
- *     pin-partitioned, windowed results.
+ *   - SEARCH itself: ranked, exclusion- and format-filtered,
+ *     pin-partitioned, windowed results,
+ *   - and folder browsing derived on demand from those same indexed paths.
  *
  * Motivation (2026-07-30): the browser process paid for the index
  * (load, walk, persist) and every launch shipped the whole corpus over
@@ -38,8 +39,16 @@ import {
   isPathExcluded,
   fileFormat,
   type FileEntry,
-  type FileTiebreak,
 } from '../../../src/editor/file-search.js';
+import type {
+  FileBrowseParams,
+  FileBrowseResult,
+  FileIndexQueryParams,
+  FileIndexQueryResult,
+  FileIndexRow,
+  LocateCurrentFileResult,
+} from '../../../src/editor/file-index-protocol.js';
+export type { FileIndexRow } from '../../../src/editor/file-index-protocol.js';
 
 /** On-disk entry shape — unchanged from the main-process era so the
  *  existing cache file carries over. `size` is unused today but kept
@@ -51,35 +60,8 @@ export interface StoredEntry {
   size: number;
 }
 
-/** One search hit, windowed — everything the palette row needs. */
-export interface FileIndexRow {
-  path: string;
-  relPath: string;
-  name: string;
-  mtimeMs: number;
-  pinned: boolean;
-}
-
-export interface FileIndexQuery {
-  query: string;
-  /** Roots to search (the renderer's current setting). */
-  roots: string[];
-  exclusions: string[];
-  formats: 'both' | 'cmir' | 'docx';
-  tiebreak: FileTiebreak;
-  /** Manual pins — always flagged on rows; partitioned to the top of
-   *  the ranked order only when `partitionPins` is set (`f`-mode). */
-  pins: string[];
-  partitionPins: boolean;
-  /** Window size: the first `limit` ranked rows come back. */
-  limit: number;
-}
-
-export interface FileIndexQueryResult {
-  rows: FileIndexRow[];
-  /** Full ranked match count — drives "Showing N of M". */
-  total: number;
-}
+/** Backward-compatible name used by the existing core tests. */
+export type FileIndexQuery = FileIndexQueryParams;
 
 export interface FileIndexCore {
   /** Report the current roots: prune departed ones, ensure the rest are
@@ -87,6 +69,12 @@ export interface FileIndexCore {
    *  their listing lands), revalidate the already-cached ones. */
   configure(roots: string[]): Promise<void>;
   query(q: FileIndexQuery): Promise<FileIndexQueryResult>;
+  browse(q: FileBrowseParams): Promise<FileBrowseResult>;
+  locateCurrentFile(args: {
+    filePath: string;
+    roots: string[];
+    exclusions: string[];
+  }): Promise<LocateCurrentFileResult>;
   /** mtimes for specific paths (the pin warm pass) — honors roots +
    *  exclusions so an excluded pin stays dormant. */
   entriesForPaths(args: {
@@ -269,6 +257,33 @@ export function createFileIndexCore(opts: {
     return out;
   }
 
+  /** A native-path containment check. `path.relative` supplies the
+   *  separator/case semantics of the OS running the index service. */
+  function relativeInside(root: string, candidate: string): string | null {
+    const rel = path.relative(root, candidate);
+    if (rel === '') return '';
+    if (path.isAbsolute(rel) || rel === '..' || rel.startsWith(`..${path.sep}`)) return null;
+    return rel;
+  }
+
+  function validRelativeDirectory(relativeDirectory: string): string | null {
+    if (relativeDirectory === '') return '';
+    if (path.isAbsolute(relativeDirectory) || relativeDirectory.split(/[\\/]/).includes('..')) return null;
+    const normalized = path.normalize(relativeDirectory);
+    if (normalized === '..' || normalized.startsWith(`..${path.sep}`)) return null;
+    return normalized === '.' ? '' : normalized.replace(/[\\/]+$/, '');
+  }
+
+  function indexRow(f: FileEntry, pins: Set<string>): FileIndexRow {
+    return {
+      path: f.path,
+      relPath: f.relPath,
+      name: f.name,
+      mtimeMs: f.mtimeMs,
+      pinned: pins.has(f.path),
+    };
+  }
+
   return {
     async configure(roots: string[]): Promise<void> {
       await ensureLoaded();
@@ -291,13 +306,76 @@ export function createFileIndexCore(opts: {
           ? ranked
           : [...ranked.filter((f) => pins.has(f.path)), ...ranked.filter((f) => !pins.has(f.path))];
       const rows = ordered.slice(0, Math.max(0, q.limit)).map((f) => ({
-        path: f.path,
-        relPath: f.relPath,
-        name: f.name,
-        mtimeMs: f.mtimeMs,
-        pinned: pins.has(f.path),
+        ...indexRow(f, pins),
       }));
       return { rows, total: ordered.length };
+    },
+
+    async browse(q: FileBrowseParams): Promise<FileBrowseResult> {
+      await ensureLoaded();
+      const root = q.location.root;
+      const relDir = validRelativeDirectory(q.location.relativeDirectory);
+      if (!q.roots.includes(root) || relDir === null) return { rows: [], total: 0, valid: false };
+
+      // A non-root directory is valid only while the index still has a file
+      // beneath it. This lets the renderer walk upward when a branch vanishes.
+      const indexedMembers = visibleEntries([root], q.exclusions, 'both');
+      const directoryExists = relDir === '' || indexedMembers.some((f) => {
+        const rel = path.relative(relDir, f.relPath);
+        return rel !== '' && !path.isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${path.sep}`);
+      });
+      if (!directoryExists) return { rows: [], total: 0, valid: false };
+
+      const entries = visibleEntries([root], q.exclusions, q.formats);
+      const folders = new Map<string, { kind: 'folder'; name: string; relativeDirectory: string }>();
+      const directFiles: FileEntry[] = [];
+      for (const f of entries) {
+        const remainder = path.relative(relDir, f.relPath);
+        if (
+          remainder === ''
+          || path.isAbsolute(remainder)
+          || remainder === '..'
+          || remainder.startsWith(`..${path.sep}`)
+        ) continue;
+        const parts = remainder.split(path.sep);
+        if (parts.length === 1) {
+          directFiles.push(f);
+          continue;
+        }
+        const name = parts[0]!;
+        const relativeDirectory = relDir ? path.join(relDir, name) : name;
+        folders.set(relativeDirectory, { kind: 'folder', name, relativeDirectory });
+      }
+
+      const folderRows = [...folders.values()].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+      );
+      const rankedFiles = searchFiles(directFiles, '', q.tiebreak);
+      const pins = new Set(q.pins);
+      const orderedFiles = pins.size === 0
+        ? rankedFiles
+        : [...rankedFiles.filter((f) => pins.has(f.path)), ...rankedFiles.filter((f) => !pins.has(f.path))];
+      const rows = [
+        ...folderRows,
+        ...orderedFiles.map((f) => ({ kind: 'file' as const, ...indexRow(f, pins) })),
+      ];
+      return { rows: rows.slice(0, Math.max(0, q.limit)), total: rows.length, valid: true };
+    },
+
+    async locateCurrentFile(args): Promise<LocateCurrentFileResult> {
+      await ensureLoaded();
+      const matches = args.roots
+        .map((root) => ({ root, rel: relativeInside(root, args.filePath) }))
+        .filter((m): m is { root: string; rel: string } => m.rel !== null)
+        .sort((a, b) => b.root.length - a.root.length);
+      const match = matches[0];
+      if (!match) return { ok: false, reason: 'outside-roots' };
+      if (isPathExcluded(args.filePath, args.exclusions)) return { ok: false, reason: 'excluded' };
+      const parent = path.dirname(match.rel);
+      return {
+        ok: true,
+        location: { root: match.root, relativeDirectory: parent === '.' ? '' : parent },
+      };
     },
 
     async entriesForPaths(args): Promise<Array<{ path: string; mtimeMs: number }>> {

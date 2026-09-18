@@ -8,7 +8,7 @@
  * the why.
  *
  * Protocol (renderer → service over the forwarded port):
- *   { id, op: 'configure' | 'query' | 'entriesForPaths', args }
+ *   { id, op: 'configure' | 'query' | 'browse' | 'locateCurrentFile' | 'entriesForPaths', args }
  * → { id, ok: true, result } | { id, ok: false, error }
  * Push (service → every port): { push: 'changed', root } when a scan /
  * revalidation lands a fresh listing (renderer re-queries).
@@ -53,7 +53,7 @@ const core = createFileIndexCore({
 
 interface Request {
   id: number;
-  op: 'configure' | 'query' | 'entriesForPaths';
+  op: 'configure' | 'query' | 'browse' | 'locateCurrentFile' | 'entriesForPaths';
   args: unknown;
 }
 
@@ -63,6 +63,10 @@ async function handle(req: Request): Promise<unknown> {
       return core.configure((req.args as { roots: string[] }).roots);
     case 'query':
       return core.query(req.args as Parameters<typeof core.query>[0]);
+    case 'browse':
+      return core.browse(req.args as Parameters<typeof core.browse>[0]);
+    case 'locateCurrentFile':
+      return core.locateCurrentFile(req.args as Parameters<typeof core.locateCurrentFile>[0]);
     case 'entriesForPaths':
       return core.entriesForPaths(req.args as Parameters<typeof core.entriesForPaths>[0]);
     default:
