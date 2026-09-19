@@ -5,7 +5,7 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 1.11.0 — 2026-09-19
 
 ### Added: folder browsing in the Search Everything palette
 
@@ -251,7 +251,7 @@ and remote edits still clear the record by design.
 
 ### Fixed: Reading View clipped the last page's final column under the flip lane
 
-Field report (Will Katz, 2026-09-14, with screenshots): on the last
+Field report (2026-09-14, with screenshots): on the last
 page of Reading View the words at the far right were cut off by the
 arrow lane. Root cause: flips are native scrolls of the clipped host,
 and the browser clamps `scrollLeft` to `scrollWidth - clientWidth`.

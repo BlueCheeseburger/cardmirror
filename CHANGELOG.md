@@ -5,7 +5,7 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 1.11.0 — 2026-09-19
 
 ### Added
 
@@ -25,7 +25,6 @@ see `DETAILED_CHANGELOG.md`.
   formerly "Mod-Y repeats the last action") is on, every key bound to
   Redo repeats the last action once there is nothing left to redo —
   Mod-Shift-Z included, which used to stay plain Redo.
-
 - **Copies keep their look when pasted into other apps.** Paste from
   CardMirror into an email, Google Docs or Word and the tags, cites,
   underlining, emphasis boxes, highlights, colors, sizes and your body
@@ -35,7 +34,6 @@ see `DETAILED_CHANGELOG.md`.
   text copies are unchanged. One limit: bold that comes from a style
   rather than a Bold mark (tags, cites, analytics) shows only where the
   other app bolds headings itself.
-
 - **Copy All Cards With Matching Cite.** A new command (unbound; run it
   from Search Everything or give it a key) copies every card in the
   document that shares the cite at the cursor, in document order with

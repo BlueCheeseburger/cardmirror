@@ -1952,11 +1952,11 @@ Keyboard shortcuts**. They appear only on Windows.
 
 ## 15. Voice control
 
-> **Experimental — and, in 1.10.0, commands are unreliable.** Dictation works
+> **Experimental — and, as of 1.11.0, commands are still unreliable.** Dictation works
 > well. The single-word commands do not yet: the recognizer decodes an open
 > vocabulary, so a one-word utterance often comes back as some other word
 > and nothing fires. Calibration helps only a little. A keyword-spotting pass
-> for the command channel is planned for the next release; until then, treat
+> for the command channel is planned for a coming release; until then, treat
 > the commands as a preview and the dictation key as the working part.
 
 **(Desktop only.)** Voice control lets you work a document with your
