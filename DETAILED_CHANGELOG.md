@@ -74,6 +74,39 @@ Ctrl/Alt-Arrow, PageUp/Down, Tab/Shift-Tab indent, and the Enter,
 Backspace and Delete rules inside tags — which no editor lets you
 rebind.
 
+### Fixed: Repeat skipped Enter, Tab, macro text and autocorrect
+
+Field observation (2026-09-18): with "Redo repeats the last action" on,
+pressing Enter to make a new heading and then Repeat did nothing. The
+recorder (`repeat-last-action.ts`) knew four actions — a typed burst
+through the text-input hook, a Backspace or Delete keydown, a paste,
+and a command run through the command runner — and treated every other
+document change as "don't guess": not recorded, and the previous record
+cleared. Enter, Tab and Shift-Tab are fixed app keymaps, and a keyboard
+macro inserts its text with its own transaction, so all four fell into
+that bucket. A fifth gap was quieter: a typed burst was recorded as the
+raw keystrokes and replayed with a direct insert, which bypasses the
+text-input hooks where the autocorrect engine lives, so Repeat after an
+autocorrected burst typed the uncorrected keystrokes back (a straight
+quote for a curled one, a lowercase tag).
+
+Now the key hook announces Enter, Tab and Shift-Tab (without Ctrl, Alt
+or Mod) alongside Backspace and Delete, and Repeat replays any of them
+as one more press through the app's own handlers, so the enter-style
+settings, tag-boundary rules and table cells behave as on a real press.
+A macro's transaction carries its text in a meta the recorder counts as
+typing, extending a burst it follows. Typing replays through
+`typeThroughInputRules`, moved out of voice landing into the shared
+`type-through-hooks.ts` and chunked as the keyboard delivers it, so
+every autocorrect rule fires on the replay as it did originally. Two
+hardenings came with it: an announcement is consumed by the first
+transaction after the hook (a key that changed nothing, such as Delete
+at the end of the document, no longer lingers to be recorded on a later
+caret move), and a command run clears the announcement of the keystroke
+that triggered it (a command bound to Tab or Enter records as the
+command, not the key). Cut, spellcheck picks, Find & Replace, drag/drop
+and remote edits still clear the record by design.
+
 ### Fixed: Reading View clipped the last page's final column under the flip lane
 
 Field report (Will Katz, 2026-09-14, with screenshots): on the last

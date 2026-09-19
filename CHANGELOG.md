@@ -42,6 +42,14 @@ see `DETAILED_CHANGELOG.md`.
   depending on where the drag ended. A heading that ends the selection
   now brings its whole section along, exactly as a bare cursor on that
   heading does. Thanks to Cora (@coralynnkc)!
+- **Repeat covers Enter, Tab, keyboard macros and autocorrect.** With
+  "Redo repeats the last action" on, Repeat now presses Enter, Tab or
+  Shift-Tab once more (another paragraph or heading, another indent),
+  counts a keyboard macro's text as typing, and replays typed text
+  through autocorrect, so smart quotes, dashes and capitalization come
+  out as they did the first time instead of as raw keystrokes. Those
+  edits used to be unrepeatable, and also made Repeat forget whatever
+  came before them.
 
 ## 1.10.0 — 2026-09-10
 

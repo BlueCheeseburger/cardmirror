@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema } from '../../src/schema/index.js';
 import { buildMacroKeymap } from '../../src/editor/keyboard-macros.js';
+import { REPEAT_TYPING_META } from '../../src/editor/repeat-last-action.js';
 
 function docWithPara(text: string) {
   return schema.nodes['doc']!.createChecked(null, [
@@ -34,6 +35,14 @@ describe('buildMacroKeymap', () => {
     const { ok, text } = runKey(km, 'Mod-Shift-q', 'cite');
     expect(ok).toBe(true);
     expect(text).toBe('citecf.');
+  });
+
+  it('the insert carries its text for Word-style Repeat, which counts it as typing', () => {
+    const km = buildMacroKeymap([{ id: 'a', key: 'F9', text: 'cf.' }]);
+    const state = EditorState.create({ schema, doc: docWithPara('') });
+    let meta: unknown;
+    expect(km['F9']!(state, (tr) => { meta = tr.getMeta(REPEAT_TYPING_META); })).toBe(true);
+    expect(meta).toBe('cf.');
   });
 
   it('a later macro on the same key wins', () => {

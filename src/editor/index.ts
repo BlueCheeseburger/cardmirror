@@ -12,7 +12,7 @@ import { serializeRangesForClipboard } from './clipboard-slice.js';
 import { EditorView } from 'prosemirror-view';
 import { keymap } from 'prosemirror-keymap';
 import { history, redo, undo, redoDepth } from 'prosemirror-history';
-import { repeatLastActionPlugin, repeatLastAction, noteCommandRun } from './repeat-last-action.js';
+import { repeatLastActionPlugin, repeatLastAction, noteCommandRun, type RepeatKey } from './repeat-last-action.js';
 import { baseKeymap } from 'prosemirror-commands';
 import { Node as PMNode, type Mark } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
@@ -5796,15 +5796,19 @@ const collabUndo: Command = (state, dispatch, viewArg) =>
 const collabRedo: Command = (state, dispatch, viewArg) =>
   collabPluginSourceFor(activeDocIdentity().sessionUid)?.redo(state, dispatch, viewArg) ?? false;
 
-// ─── Mod-Y: Redo, else Word-style Repeat (setting `repeatWithModY`) ────
+// ─── Redo, else Word-style Repeat (setting `repeatWithModY`) ──────────
 // Redo always wins while there is something to redo; with the stack
-// empty and the setting on, Mod-Y re-runs the last editing action at
-// the selection (see repeat-last-action.ts). Mod-Shift-Z stays Redo.
+// empty and the setting on, the `redo` command (Mod-Y and Mod-Shift-Z
+// by default, rebindable) re-runs the last editing action at the
+// selection (see repeat-last-action.ts).
 // Read mode: a no-op that still claims the key (nothing may edit).
 /** Feed one more press of `key` through the app's own key handlers
- *  (tag-boundary rules, node-select guards); false if none claimed it. */
-function replayKeyDown(v: EditorView, key: 'Backspace' | 'Delete'): boolean {
-  const event = new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true });
+ *  (tag-boundary rules, enter styles, indent, table cells, node-select
+ *  guards); false if none claimed it. */
+function replayKeyDown(v: EditorView, key: RepeatKey): boolean {
+  const shift = key === 'Shift-Tab';
+  const name = shift ? 'Tab' : key;
+  const event = new KeyboardEvent('keydown', { key: name, code: name, shiftKey: shift, bubbles: true, cancelable: true });
   return v.someProp('handleKeyDown', (f) => f(v, event)) === true;
 }
 const runRepeat = (v: EditorView | undefined): boolean =>

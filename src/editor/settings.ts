@@ -2364,7 +2364,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'repeatWithModY',
     label: 'Redo repeats the last action',
     description:
-      'Word-style Repeat. When on, Mod-Y with nothing left to redo does the last editing action again at the cursor: types the last thing you typed, applies the same formatting to the new selection, deletes one more character, pastes the same thing again, or re-runs the last command. Any key bound to Redo behaves this way (Mod-Y and Mod-Shift-Z by default). Off by default: Redo is Redo only.',
+      'Word-style Repeat. When on, Mod-Y with nothing left to redo does the last editing action again at the cursor: types the last thing you typed (autocorrect included), applies the same formatting to the new selection, presses Backspace, Delete, Enter, Tab or Shift-Tab once more, pastes the same thing again, or re-runs the last command. Any key bound to Redo behaves this way (Mod-Y and Mod-Shift-Z by default). Off by default: Redo is Redo only.',
     kind: 'toggle',
     category: 'general',
     section: 'Editor behavior',

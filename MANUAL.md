@@ -2379,9 +2379,10 @@ headers shown inside each tab.
   [Condense](#condense-pilcrows-and-case) does).
 - **Redo repeats the last action** — Word's Repeat. When on, Redo with
   nothing left to redo does the last editing action again at the cursor:
-  types the last thing you typed, applies the same formatting to the
-  new selection, deletes one more character after a Backspace or
-  Delete, pastes the same thing again, or re-runs the last command.
+  types the last thing you typed (a keyboard macro's text included,
+  with autocorrect applied as you go), applies the same formatting to
+  the new selection, presses Backspace, Delete, Enter, Tab or Shift-Tab
+  once more, pastes the same thing again, or re-runs the last command.
   Redo still comes first whenever there is something to redo. Any key
   bound to Redo behaves this way (Mod-Y and Mod-Shift-Z by default; see
   Settings → Keyboard shortcuts). Off by default.
