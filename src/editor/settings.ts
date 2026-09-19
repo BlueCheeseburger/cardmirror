@@ -2534,12 +2534,14 @@ export const SETTING_METADATA: SettingMeta[] = [
       // but leading indentation collapses. Keep every line flush left.
       'The name New Speech Document gives a new file.\n' +
       '{speech} is the name you type at the prompt.\n' +
-      '{date:...} is a date. Double a token to zero-pad it:\n' +
+      '{date:...} is the date and time, written with these tokens. Double a token to zero-pad it:\n' +
       'year - YYYY 2026, YY 26\n' +
       'month - M 4, MM 04, MMM Apr, MMMM April\n' +
-      'day - D 12, DD 12, ddd Sun, dddd Sunday\n' +
+      'day - D 5, DD 05, ddd Sun, dddd Sunday\n' +
       'hour - h 7, hh 07 (12-hour), H 19, HH 19 (24-hour)\n' +
-      'minute - m 5, mm 05. second - s 7, ss 07. A PM, a pm\n' +
+      'minute - m 5, mm 05\n' +
+      'second - s 7, ss 07\n' +
+      'AM/PM - add A for AM or PM, or a for am or pm, after a 12-hour time: h-mmA gives 7-05PM, h-mm a gives 7-05 pm\n' +
       '\n' +
       'Anything that is not a token stays as you typed it, so dashes, ' +
       'slashes and spaces need no escaping. Inside {date:...} the letters ' +
