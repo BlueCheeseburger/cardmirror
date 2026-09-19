@@ -36,6 +36,14 @@ see `DETAILED_CHANGELOG.md`.
   rather than a Bold mark (tags, cites, analytics) shows only where the
   other app bolds headings itself.
 
+- **The timer doubles as a stopwatch.** Press Start with the speech
+  clock at 0:00 and it counts up instead of doing nothing; a small
+  up-arrow marks the count. Pause and Start work as always, and no
+  alert points flash or beep on the way up. Load a preset, type a
+  time, or press Reset to get a countdown back. After a countdown
+  runs out, pause it and press Start to count overtime, still in red.
+  Prep clocks are unchanged: a prep balance at 0:00 is spent.
+
 ### Changed
 
 - **Send and Marked Docs keep their card numbers, or drop them.**

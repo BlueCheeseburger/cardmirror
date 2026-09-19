@@ -74,6 +74,36 @@ Ctrl/Alt-Arrow, PageUp/Down, Tab/Shift-Tab indent, and the Enter,
 Backspace and Delete rules inside tags — which no editor lets you
 rebind.
 
+### Added: stopwatch — Start at 0:00 counts up
+
+Field request 2026-09-19. `startTimer` no-op'd when the active clock's
+base was zero ("nothing to count down"), so a reset speech clock was
+dead until a preset was loaded. Now, in speech mode, Start with the
+base at 0 — a reset clock, a typed 0:00, or a ran-out countdown after
+its pause — enters STOPWATCH state (`TimerState.stopwatch`, with
+`speechStopwatchBaseMs` as the elapsed snapshot, the count-up twin of
+`speechBaseRemainingMs`), and `getVisibleRemainingMs` returns elapsed
+= base + (now − runningSince). Pause snapshots elapsed; Start resumes
+it; a preset, a typed time (even 0:00, which arms a fresh count) and
+Reset clear it. Invariant: stopwatch ⇒ speech base is 0. Prep clocks
+never count up — a prep balance at zero is spent — and switching to a
+prep clock pauses the stopwatch as it pauses any clock, so coming back
+resumes it. State is sanitized and broadcast like every other field,
+so the pop-out and other windows agree.
+
+Everything that assumed a countdown keys on `isStopwatch(s)`:
+`markTimerExpired` returns early (a count-up never runs out, and the
+render tick reads 0:00 on the first frame), the flash window is
+skipped, and `timer-audio`'s `reschedule` returns before computing a
+plan (the schedule would have read the elapsed value as time remaining
+and beeped through every alert point on a resume). The display rounds
+DOWN while counting up (`formatMs(ms, up)`) — 0:01 once a full second
+has elapsed — and carries `pmd-timer-up`, which the CSS turns into a
+small ▲ before the time so 0:07 elapsed cannot be read as 0:07
+remaining. Overtime after an expiry keeps the ran-out red: `expiredMode`
+is not cleared by starting the stopwatch, only by the same re-arms as
+before. Tests: timer-state.test.ts, the stopwatch describe.
+
 ### Added: copied HTML carries the copier's appearance as inline styles
 
 Field report 2026-09-19: copying from CardMirror and pasting into an

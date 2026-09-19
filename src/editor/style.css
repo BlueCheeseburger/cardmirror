@@ -13007,6 +13007,19 @@ html.pmd-timer-right #timer-panel {
   color: white;
 }
 
+/* Stopwatch (Start pressed with 0:00 loaded): a small up-arrow before
+   the time says this clock is counting up, so 0:07 elapsed can't be
+   read as 0:07 remaining. Speech mode only, so it never meets the
+   prep-label ::before. */
+:is(#ribbon, body.pmd-timer-popout-page)
+  .pmd-timer-panel
+  #timer-display.pmd-timer-up:not([contenteditable="true"])::before {
+  content: '\25B2'; /* ▲ — escaped: the icon-coverage guard wants ASCII-only content strings */
+  font-size: 0.55em;
+  margin-right: 0.25em;
+  opacity: 0.7;
+}
+
 /* Compact mode: drop the 3 preset buttons; reset moves under
    Start/Pause (small button instead of the full-height column);
    display + prep shift left to fill the gap.

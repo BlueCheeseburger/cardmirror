@@ -1205,6 +1205,14 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   a new time. (Pausing or switching clocks doesn't dismiss it; the sound,
   if on, is a single double beep, never repeated.)
 
+- **Stopwatch.** With the speech clock at **0:00** — after Reset, or after
+  typing 0:00 — press Start and it counts **up**; a small **▲** before the
+  time marks the count. Pause and Start work as always, and no alert points
+  flash or beep on the way up. Load a preset, type a time, or press Reset
+  to return to a countdown. When a countdown has run out, pause it and press
+  Start to count the overtime, still in red. Prep clocks never count up: a
+  prep balance at 0:00 is spent.
+
 - **Pop the timer out** *(desktop)*. The **⇱** button moves the timer into a
   small floating window that stays on top of every app — handy for keeping
   speech and prep time in view while reading a speech doc or anything else.
