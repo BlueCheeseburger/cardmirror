@@ -405,6 +405,19 @@ If **Condense on paste** is on (Settings → Editing), the
 pasted text is condensed as it lands.
 
 <a id="smart-paste"></a>
+### Copying into other apps
+
+A copy from CardMirror carries its look with it. Paste into an email,
+Google Docs, or Word and the tags, cites, underlining, emphasis boxes,
+highlights, colors, sizes, and your body font arrive as they showed on
+your screen — frozen to your Appearance settings at the moment you
+copied (in light colors, even if you work in dark mode). Pasting back
+into CardMirror is unaffected: the same content, marks and structure as
+always, in this version or an older one. Plain-text pastes are
+unchanged. The one thing that does not travel is bold that comes from
+a style rather than the Bold mark — tags, cites, analytics — which
+shows only where the receiving app bolds headings on its own.
+
 ### Smart paste from Word and haku.cards
 
 A regular Ctrl/Cmd-V of content copied from Microsoft Word (including

@@ -74,6 +74,47 @@ Ctrl/Alt-Arrow, PageUp/Down, Tab/Shift-Tab indent, and the Enter,
 Backspace and Delete rules inside tags — which no editor lets you
 rebind.
 
+### Added: copied HTML carries the copier's appearance as inline styles
+
+Field report 2026-09-19: copying from CardMirror and pasting into an
+email body arrived as plain text. The clipboard `text/html` is the
+schema's own DOM — `pmd-*` classes and `data-*` attributes styled by the
+app's stylesheet — so any app without that stylesheet had only bold,
+italic and heading tags to work with.
+
+`clipboard-styles.ts` adds a pass over the serialized DOM that writes
+the look those classes have on this machine as inline styles: display
+sizes per style, analytic / undertag colors, the typography flags (hat
+double underline, cite underline, emphasis and pocket boxes with their
+thickness, underline thickness), the body font, the 16 highlight fills
+with their black / white band text, shading band text, and the pilcrow
+size. Always the light palette. It is applied by wrapping the one
+clipboard serializer (`withFrozenStyles`, in comment-clipboard's
+`buildClipboardSerializer`), which every producer of clipboard HTML
+goes through — native copy / cut / drag, the outline pane, Copy
+Current Heading, the card preview, cut in place, the discontinuous
+copy — plus Create Reference's own serializer. `text/plain` and
+`data-pm-slice` are untouched.
+
+The invariant, and why the pass is shaped as it is: a paste back into
+CardMirror, this version or an earlier one, must produce the same
+document as before. The schema's parseDOM (byte-identical since 1.6.0)
+reads a few inline properties into marks and attrs — `font-weight`,
+`font-style`, a `line-through` text-decoration, `vertical-align`,
+`padding-left`, and `text-align` on paragraphs — so the pass never
+writes those and never overwrites a property an element already
+carries (an indent, a run size, a color). A cite inside a sized run
+takes the run size, as the CSS does. The dialect router still sees
+CardMirror HTML (the `pmd-*` check precedes the Word / haku
+fingerprints). The cost is that style-borne bold (tags, cites,
+analytics, headings) cannot be conveyed except through the receiving
+app's own h1–h4 defaults, because every CardMirror version would read
+`font-weight` as a Bold mark. clipboard-styles.test.ts round-trips a
+fragment touching every node and mark through the schema parser and
+asserts the styled and unstyled HTML parse identically, scans the
+output for the forbidden properties, checks the dialect routing, and
+pins the settings-to-style mapping.
+
 ### Changed: lossy exports freeze card numbers into heading text
 
 Numbering is display-only: the document stores a skeleton (`numRole` /

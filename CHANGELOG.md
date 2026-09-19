@@ -26,6 +26,16 @@ see `DETAILED_CHANGELOG.md`.
   Redo repeats the last action once there is nothing left to redo —
   Mod-Shift-Z included, which used to stay plain Redo.
 
+- **Copies keep their look when pasted into other apps.** Paste from
+  CardMirror into an email, Google Docs or Word and the tags, cites,
+  underlining, emphasis boxes, highlights, colors, sizes and your body
+  font come along, frozen to how the document looked on your screen
+  (light colors even in dark mode). Pasting back into CardMirror, this
+  version or an older one, produces exactly what it did before; plain
+  text copies are unchanged. One limit: bold that comes from a style
+  rather than a Bold mark (tags, cites, analytics) shows only where the
+  other app bolds headings itself.
+
 ### Changed
 
 - **Send, Read and Marked Docs keep their card numbers.** Those exports
