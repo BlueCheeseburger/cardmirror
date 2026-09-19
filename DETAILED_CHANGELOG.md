@@ -74,6 +74,30 @@ Ctrl/Alt-Arrow, PageUp/Down, Tab/Shift-Tab indent, and the Enter,
 Backspace and Delete rules inside tags — which no editor lets you
 rebind.
 
+### Added: Copy All Cards With Matching Cite
+
+Field request 2026-09-19: gather every card with the same source into a
+speech at once. `copy-matching-cite.ts` derives a query from the
+selection — a cursor in a cite paragraph, or a selection covering a
+whole cite (a whole card selected), asks for cards whose cite EQUALS
+it; a selection of part of a cite asks for cards whose cite CONTAINS
+that text; a selection that runs into other content is clipped to the
+first cite paragraph it reaches; touching no cite yields null and the
+command no-ops with a hint toast. Comparison uses Find's
+`normalizeForMatch` (curly quotes, dashes, ellipses folded) plus
+whitespace collapse and case folding, so a re-pasted cite with one
+smart quote still matches. `cardsWithMatchingCite` walks the document
+in order, skipping live-view mirrors (the source card matches) and
+descending into linked copies, and returns each card or analytic unit
+with a cite paragraph that matches, with `numRole` / `numRestart`
+cleared so the paste carries no numbers. The clipboard write goes
+through a new `serializeNodesForClipboard` in clipboard-slice.ts — the
+same serializer (comment payloads, frozen styles) and live-view
+materialization as a range copy, for nodes that are not a document
+range. Registered as `copyCardsWithMatchingCite` beside Copy Current
+Heading, unbound, with command-bar aliases. Tests:
+copy-matching-cite.test.ts.
+
 ### Added: stopwatch — Start at 0:00 counts up
 
 Field request 2026-09-19. `startTimer` no-op'd when the active clock's

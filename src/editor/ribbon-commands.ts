@@ -4401,6 +4401,7 @@ export type RibbonCommandId =
   | 'toggleSubRole'
   | 'toggleNumRestart'
   | 'copyCurrentHeading'
+  | 'copyCardsWithMatchingCite'
   // Quick Cards (see reference-docs/SPEC-quick-cards.md). Add saves the
   // current selection as a named, tagged snippet (no default binding);
   // the search palette opens on Mod-Shift-Space.
@@ -4638,6 +4639,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'toggleSubRole',
   'toggleNumRestart',
   'copyCurrentHeading',
+  'copyCardsWithMatchingCite',
   'addQuickCard',
   'manageQuickCards',
   'openQuickCardSearch',
@@ -4832,6 +4834,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   toggleSubRole: 'Number: Toggle Substructure Role',
   toggleNumRestart: 'Number: Toggle Start-Over-Here',
   copyCurrentHeading: 'Copy Current Heading',
+  copyCardsWithMatchingCite: 'Copy All Cards With Matching Cite',
   addQuickCard: 'Add Quick Card',
   manageQuickCards: 'Manage Quick Cards',
   openQuickCardSearch: 'Search Everything',
@@ -5030,6 +5033,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   timerReset: ['reset timer', 'reset prep'],
   flipQuoteDirection: ['flip quotes', 'curly quotes', 'reverse quote direction', 'smart quote direction', 'fix apostrophe', 'quote direction'],
   deleteCurrentHeading: ['delete card', 'delete heading', 'delete current card'], // "remove …" via the delete/remove synonym group
+  copyCardsWithMatchingCite: ['copy matching cite', 'copy same cite', 'copy cards by cite', 'copy all cards with this cite', 'cite cards'],
   toggleNumberRole: ['number', 'numbering', 'numbered card', 'auto number', 'list number'],
   toggleSubRole: ['substructure', 'sub number', 'sub letter', 'numbering', 'sublist', 'letter'],
   toggleNumRestart: ['restart numbering', 'start over', 'renumber', 'continue numbering', 'number restart'],
@@ -5211,6 +5215,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   toggleSubRole: 'Mod-Alt-2',
   toggleNumRestart: 'Mod-Alt-3',
   copyCurrentHeading: '',
+  copyCardsWithMatchingCite: '',
   addQuickCard: '',
   manageQuickCards: '',
   openQuickCardSearch: 'Mod-Shift-Space',
@@ -5465,6 +5470,10 @@ export interface RibbonContext {
    *  heading + subtree) outright — no blank heading left behind. */
   deleteCurrentHeading: () => void;
   copyCurrentHeading: () => void;
+  /** Copy every card whose cite matches the cursor's cite (or contains
+   *  the selected part of one) — copy-matching-cite.ts. No-op + toast
+   *  when the selection touches no cite. */
+  copyCardsWithMatchingCite: () => void;
   /** Save the current selection as a named, tagged quick card
    *  (opens the Add dialog). No-op + toast if the selection is empty. */
   addQuickCard: () => void;
@@ -5635,6 +5644,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   selectCurrentHeading: () => {},
   deleteCurrentHeading: () => {},
   copyCurrentHeading: () => {},
+  copyCardsWithMatchingCite: () => {},
   addQuickCard: () => {},
   manageQuickCards: () => {},
   openQuickCardSearch: () => {},
@@ -6300,6 +6310,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.copyCurrentHeading();
+        return true;
+      };
+    case 'copyCardsWithMatchingCite':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.copyCardsWithMatchingCite();
         return true;
       };
     case 'addQuickCard':

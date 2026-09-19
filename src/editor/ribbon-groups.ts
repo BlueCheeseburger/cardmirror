@@ -130,6 +130,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'selectCurrentHeading',
       'deleteCurrentHeading',
       'copyCurrentHeading',
+      'copyCardsWithMatchingCite',
       'moveContainerUp',
       'moveContainerDown',
       'flipQuoteDirection',

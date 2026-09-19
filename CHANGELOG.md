@@ -36,6 +36,13 @@ see `DETAILED_CHANGELOG.md`.
   rather than a Bold mark (tags, cites, analytics) shows only where the
   other app bolds headings itself.
 
+- **Copy All Cards With Matching Cite.** A new command (unbound; run it
+  from Search Everything or give it a key) copies every card in the
+  document that shares the cite at the cursor, in document order with
+  numbering removed. Select part of a cite — the cite mark, a title, a
+  URL — to copy every card whose cite contains that text instead. A
+  selection that runs past the cite counts only the part inside it;
+  with no cite under the cursor, nothing is copied.
 - **The timer doubles as a stopwatch.** Press Start with the speech
   clock at 0:00 and it counts up instead of doing nothing; a small
   up-arrow marks the count. Pause and Start work as always, and no

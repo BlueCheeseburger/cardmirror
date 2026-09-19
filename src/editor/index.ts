@@ -8,12 +8,13 @@
  */
 
 import { EditorState, Plugin, Selection, TextSelection, type Command } from 'prosemirror-state';
-import { serializeRangesForClipboard } from './clipboard-slice.js';
+import { serializeRangesForClipboard, serializeNodesForClipboard } from './clipboard-slice.js';
 import { EditorView } from 'prosemirror-view';
 import { keymap } from 'prosemirror-keymap';
 import { history, redo, undo, redoDepth } from 'prosemirror-history';
 import { repeatLastActionPlugin, repeatLastAction, noteCommandRun, type RepeatKey } from './repeat-last-action.js';
 import { applyNumberingExport, exportFreezesNumbering, type NumberingExportMode } from './numbering-bake.js';
+import { collectCardsWithMatchingCite } from './copy-matching-cite.js';
 import { baseKeymap } from 'prosemirror-commands';
 import { Node as PMNode, type Mark } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
@@ -746,6 +747,26 @@ async function copyCurrentHeadingIn(sourceView: EditorView): Promise<void> {
   // Shared host-first / retrying path — and every outcome surfaces
   // (see clipboard-write.ts for the silent-failure history).
   if (await writeClipboardHtml(html, text)) showToast('Copied!');
+  else showToast(CLIPBOARD_BUSY_MESSAGE);
+}
+
+/** Copy every card whose cite matches the cursor's cite, or contains
+ *  the selected part of one (copy-matching-cite.ts), in document order
+ *  with numbering cleared. Touching no cite is a no-op with a hint. */
+async function copyCardsWithMatchingCiteIn(sourceView: EditorView): Promise<void> {
+  const found = collectCardsWithMatchingCite(sourceView.state.doc, sourceView.state.selection);
+  if (!found) {
+    showToast('Put the cursor in a cite, or select part of one, to copy the cards that share it.');
+    return;
+  }
+  if (found.cards.length === 0) {
+    showToast('No card has a matching cite.');
+    return;
+  }
+  const { html, text } = serializeNodesForClipboard(sourceView, found.cards);
+  const n = found.cards.length;
+  const what = found.query.whole ? 'with this cite' : 'whose cite contains the selection';
+  if (await writeClipboardHtml(html, text)) showToast(`Copied ${n} card${n === 1 ? '' : 's'} ${what}.`);
   else showToast(CLIPBOARD_BUSY_MESSAGE);
 }
 
@@ -2150,6 +2171,9 @@ const ribbonContext: RibbonContext = {
   },
   copyCurrentHeading: () => {
     if (view) void copyCurrentHeadingIn(view);
+  },
+  copyCardsWithMatchingCite: () => {
+    if (view) void copyCardsWithMatchingCiteIn(view);
   },
   addQuickCard: () => {
     if (view) void runAddQuickCard(view);

@@ -531,6 +531,15 @@ warnings, your custom rules), and regular **Shrink (Mod-8)** and **Regrow
   as above.
 - **Copy Previous Cite (Alt-F8)** pulls the cite from the previous card
   into the current one — handy when cutting a long article.
+- **Copy All Cards With Matching Cite** (unbound; run it from Search
+  Everything or give it a key) copies every card in the document that
+  shares the cite at the cursor — in document order, numbering removed —
+  so you can pull all of an author's cards into a speech at once. Put the
+  cursor anywhere in a cite to match cards whose cite is the same; select
+  part of a cite (the cite mark, a title, a URL, a journal) to match every
+  card whose cite contains that text. A selection that runs past the cite
+  uses just the part inside it. With no cite under the cursor or in the
+  selection, nothing is copied.
 - **Format Cite from selection (Mod-Shift-X)** uses AI to turn a pasted
   citation or URL into a properly styled cite (see
   [AI features](#13-ai-features)).
