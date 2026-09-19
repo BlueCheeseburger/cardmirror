@@ -38,6 +38,7 @@ import { Fragment, type Mark, type MarkType, type Node as PMNode, type ResolvedP
 import { Selection, TextSelection, type Command, type EditorState, type Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { toggleMark } from 'prosemirror-commands';
+import { undo as historyUndo, redo as historyRedo } from 'prosemirror-history';
 import { toggleReadingMarkerCommand } from './reading-marker.js';
 import { convertCardsToReadMode } from './convert-cards-to-read-mode.js';
 import { openFootnoteEditor } from './footnote-popover.js';
@@ -4274,6 +4275,8 @@ export type StructuralRibbonCommandId =
 
 export type RibbonCommandId =
   | StructuralRibbonCommandId
+  | 'undo'
+  | 'redo'
   | 'moveContainerUp'
   | 'moveContainerDown'
   | 'toggleBold'
@@ -4514,6 +4517,8 @@ export const STRUCTURAL_RIBBON_COMMAND_IDS: StructuralRibbonCommandId[] = [
 
 export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   ...STRUCTURAL_RIBBON_COMMAND_IDS,
+  'undo',
+  'redo',
   'moveContainerUp',
   'moveContainerDown',
   'toggleBold',
@@ -4700,6 +4705,8 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
 ];
 
 export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
+  undo: 'Undo',
+  redo: 'Redo',
   setPocket: 'Apply Pocket Style',
   setHat: 'Apply Hat Style',
   setBlock: 'Apply Block Style',
@@ -4903,6 +4910,8 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
  * Keep entries lowercase. Only commands that need an alias appear here.
  */
 export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly string[]>> = {
+  undo: ['ctrl-z', 'cmd-z', 'take back', 'revert'],
+  redo: ['ctrl-y', 'cmd-y', 'ctrl-shift-z', 'do again'],
   sendToRecipient: ['send to contact', 'send card to', 'pick recipient', 'send to group'],
   minimizeWindow: ['minimize', 'hide window', 'window menu'],
   openJournalsFolder: ['crash', 'recovery', 'journal', 'restore', 'lost work', 'autosave folder'],
@@ -5058,6 +5067,8 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
  * inline marks.
  */
 export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
+  undo: 'Mod-z',
+  redo: ['Mod-y', 'Mod-Shift-z'],
   setPocket: 'F4',
   setHat: 'F5',
   setBlock: 'F6',
@@ -5537,6 +5548,16 @@ export interface RibbonContext {
   openDocToolsMenu: () => void;
   openCardToolsMenu: () => void;
   openTableMenu: () => void;
+  /** Undo / redo for the FOCUSED document — supplied by the editor host
+   *  because the right command is decided at run time: a live
+   *  collaboration session's own undo manager (it reverts only this
+   *  peer's edits, which history cannot guarantee once remote edits
+   *  interleave), else prosemirror-history with read mode's marker-only
+   *  limits; with `repeatWithModY` on, Redo falls through to Word-style
+   *  Repeat when nothing is left to redo. Optional so a bare context
+   *  (tests, previews) gets plain history undo/redo. */
+  undoCommand?: () => Command;
+  redoCommand?: () => Command;
 }
 
 const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
@@ -5682,6 +5703,10 @@ function startSpeechPreset(idx: number): void {
 
 function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
   switch (id) {
+    // Resolved per press, not per build: the routing depends on which
+    // document has focus (see RibbonContext.undoCommand).
+    case 'undo': return (state, dispatch, view) => (ctx.undoCommand?.() ?? historyUndo)(state, dispatch, view);
+    case 'redo': return (state, dispatch, view) => (ctx.redoCommand?.() ?? historyRedo)(state, dispatch, view);
     case 'setPocket': return setHeading('pocket');
     case 'setHat': return setHeading('hat');
     case 'setBlock': return setHeading('block');

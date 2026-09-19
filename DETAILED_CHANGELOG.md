@@ -38,6 +38,42 @@ document and reports "outside the roots" or "excluded" otherwise; the
 current-document path comes from the per-view lookup, so three-pane
 mode browses from the focused pane's document.
 
+### Added: Undo and Redo are rebindable commands
+
+Undo and Redo were the one pair of editing keys missing from
+Settings → Keyboard shortcuts. They were never in the command registry:
+the right command is decided per document at run time — a live
+collaboration session's own undo manager (which reverts only this
+peer's edits, something prosemirror-history cannot guarantee once
+remote transactions interleave) versus history with read mode's
+marker-only limits — so each editor got a fixed ProseMirror keymap
+built for its case, outside the rebindable ribbon keymap.
+
+Now `undo` and `redo` are ribbon commands (Editing utilities group;
+defaults `Mod-z` and `Mod-y` + `Mod-Shift-z`; command-bar aliases
+ctrl-z / cmd-y / etc.). The per-document routing moved into two
+optional `RibbonContext` hooks, `undoCommand` / `redoCommand`, which
+the editor host resolves at PRESS time from the focused document's
+session (`activeDocIdentity`), so a session document and a plain one
+in three-pane mode each get their own stack under the same key. The
+fixed keymaps are gone; only the `history()` plugin stays conditional
+on whether a session owns undo. A bare context (tests, previews) falls
+back to plain history undo/redo. Repeat already excludes `undo` and
+`redo` from what it records, so no repeat loop is possible.
+
+One behaviour change: with the Repeat setting on, the repeat fallback
+belongs to the Redo COMMAND, so every key bound to it (Mod-Shift-Z by
+default) repeats when nothing is left to redo; before, only Mod-Y did
+and Mod-Shift-Z stayed plain Redo. The setting (`repeatWithModY`,
+Settings → General → Editor behavior) is relabelled "Redo repeats the
+last action" and its description and manual entry say so; the key name
+stays in the setting's id and search aliases.
+The other editor keys still fixed outside the registry are the
+navigation and structure conventions — word/paragraph jumps with
+Ctrl/Alt-Arrow, PageUp/Down, Tab/Shift-Tab indent, and the Enter,
+Backspace and Delete rules inside tags — which no editor lets you
+rebind.
+
 ### Fixed: Reading View clipped the last page's final column under the flip lane
 
 Field report (Will Katz, 2026-09-14, with screenshots): on the last

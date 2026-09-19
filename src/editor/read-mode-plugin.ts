@@ -189,7 +189,7 @@ export const readModePlugin: Plugin<ReadModeState> = new Plugin<ReadModeState>({
 
 /** Undo — but in read mode, only as far back as the markers dropped since
  *  read mode was entered (never earlier edits). Outside read mode, plain
- *  undo. Bound to Mod-Z. */
+ *  undo. The `undo` ribbon command (default Mod-Z). */
 export const readModeAwareUndo: Command = (state, dispatch, view) => {
   const rm = readModePlugin.getState(state);
   if (rm?.on) {
@@ -201,7 +201,8 @@ export const readModeAwareUndo: Command = (state, dispatch, view) => {
 
 /** Redo — in read mode, only marker edits undone since entry (a dropped
  *  marker clears any earlier redo, so `dirtied` means redo is marker-only).
- *  Outside read mode, plain redo. Bound to Mod-Y / Mod-Shift-Z. */
+ *  Outside read mode, plain redo. The `redo` ribbon command (defaults
+ *  Mod-Y and Mod-Shift-Z). */
 export const readModeAwareRedo: Command = (state, dispatch, view) => {
   const rm = readModePlugin.getState(state);
   if (rm?.on) {

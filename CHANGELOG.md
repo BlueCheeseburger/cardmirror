@@ -18,6 +18,13 @@ see `DETAILED_CHANGELOG.md`.
   pick a file exactly as you would from an `f` search, diving into it
   with Tab included. `/c` and a space starts in the folder of the
   document you are working in instead. Thanks to chips (@cheepsahoy)!
+- **Undo and Redo can be rebound.** They now appear under Editing
+  utilities in Settings → Keyboard shortcuts, with the usual defaults
+  (Mod-Z; Mod-Y and Mod-Shift-Z), and answer to the command bar. If
+  "Redo repeats the last action" (Settings → General → Editor behavior,
+  formerly "Mod-Y repeats the last action") is on, every key bound to
+  Redo repeats the last action once there is nothing left to redo —
+  Mod-Shift-Z included, which used to stay plain Redo.
 
 ### Fixed
 

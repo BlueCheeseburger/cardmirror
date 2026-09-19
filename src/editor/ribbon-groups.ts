@@ -106,6 +106,8 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
   {
     title: 'Editing utilities',
     commands: [
+      'undo',
+      'redo',
       'pasteAsText',
       'pasteCondensed',
       'clearToNormal',

@@ -1577,6 +1577,15 @@ const ribbonContext: RibbonContext = {
   extractUndertagInQuotes: () => settings.get('extractUndertagInQuotes'),
   headingMode: () => settings.get('headingMode'),
   condenseOnPaste: () => settings.get('condenseOnPaste'),
+  // Undo / redo route per FOCUSED document (the keymaps only fire on the
+  // focused view, whose record uid is activeDocIdentity's): the session's
+  // undo manager when a live collaboration owns undo, else history with
+  // read mode's limits. Resolved lazily — the commands are defined later
+  // in this module and only run at press time.
+  undoCommand: () =>
+    collabPluginSourceFor(activeDocIdentity().sessionUid)?.ownsUndo() ? collabUndo : readModeAwareUndo,
+  redoCommand: () =>
+    collabPluginSourceFor(activeDocIdentity().sessionUid)?.ownsUndo() ? collabRedoOrRepeat : redoOrRepeat,
   collabStartSession: () => {
     void loadCollabUi().then((m) => m.startSessionFlow(collabDeps));
   },
@@ -5534,12 +5543,15 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // reverts only this peer's edits, which prosemirror-history cannot
     // guarantee once remote transactions interleave. Outside a session,
     // the plain history stack as always.
-    ...(collabPluginSourceFor(targetUid)?.ownsUndo()
-      ? [keymap({ 'Mod-z': collabUndo, 'Mod-y': collabRedoOrRepeat, 'Mod-Shift-z': collabRedo })]
-      : [
-          history(),
-          keymap({ 'Mod-z': readModeAwareUndo, 'Mod-y': redoOrRepeat, 'Mod-Shift-z': readModeAwareRedo }),
-        ]),
+    // The undo / redo KEYS are the rebindable `undo` / `redo` ribbon
+    // commands (Settings → Keyboard shortcuts), dispatched through the
+    // ribbon keymap further down and routed per focused document by
+    // ribbonContext.undoCommand / redoCommand. Only the history plugin
+    // itself is conditional here: a live collaboration session owns undo
+    // (the CRDT undo manager reverts only this peer's edits, which
+    // prosemirror-history cannot guarantee once remote transactions
+    // interleave); outside a session, the plain history stack as always.
+    ...(collabPluginSourceFor(targetUid)?.ownsUndo() ? [] : [history()]),
     // Tag/analytic boundary editing rules (ARCHITECTURE.md §14.3).
     // These run before baseKeymap so they get first crack at
     // Backspace / Delete / Enter when the cursor is in a tag.
