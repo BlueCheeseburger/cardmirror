@@ -1300,7 +1300,8 @@ command (default **Mod-Alt-M**, rebindable) that saves silently to a destination
 choose under Settings → *Marked Cards destination* (the source file's folder, or a 
 fixed folder), using the `MARKED_` filename prefix and the Marked Cards format — mirroring 
 Save Send Doc. It keeps cards only (analytics and headings are dropped); if nothing is marked,
-it does nothing and tells you so.
+it does nothing and tells you so. Card numbers are frozen into the saved copy as text (see
+[Send Doc](#16-saving-and-file-formats)), so the marked cards keep the numbers they had.
 
 ---
 
@@ -2184,6 +2185,12 @@ copy:
 - **Send Doc** — a clean reading copy with comments, analytics, and
   undertags stripped, for the judge or opponent (optionally with a
   `SEND_` filename prefix).
+- Send, Read and Marked Docs **freeze their card numbers**: every
+  numbered heading gets its number written in as plain text, in your
+  display format, and the copy is no longer auto-numbered. Dropping the
+  analytics (or the unmarked cards) therefore does not renumber what is
+  left, and deleting a card from the copy during the round leaves the
+  other numbers alone. A full save keeps live numbering.
 - Checkboxes (off by default) let you include **private notes** and **AI
   comments** in the saved file.
 

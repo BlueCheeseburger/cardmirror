@@ -13,6 +13,7 @@ import { EditorView } from 'prosemirror-view';
 import { keymap } from 'prosemirror-keymap';
 import { history, redo, undo, redoDepth } from 'prosemirror-history';
 import { repeatLastActionPlugin, repeatLastAction, noteCommandRun, type RepeatKey } from './repeat-last-action.js';
+import { bakeCardNumbers, exportFreezesNumbering } from './numbering-bake.js';
 import { baseKeymap } from 'prosemirror-commands';
 import { Node as PMNode, type Mark } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
@@ -7927,7 +7928,13 @@ async function serializeForSave(
    *  Omitted for derived/lossy exports, which stay clean (no identity). */
   docId?: string,
 ): Promise<Uint8Array> {
-  const docToExport = view ? view.state.doc : currentDoc;
+  const liveDoc = view ? view.state.doc : currentDoc;
+  // A lossy export (Send / Read / Marked Doc, or a custom save that drops
+  // analytics) freezes the card numbers as heading text FIRST, on the full
+  // document, so the strips below cannot renumber what survives and a card
+  // deleted from the copy later leaves the others' numbers alone
+  // (numbering-bake.ts). A full save keeps the live skeleton.
+  const docToExport = exportFreezesNumbering(opts) ? bakeCardNumbers(liveDoc) : liveDoc;
   let exportDocNode = transformForExport(docToExport, {
     includeComments: opts.includeComments,
     includeAnalytics: opts.includeAnalytics,

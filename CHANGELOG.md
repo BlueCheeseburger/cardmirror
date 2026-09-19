@@ -26,6 +26,17 @@ see `DETAILED_CHANGELOG.md`.
   Redo repeats the last action once there is nothing left to redo —
   Mod-Shift-Z included, which used to stay plain Redo.
 
+### Changed
+
+- **Send, Read and Marked Docs keep their card numbers.** Those exports
+  drop analytics or unmarked cards, and the numbers on what was left
+  used to be recomputed, so a speech prepped as 1, 3, 5 came out as
+  1, 2, 3. Saving one of them now freezes the numbers first: each
+  numbered heading gets its number as plain text, in your display
+  format, and the copy is no longer auto-numbered, so deleting a card
+  from it during the round does not shift the rest. A full save is
+  unchanged; so is the working document.
+
 ### Fixed
 
 - **Reading View: the last page no longer loses its right-hand words

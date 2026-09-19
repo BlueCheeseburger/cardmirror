@@ -74,6 +74,35 @@ Ctrl/Alt-Arrow, PageUp/Down, Tab/Shift-Tab indent, and the Enter,
 Backspace and Delete rules inside tags — which no editor lets you
 rebind.
 
+### Changed: lossy exports freeze card numbers into heading text
+
+Numbering is display-only: the document stores a skeleton (`numRole` /
+`numRestart` on cards and analytic units, `numRestart` on blocks) and
+the numbers are computed from position at render, in the nav pane and
+at docx export (as native Word numbering). The Send Doc, Read Doc and
+Marked Doc presets strip analytics or unmarked cards before export, so
+the survivors renumbered: a speech prepped as 1, 3, 5 saved as 1, 2, 3,
+and any card deleted from the copy during the round shifted the rest
+again. Field request 2026-09-19.
+
+Now `serializeForSave` bakes the numbers before the strips when the
+export drops numbered content (`exportFreezesNumbering`: analytics
+stripped, read-mode view, or marked cards only — the three presets and
+any custom save that unticks analytics; a full save keeps the live
+skeleton). `bakeCardNumbers` (numbering-bake.ts) runs `computeNumbering`
+on the FULL document, inserts each glyph as literal text at the head of
+its heading — the user's display separators via the plugin's
+`glyphText`, e.g. "3. " / "b) ", no marks, so it takes the heading's
+own style as a Word number takes the paragraph's — and clears the
+unit's role, so neither the docx exporter (no `numPr`, no
+`numbering.xml`) nor a later CardMirror session numbers it a second
+time. Descending positions, so inserts never shift a position still to
+be visited; live-view and linked-copy children are real nodes and are
+baked at their host positions like everything else. The working
+document is untouched: the transform runs on the export copy, as the
+other export transforms do. Tests: numbering-bake.test.ts, including
+the 1, 3 → 1, 2 scenario and the read-mode strip.
+
 ### Fixed: Repeat skipped Enter, Tab, macro text and autocorrect
 
 Field observation (2026-09-18): with "Redo repeats the last action" on,
