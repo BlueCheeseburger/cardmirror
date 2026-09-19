@@ -4,7 +4,7 @@
  * update / presence / end handling with reconnect.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { RoomsClient, RoomsError, RoomStream, type RoomUpdate } from '../../src/editor/collab/room-client.js';
 import { startRoomsMock, type RoomsMock } from './_rooms-mock.js';
 
@@ -403,6 +403,11 @@ describe('RoomStream backoff policy (2026-09-01 review)', () => {
   });
 
   it('backoff resets only after a connection SURVIVES, so a hello-then-close relay is not hammered', async () => {
+    // The retry delay is jittered to 30–100% of the cap; a run of low draws
+    // fits 9+ attempts into the window and failed CI at random (macOS,
+    // 2026-09-19). Pin the draw at the top of the band so the escalation
+    // (20, 40, 80, 160, 160…) is exact and the count deterministic.
+    const rand = vi.spyOn(Math, 'random').mockReturnValue(0.999);
     let attempts = 0;
     const stream = new RoomStream({
       baseUrl: () => 'http://x',
@@ -420,9 +425,12 @@ describe('RoomStream backoff policy (2026-09-01 review)', () => {
     stream.start();
     await sleep(450);
     stream.stop();
+    rand.mockRestore();
     // Naive reset-on-hello: ~1 attempt per 20ms ≈ 20+. Escalating: 20, 40,
-    // 80, 160, 160… ≈ 5-6 attempts in 450ms.
-    expect(attempts).toBeLessThanOrEqual(8);
+    // 80, 160, 160… = attempts at 0, 20, 60, 140, 300 → 5 in 450ms (6 if
+    // the 460ms one squeaks in on a slow runner).
+    expect(attempts).toBeGreaterThanOrEqual(4);
+    expect(attempts).toBeLessThanOrEqual(6);
   });
 
   it('a reconnect that keeps hitting 409 eventually reports crowded-out (and keeps retrying)', async () => {
