@@ -10358,6 +10358,42 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   border-bottom: 1px solid var(--pmd-c-divider-faint);
   padding: 0.25rem;
 }
+.pmd-qcs-browse-header {
+  padding: 0.45rem 0.75rem 0.35rem;
+  color: var(--pmd-c-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--pmd-c-divider-faint);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmd-qcs-browse-header[hidden] { display: none; }
+.pmd-qcs-browse-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmd-qcs-browse-current-hint {
+  color: var(--pmd-c-text-muted);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmd-qcs-browse-notice {
+  margin: 0.45rem 0.6rem 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 5px;
+  color: var(--pmd-c-text-muted);
+  background: var(--pmd-c-surface-soft);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
 .pmd-qcs-row {
   padding: 0.4rem 0.5rem;
   border-radius: 5px;
@@ -10402,6 +10438,10 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 .pmd-qcs-badge-fileobject {
   color: var(--pmd-c-text-secondary);
   border-color: var(--pmd-c-text-secondary);
+}
+.pmd-qcs-badge-folder {
+  color: var(--pmd-c-warning);
+  border-color: var(--pmd-c-warning);
 }
 /* Collapse chevron / spacer in the file-search outline browse. */
 .pmd-qcs-twisty {
@@ -10477,6 +10517,10 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   padding: 0.6rem 0.5rem;
   color: var(--pmd-c-text-muted);
   font-size: 0.82rem;
+}
+.pmd-qcs-empty-separator {
+  color: var(--pmd-c-text-secondary);
+  font-weight: 800;
 }
 .pmd-qcs-more {
   padding: 0.45rem 0.5rem;

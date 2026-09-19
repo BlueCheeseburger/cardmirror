@@ -7,6 +7,37 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+### Added: folder browsing in the Search Everything palette
+
+The palette's file search finds a document by name; when you know
+where a file lives but not what it is called, that is the wrong tool.
+PR #56 (chips, @cheepsahoy) added a folder browser over the same index,
+reworked here into the palette's prefix model. `/ ` is the prefix: it
+starts at the configured file-search roots, Enter/Tab steps into a
+folder, Esc steps up (and closes from the roots), and text after the
+prefix searches the folder you are in. `/c ` is the same browser
+started in the launching document's own folder. Three rules keep the
+bar and the location in step: only a CHANGE of prefix relocates (typing
+after `/c ` landed you somewhere, then navigating away, never snaps
+back; deleting the `c` returns to the roots), a keystroke in the query
+only filters, and stepping into or out of a folder clears the query. A
+bare `/` or `/c` with no space yet shows a hint instead of running the
+everything search, which would otherwise match every file path.
+
+Nothing new reaches the filesystem. The index service derives the
+listing from its in-memory entries (`file-browse.ts`, a pure helper
+shared with the palette test fake so the two cannot drift): a folder
+exists only while an indexed, non-excluded file sits beneath it,
+relative directories are rejected on any `..` or absolute segment, and
+the root must be one of the configured roots. With a query, every file
+beneath the folder is ranked by the shared file matcher (folder-path
+hits included, as in `f` search) and carries the sub-path it sits in;
+subfolders appear only when their name matches. Pins float first in
+both views. `/c` resolves the deepest configured root containing the
+document and reports "outside the roots" or "excluded" otherwise; the
+current-document path comes from the per-view lookup, so three-pane
+mode browses from the focused pane's document.
+
 ### Fixed: the last of several selected headings carries its section
 
 `normalizeSelectionForSend` rounded the selection end to the nearest
