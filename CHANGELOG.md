@@ -5,6 +5,18 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed
+
+- **Sending several selected headings sends the last one with its
+  cards.** Select from one heading down into another and press Send to
+  Speech (or send to a starred partner, a recipient, or the dropzone),
+  and the last heading used to arrive without its cards, or not at all,
+  depending on where the drag ended. A heading that ends the selection
+  now brings its whole section along, exactly as a bare cursor on that
+  heading does. Thanks to Cora (@coralynnkc)!
+
 ## 1.10.0 — 2026-09-10
 
 ### Added

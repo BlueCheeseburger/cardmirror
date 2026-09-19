@@ -5,6 +5,29 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed: the last of several selected headings carries its section
+
+`normalizeSelectionForSend` rounded the selection end to the nearest
+top-level boundary. Headings are flat siblings of their cards, not
+containers, so rounding to a heading's boundary never picked up its
+section: a drag ending in the last heading's second half sent that
+heading bare, and one ending in its first half dropped it entirely. The
+bare-cursor path (`enclosingStructureRange`) already expanded a heading
+to its section through `sectionEndFromHeading`; the selection path now
+does the same. Three rules: a heading with any of its text selected is
+included (a caret parked at its very start, as after shift-down onto the
+next line, is not); a heading that ends the range extends to the end of
+its section, up to the next heading at the same or a higher level; and
+the collapsed-selection fallback expands a heading likewise. Every
+send-to command shares the normalizer through `takeSendSlice`, which
+also reflects the widened range back as the visible selection. Deleting
+a heading is unaffected: Delete Current Heading resolves its range from
+the bare cursor, never from this normalizer. The start side keeps its
+half-of-the-heading rule, so the two ends are deliberately asymmetric.
+PR #51 by Cora (@coralynnkc).
+
 ## 1.10.0 — 2026-09-10
 
 ### Added: Last workspace (reopen the documents you had open)
