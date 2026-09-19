@@ -3,7 +3,8 @@
  * palette's file index + search. Exercised against real temp dirs: scan
  * discovery, windowed ranked queries (shared matcher), exclusion/format
  * filters, pin flag/partition split, prune-on-configure, change
- * notifications on revalidation, and disk persistence round-trips.
+ * notifications on revalidation, disk persistence round-trips, and the
+ * folder browse / current-file location derived from the index.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -163,5 +164,68 @@ describe('file-index core', () => {
     expect(changed).toEqual([rootA]);
     const res = await core.query(q());
     expect(res.total).toBe(3);
+  });
+
+  it('browses a root: subfolders then direct files, and steps into a folder', async () => {
+    const core = makeCore();
+    await core.configure([rootA]);
+    await core.idle();
+    const b = (relativeDirectory: string, query = '') =>
+      core.browse({ ...q(), location: { root: rootA, relativeDirectory }, query });
+    const top = await b('');
+    expect(top.valid).toBe(true);
+    expect(top.rows.map((r) => (r.kind === 'folder' ? `[${r.name}]` : r.name))).toEqual(['[Neg]', 'Warming Aff']);
+    const neg = await b('Neg');
+    expect(neg.rows.map((r) => (r.kind === 'folder' ? `[${r.name}]` : r.name))).toEqual(['Warming Neg']);
+    // Search-this-folder reaches below the root and reports the sub-path.
+    const found = await b('', 'warming neg');
+    expect(found.rows.map((r) => (r.kind === 'file' ? [r.name, r.subPath] : r.name))).toEqual([['Warming Neg', 'Neg']]);
+  });
+
+  it('refuses a root outside the configured set and any escape from a root', async () => {
+    const core = makeCore();
+    await core.configure([rootA]);
+    await core.idle();
+    const other = path.join(tmp, 'other');
+    expect((await core.browse({ ...q(), location: { root: other, relativeDirectory: '' }, query: '' })).valid).toBe(false);
+    expect((await core.browse({ ...q(), location: { root: rootA, relativeDirectory: '..' }, query: '' })).valid).toBe(false);
+    expect((await core.browse({ ...q(), location: { root: rootA, relativeDirectory: path.join('Neg', '..', '..') }, query: '' })).valid).toBe(false);
+    expect((await core.browse({ ...q(), location: { root: rootA, relativeDirectory: 'Nope' }, query: '' })).valid).toBe(false);
+  });
+
+  it('a folder disappears from the browser when its files are excluded', async () => {
+    const core = makeCore();
+    await core.configure([rootA]);
+    await core.idle();
+    const res = await core.browse({
+      ...q(),
+      exclusions: [path.join(rootA, 'Neg')],
+      location: { root: rootA, relativeDirectory: '' },
+      query: '',
+    });
+    expect(res.rows.map((r) => r.kind)).toEqual(['file']);
+  });
+
+  it('locates the open document in the deepest root, or says why not', async () => {
+    const core = makeCore();
+    await core.configure([rootA]);
+    await core.idle();
+    const neg = path.join(rootA, 'Neg', 'Warming Neg.docx');
+    expect(await core.locateCurrentFile({ filePath: neg, roots: [rootA], exclusions: [] })).toEqual({
+      ok: true,
+      location: { root: rootA, relativeDirectory: 'Neg' },
+    });
+    expect(await core.locateCurrentFile({ filePath: neg, roots: [rootA, path.join(rootA, 'Neg')], exclusions: [] })).toEqual({
+      ok: true,
+      location: { root: path.join(rootA, 'Neg'), relativeDirectory: '' },
+    });
+    expect(await core.locateCurrentFile({ filePath: path.join(tmp, 'x.cmir'), roots: [rootA], exclusions: [] })).toEqual({
+      ok: false,
+      reason: 'outside-roots',
+    });
+    expect(await core.locateCurrentFile({ filePath: neg, roots: [rootA], exclusions: [path.join(rootA, 'Neg')] })).toEqual({
+      ok: false,
+      reason: 'excluded',
+    });
   });
 });

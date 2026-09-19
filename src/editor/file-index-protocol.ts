@@ -26,7 +26,8 @@ export interface FileIndexQueryResult {
   total: number;
 }
 
-/** A directory within one configured root. Empty relativeDirectory is the root. */
+/** A directory within one configured root. Empty relativeDirectory is the
+ *  root. Segments use the index service's native separator. */
 export interface FileBrowseLocation {
   root: string;
   relativeDirectory: string;
@@ -38,11 +39,19 @@ export type FileBrowseRow =
       name: string;
       relativeDirectory: string;
     }
-  | ({ kind: 'file' } & FileIndexRow);
+  | ({
+      kind: 'file';
+      /** Directory of the file relative to the browsed directory ('' when
+       *  it sits directly inside it) — the search view reaches any depth. */
+      subPath: string;
+    } & FileIndexRow);
 
 export interface FileBrowseParams {
   roots: string[];
   location: FileBrowseLocation;
+  /** '' lists the directory (subfolders + direct files); otherwise every
+   *  file beneath it is searched, plus subfolders whose name matches. */
+  query: string;
   exclusions: string[];
   formats: 'both' | 'cmir' | 'docx';
   tiebreak: FileTiebreak;

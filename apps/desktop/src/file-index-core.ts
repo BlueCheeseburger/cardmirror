@@ -48,6 +48,11 @@ import type {
   FileIndexRow,
   LocateCurrentFileResult,
 } from '../../../src/editor/file-index-protocol.js';
+import {
+  deriveBrowse,
+  locateInRoots,
+  normalizeRelativeDirectory,
+} from '../../../src/editor/file-browse.js';
 export type { FileIndexRow } from '../../../src/editor/file-index-protocol.js';
 
 /** On-disk entry shape — unchanged from the main-process era so the
@@ -257,23 +262,6 @@ export function createFileIndexCore(opts: {
     return out;
   }
 
-  /** A native-path containment check. `path.relative` supplies the
-   *  separator/case semantics of the OS running the index service. */
-  function relativeInside(root: string, candidate: string): string | null {
-    const rel = path.relative(root, candidate);
-    if (rel === '') return '';
-    if (path.isAbsolute(rel) || rel === '..' || rel.startsWith(`..${path.sep}`)) return null;
-    return rel;
-  }
-
-  function validRelativeDirectory(relativeDirectory: string): string | null {
-    if (relativeDirectory === '') return '';
-    if (path.isAbsolute(relativeDirectory) || relativeDirectory.split(/[\\/]/).includes('..')) return null;
-    const normalized = path.normalize(relativeDirectory);
-    if (normalized === '..' || normalized.startsWith(`..${path.sep}`)) return null;
-    return normalized === '.' ? '' : normalized.replace(/[\\/]+$/, '');
-  }
-
   function indexRow(f: FileEntry, pins: Set<string>): FileIndexRow {
     return {
       path: f.path,
@@ -314,68 +302,25 @@ export function createFileIndexCore(opts: {
     async browse(q: FileBrowseParams): Promise<FileBrowseResult> {
       await ensureLoaded();
       const root = q.location.root;
-      const relDir = validRelativeDirectory(q.location.relativeDirectory);
+      const relDir = normalizeRelativeDirectory(q.location.relativeDirectory, path.sep);
       if (!q.roots.includes(root) || relDir === null) return { rows: [], total: 0, valid: false };
-
-      // A non-root directory is valid only while the index still has a file
-      // beneath it. This lets the renderer walk upward when a branch vanishes.
-      const indexedMembers = visibleEntries([root], q.exclusions, 'both');
-      const directoryExists = relDir === '' || indexedMembers.some((f) => {
-        const rel = path.relative(relDir, f.relPath);
-        return rel !== '' && !path.isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${path.sep}`);
+      return deriveBrowse({
+        entries: visibleEntries([root], q.exclusions, q.formats),
+        relDir,
+        query: q.query,
+        sep: path.sep,
+        tiebreak: q.tiebreak,
+        pins: q.pins,
+        limit: q.limit,
       });
-      if (!directoryExists) return { rows: [], total: 0, valid: false };
-
-      const entries = visibleEntries([root], q.exclusions, q.formats);
-      const folders = new Map<string, { kind: 'folder'; name: string; relativeDirectory: string }>();
-      const directFiles: FileEntry[] = [];
-      for (const f of entries) {
-        const remainder = path.relative(relDir, f.relPath);
-        if (
-          remainder === ''
-          || path.isAbsolute(remainder)
-          || remainder === '..'
-          || remainder.startsWith(`..${path.sep}`)
-        ) continue;
-        const parts = remainder.split(path.sep);
-        if (parts.length === 1) {
-          directFiles.push(f);
-          continue;
-        }
-        const name = parts[0]!;
-        const relativeDirectory = relDir ? path.join(relDir, name) : name;
-        folders.set(relativeDirectory, { kind: 'folder', name, relativeDirectory });
-      }
-
-      const folderRows = [...folders.values()].sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-      );
-      const rankedFiles = searchFiles(directFiles, '', q.tiebreak);
-      const pins = new Set(q.pins);
-      const orderedFiles = pins.size === 0
-        ? rankedFiles
-        : [...rankedFiles.filter((f) => pins.has(f.path)), ...rankedFiles.filter((f) => !pins.has(f.path))];
-      const rows = [
-        ...folderRows,
-        ...orderedFiles.map((f) => ({ kind: 'file' as const, ...indexRow(f, pins) })),
-      ];
-      return { rows: rows.slice(0, Math.max(0, q.limit)), total: rows.length, valid: true };
     },
 
     async locateCurrentFile(args): Promise<LocateCurrentFileResult> {
       await ensureLoaded();
-      const matches = args.roots
-        .map((root) => ({ root, rel: relativeInside(root, args.filePath) }))
-        .filter((m): m is { root: string; rel: string } => m.rel !== null)
-        .sort((a, b) => b.root.length - a.root.length);
-      const match = matches[0];
-      if (!match) return { ok: false, reason: 'outside-roots' };
+      const located = locateInRoots(args.filePath, args.roots, path.sep);
+      if (!located) return { ok: false, reason: 'outside-roots' };
       if (isPathExcluded(args.filePath, args.exclusions)) return { ok: false, reason: 'excluded' };
-      const parent = path.dirname(match.rel);
-      return {
-        ok: true,
-        location: { root: match.root, relativeDirectory: parent === '.' ? '' : parent },
-      };
+      return { ok: true, location: located };
     },
 
     async entriesForPaths(args): Promise<Array<{ path: string; mtimeMs: number }>> {

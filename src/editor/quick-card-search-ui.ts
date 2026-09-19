@@ -18,8 +18,11 @@
  *            the bar) to search its objects (blocks / tags / cites);
  *            Esc from there returns to the file list with the prior
  *            query restored. Selecting an object inserts it.
- *   - `/` → browse configured roots and their indexed folder branches;
- *            `/c` jumps to the launching document's parent folder.
+ *   - `/ ` → browse the file-search folders (desktop only): subfolders and
+ *            files, Enter/Tab steps into a folder, Esc steps back up. Text
+ *            after the prefix searches the folder you're in — every file
+ *            beneath it plus subfolders whose name matches. `/c ` starts in
+ *            the launching document's own folder instead of the roots.
  *   - no prefix → search EVERYTHING, but show nothing until the user
  *     types a query
  * With a prefix present, an empty query browses that source.
@@ -80,6 +83,8 @@ import {
   searchFileObjects,
   dirName,
   fileFormat,
+  matchesAllTokens,
+  tokenizeQuery,
   FILE_OBJECT_KIND_BADGES,
   type FileObject,
   type FileObjectKind,
@@ -487,6 +492,19 @@ function activeTagSet(): Set<string> {
   return new Set(settings.get('quickCardActiveTags').map(normalizeTag));
 }
 
+/** The two folder-browse prefixes: `/ ` starts at the configured roots,
+ *  `/c ` in the launching document's folder. Like the letter prefixes they
+ *  end at whitespace; a bare `/` or `/c` is a prefix still being typed. */
+type BrowsePrefix = '/' | '/c';
+
+function parseBrowsePrefix(
+  raw: string,
+): { prefix: BrowsePrefix; query: string } | 'pending' | null {
+  const m = raw.match(/^\/(c?)\s+(.*)$/i);
+  if (m) return { prefix: m[1] ? '/c' : '/', query: m[2]! };
+  return /^\/c?$/i.test(raw) ? 'pending' : null;
+}
+
 /** Split a leading single-letter prefix (`q `/`d `/`c `/`s `) off the query. */
 function parsePrefix(raw: string): { prefix: Prefix; query: string } {
   const m = raw.match(/^([a-zA-Z])\s+(.*)$/);
@@ -886,7 +904,9 @@ function rootResult(root: string): PaletteResult {
 }
 
 function browseResult(row: FileBrowseRow, root: string): PaletteResult {
-  if (row.kind === 'file') return { ...fileResult(row), meta: '' };
+  // A folder search reaches any depth: the meta line says where the file
+  // sits below the folder being browsed ('' for a direct child).
+  if (row.kind === 'file') return { ...fileResult(row), meta: pathParts(row.subPath).join(' / ') };
   return {
     source: 'folder',
     name: row.name,
@@ -1015,9 +1035,13 @@ class QuickCardSearchUI {
   private rowEls: HTMLElement[] = [];
   private emptyText = '';
 
-  // ── Indexed folder browse (the `/` scope) ───────────────────────
+  // ── Folder browse (the `/ ` and `/c ` prefixes) ──────────────────
   private browseActive = false;
-  /** null is the virtual level containing configured roots. */
+  /** The prefix last applied; a change of prefix is what relocates. */
+  private browsePrefix: BrowsePrefix | null = null;
+  /** Text after the prefix — searched within `browseLocation`. */
+  private browseQuery = '';
+  /** null is the virtual level listing the configured roots. */
   private browseLocation: FileBrowseLocation | null = null;
   private browseRows: FileBrowseRow[] = [];
   private browseTotal = 0;
@@ -1025,9 +1049,8 @@ class QuickCardSearchUI {
   private browseQueryPending: string | null = null;
   private browseGen = 0;
   private browseGenApplied = 0;
-  private lastBrowseSuffix = '';
-  /** Whether the active `/c` invocation moved to a different folder. */
-  private browseCurrentJumpMoved = false;
+  /** Bumped per `/c ` jump so a slow resolution can't land on a later one. */
+  private browseLocateGen = 0;
   private browseNotice: string | null = null;
 
   // ── File-search state (the `f` prefix) ──────────────────────────────
@@ -1200,13 +1223,14 @@ class QuickCardSearchUI {
 
   private resetBrowseState(): void {
     this.browseActive = false;
+    this.browsePrefix = null;
+    this.browseQuery = '';
     this.browseLocation = null;
     this.browseRows = [];
     this.browseTotal = 0;
     this.browseQueryKey = null;
     this.browseQueryPending = null;
-    this.lastBrowseSuffix = '';
-    this.browseCurrentJumpMoved = false;
+    this.browseLocateGen++;
     this.browseNotice = null;
   }
 
@@ -1332,40 +1356,18 @@ class QuickCardSearchUI {
       this.finishSearch();
       return;
     }
-    if (this.input.value.startsWith('/')) {
-      const suffix = this.input.value.slice(1).trim().toLowerCase();
-      if (!this.browseActive) {
-        this.browseActive = true;
-        this.browseLocation = null;
-        this.browseQueryKey = null;
-        this.browseRows = [];
-        this.browseTotal = 0;
-        this.visibleCount = RESULT_PAGE_SIZE;
-        this.selected = 0;
-      }
-      if (suffix === 'c' && this.lastBrowseSuffix !== 'c') {
-        this.browseCurrentJumpMoved = false;
-        this.lastBrowseSuffix = suffix;
-        this.runBrowse();
-        void this.jumpBrowseToCurrent();
-      } else {
-        if (suffix === '' && this.lastBrowseSuffix === 'c') {
-          if (this.browseCurrentJumpMoved) {
-            this.browseLocation = null;
-            this.browseQueryKey = null;
-            this.visibleCount = RESULT_PAGE_SIZE;
-            this.selected = 0;
-          }
-          this.browseCurrentJumpMoved = false;
-          this.browseNotice = null;
-        } else if (suffix !== '' && suffix !== 'c') {
-          this.browseNotice = 'Unknown browse shortcut. Use / for roots or /c for the current file’s folder.';
-        } else if (suffix !== 'c') {
-          this.browseNotice = null;
-        }
-        this.lastBrowseSuffix = suffix;
-        this.runBrowse();
-      }
+    const browse = parseBrowsePrefix(this.input.value);
+    if (browse === 'pending') {
+      // `/` or `/c` with no space yet: neither a query (a bare slash would
+      // match every file path) nor a relocation — the folder you were in
+      // is kept for when the space arrives.
+      this.results = [];
+      this.emptyText = 'Add a space: "/ " browses your file-search folders, "/c " starts in the current document’s folder.';
+      this.finishSearch();
+      return;
+    }
+    if (browse) {
+      this.runBrowseInput(browse.prefix, browse.query);
       return;
     }
     if (this.browseActive) this.resetBrowseState();
@@ -1500,7 +1502,24 @@ class QuickCardSearchUI {
     this.renderResults();
   }
 
-  // ── Folder browse (`/` / `/c`) ──────────────────────────────────
+  // ── Folder browse (`/ ` and `/c `) ──────────────────────────────
+  // The prefix names a STARTING point (`/ ` = the configured roots, `/c ` =
+  // the launching document's folder); where you are afterwards lives in
+  // `browseLocation`, moved by Enter/Tab (into a folder) and Esc (up), with
+  // the header above the results showing the path. Three rules keep the
+  // bar and the location in step:
+  //   - a CHANGE of prefix relocates (`/ ` → the roots, `/c ` → the current
+  //     folder); a keystroke in the query never does, so navigating away
+  //     from where `/c ` landed and then typing doesn't snap back;
+  //   - query text searches the current folder (see `file-browse.ts`);
+  //   - stepping into or out of a folder clears the query.
+
+  /** Rewrite the bar to the active prefix plus `query` without firing an
+   *  input event — navigation owns the query, `runSearch` must not re-enter. */
+  private setBrowseInput(query: string): void {
+    this.input.value = `${this.browsePrefix ?? '/'} ${query}`;
+    this.browseQuery = query;
+  }
 
   private setBrowseLocation(location: FileBrowseLocation | null): void {
     this.browseLocation = location;
@@ -1515,15 +1534,19 @@ class QuickCardSearchUI {
 
   private enterBrowseFolder(result: PaletteResult): void {
     if (!this.browseActive || result.source !== 'folder' || !result.browseLocation) return;
+    this.setBrowseInput('');
     this.setBrowseLocation(result.browseLocation);
   }
 
+  /** Esc: one level up (a root's parent is the roots list); from the roots
+   *  the palette closes. The query is dropped on the way. */
   private browseUp(): void {
     const location = this.browseLocation;
     if (!location) {
       this.close();
       return;
     }
+    this.setBrowseInput('');
     if (location.relativeDirectory === '') {
       this.setBrowseLocation(null);
       return;
@@ -1534,47 +1557,68 @@ class QuickCardSearchUI {
     });
   }
 
-  private async jumpBrowseToCurrent(): Promise<void> {
+  /** `runSearch` entry for a parsed browse prefix + query. */
+  private runBrowseInput(prefix: BrowsePrefix, query: string): void {
+    const transition = !this.browseActive || prefix !== this.browsePrefix;
+    const queryChanged = query !== this.browseQuery;
+    this.browseActive = true;
+    this.browsePrefix = prefix;
+    this.browseQuery = query;
+    if (transition) {
+      this.browseNotice = null;
+      const gen = ++this.browseLocateGen;
+      // Both prefixes start at the roots; `/c ` moves on once the service has
+      // resolved the document's folder (a notice explains when it can't).
+      this.setBrowseLocation(null);
+      if (prefix === '/c') void this.jumpBrowseToCurrent(gen);
+      return;
+    }
+    if (queryChanged) {
+      this.visibleCount = RESULT_PAGE_SIZE;
+      this.selected = 0;
+    }
+    this.runBrowse();
+  }
+
+  private async jumpBrowseToCurrent(gen: number): Promise<void> {
+    const token = this.asyncToken;
+    const live = (): boolean =>
+      !!this.root && token === this.asyncToken && this.browseActive
+      && this.browsePrefix === '/c' && gen === this.browseLocateGen;
     if (!this.docPath) {
-      this.browseNotice = 'The current document has no indexed location. Save it inside a configured file-search folder to use /c.';
+      this.browseNotice = 'The current document has no saved location yet. Save it inside a file-search folder to use /c.';
       this.runBrowse();
       return;
     }
-    const token = this.asyncToken;
     try {
       const client = await getFileIndexClient();
-      if (!client || token !== this.asyncToken || !this.root || !this.browseActive || this.lastBrowseSuffix !== 'c') return;
+      if (!client || !live()) return;
       const located = await client.locateCurrentFile({
         filePath: this.docPath,
         roots: settings.get('fileSearchRoots'),
         exclusions: settings.get('fileSearchExclusions'),
       });
-      if (token !== this.asyncToken || !this.root || !this.browseActive || this.lastBrowseSuffix !== 'c') return;
+      if (!live()) return;
       if (located.ok) {
         this.browseNotice = null;
-        const current = this.browseLocation;
-        const moved = !current
-          || current.root !== located.location.root
-          || current.relativeDirectory !== located.location.relativeDirectory;
-        this.browseCurrentJumpMoved = moved;
-        if (moved) this.setBrowseLocation(located.location);
-        else this.runBrowse();
+        this.setBrowseLocation(located.location);
       } else {
         this.browseNotice = located.reason === 'excluded'
-          ? 'The current file is excluded from file search. Remove that exclusion to use /c.'
-          : 'The current file is not in an indexed search folder. Move it into a configured file-search folder to use /c.';
+          ? 'The current document is excluded from file search. Remove that exclusion to use /c.'
+          : 'The current document is not inside a file-search folder. Add its folder under Settings → Files to use /c.';
         this.runBrowse();
       }
     } catch {
-      if (token !== this.asyncToken || !this.root || this.lastBrowseSuffix !== 'c') return;
-      this.browseNotice = 'The current file’s indexed location could not be resolved.';
+      if (!live()) return;
+      this.browseNotice = 'The current document’s folder could not be resolved.';
       this.runBrowse();
     }
   }
 
-  private browseParamsKey(location: FileBrowseLocation, limit: number): string {
+  private browseParamsKey(location: FileBrowseLocation, query: string, limit: number): string {
     return JSON.stringify([
       location,
+      query,
       limit,
       settings.get('fileSearchRoots'),
       settings.get('fileSearchExclusions'),
@@ -1584,14 +1628,23 @@ class QuickCardSearchUI {
     ]);
   }
 
-  private ensureBrowse(location: FileBrowseLocation): 'ready' | 'loading' {
+  /** Fetch `location`'s rows for `query` from the index service unless the
+   *  window already holds them. Mirrors `ensureFileQuery`: the arrival re-
+   *  runs the search, and a result for a location or query the user has
+   *  since left is dropped. */
+  private ensureBrowse(location: FileBrowseLocation, query: string): 'ready' | 'loading' {
     const limit = Math.max(this.visibleCount, RESULT_PAGE_SIZE);
-    const key = this.browseParamsKey(location, limit);
+    const key = this.browseParamsKey(location, query, limit);
     if (this.browseQueryKey === key) return 'ready';
     if (this.browseQueryPending === key) return 'loading';
     this.browseQueryPending = key;
     const gen = ++this.browseGen;
     const token = this.asyncToken;
+    const still = (): boolean =>
+      !!this.root && token === this.asyncToken && this.browseActive
+      && this.browseLocation?.root === location.root
+      && this.browseLocation.relativeDirectory === location.relativeDirectory
+      && this.browseQuery === query;
     void (async () => {
       try {
         const client = await getFileIndexClient();
@@ -1599,21 +1652,19 @@ class QuickCardSearchUI {
         const res = await client.browse({
           roots: settings.get('fileSearchRoots'),
           location,
+          query,
           exclusions: settings.get('fileSearchExclusions'),
           formats: settings.get('fileSearchFormats'),
           tiebreak: settings.get('fileSearchTiebreak'),
           pins: [...this.manualPinPaths()],
           limit,
         });
-        if (token !== this.asyncToken || !this.root || !this.browseActive) return;
-        if (gen <= this.browseGenApplied) return;
-        if (
-          this.browseLocation?.root !== location.root
-          || this.browseLocation.relativeDirectory !== location.relativeDirectory
-        ) return;
+        if (!still() || gen <= this.browseGenApplied) return;
         this.browseGenApplied = gen;
         if (this.browseQueryPending === key) this.browseQueryPending = null;
         if (!res.valid) {
+          // The branch is gone from the index (a folder emptied / removed):
+          // step up to the nearest one that still exists.
           this.browseQueryKey = null;
           this.browseUp();
           return;
@@ -1623,13 +1674,7 @@ class QuickCardSearchUI {
         this.browseTotal = res.total;
         this.rerunPreservingView();
       } catch {
-        if (
-          token !== this.asyncToken
-          || !this.root
-          || !this.browseActive
-          || this.browseLocation?.root !== location.root
-          || this.browseLocation.relativeDirectory !== location.relativeDirectory
-        ) return;
+        if (!still()) return;
         if (this.browseQueryPending === key) this.browseQueryPending = null;
         this.browseQueryKey = key;
         this.browseRows = [];
@@ -1653,22 +1698,28 @@ class QuickCardSearchUI {
     if (!roots.length) {
       this.browseTotal = 0;
       this.results = [];
-      this.emptyText = 'Add a file-search folder in Settings → General.';
+      this.emptyText = 'No file-search folders yet — add one under Settings → Files → File search.';
       this.finishBrowse();
       return;
     }
     if (!this.browseLocation) {
-      this.results = roots.map(rootResult);
+      // The roots level: filter by folder name (full path as the secondary field).
+      const tokens = tokenizeQuery(this.browseQuery);
+      this.results = roots
+        .filter((r) => tokens.length === 0 || matchesAllTokens(pathBase(r).toLowerCase(), r.toLowerCase(), tokens))
+        .map(rootResult);
       this.browseTotal = this.results.length;
-      this.emptyText = 'No file-search folders configured.';
+      this.emptyText = tokens.length ? 'No file-search folder matches.' : 'No file-search folders configured.';
       this.finishBrowse();
       return;
     }
-    const state = this.ensureBrowse(this.browseLocation);
+    const state = this.ensureBrowse(this.browseLocation, this.browseQuery);
     this.results = this.browseRows.map((r) => browseResult(r, this.browseLocation!.root));
     this.emptyText = state === 'loading' && this.browseQueryKey === null
       ? 'Loading folder…'
-      : 'No indexed documents in this folder.';
+      : this.browseQuery.trim() !== ''
+        ? 'Nothing in this folder matches.'
+        : 'No indexed documents in this folder.';
     this.finishBrowse();
   }
 
@@ -2353,13 +2404,18 @@ class QuickCardSearchUI {
       const path = document.createElement('span');
       path.className = 'pmd-qcs-browse-path';
       path.textContent = visibleParts.join(' / ');
-      this.browseHeaderEl.replaceChildren(path);
+      const hint = document.createElement('span');
+      hint.className = 'pmd-qcs-browse-current-hint';
+      hint.textContent = this.browseQuery.trim() !== ''
+        ? 'searching this folder and below'
+        : 'type to search this folder';
+      this.browseHeaderEl.replaceChildren(path, hint);
     } else {
       const title = document.createElement('span');
       title.textContent = 'Browse folders';
       const currentHint = document.createElement('span');
       currentHint.className = 'pmd-qcs-browse-current-hint';
-      currentHint.textContent = 'type C to jump to the Current Folder';
+      currentHint.textContent = '/c  starts in the current document’s folder';
       this.browseHeaderEl.replaceChildren(title, currentHint);
     }
     this.browseNoticeEl.textContent = this.browseNotice ?? '';

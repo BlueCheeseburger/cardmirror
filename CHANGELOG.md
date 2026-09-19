@@ -7,6 +7,18 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **Browse your file-search folders from the Search Everything palette
+  (desktop).** Type `/` and a space to see the folders you have set up
+  for file search; **Enter** or **Tab** steps into a folder, **Esc** steps
+  back up, and a folder only appears when it holds documents the file
+  search can see. Type after the prefix to search the folder you are in —
+  every document beneath it, plus subfolders whose name matches — and
+  pick a file exactly as you would from an `f` search, diving into it
+  with Tab included. `/c` and a space starts in the folder of the
+  document you are working in instead. Thanks to chips (@cheepsahoy)!
+
 ### Fixed
 
 - **Sending several selected headings sends the last one with its

@@ -886,6 +886,7 @@ you *browse* that whole source.
 | **`c`** | Ribbon **commands** — each row shows its current shortcut | Runs the command |
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
+| **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
 
 Searching **version** (or "about this install") shows the running app
 version, and Enter jumps to the About this install section of Settings.
@@ -910,6 +911,21 @@ see it in context — the query clears and the outline opens to that spot,
 ancestors expanded. **Esc** returns you to the file
 list with your search restored. Undo (**Mod-Z**) works while you're diving,
 so you can take an insert back without closing the palette.
+
+**Browsing folders (`/`, desktop only).** When you know *where* a document
+lives but not what it is called, type `/` and a space: the palette lists
+the folders you have set up for file search. **Enter** or **Tab** steps
+into a folder, **Esc** steps back up (and closes the palette from the top
+level), and the header above the results shows where you are. Only folders
+that hold documents the file search can see are shown. Type after the prefix
+to search the folder you are in — every document beneath it, at any depth,
+plus subfolders whose name matches; each file shows the subfolder it sits
+in. Files here behave exactly as they do in an `f` search: Enter opens,
+Tab dives in, Alt-P pins. `/c` and a space starts in the folder of the
+document you are working in instead (it needs to be inside one of your
+file-search folders). Moving into or out of a folder clears what you had
+typed, and only changing the prefix itself takes you somewhere else — so
+after `/c` you can wander off and keep typing without being pulled back.
 
 **Pinning and speed.** Press **Alt-P** to pin or unpin the selected file
 (★). Pinned files sort to the top and stay parsed for instant search;
@@ -2931,7 +2947,7 @@ these to extend the selection.
 |----------|--------|
 | Mod-F / Mod-H | Find / Find and Replace |
 | Alt-F | Find without grouping |
-| Mod-Shift-Space | Search Everything palette (files `f`, Quick Cards `q`) |
+| Mod-Shift-Space | Search Everything palette (files `f`, folders `/`, Quick Cards `q`) |
 
 ### Speech, comments, and AI
 | Shortcut | Action |
