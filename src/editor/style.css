@@ -16221,6 +16221,16 @@ body.pmd-multi-doc #collab-chip {
 .pmd-reader-edge-left { left: 0; }
 .pmd-reader-edge-right { right: 0; }
 .pmd-reader-edge-hidden { visibility: hidden; }
+/* Scroll-extent sentinel (reader-view.ts): keeps the host scrollable to
+ * the last page's boundary when that page is short. Invisible, inert. */
+.pmd-reader-tail {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  visibility: hidden;
+}
 .pmd-reader-page-indicator {
   position: absolute;
   bottom: 0.4rem;

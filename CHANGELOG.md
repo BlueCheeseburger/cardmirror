@@ -21,6 +21,13 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **Reading View: the last page no longer loses its right-hand words
+  under the flip arrow.** When a document's final page held fewer
+  columns than a full page, the view stopped one column short of the
+  page boundary, so the previous page's last column showed on the left
+  and the document's last column sat under the right-hand arrow lane,
+  which hid its final words. The last page now lands on its own
+  boundary like every other page.
 - **Sending several selected headings sends the last one with its
   cards.** Select from one heading down into another and press Send to
   Speech (or send to a starred partner, a recipient, or the dropzone),

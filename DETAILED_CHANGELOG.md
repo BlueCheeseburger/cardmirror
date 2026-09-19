@@ -38,6 +38,29 @@ document and reports "outside the roots" or "excluded" otherwise; the
 current-document path comes from the per-view lookup, so three-pane
 mode browses from the focused pane's document.
 
+### Fixed: Reading View clipped the last page's final column under the flip lane
+
+Field report (Will Katz, 2026-09-14, with screenshots): on the last
+page of Reading View the words at the far right were cut off by the
+arrow lane. Root cause: flips are native scrolls of the clipped host,
+and the browser clamps `scrollLeft` to `scrollWidth - clientWidth`.
+When the final page holds fewer columns than a full page, the strip
+ends inside the viewport, the flip to the last page is clamped one
+column pitch short, the previous page's tail column appears on the
+left, and the document's last column lands flush with the host's
+right edge — under the opaque 48 px right gutter that hosts the flip
+button, which covered its last words. Both screenshots showed exactly
+that: a "left column" that was the prior page's tail and a right
+column ending at the window edge.
+
+Fix (`reader-view.ts`): a 1×1 absolutely positioned sentinel inside
+the host (`.pmd-reader-tail`) parks the scrollable extent at
+`(pages - 1) × stride + viewport` (`scrollExtentNeeded`, unit-tested)
+so every page, the last included, can be scrolled to its own boundary.
+The sentinel sits at 0 while the strip is measured so it never inflates
+the page count, and is placed before the relayout's own `goTo`. No
+transform, no layer: the strip still flips by native scroll.
+
 ### Fixed: the last of several selected headings carries its section
 
 `normalizeSelectionForSend` rounded the selection end to the nearest
