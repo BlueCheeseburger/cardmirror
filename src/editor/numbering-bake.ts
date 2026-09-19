@@ -4,8 +4,8 @@
  * Numbering is display-only: the document stores a skeleton
  * (`numRole` / `numRestart`) and the numbers are computed from position at
  * render and at docx export (numbering.ts). That is right for the working
- * document and wrong for a Send Doc, Read Doc or Marked Doc: those exports
- * DROP analytics or unmarked cards, so whatever is left renumbers
+ * document and wrong for a Send Doc or Marked Doc: those exports DROP
+ * analytics or unmarked cards, so whatever is left renumbers
  * (1, 2, 3 where the speech had 1, 3, 5), and any card deleted from the
  * copy during the round shifts the rest again. The debater wants the
  * numbers they prepped with.
@@ -23,12 +23,43 @@ import { Transform } from 'prosemirror-transform';
 import { computeNumbering } from './numbering.js';
 import { glyphText } from './numbering-plugin.js';
 
+/** What a save does with card numbers: `keep` the live skeleton (a full
+ *  save), `freeze` them as heading text, or `remove` them (the copy has
+ *  no numbers at all). The Send and Marked presets pick between freeze
+ *  and remove per the `*DocNumbering` settings (a Read Doc keeps: read
+ *  mode drops no heading); Custom save offers the two as exclusive
+ *  checkboxes, neither = keep. */
+export type NumberingExportMode = 'keep' | 'freeze' | 'remove';
+
+export function applyNumberingExport(doc: PMNode, mode: NumberingExportMode): PMNode {
+  if (mode === 'freeze') return bakeCardNumbers(doc);
+  if (mode === 'remove') return removeCardNumbers(doc);
+  return doc;
+}
+
 /** Whether an export drops content that takes part in numbering, so its
  *  numbers must be frozen: analytics stripped (numbered analytic units
- *  vanish), the read-mode view (same strip), or marked cards only. A
- *  full save keeps the live skeleton. */
+ *  vanish), or marked cards only. The read-mode view keeps every heading
+ *  — its analytics flag is moot — so nothing renumbers and it keeps the
+ *  live skeleton, as a full save does. The fallback rule for a caller
+ *  that states no mode. */
 export function exportFreezesNumbering(opts: { includeAnalytics: boolean; readMode: boolean; markedCardsOnly?: boolean }): boolean {
-  return !opts.includeAnalytics || opts.readMode || !!opts.markedCardsOnly;
+  return (!opts.includeAnalytics && !opts.readMode) || !!opts.markedCardsOnly;
+}
+
+/** The document with every numbering role cleared and no text written:
+ *  the copy simply has no numbers. Unchanged (same node) when nothing is
+ *  numbered. */
+export function removeCardNumbers(doc: PMNode): PMNode {
+  const { cards } = computeNumbering(doc);
+  if (cards.size === 0) return doc;
+  const tr = new Transform(doc);
+  for (const pos of cards.keys()) {
+    const unit = doc.nodeAt(pos);
+    if (!unit) continue;
+    tr.setNodeMarkup(pos, undefined, { ...unit.attrs, numRole: 'none', numRestart: false });
+  }
+  return tr.doc;
 }
 
 /** The document with every computed number written into its heading as

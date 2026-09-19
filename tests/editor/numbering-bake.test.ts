@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
 import { computeNumbering, type NumRole } from '../../src/editor/numbering.js';
-import { bakeCardNumbers, exportFreezesNumbering } from '../../src/editor/numbering-bake.js';
+import { applyNumberingExport, bakeCardNumbers, exportFreezesNumbering, removeCardNumbers } from '../../src/editor/numbering-bake.js';
 import { transformForExport } from '../../src/export/transform-for-export.js';
 
 function card(tag: string, role: NumRole = 'none', restart = false): PMNode {
@@ -75,7 +75,7 @@ describe('bakeCardNumbers', () => {
     expect(computeNumbering(frozen).cards.size).toBe(0);
   });
 
-  it('survives the read-mode and marked-cards transforms', () => {
+  it('baked text survives the read-mode transform (a property; Read Docs themselves keep live numbering)', () => {
     const d = doc(card('One', 'number'), card('Two', 'number'));
     const read = transformForExport(bakeCardNumbers(d), { includeComments: false, includeAnalytics: false, includeUndertags: false, readMode: true });
     expect(headings(read)).toEqual(['1. One', '2. Two']);
@@ -87,8 +87,36 @@ describe('exportFreezesNumbering', () => {
     const full = { includeAnalytics: true, readMode: false, markedCardsOnly: false };
     expect(exportFreezesNumbering(full)).toBe(false);
     expect(exportFreezesNumbering({ ...full, includeAnalytics: false }), 'Send Doc').toBe(true);
-    expect(exportFreezesNumbering({ ...full, includeAnalytics: false, readMode: true }), 'Read Doc').toBe(true);
+    expect(exportFreezesNumbering({ ...full, includeAnalytics: false, readMode: true }), 'Read Doc keeps every heading').toBe(false);
     expect(exportFreezesNumbering({ ...full, includeAnalytics: false, markedCardsOnly: true }), 'Marked Doc').toBe(true);
     expect(exportFreezesNumbering({ includeAnalytics: true, readMode: false }), 'no markedCardsOnly given').toBe(false);
+  });
+});
+
+describe('removeCardNumbers / applyNumberingExport', () => {
+  it('clears the roles and writes nothing', () => {
+    const d = doc(block('B'), card('One', 'number'), card('Sub', 'sub'), analytic('Two', 'number'), card('Three', 'number', true));
+    const out = removeCardNumbers(d);
+    expect(headings(out)).toEqual(['One', 'Sub', 'Two', 'Three']);
+    expect(computeNumbering(out).cards.size).toBe(0);
+    out.descendants((n) => {
+      if (n.type.name === 'card' || n.type.name === 'analytic_unit') {
+        expect(n.attrs['numRole']).toBe('none');
+        expect(n.attrs['numRestart']).toBe(false);
+      }
+      return true;
+    });
+    expect(headings(d), 'source untouched').toEqual(['One', 'Sub', 'Two', 'Three']);
+    expect(removeCardNumbers(out)).toBe(out);
+    const plain = doc(card('A'));
+    expect(removeCardNumbers(plain), 'nothing numbered: same node').toBe(plain);
+  });
+
+  it('dispatches on the mode: keep is the same node, freeze bakes, remove clears', () => {
+    const d = doc(card('One', 'number'), card('Two', 'number'));
+    expect(applyNumberingExport(d, 'keep')).toBe(d);
+    expect(headings(applyNumberingExport(d, 'freeze'))).toEqual(['1. One', '2. Two']);
+    expect(headings(applyNumberingExport(d, 'remove'))).toEqual(['One', 'Two']);
+    expect(computeNumbering(applyNumberingExport(d, 'remove')).cards.size).toBe(0);
   });
 });

@@ -2198,12 +2198,18 @@ copy:
 - **Send Doc** — a clean reading copy with comments, analytics, and
   undertags stripped, for the judge or opponent (optionally with a
   `SEND_` filename prefix).
-- Send, Read and Marked Docs **freeze their card numbers**: every
+- Send and Marked Docs **freeze their card numbers**: every
   numbered heading gets its number written in as plain text, in your
   display format, and the copy is no longer auto-numbered. Dropping the
   analytics (or the unmarked cards) therefore does not renumber what is
   left, and deleting a card from the copy during the round leaves the
-  other numbers alone. A full save keeps live numbering.
+  other numbers alone. Each of the two can **remove** the numbers
+  instead (Settings → Files → *Send Doc card numbers* and *Marked Cards
+  card numbers*). A Read Doc keeps every heading, so it keeps live
+  numbering. Custom save has its own pair of boxes, **Freeze card
+  numbers as text** and **Remove card numbers** — one or the other;
+  leave both off to keep live numbering, as As-Is does. A full save
+  keeps live numbering.
 - Checkboxes (off by default) let you include **private notes** and **AI
   comments** in the saved file.
 
@@ -2499,6 +2505,9 @@ file search scans, and how much version history to keep.
 - **Send Doc format** — the format Save Send Doc writes: `.docx`
   (default), `.cmir`, or the same as new documents. The Save As dialog is
   unaffected.
+- **Send Doc card numbers** — freeze the card numbers as heading text
+  (default) or remove them. Read by Save Send Doc and by the Save As
+  dialog's Send Doc preset; Custom save has its own choice.
 - **Read Doc destination / folder / format** *(destination and folder:
   desktop)* — the same three options for the Save Read Doc command (unbound
   by default; run it from the command bar or give it a key).
@@ -2510,6 +2519,9 @@ file search scans, and how much version history to keep.
 - **Marked Cards format** — the format Save Marked Cards writes: `.docx`
   (default), `.cmir`, or the same as new documents. The Save As dialog is
   unaffected.
+- **Marked Cards card numbers** — freeze the card numbers as heading text
+  (default) or remove them. Read by Save Marked Cards and by the Save As
+  dialog's Marked Doc preset; Custom save has its own choice.
 
 **File search**
 

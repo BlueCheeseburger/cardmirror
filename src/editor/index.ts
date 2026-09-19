@@ -13,7 +13,7 @@ import { EditorView } from 'prosemirror-view';
 import { keymap } from 'prosemirror-keymap';
 import { history, redo, undo, redoDepth } from 'prosemirror-history';
 import { repeatLastActionPlugin, repeatLastAction, noteCommandRun, type RepeatKey } from './repeat-last-action.js';
-import { bakeCardNumbers, exportFreezesNumbering } from './numbering-bake.js';
+import { applyNumberingExport, exportFreezesNumbering, type NumberingExportMode } from './numbering-bake.js';
 import { baseKeymap } from 'prosemirror-commands';
 import { Node as PMNode, type Mark } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
@@ -7923,18 +7923,23 @@ async function serializeForSave(
     includeAiThreads?: boolean;
     /** Keep only the cards that contain a reading marker, flat. */
     markedCardsOnly?: boolean;
+    /** Card numbers: keep the live skeleton, freeze as heading text, or
+     *  remove. Omitted → freeze when the export drops numbered content
+     *  (analytics / read mode / marked cards), else keep. */
+    numbering?: NumberingExportMode;
   },
   /** Stable doc identity to embed (`.cmir` field / `.docx` docProps).
    *  Omitted for derived/lossy exports, which stay clean (no identity). */
   docId?: string,
 ): Promise<Uint8Array> {
   const liveDoc = view ? view.state.doc : currentDoc;
-  // A lossy export (Send / Read / Marked Doc, or a custom save that drops
-  // analytics) freezes the card numbers as heading text FIRST, on the full
-  // document, so the strips below cannot renumber what survives and a card
-  // deleted from the copy later leaves the others' numbers alone
-  // (numbering-bake.ts). A full save keeps the live skeleton.
-  const docToExport = exportFreezesNumbering(opts) ? bakeCardNumbers(liveDoc) : liveDoc;
+  // Card numbers are settled FIRST, on the full document, so the strips
+  // below cannot renumber what survives: frozen as heading text or removed,
+  // per the preset's setting or the Custom save's choice; a caller that
+  // states no mode gets the rule (freeze when the export drops numbered
+  // content). A full save keeps the live skeleton (numbering-bake.ts).
+  const numbering: NumberingExportMode = opts.numbering ?? (exportFreezesNumbering(opts) ? 'freeze' : 'keep');
+  const docToExport = applyNumberingExport(liveDoc, numbering);
   let exportDocNode = transformForExport(docToExport, {
     includeComments: opts.includeComments,
     includeAnalytics: opts.includeAnalytics,
@@ -8081,7 +8086,8 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     !choice.readMode &&
     !choice.includeNotes &&
     !choice.includeAiThreads &&
-    !choice.markedCardsOnly;
+    !choice.markedCardsOnly &&
+    choice.numbering === 'keep';
   try {
     // A full Save As is a distinct logical doc → fork a new docId (the
     // original file keeps its own). Derived/lossy exports get no docId
@@ -8103,6 +8109,7 @@ async function runSaveAsFlowInner(): Promise<boolean> {
           includeNotes: choice.includeNotes,
           includeAiThreads: choice.includeAiThreads,
           markedCardsOnly: choice.markedCardsOnly,
+          numbering: choice.numbering,
         },
         forkDocId,
       ),
@@ -8200,6 +8207,7 @@ interface SilentExportSpec {
     includeAnalytics: boolean;
     includeUndertags: boolean;
     readMode: boolean;
+    numbering: NumberingExportMode;
   };
 }
 async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
@@ -8282,12 +8290,14 @@ export async function runSaveSendDocFlow(): Promise<boolean> {
     prefixKey: 'sendDocPrefix',
     destinationKey: 'sendDocDestination',
     folderKey: 'sendDocFolder',
-    // Send Doc filtering — drop comments / analytics / undertags.
+    // Send Doc filtering — drop comments / analytics / undertags; card
+    // numbers frozen or removed per the setting.
     exportOptions: {
       includeComments: false,
       includeAnalytics: false,
       includeUndertags: false,
       readMode: false,
+      numbering: settings.get('sendDocNumbering'),
     },
   });
 }
@@ -8311,6 +8321,8 @@ export async function runSaveReadDocFlow(): Promise<boolean> {
       includeAnalytics: false,
       includeUndertags: false,
       readMode: true,
+      // Read mode keeps every heading, so nothing renumbers: live numbering.
+      numbering: 'keep',
     },
   });
 }
@@ -8354,6 +8366,7 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
       includeUndertags: true,
       readMode: false,
       markedCardsOnly: true,
+      numbering: settings.get('markedDocNumbering'),
     });
 
     const electron = getElectronHost();

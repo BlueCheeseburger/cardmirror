@@ -417,6 +417,14 @@ export function applyNumberingSeparator(text: string, sep: NumberingSeparator): 
  *  = follow `defaultSaveFormat`. */
 export type DocTypeFormat = 'default' | 'cmir' | 'docx';
 
+/** What the Send Doc and Marked Cards presets do with card numbers: `freeze`
+ *  writes each number into its heading as text (the copy keeps the
+ *  numbers it was prepped with); `remove` clears them (the copy has no
+ *  numbers). Live numbering is not offered — those exports drop analytics
+ *  or unmarked cards, so what survived would renumber. (A Read Doc keeps
+ *  every heading, so it keeps live numbering and has no such setting.) */
+export type NumberingExport = 'freeze' | 'remove';
+
 export interface VoiceCalibrationProfile {
   aliases: Record<string, string[]>;
   updatedAt: number;
@@ -535,6 +543,12 @@ export interface Settings {
   readDocFormat: DocTypeFormat;
   /** Same for Save Marked Cards. */
   markedDocFormat: DocTypeFormat;
+  /** Card numbers in a Send Doc: frozen as heading text (default) or
+   *  removed. Read by the Save Send Doc command AND the Save As dialog's
+   *  Send Doc preset. */
+  sendDocNumbering: NumberingExport;
+  /** Same for Marked Cards. */
+  markedDocNumbering: NumberingExport;
   /** When on, the highlight marks in the doc render in the colors
    *  defined by `overrideHighlightSlots` rather than their stored
    *  colors. Display-only — does NOT mutate the doc, so saving
@@ -1753,6 +1767,8 @@ const DEFAULTS: Settings = {
   sendDocFormat: 'docx',
   readDocFormat: 'docx',
   markedDocFormat: 'docx',
+  sendDocNumbering: 'freeze',
+  markedDocNumbering: 'freeze',
   theme: 'system',
   themeAppliesToDocument: false,
   iconSet: 'modern',
@@ -2126,6 +2142,7 @@ export interface SettingMeta {
     | 'speechFilenameTemplate'
     | 'saveFormat'
     | 'docTypeFormat'
+    | 'numberingExport'
     | 'formattingGapClass'
     | 'pasteCursor'
     | 'versionHistory'
@@ -2616,6 +2633,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Send / Read / Marked docs',
   },
   {
+    key: 'sendDocNumbering',
+    label: 'Send Doc card numbers',
+    description:
+      'What a Send Doc does with card numbers. Freeze writes each number into its heading as text, so the copy keeps the numbers you prepped with even though its analytics are gone and even if you delete cards from it later. Remove clears the numbers instead. Applies to the Save Send Doc command and to the Save As dialog\'s Send Doc preset; Custom save has its own choice.',
+    kind: 'numberingExport',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    aliases: ['freeze numbering', 'remove numbering', 'send doc numbering'],
+  },
+  {
     key: 'readDocDestination',
     label: 'Read Doc destination',
     description:
@@ -2672,6 +2699,15 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'docTypeFormat',
     category: 'files',
     section: 'Send / Read / Marked docs',
+  },
+  {
+    key: 'markedDocNumbering',
+    label: 'Marked Cards card numbers',
+    description: 'Same choice for Marked Cards: freeze the card numbers as heading text (default) or remove them.',
+    kind: 'numberingExport',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    aliases: ['marked doc numbering', 'marked cards numbering'],
   },
   {
     key: 'fileSearchRoots',
@@ -4493,6 +4529,10 @@ function sanitizeCustomAutocorrects(raw: unknown): Array<{ from: string; to: str
   return out;
 }
 
+function sanitizeNumberingExport(v: unknown): NumberingExport {
+  return v === 'remove' ? 'remove' : 'freeze';
+}
+
 function sanitizeDocTypeFormat(v: unknown): DocTypeFormat {
   return v === 'cmir' || v === 'docx' || v === 'default' ? v : 'docx';
 }
@@ -4563,6 +4603,8 @@ function sanitize(s: Settings): Settings {
     sendDocFormat: sanitizeDocTypeFormat(s.sendDocFormat),
     readDocFormat: sanitizeDocTypeFormat(s.readDocFormat),
     markedDocFormat: sanitizeDocTypeFormat(s.markedDocFormat),
+    sendDocNumbering: sanitizeNumberingExport(s.sendDocNumbering),
+    markedDocNumbering: sanitizeNumberingExport(s.markedDocNumbering),
     theme:
       s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system',
     themeAppliesToDocument: !!s.themeAppliesToDocument,

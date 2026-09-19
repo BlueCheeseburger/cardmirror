@@ -120,7 +120,7 @@ pins the settings-to-style mapping.
 Numbering is display-only: the document stores a skeleton (`numRole` /
 `numRestart` on cards and analytic units, `numRestart` on blocks) and
 the numbers are computed from position at render, in the nav pane and
-at docx export (as native Word numbering). The Send Doc, Read Doc and
+at docx export (as native Word numbering). The Send Doc and
 Marked Doc presets strip analytics or unmarked cards before export, so
 the survivors renumbered: a speech prepped as 1, 3, 5 saved as 1, 2, 3,
 and any card deleted from the copy during the round shifted the rest
@@ -128,9 +128,10 @@ again. Field request 2026-09-19.
 
 Now `serializeForSave` bakes the numbers before the strips when the
 export drops numbered content (`exportFreezesNumbering`: analytics
-stripped, read-mode view, or marked cards only — the three presets and
-any custom save that unticks analytics; a full save keeps the live
-skeleton). `bakeCardNumbers` (numbering-bake.ts) runs `computeNumbering`
+stripped outside read mode, or marked cards only — the Send and Marked
+presets and any custom save that unticks analytics; a Read Doc keeps
+every heading, so nothing renumbers and it keeps the live skeleton, as
+a full save does). `bakeCardNumbers` (numbering-bake.ts) runs `computeNumbering`
 on the FULL document, inserts each glyph as literal text at the head of
 its heading — the user's display separators via the plugin's
 `glyphText`, e.g. "3. " / "b) ", no marks, so it takes the heading's
@@ -143,6 +144,23 @@ baked at their host positions like everything else. The working
 document is untouched: the transform runs on the export copy, as the
 other export transforms do. Tests: numbering-bake.test.ts, including
 the 1, 3 → 1, 2 scenario and the read-mode strip.
+
+Follow-up the same day: a `remove` alternative (`removeCardNumbers`:
+roles cleared, nothing written) behind two Files settings —
+`sendDocNumbering` / `markedDocNumbering`, each `freeze` (default) or
+`remove`, rendered as a radio pair (`numberingExport` kind) directly
+under the type's format setting — read by the silent Save Send / Marked
+commands and by the Save As dialog's presets (the Read Doc preset passes
+`keep`: read mode drops no heading, so nothing renumbers). The dialog's Custom save
+offers "Freeze card numbers as text" and "Remove card numbers" as
+checkboxes that untick each other; neither means `keep`, the live
+skeleton (so an As-Is-like custom copy is exact). `serializeForSave`
+takes an explicit `numbering` mode (`applyNumberingExport`); a caller
+that passes none gets the earlier rule, so autosave and the plain save
+are untouched. A custom save with freeze or remove ticked is a derived
+export (the working document keeps its identity), like the other lossy
+options. Tests: numbering-bake.test.ts (remove + dispatcher),
+numbering-export-setting.test.ts, save-as-numbering.test.ts.
 
 ### Fixed: Repeat skipped Enter, Tab, macro text and autocorrect
 

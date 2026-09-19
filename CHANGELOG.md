@@ -38,14 +38,19 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
-- **Send, Read and Marked Docs keep their card numbers.** Those exports
-  drop analytics or unmarked cards, and the numbers on what was left
-  used to be recomputed, so a speech prepped as 1, 3, 5 came out as
-  1, 2, 3. Saving one of them now freezes the numbers first: each
-  numbered heading gets its number as plain text, in your display
-  format, and the copy is no longer auto-numbered, so deleting a card
-  from it during the round does not shift the rest. A full save is
-  unchanged; so is the working document.
+- **Send and Marked Docs keep their card numbers, or drop them.**
+  Those exports drop analytics or unmarked cards, and the numbers on
+  what was left used to be recomputed, so a speech prepped as 1, 3, 5
+  came out as 1, 2, 3. Saving one of them now freezes the numbers
+  first: each numbered heading gets its number as plain text, in your
+  display format, and the copy is no longer auto-numbered, so deleting
+  a card from it during the round does not shift the rest. Two new
+  Files settings (Send Doc card numbers, Marked Cards card numbers) can
+  switch each preset to removing the numbers instead. Read Docs keep
+  every heading, so they keep live numbering. Custom save
+  offers the same two as a pair of checkboxes, one or the other;
+  neither keeps live numbering. A full save is unchanged; so is the
+  working document.
 
 ### Fixed
 

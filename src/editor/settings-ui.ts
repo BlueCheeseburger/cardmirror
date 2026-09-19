@@ -921,6 +921,10 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildDocTypeFormatEditor(meta.key as 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'));
       return row;
+    } else if (meta.kind === 'numberingExport') {
+      row.appendChild(text);
+      row.appendChild(buildNumberingExportEditor(meta.key as 'sendDocNumbering' | 'markedDocNumbering'));
+      return row;
     } else if (meta.kind === 'aiProvider') {
       row.appendChild(text);
       row.appendChild(buildAiProviderEditor());
@@ -5719,6 +5723,36 @@ function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'mark
     { value: 'default', label: 'Same as new documents' },
   ];
   const groupName = `pmd-doc-type-format-${key}-${Math.random().toString(36).slice(2, 8)}`;
+  for (const o of options) {
+    const row = document.createElement('label');
+    row.className = 'pmd-multi-doc-layout-mode-row';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = groupName;
+    input.value = o.value;
+    input.checked = o.value === settings.get(key);
+    input.addEventListener('change', () => {
+      if (input.checked) settings.set(key, o.value);
+    });
+    row.appendChild(input);
+    const labelText = document.createElement('span');
+    labelText.className = 'pmd-multi-doc-layout-mode-row-label';
+    labelText.textContent = o.label;
+    row.appendChild(labelText);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+/** Freeze-or-remove radio pair for the two `*DocNumbering` settings. */
+function buildNumberingExportEditor(key: 'sendDocNumbering' | 'markedDocNumbering'): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-multi-doc-layout-mode-editor pmd-numbering-export-editor';
+  const options: { value: 'freeze' | 'remove'; label: string }[] = [
+    { value: 'freeze', label: 'Freeze numbers as heading text (default)' },
+    { value: 'remove', label: 'Remove numbers' },
+  ];
+  const groupName = `pmd-numbering-export-${key}-${Math.random().toString(36).slice(2, 8)}`;
   for (const o of options) {
     const row = document.createElement('label');
     row.className = 'pmd-multi-doc-layout-mode-row';
