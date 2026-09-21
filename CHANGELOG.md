@@ -5,7 +5,7 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 1.12.0 — 2026-09-21
 
 ### Added
 
@@ -18,6 +18,10 @@ see `DETAILED_CHANGELOG.md`.
 - **Link URLs as you type** (Settings → Editing → Typing, off by
   default) does the same to an address the moment you type a space or
   press Enter after it.
+- **Mod+click opens a link.** A plain click on a link only places the
+  cursor, as on any text; hold Cmd (Mac) or Ctrl (Windows, Linux) and
+  click to open it. Right-click still offers Open, Copy, Edit and
+  Remove.
 - **Read mode: show undertags** (Settings → General → Editor behavior,
   off by default) shows every undertag, whole, in read mode, beside the
   existing keep-entire-cite option. Convert Cards to Read Mode follows
@@ -32,10 +36,6 @@ see `DETAILED_CHANGELOG.md`.
   defaults. Which defaults is up to you: a new **Default colors** section
   under Settings → Editing holds the two, yellow and the picker's light
   gray unless you change them.
-- **Mod+click opens a link.** A plain click on a link only places the
-  cursor, as on any text; hold Cmd (Mac) or Ctrl (Windows, Linux) and
-  click to open it. Right-click still offers Open, Copy, Edit and
-  Remove.
 
 ### Changed
 
@@ -43,12 +43,17 @@ see `DETAILED_CHANGELOG.md`.
   The faint dot grid over background color (Settings → Appearance →
   Document typography) is now on for everyone, once; turn it off and it
   stays off.
-- **Classic icons: the nav pane's expanded arrow matches its collapsed one.** The down arrow was a smaller glyph than the sideways one; in the nav pane it is now the same size. Arrows elsewhere are unchanged.
 - **Context menus open on a right-click only.** Ctrl+click on a Mac
   used to open the editor's Cut / Copy / Paste menu, the nav pane's row
   menu and the palette's row actions, since the system treats it as a
   secondary click. It now opens nothing. Two-finger tap and the
   keyboard menu key still work.
+
+### Fixed
+
+- **Classic icons: the nav pane's expanded arrow matches its collapsed
+  one.** The down arrow was a smaller glyph than the sideways one; in
+  the nav pane it is now the same size. Arrows elsewhere are unchanged.
 
 ## 1.11.0 — 2026-09-19
 

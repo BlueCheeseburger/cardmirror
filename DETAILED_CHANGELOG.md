@@ -5,7 +5,7 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 1.12.0 — 2026-09-21
 
 ### Added: URLs → links (Link URLs, autolink, Mod+click)
 
@@ -38,6 +38,17 @@ sits after the autocorrect rules so a claimed space wins. Pastes are not
 touched. `linkModClickPlugin` opens a link on Cmd-click (Mac) / Ctrl-click
 (elsewhere) through the same opener the link context menu uses (now
 exported); a plain click does nothing, as before. Tests: autolink.test.ts.
+
+Dev-build find, same day: Enter never autolinked live, because the
+plugin sat after the editor's Enter keymap, which claims the key, so
+its `handleKeyDown` never ran (the unit test had driven the hook
+directly). The Enter hook is now its own plugin (`autolinkEnterPlugin`)
+registered right after the Repeat recorder, ahead of every Enter
+keymap; the space hook stays after the autocorrect rules. A real-view
+test with a claiming keymap and a source-order guard pin the placement.
+Its link transaction carries the recorder's new `REPEAT_IGNORE_META`
+(look through an edit that accompanies a key), so Repeat still records
+the Enter.
 
 ### Added: Reset to Default Colors + Default colors settings
 
@@ -95,6 +106,26 @@ or the live read time. read-mode-show-undertags.test.ts pins both the
 display and that the count is unchanged with the setting on. (Noted in
 passing, not changed: highlighted undertag text has always counted even
 though read mode hid the block until now.)
+
+### Added: a Settings tile on the home screen
+
+The home screen reached Settings only through the command bar. A
+Settings labeled group (`HomeScreenCallbacks.openSettings`, wired to
+the lazy settings-UI loader) now fills the third column of the Learn
+row — Learn spans two — with its own heading like the other utility
+groups, and its runner is appended last to the number-key list, so it
+is 9 in the normal layout and reflows with the gated tiles as they do.
+Omitted callback → no tile. Tests in home-screen-shortcuts.test.ts.
+
+### Fixed: classic icons — the nav pane's expanded arrow matched nothing
+
+The classic icon set maps chevron-down to the small U+25BE (right for
+the dropdown buttons) and chevron-right to the large U+25B6, so the nav
+pane's twisty changed size between collapsed and expanded. A nav-pane-
+scoped stylesheet override (`.pmd-nav-chevron .pmd-icon-chevron-down`)
+uses U+25BC, the large down-pointing mate — the icon generator and
+every other arrow are untouched. The content escape is ASCII-only, as
+the icon-coverage guard requires.
 
 ### Changed: context menus open on a right-click only
 
