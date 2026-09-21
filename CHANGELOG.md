@@ -39,6 +39,7 @@ see `DETAILED_CHANGELOG.md`.
   The faint dot grid over background color (Settings → Appearance →
   Document typography) is now on for everyone, once; turn it off and it
   stays off.
+- **Classic icons: the nav pane's expanded arrow matches its collapsed one.** The down arrow was a smaller glyph than the sideways one; in the nav pane it is now the same size. Arrows elsewhere are unchanged.
 - **Context menus open on a right-click only.** Ctrl+click on a Mac
   used to open the editor's Cut / Copy / Paste menu, the nav pane's row
   menu and the palette's row actions, since the system treats it as a

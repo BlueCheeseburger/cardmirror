@@ -5428,6 +5428,13 @@ body.pmd-nav-resize-active {
 .pmd-nav-chevron-active:hover {
   color: var(--pmd-c-emphasis-box);
 }
+/* Classic icons: the generic classic chevron-down is the small \25BE
+   (right for dropdown buttons), but beside the nav pane's collapsed
+   \25B6 it reads as a different size. Here only, the expanded twisty
+   uses the large \25BC, the down-pointing mate of \25B6. */
+:root[data-icons="classic"] .pmd-nav-chevron .pmd-icon-chevron-down::before {
+  content: "\25BC ";
+}
 
 .pmd-nav-chevron-leaf {
   visibility: hidden;
