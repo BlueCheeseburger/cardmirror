@@ -5,6 +5,32 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Added
+
+- **Link URLs.** A new Doc-menu command (also in Search Everything;
+  unbound) turns every web address in the selection, or in the whole
+  document when nothing is selected, into a link: http:// and https://
+  addresses, and www. addresses. Trailing punctuation and an unmatched
+  closing bracket stay outside the link, and text that is already a
+  link is left alone. Remove Hyperlinks is still there to undo it all.
+- **Link URLs as you type** (Settings → Editing → Typing, off by
+  default) does the same to an address the moment you type a space or
+  press Enter after it.
+- **Mod+click opens a link.** A plain click on a link only places the
+  cursor, as on any text; hold Cmd (Mac) or Ctrl (Windows, Linux) and
+  click to open it. Right-click still offers Open, Copy, Edit and
+  Remove.
+
+### Changed
+
+- **Context menus open on a right-click only.** Ctrl+click on a Mac
+  used to open the editor's Cut / Copy / Paste menu, the nav pane's row
+  menu and the palette's row actions, since the system treats it as a
+  secondary click. It now opens nothing. Two-finger tap and the
+  keyboard menu key still work.
+
 ## 1.11.0 — 2026-09-19
 
 ### Added

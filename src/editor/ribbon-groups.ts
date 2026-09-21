@@ -287,6 +287,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'fixFormattingGaps',
       'repairParagraphIntegrity',
       'removeHyperlinks',
+      'linkUrls',
     ],
   },
   {

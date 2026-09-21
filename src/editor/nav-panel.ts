@@ -80,6 +80,7 @@ import { setIcon } from './icons';
 import { isMobileShellActive } from './mobile-plugin.js';
 import { createNumberGlyph, numberingDisplaySig } from './numbering-plugin.js';
 import { computeNumbering } from './numbering.js';
+import { isRightClickContextMenu } from './context-menu-gate.js';
 
 /** Minimum nav-pane width — must fit the 4 level buttons + the
  *  close (×) button + row padding; anything narrower clips the ×. */
@@ -957,6 +958,7 @@ export class NavigationPanel {
         li.addEventListener('pointerdown', (e) => this.onLiPointerDown(e, entry, li));
         li.addEventListener('contextmenu', (e) => {
           e.preventDefault();
+          if (!isRightClickContextMenu(e)) return; // Ctrl+click is not a right-click
           // On mobile the browser synthesizes contextmenu from the same
           // long-press that arms row pickup — suppress the menu there.
           if (isMobileShellActive()) return;

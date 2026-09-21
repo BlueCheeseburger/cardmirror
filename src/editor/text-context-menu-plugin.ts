@@ -31,6 +31,7 @@ import { cutInPlaceApplies, markCutInPlace } from './cut-in-place.js';
 import { getElectronHost } from './host/index.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
 import { formatKeyForDisplay } from './ribbon-commands.js';
+import { isRightClickContextMenu } from './context-menu-gate.js';
 
 export const textContextMenuPlugin: Plugin = new Plugin({
   props: {
@@ -38,8 +39,11 @@ export const textContextMenuPlugin: Plugin = new Plugin({
       contextmenu(view, event) {
         // Image, link, and misspelling right-clicks were claimed by
         // their plugins (registered earlier); everything reaching
-        // here gets the fallback menu.
+        // here gets the fallback menu — unless it is not a right-click
+        // (Ctrl+click on macOS), which opens nothing and shows no
+        // browser menu either.
         event.preventDefault();
+        if (!isRightClickContextMenu(event)) return true;
         showTextContextMenu(event.clientX, event.clientY, view);
         return true;
       },

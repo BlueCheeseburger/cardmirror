@@ -266,6 +266,8 @@ import { isLiteBuild } from './lite.js';
 import { isTransclusionNode, fragmentHasZone } from './transclusion.js';
 import { showConfirm } from './confirm-dialog.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
+import { autolinkPlugin, linkModClickPlugin } from './autolink.js';
+import { isRightClickContextMenu } from './context-menu-gate.js';
 import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
@@ -2663,6 +2665,11 @@ if (docMenuBtn) {
             commandId: 'removeHyperlinks',
             run: () => runRibbon('removeHyperlinks'),
           },
+          {
+            label: 'Link URLs',
+            commandId: 'linkUrls',
+            run: () => runRibbon('linkUrls'),
+          },
         ],
       },
       {
@@ -3230,6 +3237,7 @@ for (const [id, btnId] of Object.entries(FORMATTING_PANEL_BUTTONS) as [Formattin
   if (selectAll) {
     btn.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      if (!isRightClickContextMenu(e)) return;
       if (!view) return;
       // Scoped when there's a live selection OR a sticky scope from a
       // prior right-click — both bound the search to a region.
@@ -5721,6 +5729,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     }),
     imageContextMenuPlugin,
     linkContextMenuPlugin,
+    linkModClickPlugin,
     // Word-style mouse-selection state machine: owns single-,
     // double-, and triple-click + drag + shift+click. Lets PM
     // place the caret on single-click (preventDefault on the
@@ -5790,6 +5799,9 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
   // Auto-capitalization in tags/analytics — sentence starts + standalone `i`,
   // gated on `autoCapitalizeSentences` (inert otherwise).
   plugins.push(autoCapitalizePlugin());
+  // After the autocorrect rules, so a claimed space (a custom autocorrect
+  // firing) takes precedence; the link lands on the next chance.
+  plugins.push(autolinkPlugin());
   plugins.push(footnotePopoverPlugin());
   // Editor spellcheck — viewport-scoped custom checker, gated internally
   // on the `editorSpellcheck` setting (does nothing when off).

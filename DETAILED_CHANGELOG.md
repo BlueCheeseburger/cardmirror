@@ -5,6 +5,55 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Added: URLs → links (Link URLs, autolink, Mod+click)
+
+Prompted by a community plugin (UnderAK/cardmirror-autolinks, 2026-09-20)
+that autolinked by editing the contenteditable DOM with `execCommand`
+and letting ProseMirror reconcile — safe, but the wrong layer: it
+rescanned every text node on every keystroke, only ever found the
+first editor on the page, and clobbered the selection. The plugin API
+exposes no transactions, so it could not be done right as a plugin;
+the feature moved into core (`autolink.ts`).
+
+The detection rule (`findUrls`): an `http://` / `https://` address or
+a `www.` address (href gets `https://`), running to the next whitespace,
+angle bracket or quote, straight or curly; the host must contain a dot,
+a port, or be localhost; trailing `. , ; : ! ?` stay outside, and so
+does a closing bracket with no opening partner inside the address
+(`(see https://x.org/a)` links the address alone; a Wikipedia-style
+`…/Foo_(bar)` keeps its parenthesis). Text already carrying the link
+mark is never re-linked.
+
+`linkUrls()` (ribbon command `linkUrls`, Doc menu beside Remove
+Hyperlinks, unbound) uses the classic scope — the selection, else the
+whole document — and links every unlinked address in it in one
+transaction; a partially selected address is linked whole. The
+`autoLinkUrls` setting (Typing, OFF by default per the user) drives
+`autolinkPlugin`: on a typed space the address before the caret is
+linked in the same transaction as the space (one Undo takes both
+back); on Enter the link is its own step and Enter proceeds. The plugin
+sits after the autocorrect rules so a claimed space wins. Pastes are not
+touched. `linkModClickPlugin` opens a link on Cmd-click (Mac) / Ctrl-click
+(elsewhere) through the same opener the link context menu uses (now
+exported); a plain click does nothing, as before. Tests: autolink.test.ts.
+
+### Changed: context menus open on a right-click only
+
+Field request 2026-09-21: Ctrl+click on macOS opened the editor's text
+menu, the nav pane's row menu and the palette's row actions, because
+the browser synthesizes `contextmenu` for it. `context-menu-gate.ts`'s
+`isRightClickContextMenu` accepts `button === 2` and a keyboard-invoked
+menu (`button === 0`, no Ctrl — not a click, kept for accessibility) and
+refuses anything with Ctrl held; every `contextmenu` listener asks it
+first (text / link / image / misspelling plugins, nav rows, the four
+palette row actions, the formatting panel's select-all buttons) and,
+when refused, cancels the browser's own menu and opens nothing. A
+right-click with Ctrl held is refused too — a small cost that keeps the
+rule sound even if a browser reports Ctrl+click as the right button.
+Tests: context-menu-gate.test.ts.
+
 ## 1.11.0 — 2026-09-19
 
 ### Added: folder browsing in the Search Everything palette

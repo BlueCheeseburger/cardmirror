@@ -887,6 +887,9 @@ export interface Settings {
   /** Word-style smart quotes: as you type a straight ' or ", curl it to the
    *  right direction based on the preceding character. Off by default. */
   smartQuotes: boolean;
+  /** Link a web address the moment a space or Enter follows it (autolink.ts).
+   *  Off by default; the Link URLs command covers what is already written. */
+  autoLinkUrls: boolean;
   /** Auto-capitalize sentence starts (and standalone `i`) in TAGS and
    *  ANALYTICS only — the user's own prose. Card bodies / cites are source
    *  excerpts whose casing must be preserved verbatim. Off by default. */
@@ -1832,6 +1835,7 @@ const DEFAULTS: Settings = {
   flashcardDueDot: true,
   editorSpellcheck: false,
   smartQuotes: false,
+  autoLinkUrls: false,
   autoCapitalizeSentences: false,
   customAutocorrectEnabled: false,
   customAutocorrects: [],
@@ -3422,6 +3426,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['curly quotes', 'smart quotes', 'autocorrect quotes', 'typographic quotes'],
   },
   {
+    key: 'autoLinkUrls',
+    label: 'Link URLs as you type',
+    description:
+      'Turn a web address into a link the moment you type a space or press Enter after it: http:// and https:// addresses, and www. addresses (linked as https). Trailing punctuation and an unmatched closing bracket stay outside the link. Clicking a link only places the cursor; Mod+click opens it. Off by default. The Link URLs command (Doc menu) links what is already written — the selection, or the whole document.',
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Typing',
+    aliases: ['autolink', 'auto link', 'hyperlink urls', 'link urls', 'automatic links'],
+  },
+  {
     key: 'customDashEnabled',
     label: 'Custom dash',
     description:
@@ -4723,6 +4737,7 @@ function sanitize(s: Settings): Settings {
     editorSpellcheck: !!s.editorSpellcheck,
     copyPreviousCiteNearestOnly: s.copyPreviousCiteNearestOnly === false ? false : true,
     smartQuotes: !!s.smartQuotes,
+    autoLinkUrls: !!s.autoLinkUrls,
     autoCapitalizeSentences: !!s.autoCapitalizeSentences,
     customAutocorrectEnabled: !!s.customAutocorrectEnabled,
     customAutocorrects: sanitizeCustomAutocorrects(s.customAutocorrects),

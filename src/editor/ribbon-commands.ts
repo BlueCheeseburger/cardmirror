@@ -34,6 +34,7 @@
  * of an analytic_unit.
  */
 
+import { linkUrls } from './autolink.js';
 import { Fragment, type Mark, type MarkType, type Node as PMNode, type ResolvedPos } from 'prosemirror-model';
 import { Selection, TextSelection, type Command, type EditorState, type Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
@@ -4352,6 +4353,7 @@ export type RibbonCommandId =
   | 'startUiTour'
   | 'selectSimilar'
   | 'removeHyperlinks'
+  | 'linkUrls'
   | 'convertAnalyticsToTags'
   | 'convertCitedAnalyticsToTags'
   | 'fixFormattingGaps'
@@ -4595,6 +4597,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'startUiTour',
   'selectSimilar',
   'removeHyperlinks',
+  'linkUrls',
   'convertAnalyticsToTags',
   'convertCitedAnalyticsToTags',
   'fixFormattingGaps',
@@ -4790,6 +4793,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   startUiTour: 'Take the UI Tour',
   selectSimilar: 'Select Similar Formatting',
   removeHyperlinks: 'Remove Hyperlinks',
+  linkUrls: 'Link URLs',
   convertAnalyticsToTags: 'Convert Analytics to Tags',
   convertCitedAnalyticsToTags: 'Convert Cited Analytics to Tags',
   fixFormattingGaps: 'Fix Formatting Gaps',
@@ -4957,6 +4961,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   pasteAsText: ['paste without formatting', 'paste unformatted', 'paste text'],
   pasteCondensed: ['paste condense', 'paste merge', 'paste flatten', 'paste no paragraphs', 'destructive paste'],
   removeHyperlinks: ['remove links', 'unlink'], // "delete …" via the delete/remove synonym group
+  linkUrls: ['hyperlink urls', 'autolink', 'make links', 'add links', 'linkify'],
   applyShading: ['shading', 'text highlight color'],
   insertImage: ['add image', 'insert picture', 'photo'],
   // "Insert …" element commands also answer to "add …" (genuine equivalence —
@@ -5160,6 +5165,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   startUiTour: '',
   selectSimilar: '',
   removeHyperlinks: '',
+  linkUrls: '',
   convertAnalyticsToTags: '',
   convertCitedAnalyticsToTags: '',
   fixFormattingGaps: '',
@@ -6065,6 +6071,8 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return selectSimilar(ctx.effectivePtForNode);
     case 'removeHyperlinks':
       return removeHyperlinks();
+    case 'linkUrls':
+      return linkUrls();
     case 'convertAnalyticsToTags':
       return convertAnalyticsToTags();
     case 'convertCitedAnalyticsToTags':

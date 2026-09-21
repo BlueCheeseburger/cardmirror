@@ -138,6 +138,7 @@ import {
 } from './ribbon-commands.js';
 import { availableRibbonCommandIds } from './ribbon-availability.js';
 import { checkedSliceFromJSON } from '../schema/slice-check.js';
+import { isRightClickContextMenu } from './context-menu-gate.js';
 
 // ── Warm-cache machinery (module-level, shared by the open palette and
 //    the proactive idle pre-warm) ────────────────────────────────────
@@ -2256,6 +2257,7 @@ class QuickCardSearchUI {
         top.appendChild(twisty);
         row.addEventListener('contextmenu', (ev) => {
           ev.preventDefault();
+          if (!isRightClickContextMenu(ev)) return;
           if (r.collapsible && r.outlineIndex !== undefined) {
             this.toggleOutlineCollapse(r.outlineIndex);
           }
@@ -2267,11 +2269,13 @@ class QuickCardSearchUI {
         const range = r.fileRange;
         row.addEventListener('contextmenu', (ev) => {
           ev.preventDefault();
+          if (!isRightClickContextMenu(ev)) return;
           this.jumpToOutline(range);
         });
       } else if (r.source === 'folder') {
         row.addEventListener('contextmenu', (ev) => {
           ev.preventDefault();
+          if (!isRightClickContextMenu(ev)) return;
           this.selected = i;
           this.enterBrowseFolder(r);
         });
@@ -2330,6 +2334,7 @@ class QuickCardSearchUI {
         // star, so the context menu is free for the more useful action.
         row.addEventListener('contextmenu', (ev) => {
           ev.preventDefault();
+          if (!isRightClickContextMenu(ev)) return;
           this.selected = i;
           void this.enterInFile();
         });

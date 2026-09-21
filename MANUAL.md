@@ -476,6 +476,14 @@ every conversion is reversible with **Backspace** right after it fires.
   or the start of a line; closing (and the apostrophe) otherwise — so `don't`
   and `(he said "hi")` come out right.
 
+- **Link URLs as you type** (Settings → Editing → "Link URLs as you type", off
+  by default) turns a web address into a link the moment you type a space or
+  press Enter after it — `http://`, `https://` and `www.` addresses, with
+  trailing punctuation left outside the link. A plain click on a link only
+  places the cursor; **Mod+click** opens it. The **Link URLs** command (Doc
+  menu) does the same for what is already written — the selection, or the
+  whole document — and **Remove Hyperlinks** undoes it.
+
 - **Custom dash** (Settings → Editing → "Custom dash") turns a typed `---` into
   an en or em dash, with or without surrounding spaces (your choice), the moment
   you type the third hyphen.
@@ -665,7 +673,7 @@ The **Doc** and **Card** ribbon menus hold document- and card-level
 operations. From the **Doc** menu: **Convert Analytics to Tags**,
 **Convert Cited Analytics to Tags** (the same, but only for analytics
 that actually carry a cite — bare analytics stay analytics), **Fix
-Formatting Gaps**, and **Remove Hyperlinks**. **Select Similar
+Formatting Gaps**, **Link URLs**, and **Remove Hyperlinks**. **Select Similar
 Formatting** selects everything that matches the cursor's styles.
 
 When you apply formatting to a word right next to an already-formatted word,
@@ -2697,6 +2705,8 @@ Typing helpers and the behavior of the cutting and condense commands
 
 - **Smart quotes** — curl a straight `'` / `"` to the right direction as you
   type; Backspace right after reverts. Off by default.
+- **Link URLs as you type** — link a web address the moment a space or Enter
+  follows it. Off by default; the Link URLs command covers existing text.
 - **Custom dash** — turn a typed `---` (or `--`, your choice) into an en
   or em dash (spaced or unspaced) on the trigger's last hyphen;
   Backspace right after reverts to the literal hyphens. Off by default.
