@@ -5625,6 +5625,17 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   display: contents;
 }
 
+/* "Read mode: show undertags" (settings.readModeShowUndertags →
+   `pmd-rm-show-undertags` on the editor host, beside the other read-mode
+   setting classes): undertag paragraphs come back as blocks — in cards, in
+   analytic units, and at document level — and the read-mode plugin keeps
+   every run of theirs (keepsWholeParagraph), so the whole undertag shows. */
+.pmd-read-mode.pmd-rm-show-undertags .pmd-card > .pmd-undertag,
+.pmd-read-mode.pmd-rm-show-undertags .pmd-analytic-unit > .pmd-undertag,
+.pmd-read-mode.pmd-rm-show-undertags .ProseMirror > .pmd-undertag {
+  display: block;
+}
+
 /* Tables inside a card/analytic. A table is a non-listed child, so `.pmd-card >
    *` would hide it wholesale — taking any HIGHLIGHTED evidence inside its cells
    with it. Instead flatten it exactly like the card body: `display: contents`

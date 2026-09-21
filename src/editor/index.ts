@@ -3939,6 +3939,7 @@ let lastReadMode = settings.get('readMode');
 let lastReadModeBorders = settings.get('hideEmphasisBordersInReadMode');
 let lastReadModeParaIntegrity = settings.get('readModeParagraphIntegrity');
 let lastReadModeKeepCite = settings.get('readModeKeepEntireCite');
+let lastReadModeShowUndertags = settings.get('readModeShowUndertags');
 let lastMarkUnread = settings.get('markUnreadAfterMarker');
 let lastNumberingDisplay = numberingDisplaySig();
 
@@ -4004,12 +4005,14 @@ settings.subscribe((s) => {
     (s.readMode !== lastReadMode ||
       s.hideEmphasisBordersInReadMode !== lastReadModeBorders ||
       s.readModeParagraphIntegrity !== lastReadModeParaIntegrity ||
-      s.readModeKeepEntireCite !== lastReadModeKeepCite)
+      s.readModeKeepEntireCite !== lastReadModeKeepCite ||
+      s.readModeShowUndertags !== lastReadModeShowUndertags)
   ) {
     lastReadMode = s.readMode;
     lastReadModeBorders = s.hideEmphasisBordersInReadMode;
     lastReadModeParaIntegrity = s.readModeParagraphIntegrity;
     lastReadModeKeepCite = s.readModeKeepEntireCite;
+    lastReadModeShowUndertags = s.readModeShowUndertags;
     // (applyReadMode re-sends the toggle, which rebuilds the plugin's
     // decoration set — how a keep-entire-cite flip reaches the text.)
     applyReadMode(s.readMode);
@@ -5194,6 +5197,7 @@ function applyReadMode(on: boolean): void {
     'pmd-rm-para-integrity',
     on && settings.get('readModeParagraphIntegrity'),
   );
+  editorEl.classList.toggle('pmd-rm-show-undertags', on && settings.get('readModeShowUndertags'));
   if (!multiDocActive) refreshReadModeBtn();
   if (view) {
     // Read mode keeps the editor EDITABLE so the caret stays placeable
@@ -5223,6 +5227,7 @@ export function applyReadModeToTarget(
   on: boolean,
   hideEmphasisBorders: boolean,
   readParagraphIntegrity: boolean,
+  showUndertags: boolean,
 ): void {
   const anchor = settings.get('jumpToDocTopOnReadModeToggle')
     ? null
@@ -5230,6 +5235,7 @@ export function applyReadModeToTarget(
   hostEl.classList.toggle('pmd-read-mode', on);
   hostEl.classList.toggle('pmd-rm-no-emphasis-borders', on && hideEmphasisBorders);
   hostEl.classList.toggle('pmd-rm-para-integrity', on && readParagraphIntegrity);
+  hostEl.classList.toggle('pmd-rm-show-undertags', on && showUndertags);
   // Stay editable so the caret is placeable; edits are blocked by the
   // read-mode plugin's filterTransaction.
   targetView.setProps({ editable: () => true });

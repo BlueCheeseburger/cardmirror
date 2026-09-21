@@ -989,6 +989,13 @@ export interface Settings {
    *  Convert Cards to Read Mode follows it. Off by default: the marked
    *  runs are what most people read at the podium. */
   readModeKeepEntireCite: boolean;
+  /** When true, read mode shows undertag paragraphs — every run of them,
+   *  in cards, analytic units and at document level — instead of hiding
+   *  them. Display-only, like keep-entire-cite; Convert Cards to Read
+   *  Mode follows it. Off by default. Never counted toward word counts /
+   *  read time: the counter is mark-based and unhighlighted undertag
+   *  text carries no read-aloud mark. */
+  readModeShowUndertags: boolean;
   /** Word-style Repeat: when true, Mod-Y with nothing left to redo
    *  re-runs the last editing action at the current selection (the
    *  last burst of typing, a formatting command, Backspace/Delete, a
@@ -1866,6 +1873,7 @@ const DEFAULTS: Settings = {
   hideEmphasisBordersInReadMode: false,
   readModeParagraphIntegrity: false,
   readModeKeepEntireCite: false,
+  readModeShowUndertags: false,
   repeatWithModY: false,
   markUnreadAfterMarker: false,
   defaultZoomPct: 100,
@@ -2380,6 +2388,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Editor behavior',
     aliases: ['whole cite', 'full cite', 'entire cite', 'read mode cite', 'quals'],
+  },
+  {
+    key: 'readModeShowUndertags',
+    label: 'Read mode: show undertags',
+    description:
+      'When on, read mode shows undertags — the whole of each one — instead of hiding them. Off by default. Display-only, like keep entire cite; Convert Cards to Read Mode follows it too. Undertag text still does not count toward word counts or read-time estimates unless it is highlighted.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Editor behavior',
+    aliases: ['undertags read mode', 'show undertags', 'read mode undertags'],
   },
   {
     key: 'repeatWithModY',
@@ -4777,6 +4795,7 @@ function sanitize(s: Settings): Settings {
     hideEmphasisBordersInReadMode: !!s.hideEmphasisBordersInReadMode,
     readModeParagraphIntegrity: !!s.readModeParagraphIntegrity,
     readModeKeepEntireCite: !!s.readModeKeepEntireCite,
+    readModeShowUndertags: !!s.readModeShowUndertags,
     repeatWithModY: !!s.repeatWithModY,
     markUnreadAfterMarker: !!s.markUnreadAfterMarker,
     // A legacy persisted `zoomPct` is deliberately ignored — live body

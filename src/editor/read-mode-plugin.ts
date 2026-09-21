@@ -227,9 +227,12 @@ function isReadKept(child: PMNode, markNames: readonly string[]): boolean {
  *  run shows all of its text (qualifications, source, date), not just the
  *  marked runs. A cite with nothing marked still collapses, like a body
  *  paragraph with nothing highlighted, so an unmarked cite never shows as
- *  a stray line. The setting is read at decoration time; both shells
- *  rebuild the set when it flips. */
+ *  a stray line. "Read mode: show undertags" — every undertag paragraph
+ *  shows whole (the block itself comes back through the host's
+ *  `pmd-rm-show-undertags` class; style.css). Both settings are read at
+ *  decoration time; both shells rebuild the set when either flips. */
 function keepsWholeParagraph(para: PMNode, markNames: readonly string[]): boolean {
+  if (para.type.name === 'undertag') return settings.get('readModeShowUndertags');
   if (para.type.name !== 'cite_paragraph' || !settings.get('readModeKeepEntireCite')) return false;
   let any = false;
   para.forEach((child) => {

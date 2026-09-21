@@ -18,6 +18,11 @@ see `DETAILED_CHANGELOG.md`.
 - **Link URLs as you type** (Settings → Editing → Typing, off by
   default) does the same to an address the moment you type a space or
   press Enter after it.
+- **Read mode: show undertags** (Settings → General → Editor behavior,
+  off by default) shows every undertag, whole, in read mode, beside the
+  existing keep-entire-cite option. Convert Cards to Read Mode follows
+  it. Undertag text still counts toward word counts and read time only
+  where it is highlighted, as before.
 - **Mod+click opens a link.** A plain click on a link only places the
   cursor, as on any text; hold Cmd (Mac) or Ctrl (Windows, Linux) and
   click to open it. Right-click still offers Open, Copy, Edit and

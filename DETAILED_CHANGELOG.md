@@ -39,6 +39,34 @@ touched. `linkModClickPlugin` opens a link on Cmd-click (Mac) / Ctrl-click
 (elsewhere) through the same opener the link context menu uses (now
 exported); a plain click does nothing, as before. Tests: autolink.test.ts.
 
+### Added: Read mode: show undertags
+
+User request 2026-09-21, "implemented the same way in the same place"
+as keep-entire-cite. Setting `readModeShowUndertags` (General → Editor
+behavior, right under keep-entire-cite, off by default). Two halves,
+because read mode hides undertags at two levels: the stylesheet's
+per-container allowlists (`.pmd-card > *`, `.pmd-analytic-unit > *`,
+`.ProseMirror > *` are `display: none` with the audible children
+re-shown) drop the BLOCK, and the plugin's per-run decorations would
+hide its unhighlighted text even if the block showed. So: the host
+class `pmd-rm-show-undertags` (stamped beside `pmd-rm-para-integrity`
+in `applyReadMode`, `applyReadModeToTarget` — new parameter — the
+multi-pane shell's per-pane re-stamp, and the card preview) brings the
+undertag blocks back in all three containers, and `keepsWholeParagraph`
+returns the setting for `undertag` paragraphs so every run is kept.
+Both shells add the setting to the diff that rebuilds the decoration
+set on a flip. Convert Cards to Read Mode follows automatically: it
+already visits undertag paragraphs through `isReadModeKeptText`.
+
+Counting: untouched by construction. `readAloudBucket` (word-count.ts)
+is mark-based — in an undertag only highlighted unshaded text counts,
+at body speed — and never consults either read-mode setting, so the
+revealed text adds nothing to the status-bar count, the selection count
+or the live read time. read-mode-show-undertags.test.ts pins both the
+display and that the count is unchanged with the setting on. (Noted in
+passing, not changed: highlighted undertag text has always counted even
+though read mode hid the block until now.)
+
 ### Changed: context menus open on a right-click only
 
 Field request 2026-09-21: Ctrl+click on macOS opened the editor's text

@@ -1082,7 +1082,8 @@ entire cite* is on. Undo restores the cards.
   undertags, and un-highlighted body text disappear. Of a cite, only
   its cite-marked and highlighted words show unless you turn on
   *Read mode: keep entire cite* (Settings → General), which shows the
-  whole citation.
+  whole citation; *Read mode: show undertags* (same place) brings the
+  undertags back, whole. Neither adds to the word count or read time.
 
 - It **locks the keyboard**, so a stray key or trackpad twitch at the
   podium can't edit your file.
@@ -2442,6 +2443,11 @@ headers shown inside each tab.
   and all — instead of only its cite-marked and highlighted words. A cite
   with nothing marked stays hidden. Off by default. Display-only, and
   Convert Cards to Read Mode follows it too.
+- **Read mode: show undertags** — when on, read mode shows undertags, the
+  whole of each one, instead of hiding them. Off by default. Display-only,
+  and Convert Cards to Read Mode follows it too. Undertag text still does
+  not count toward word counts or read-time estimates unless it is
+  highlighted.
 
 **Word counts**
 
