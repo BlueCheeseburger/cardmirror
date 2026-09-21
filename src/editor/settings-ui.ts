@@ -971,11 +971,19 @@ class SettingsModal {
       return row;
     } else if (meta.kind === 'standardizeHighlightException') {
       row.appendChild(text);
-      row.appendChild(buildHighlightExceptionEditor());
+      row.appendChild(buildHighlightNameEditor('standardizeHighlightException'));
       return row;
     } else if (meta.kind === 'standardizeShadingException') {
       row.appendChild(text);
-      row.appendChild(buildShadingExceptionEditor());
+      row.appendChild(buildShadingHexEditor('standardizeShadingException'));
+      return row;
+    } else if (meta.kind === 'defaultHighlightColor') {
+      row.appendChild(text);
+      row.appendChild(buildHighlightNameEditor('defaultHighlightColor'));
+      return row;
+    } else if (meta.kind === 'defaultShadingColor') {
+      row.appendChild(text);
+      row.appendChild(buildShadingHexEditor('defaultShadingColor'));
       return row;
     } else if (meta.kind === 'colorSlots') {
       row.appendChild(text);
@@ -4632,10 +4640,11 @@ function buildColorEditor(key: string): HTMLElement {
   return wrap;
 }
 
-/** Highlighting-exception editor: a swatch row of Word's 15 named
- *  highlight colors (highlight marks can only be one of these) plus
- *  a label naming the current pick. Stores the OOXML color name. */
-function buildHighlightExceptionEditor(): HTMLElement {
+/** Word-highlight-name editor (the highlighting exception, the default
+ *  highlight color): a swatch row of Word's 15 named highlight colors
+ *  (highlight marks can only be one of these) plus a label naming the
+ *  current pick. Stores the OOXML color name under `key`. */
+function buildHighlightNameEditor(key: 'standardizeHighlightException' | 'defaultHighlightColor'): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-color-editor';
 
@@ -4657,7 +4666,7 @@ function buildHighlightExceptionEditor(): HTMLElement {
     sw.title = c.label;
     sw.setAttribute('aria-label', c.label);
     sw.addEventListener('click', () => {
-      settings.set('standardizeHighlightException', c.name);
+      settings.set(key, c.name);
       refresh();
     });
     presets.appendChild(sw);
@@ -4666,7 +4675,7 @@ function buildHighlightExceptionEditor(): HTMLElement {
   wrap.appendChild(presets);
 
   function refresh(): void {
-    const current = settings.get('standardizeHighlightException');
+    const current = settings.get(key);
     label.textContent = highlightColorLabel(current);
     for (const { btn, name } of swatchButtons) {
       btn.classList.toggle('pmd-color-editor-swatch-active', name === current);
@@ -4681,12 +4690,11 @@ function buildHighlightExceptionEditor(): HTMLElement {
  *  editor (picker + preset swatches) but stores a bare uppercase hex
  *  (matching the shading mark's attr) and adds a Protected Grey
  *  swatch after the shading palette. */
-function buildShadingExceptionEditor(): HTMLElement {
+function buildShadingHexEditor(key: 'standardizeShadingException' | 'defaultShadingColor'): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-color-editor';
-  const get = () => settings.get('standardizeShadingException');
-  const set = (v: string) =>
-    settings.set('standardizeShadingException', v.replace(/^#/, '').toUpperCase());
+  const get = () => settings.get(key);
+  const set = (v: string) => settings.set(key, v.replace(/^#/, '').toUpperCase());
 
   const top = document.createElement('div');
   top.className = 'pmd-color-editor-row';

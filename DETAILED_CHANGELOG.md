@@ -39,6 +39,35 @@ touched. `linkModClickPlugin` opens a link on Cmd-click (Mac) / Ctrl-click
 (elsewhere) through the same opener the link context menu uses (now
 exported); a plain click does nothing, as before. Tests: autolink.test.ts.
 
+### Added: Reset to Default Colors + Default colors settings
+
+User request 2026-09-21. The color panel already persists each picker's
+active color in settings (`lastHighlightColor`, a Word highlight name or
+null for the "none" pen; `lastShadingColor`, a bare hex or null) and
+redraws its indicator bars on any settings change, so the command is
+settings-only: `resetDefaultColors` (ribbon command in the Color
+pickers & menus group, unbound, viewless so it works with no document
+open) writes the two new settings into the two active-color settings
+and toasts. `defaultHighlightColor` (Word name, `yellow`) and
+`defaultShadingColor` (hex, `C0C0C0` — the shading picker's own default
+light gray, not Verbatim's D2D2D2 protected grey) live in a new
+Editing-tab section, Default colors, placed between Standardize
+exceptions and Acronym marking as asked. Their editors are the
+standardize-exception editors generalized to take a key
+(`buildHighlightNameEditor` / `buildShadingHexEditor`); sanitizers
+mirror the exception ones. Tests: default-colors.test.ts.
+
+### Changed: "Distinguish background color from highlighting" on by default
+
+User request 2026-09-21. DEFAULTS flipped to `true`, and — because
+`persist()` snapshots every key, so a defaults change alone reaches only
+fresh installs — `migrateDistinguishShadingDefault` flips a stored
+`false` to `true` exactly once per install (marker
+`cm-distinguish-shading-migrated` outside the blob), on every edition
+since the cue is a stylesheet class. Same shape and caveat as the
+update-check migration: a deliberate "off" is flipped once too, and the
+re-toggle then sticks. No notice — it is display-only.
+
 ### Added: Read mode: show undertags
 
 User request 2026-09-21, "implemented the same way in the same place"

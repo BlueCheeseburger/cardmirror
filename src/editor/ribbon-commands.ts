@@ -4464,6 +4464,7 @@ export type RibbonCommandId =
   | 'openShadingPicker'
   | 'openFontColorPicker'
   | 'openFontSizePicker'
+  | 'resetDefaultColors'
   | 'openDocToolsMenu'
   | 'openCardToolsMenu'
   | 'openTableMenu'
@@ -4685,6 +4686,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'openShadingPicker',
   'openFontColorPicker',
   'openFontSizePicker',
+  'resetDefaultColors',
   'openDocToolsMenu',
   'openCardToolsMenu',
   'openTableMenu',
@@ -4880,6 +4882,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   openShadingPicker: 'Open Background Color Picker',
   openFontColorPicker: 'Open Font Color Picker',
   openFontSizePicker: 'Open Font Size Picker',
+  resetDefaultColors: 'Reset to Default Colors',
   openDocToolsMenu: 'Open Doc Tools Menu',
   openCardToolsMenu: 'Open Card Tools Menu',
   openTableMenu: 'Open Table Menu',
@@ -4962,6 +4965,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   pasteCondensed: ['paste condense', 'paste merge', 'paste flatten', 'paste no paragraphs', 'destructive paste'],
   removeHyperlinks: ['remove links', 'unlink'], // "delete …" via the delete/remove synonym group
   linkUrls: ['hyperlink urls', 'autolink', 'make links', 'add links', 'linkify'],
+  resetDefaultColors: ['default colors', 'reset colors', 'reset swatches', 'reset highlight color', 'reset background color'],
   applyShading: ['shading', 'text highlight color'],
   insertImage: ['add image', 'insert picture', 'photo'],
   // "Insert …" element commands also answer to "add …" (genuine equivalence —
@@ -5293,6 +5297,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   openShadingPicker: '',
   openFontColorPicker: '',
   openFontSizePicker: '',
+  resetDefaultColors: '',
   openDocToolsMenu: '',
   openCardToolsMenu: '',
   openTableMenu: '',
@@ -5480,6 +5485,9 @@ export interface RibbonContext {
    *  the selected part of one) — copy-matching-cite.ts. No-op + toast
    *  when the selection touches no cite. */
   copyCardsWithMatchingCite: () => void;
+  /** Put the highlight and background-color swatch pickers back on the
+   *  defaults from Settings → Editing → Default colors. */
+  resetDefaultColors: () => void;
   /** Save the current selection as a named, tagged quick card
    *  (opens the Add dialog). No-op + toast if the selection is empty. */
   addQuickCard: () => void;
@@ -5651,6 +5659,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   deleteCurrentHeading: () => {},
   copyCurrentHeading: () => {},
   copyCardsWithMatchingCite: () => {},
+  resetDefaultColors: () => {},
   addQuickCard: () => {},
   manageQuickCards: () => {},
   openQuickCardSearch: () => {},
@@ -6324,6 +6333,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.copyCardsWithMatchingCite();
+        return true;
+      };
+    case 'resetDefaultColors':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.resetDefaultColors();
         return true;
       };
     case 'addQuickCard':

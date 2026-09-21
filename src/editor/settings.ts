@@ -1361,6 +1361,12 @@ export interface Settings {
    * case-insensitively.
    */
   standardizeShadingException: string;
+  /** The highlight the "Reset to Default Colors" command puts back on the
+   *  highlight swatch picker (a Word highlight name). Yellow by default. */
+  defaultHighlightColor: string;
+  /** Same for the background-color picker: a bare uppercase hex. Word's
+   *  light gray (C0C0C0), the picker's own starting color, by default. */
+  defaultShadingColor: string;
   /** When true, "Create Reference" (Card menu) emits its body text
    *  in Gray-50% (#808080) instead of black. Heading line stays
    *  black either way. */
@@ -1791,7 +1797,7 @@ const DEFAULTS: Settings = {
   readerReduceMotion: false,
   colorVisionFriendly: false,
   annotationShapes: false,
-  distinguishShading: false,
+  distinguishShading: true,
   navAnalyticItalics: false,
   unboldCites: false,
   disableCursorBlink: false,
@@ -1939,6 +1945,8 @@ const DEFAULTS: Settings = {
   clearFormattingOnNamedStyleToggleOff: true,
   standardizeHighlightException: 'yellow',
   standardizeShadingException: 'FFFF00',
+  defaultHighlightColor: 'yellow',
+  defaultShadingColor: 'C0C0C0',
   forReferenceUseGray50: false,
   createReferenceIncludeHeading: true,
   createReferenceDelimiter: '<<',
@@ -2134,6 +2142,8 @@ export interface SettingMeta {
     | 'shrinkCustomProtections'
     | 'standardizeHighlightException'
     | 'standardizeShadingException'
+    | 'defaultHighlightColor'
+    | 'defaultShadingColor'
     | 'acronymPatterns'
     | 'createReferenceHighlightMode'
     | 'createReferenceDelimiter'
@@ -3191,7 +3201,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'distinguishShading',
     label: 'Distinguish background color from highlighting',
     description:
-      'When on, background color gets a faint dot grid over its fill so it can be told apart from highlighting at a glance. Off by default — the two stay visually identical. Display-only — the file and exports are untouched.',
+      'When on, background color gets a faint dot grid over its fill so it can be told apart from highlighting at a glance. On by default; turn it off and the two look identical. Display-only — the file and exports are untouched.',
     kind: 'toggle',
     category: 'appearance',
     section: 'Document typography',
@@ -3782,6 +3792,26 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'editing',
     section: 'Standardize exceptions',
     aliases: ['standardize background exception', 'protected background color', 'protected grey', 'protected gray'],
+  },
+  {
+    key: 'defaultHighlightColor',
+    label: 'Default highlight color',
+    description:
+      'The highlight the "Reset to Default Colors" command (command bar; unbound) puts back on the highlight swatch picker. One of Word\'s highlight colors; yellow by default.',
+    kind: 'defaultHighlightColor',
+    category: 'editing',
+    section: 'Default colors',
+    aliases: ['default highlight', 'reset highlight color', 'default swatch'],
+  },
+  {
+    key: 'defaultShadingColor',
+    label: 'Default background color',
+    description:
+      'The background color the "Reset to Default Colors" command puts back on the background-color swatch picker. Any color; the picker\'s own starting light gray by default.',
+    kind: 'defaultShadingColor',
+    category: 'editing',
+    section: 'Default colors',
+    aliases: ['default background color', 'default shading', 'reset background color'],
   },
   {
     key: 'acronymPatterns',
@@ -4945,6 +4975,12 @@ function sanitize(s: Settings): Settings {
       s.forReferenceUseGray50 === undefined
         ? DEFAULTS.forReferenceUseGray50
         : !!s.forReferenceUseGray50,
+    defaultHighlightColor: isWordHighlightName(String(s.defaultHighlightColor ?? ''))
+      ? String(s.defaultHighlightColor)
+      : DEFAULTS.defaultHighlightColor,
+    defaultShadingColor: isHex6(s.defaultShadingColor)
+      ? String(s.defaultShadingColor).toUpperCase()
+      : DEFAULTS.defaultShadingColor,
     createReferenceIncludeHeading:
       s.createReferenceIncludeHeading === undefined
         ? DEFAULTS.createReferenceIncludeHeading
@@ -5916,6 +5952,25 @@ export function migrateAutoUpdateOptOut(onMigrated: () => void): void {
     settings.set('checkForUpdatesOnLaunch', true);
     onMigrated();
   }
+}
+
+/** One-shot migration for the 2026-09-21 default flip: "Distinguish
+ *  background color from highlighting" became ON by default. Same
+ *  reasoning as `migrateAutoUpdateOptOut`: `persist()` snapshots every
+ *  key, so an existing install carries the old `false` and a DEFAULTS
+ *  change alone would reach only fresh installs. Flips a stored `false`
+ *  to `true` exactly once per install (marker outside the blob); a user
+ *  who turns it back off stays off. Display-only, so no notice. Runs on
+ *  every edition (the cue is a stylesheet class). */
+export function migrateDistinguishShadingDefault(): void {
+  const MARKER = 'cm-distinguish-shading-migrated';
+  try {
+    if (localStorage.getItem(MARKER) !== null) return;
+    localStorage.setItem(MARKER, '1');
+  } catch {
+    return;
+  }
+  if (!settings.get('distinguishShading')) settings.set('distinguishShading', true);
 }
 
 /** The format a silent per-type save writes: the type's own setting, or the

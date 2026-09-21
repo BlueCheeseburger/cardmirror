@@ -585,7 +585,10 @@ turning their highlighting into background color so it isn't affected by
 
 Each of the three color controls is a **split button**: the main button
 applies the active color, and the small arrow opens a 16-swatch picker.
-The picker remembers your last color per control. The top-left swatch
+The picker remembers your last color per control; **Reset to Default
+Colors** (command bar) puts the highlight and background pickers back on
+the colors you set under Settings → Editing → Default colors (yellow and
+light gray unless you change them). The top-left swatch
 selects **no color** (No highlight / No background / Automatic) — and
 "no color" is a real pen, not just a one-off eraser: it stays active
 (the indicator bar under the button turns white), and the main button,
@@ -2646,7 +2649,7 @@ How things look. None of these change the file — only your view (see
   control as Accessibility → Color overrides → Document text).
 - **Distinguish background color from highlighting** — overlays a
   deliberately faint dot grid on background color so it can be told
-  apart from highlighting at a glance. Off by default — the two stay
+  apart from highlighting at a glance. On by default — the two stay
   visually identical. Display-only; the file and anything you copy or
   export are untouched.
 - **Show character styles** — show the cite / underline / emphasis
@@ -2810,6 +2813,15 @@ Typing helpers and the behavior of the cutting and condense commands
 - **Background color exception** — the background color that "Standardize
   Background Color (with Exception)" leaves untouched. Any color; defaults
   to yellow.
+
+**Default colors**
+
+- **Default highlight color** — the highlight that **Reset to Default
+  Colors** (command bar; unbound) puts back on the highlight swatch picker.
+  One of Word's 15 highlight colors; yellow by default.
+- **Default background color** — the background color the same command
+  puts back on the background-color swatch picker. Any color; the picker's
+  own starting light gray by default.
 
 **Acronym marking**
 

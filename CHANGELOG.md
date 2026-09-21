@@ -23,6 +23,11 @@ see `DETAILED_CHANGELOG.md`.
   existing keep-entire-cite option. Convert Cards to Read Mode follows
   it. Undertag text still counts toward word counts and read time only
   where it is highlighted, as before.
+- **Reset to Default Colors.** A new command (command bar; unbound) puts
+  the highlight and background-color swatch pickers back on their
+  defaults. Which defaults is up to you: a new **Default colors** section
+  under Settings → Editing holds the two, yellow and the picker's light
+  gray unless you change them.
 - **Mod+click opens a link.** A plain click on a link only places the
   cursor, as on any text; hold Cmd (Mac) or Ctrl (Windows, Linux) and
   click to open it. Right-click still offers Open, Copy, Edit and
@@ -30,6 +35,10 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
+- **Background color is distinguished from highlighting by default.**
+  The faint dot grid over background color (Settings → Appearance →
+  Document typography) is now on for everyone, once; turn it off and it
+  stays off.
 - **Context menus open on a right-click only.** Ctrl+click on a Mac
   used to open the editor's Cut / Copy / Paste menu, the nav pane's row
   menu and the palette's row actions, since the system treats it as a

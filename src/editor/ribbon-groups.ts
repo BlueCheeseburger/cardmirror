@@ -157,6 +157,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'openShadingPicker',
       'openFontColorPicker',
       'openFontSizePicker',
+      'resetDefaultColors',
       'openDocToolsMenu',
       'openCardToolsMenu',
       'openTableMenu',

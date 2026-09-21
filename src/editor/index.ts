@@ -166,7 +166,7 @@ import {
   ZOOM_MAX_PCT,
   CHROME_SCALE_MIN_PCT,
   CHROME_SCALE_MAX_PCT,
-  migrateAutoUpdateOptOut, effectiveDocTypeFormat } from './settings.js';
+  migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { viewportSpellcheckPlugin } from './viewport-spellcheck.js';
@@ -2176,6 +2176,13 @@ const ribbonContext: RibbonContext = {
   },
   copyCardsWithMatchingCite: () => {
     if (view) void copyCardsWithMatchingCiteIn(view);
+  },
+  // Settings-only: the pickers persist their active color in settings and
+  // the color panel redraws its indicator bars on any settings change.
+  resetDefaultColors: () => {
+    settings.set('lastHighlightColor', settings.get('defaultHighlightColor'));
+    settings.set('lastShadingColor', settings.get('defaultShadingColor'));
+    showToast('Highlight and background colors reset to their defaults.');
   },
   addQuickCard: () => {
     if (view) void runAddQuickCard(view);
@@ -4484,6 +4491,8 @@ document.addEventListener('keydown', suppressGuiSelectAll, true);
  *  open hits this path. */
 const VIEWLESS_RIBBON_COMMANDS = new Set<AnyCommandId>([
   'newDocument',
+  // Settings-only; no doc needed.
+  'resetDefaultColors',
   'openFile',
   'saveAs',
   'openShortcutsReference',
@@ -4552,6 +4561,7 @@ function runViewlessRibbon(id: AnyCommandId): void {
     case 'zoomIn': ribbonContext.zoomIn(); return;
     case 'zoomOut': ribbonContext.zoomOut(); return;
     case 'zoomReset': ribbonContext.zoomReset(); return;
+    case 'resetDefaultColors': ribbonContext.resetDefaultColors(); return;
     case 'toggleNavPane': ribbonContext.toggleNavPane(); return;
     case 'goHome': ribbonContext.goHome(); return;
     case 'openQuickCardSearch': ribbonContext.openQuickCardSearch(); return;
@@ -10236,6 +10246,9 @@ async function initSingleDocBoot(): Promise<void> {
   }
   if (isFirst) {
     const electron = getElectronHost();
+    // "Distinguish background color from highlighting" became ON by
+    // default (2026-09-21): flip an older install's stored `false` once.
+    migrateDistinguishShadingDefault();
     // Update checks became opt-OUT (2026-07-27): flip an older
     // install's stored `false` default exactly once, with a one-time
     // notice pointing at the toggle. Runs before the launch check so
