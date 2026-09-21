@@ -23,6 +23,10 @@ see `DETAILED_CHANGELOG.md`.
   existing keep-entire-cite option. Convert Cards to Read Mode follows
   it. Undertag text still counts toward word counts and read time only
   where it is highlighted, as before.
+- **Settings from the home screen.** A Settings tile sits beside Learn,
+  with its own heading, and answers to the 9 key like the other tiles.
+  Until now the home screen reached Settings only through the command
+  bar.
 - **Reset to Default Colors.** A new command (command bar; unbound) puts
   the highlight and background-color swatch pickers back on their
   defaults. Which defaults is up to you: a new **Default colors** section

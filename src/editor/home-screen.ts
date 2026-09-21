@@ -65,6 +65,11 @@ export interface HomeScreenCallbacks {
   reopenWorkspace?: (snapshot: WorkspaceSnapshot) => void;
   /** Open the Quick Cards manage overlay. */
   manageQuickCards: () => void;
+  /** Open the Settings panel. Rendered as its own labeled group in the
+   *  slot beside Learn (the last tile, so number key 9 in the normal
+   *  layout); omitted → no tile. Until 2026-09-21 the home screen
+   *  reached Settings only through the command bar. */
+  openSettings?: () => void;
   /** Open the .docx style cleaner. Electron-only (recursive folder I/O +
    *  write-to-path), like bulkConvert; omitted on the web edition. */
   clean?: () => void;
@@ -184,6 +189,8 @@ class HomeScreen {
     // Manage is always reachable — even with zero cards, the user may
     // want to import flashcards from a file.
     runners.push(() => openLearnManage());
+    // Settings — the last tile (9 in the normal layout).
+    if (callbacks.openSettings) runners.push(() => this.callbacks?.openSettings?.());
     this.actionRunners = runners;
     const actions = document.createElement('div');
     actions.className = 'pmd-home-actions';
@@ -347,6 +354,20 @@ class HomeScreen {
     const learnGroup = labeledGroup('Learn', this.learnEl);
     learnGroup.classList.add('pmd-home-labeled-learn');
     qcGrid.appendChild(learnGroup);
+    // Settings — its own labeled group in the third column of the Learn
+    // row (Learn spans two), so the panel is one click from home.
+    if (callbacks.openSettings) {
+      qcGrid.appendChild(
+        labeledGroup(
+          'Settings',
+          this.actionCard(
+            'Settings',
+            'Appearance, keyboard shortcuts, files, and everything else.',
+            () => this.callbacks?.openSettings?.(),
+          ),
+        ),
+      );
+    }
     qcSection.appendChild(qcGrid);
     inner.appendChild(qcSection);
 

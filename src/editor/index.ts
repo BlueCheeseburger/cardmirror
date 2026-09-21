@@ -7132,6 +7132,9 @@ const homeCallbacks: HomeScreenCallbacks = {
   manageQuickCards: () => {
     void quickCardsManageUI.open();
   },
+  openSettings: () => {
+    void loadSettingsUi().then((m) => m.openSettings());
+  },
   // Clean: Electron gets the folder-recursive modal; web cleans one file at a time.
   clean:
     getHost().kind === 'electron'
