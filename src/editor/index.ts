@@ -266,7 +266,7 @@ import { isLiteBuild } from './lite.js';
 import { isTransclusionNode, fragmentHasZone } from './transclusion.js';
 import { showConfirm } from './confirm-dialog.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
-import { autolinkPlugin, linkModClickPlugin } from './autolink.js';
+import { autolinkPlugin, autolinkEnterPlugin, linkModClickPlugin } from './autolink.js';
 import { isRightClickContextMenu } from './context-menu-gate.js';
 import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
@@ -5584,6 +5584,10 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // plugin so its hooks see typing, Backspace/Delete and paste first
     // (they record and return false). Inert unless `repeatWithModY`.
     repeatLastActionPlugin(),
+    // Autolink's Enter hook must run before the Enter keymaps below claim
+    // the key; its space hook sits after the autocorrect rules (see the
+    // push further down).
+    autolinkEnterPlugin(),
     // Cut in place — ahead of the undo keymap (Cmd-Z while a cut is
     // pending clears the mark, not the last edit) and of the paste
     // plugin (our own payload pasted in the same document is a MOVE).

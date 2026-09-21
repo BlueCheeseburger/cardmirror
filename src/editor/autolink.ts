@@ -11,11 +11,16 @@
  *     address — `(see https://x.org/a)` links `https://x.org/a`, while
  *     `https://en.wikipedia.org/wiki/Foo_(bar)` keeps its parenthesis.
  *     Text that already carries a link mark is never re-linked.
- *   - `autolinkPlugin()`: with the `autoLinkUrls` setting on (OFF by
- *     default), the address just finished — the word before the caret
- *     — gets the link mark when a space is typed or Enter is pressed
- *     after it. One transaction with the space, so a single Undo takes
- *     the link back with the space; Enter's link is its own step. Pastes
+ *   - `autolinkPlugin()` + `autolinkEnterPlugin()`: with the
+ *     `autoLinkUrls` setting on (OFF by default), the address just
+ *     finished — the word before the caret — gets the link mark when a
+ *     space is typed or Enter is pressed after it. One transaction with
+ *     the space, so a single Undo takes the link back with the space;
+ *     Enter's link is its own step, and Enter then proceeds. Two plugins
+ *     because they need opposite places in the stack: the space hook
+ *     goes AFTER the autocorrect rules (a claimed space wins), while the
+ *     Enter hook must sit BEFORE the Enter keymaps, which claim the key
+ *     — placed later it never ran (dev-build find, 2026-09-21). Pastes
  *     are not touched; Link URLs covers what is already written.
  *   - `linkUrls()`: the command. The classic scope — the selection when
  *     there is one, else the whole document — and every unlinked
@@ -30,6 +35,7 @@ import { schema } from '../schema/index.js';
 import { settings } from './settings.js';
 import { showToast } from './toast.js';
 import { openLinkExternally } from './link-context-menu-plugin.js';
+import { REPEAT_IGNORE_META } from './repeat-last-action.js';
 
 export interface UrlMatch {
   /** Offsets into the text the match was found in; `end` exclusive. */
@@ -137,8 +143,9 @@ function addressBefore(state: EditorState, pos: number): { from: number; to: num
   return { from, to, href: last.href };
 }
 
-/** Link the address you just finished typing — on the space after it,
- *  or on Enter. Gated on the `autoLinkUrls` setting (off by default). */
+/** Link the address you just finished typing on the space after it.
+ *  Gated on the `autoLinkUrls` setting (off by default). Stack position:
+ *  after the autocorrect rules. */
 export function autolinkPlugin(): Plugin {
   return new Plugin({
     props: {
@@ -154,6 +161,18 @@ export function autolinkPlugin(): Plugin {
         );
         return true;
       },
+    },
+  });
+}
+
+/** Link the address before the caret when Enter is pressed, then let
+ *  Enter proceed. Stack position: BEFORE every Enter keymap (right after
+ *  the Repeat recorder), since the keymaps claim the key. The link
+ *  transaction tells the recorder to look through it, so Repeat still
+ *  records the Enter it accompanies. */
+export function autolinkEnterPlugin(): Plugin {
+  return new Plugin({
+    props: {
       handleKeyDown(view, event) {
         if (event.key !== 'Enter' || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false;
         if (!settings.get('autoLinkUrls')) return false;
@@ -161,7 +180,9 @@ export function autolinkPlugin(): Plugin {
         if (!sel.empty) return false;
         const hit = addressBefore(view.state, sel.from);
         if (!hit) return false;
-        view.dispatch(view.state.tr.addMark(hit.from, hit.to, linkType().create({ href: hit.href })));
+        view.dispatch(
+          view.state.tr.addMark(hit.from, hit.to, linkType().create({ href: hit.href })).setMeta(REPEAT_IGNORE_META, true),
+        );
         return false; // Enter itself proceeds through the keymaps
       },
     },

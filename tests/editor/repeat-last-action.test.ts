@@ -9,7 +9,7 @@ import { EditorView } from 'prosemirror-view';
 import { Slice, Fragment } from 'prosemirror-model';
 import { history, undo, redo } from 'prosemirror-history';
 import { schema, newHeadingId } from '../../src/schema/index.js';
-import { repeatLastActionPlugin, repeatLastAction, lastActionOf, noteCommandRun, type RepeatKey } from '../../src/editor/repeat-last-action.js';
+import { repeatLastActionPlugin, repeatLastAction, lastActionOf, noteCommandRun, REPEAT_IGNORE_META, type RepeatKey } from '../../src/editor/repeat-last-action.js';
 import { makeAutocorrectPlugin, type AutocorrectRule, type AutocorrectState } from '../../src/editor/autocorrect.js';
 import { buildMacroKeymap } from '../../src/editor/keyboard-macros.js';
 import type { KeyboardMacro } from '../../src/editor/settings.js';
@@ -224,5 +224,17 @@ describe('Enter, Tab, macros, autocorrect (2026-09-18)', () => {
     caretAt(v, bodyStart(v));
     expect(repeat(v)).toBe(true);
     expect(body(v), 'the replay was converted too').toBe('a\u201cba\u201cb');
+  });
+});
+
+describe('REPEAT_IGNORE_META', () => {
+  it('a transaction that accompanies a key is looked through: the announcement survives for the key\'s own step', () => {
+    const v = makeView('');
+    caretAt(v, bodyStart(v));
+    pressKey(v, 'Enter'); // announced
+    v.dispatch(v.state.tr.insertText('x').setMeta(REPEAT_IGNORE_META, true)); // e.g. autolink's mark on Enter
+    expect(lastActionOf(v.state), 'not recorded, not cleared').toBeNull();
+    v.dispatch(v.state.tr.insertText('y')); // what the Enter handler did
+    expect(lastActionOf(v.state)).toEqual({ kind: 'key', key: 'Enter' });
   });
 });

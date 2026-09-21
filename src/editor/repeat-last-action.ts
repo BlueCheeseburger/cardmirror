@@ -62,6 +62,11 @@ export const repeatLastActionKey = new PluginKey<RecorderState>('cm-repeat-last-
  *  recorder counts it as typing (a macro inserts directly, never through
  *  the text-input hook). */
 export const REPEAT_TYPING_META = 'cm-repeat-typing';
+/** Transaction meta for an edit that ACCOMPANIES a key the recorder is
+ *  about to see anyway (autolink's mark on Enter): the recorder looks
+ *  through it — no record change, and the pending announcement survives
+ *  for the key's own transaction. */
+export const REPEAT_IGNORE_META = 'cm-repeat-ignore';
 
 /** What the hooks announced for the transaction about to be dispatched
  *  (consumed by the plugin's apply). Module-level because the hook and
@@ -108,6 +113,7 @@ export function repeatLastActionPlugin(): Plugin<RecorderState> {
         const set = tr.getMeta('cm-repeat-set') as LastAction | undefined;
         if (set) return { last: set };
         if (replaying) return prev;
+        if (tr.getMeta(REPEAT_IGNORE_META)) return prev; // before the announcement is consumed
         if (tr.getMeta('cm-repeat-clear')) return { last: null };
         if (commandInProgress !== null) {
           // The runner reports the id once it has seen the doc change;

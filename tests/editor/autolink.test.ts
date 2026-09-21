@@ -8,7 +8,12 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
-import { findUrls, autolinkPlugin, linkUrls, linkUrlsInRange, isLinkOpenClick } from '../../src/editor/autolink.js';
+import { findUrls, autolinkPlugin, autolinkEnterPlugin, linkUrls, linkUrlsInRange, isLinkOpenClick } from '../../src/editor/autolink.js';
+import { EditorView } from 'prosemirror-view';
+import { keymap } from 'prosemirror-keymap';
+import { splitBlock } from 'prosemirror-commands';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { settings } from '../../src/editor/settings.js';
 
 afterEach(() => settings.set('autoLinkUrls', false));
@@ -115,7 +120,7 @@ describe('autolinkPlugin — as you type', () => {
     const d = doc(card(tag('T'), body(schema.text('www.foo.org/x'))));
     const end = bodyRange(d).to;
     const h = viewFor(d, end); const view = h.view;
-    const plugin = autolinkPlugin();
+    const plugin = autolinkEnterPlugin();
     const enter = new KeyboardEvent('keydown', { key: 'Enter' });
     expect(plugin.props.handleKeyDown!.call(plugin, view, enter), 'Enter proceeds').toBe(false);
     expect(runs(h.current().doc)).toEqual([['www.foo.org/x', 'https://www.foo.org/x']]);
@@ -165,5 +170,32 @@ describe('isLinkOpenClick', () => {
     expect(isLinkOpenClick(new MouseEvent('click', { button: 0 }))).toBe(false);
     expect(isLinkOpenClick(new MouseEvent('click', { button: 0, ...mod, shiftKey: true }))).toBe(false);
     expect(isLinkOpenClick(new MouseEvent('click', { button: 2, ...mod }))).toBe(false);
+  });
+});
+
+describe('autolinkEnterPlugin — placed before the Enter keymaps', () => {
+  it('runs before a keymap that claims Enter, so the link lands and the split still happens', () => {
+    settings.set('autoLinkUrls', true);
+    const d = doc(card(tag('T'), body(schema.text('see https://x.org/a'))));
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    const view = new EditorView(el, {
+      state: EditorState.create({ doc: d, selection: TextSelection.create(d, bodyRange(d).to), plugins: [autolinkEnterPlugin(), keymap({ Enter: splitBlock })] }),
+    });
+    const claimed = view.someProp('handleKeyDown', (f) => f(view, new KeyboardEvent('keydown', { key: 'Enter' })));
+    expect(claimed, 'the keymap still claimed Enter').toBe(true);
+    expect(runs(view.state.doc)).toEqual([['see ', null], ['https://x.org/a', 'https://x.org/a']]);
+    expect(view.state.doc.child(0).childCount, 'the block split happened after the link').toBe(3);
+    view.destroy();
+  });
+
+  it('is registered before the editor\'s Enter keymap in the plugin stack (source guard)', () => {
+    const src = readFileSync(resolve(process.cwd(), 'src/editor/index.ts'), 'utf8');
+    const enterHook = src.indexOf('autolinkEnterPlugin(),');
+    const enterKeymap = src.indexOf('Enter: (state, dispatch, view) =>');
+    const spaceHook = src.indexOf('plugins.push(autolinkPlugin())');
+    expect(enterHook).toBeGreaterThan(0);
+    expect(enterHook).toBeLessThan(enterKeymap);
+    expect(spaceHook).toBeGreaterThan(enterKeymap);
   });
 });
