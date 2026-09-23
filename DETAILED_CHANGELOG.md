@@ -68,6 +68,40 @@ single opener for both the menu's Open and Mod+click. Two URL detectors
 now exist — the fork's Ctrl+K pre-fill check and upstream's `findUrls` —
 serving different entry points; left separate for now.
 
+### Changed: MANUAL.md documents the fork (`MANUAL.md`)
+
+Requested directly before this release. The manual was upstream's text plus
+three fork paragraphs (auto-scroll, `.docx` autosave, document background),
+and several sections described upstream behavior the fork replaced. Every
+user-facing fork feature from `git log upstream/main..HEAD` is now
+documented in the section where it's used and marked **(fork)**, and the
+"New in CardMirror" list carries a (fork) entry for each major one rather
+than a separate fork list:
+- Rewritten for the fork's behavior: §7 *Multiple workspaces* (the old text
+  said New always spawns a window; now the window/slot choosers, the
+  empty-workspace Slot 1 shortcut, named/stacked close prompts, and
+  workspace entries in Recent), §16 *Save As* (was upstream's
+  immediate-save presets; now the mode radio list, Custom Save's
+  checkboxes, remembered folders, and slash-to-hyphen names), and §13's
+  provider list (two → three, plus a *Setup (Google Gemini)* subsection
+  with the real setting labels and the `gemini-2.5-flash` default).
+- New subsections: *Naming windows and renaming documents* (§7), *Send
+  taglines to PolicyDebateFlow* (§14) and its Settings tab (§17),
+  *Comparing two documents* (§16, labels checked against
+  `doc-diff-ui.ts`).
+- Added in place: chip Save/Autosave, chip drag/swap, Move to…, the
+  three-pane ribbon toggle, per-pane cloud badges, read-mode copy,
+  lay-speaking times, Mod-K hyperlinks, both-at-once custom dash, Recent
+  Locate…, autosave on by default, update download progress, settings
+  search, the macOS system-shortcut warning, and Mod-K / Shift-`` ` `` in
+  §19's tables.
+- Corrected stale claims: Linux support and the Releases link (now this
+  fork's; no Linux or Lite builds), the web preview being upstream's
+  build, `.cmir` no longer described as required for autosave, and the
+  AUR note.
+- Bug fixes with no lasting behavior to describe (keybinding-capture Esc,
+  zoom button, etc.) are left to the changelogs.
+
 ### Other resolutions
 
 - `index.ts` home-screen callbacks: the fork's `compareDocuments` and
