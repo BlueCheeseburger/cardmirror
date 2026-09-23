@@ -8,6 +8,23 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+
+- **Search Everything button in the status bar.** A "Search" button at the
+  bottom of the window opens Search Everything with one click, without
+  needing the shortcut.
+
+### Removed
+
+- **The built-in PolicyDebateFlow integration.** The send-tagline shortcut,
+  Settings → PolicyDebateFlow tab, and the status-bar Flow chip are gone —
+  the integration is moving to a CardMirror plugin instead of living in the
+  app itself. Shift-`` ` `` is unbound by default again.
+
+---
+
 ## 1.12.0-bcb.1 — 2026-09-23
 
 ### Changed
@@ -326,17 +343,13 @@ time-boxed, logged fallback for the zip worker and a ribbon button
 that distinguishes "saving" from "paused" (e.g. a doc with a live
 view that Word can't hold open).
 
-### 8. Send taglines to PolicyDebateFlow
+### 8. Compare documents
 
-Connect PolicyDebateFlow (Settings → PolicyDebateFlow — paste the
-pairing code it gives you) and press Shift-` with your cursor on a
-tagline to send it — tagline plus cite — straight into your open
-flow. It lands in the next empty cell and the flow's focus moves down
-one row automatically, so you can send a whole case without ever
-switching windows. A status-bar chip shows Connected/Off at a
-glance — click it to disconnect, or to jump to Settings when it's
-off — and updates on its own if the connection drops from either
-side.
+A "Compare" card on the home screen picks two `.cmir`/`.docx` files and
+shows a full-screen, line-by-line diff of their text, side by side, with
+added/removed lines colored the way a code diff shows them, plus an
+outline on each side to jump straight to a heading. Neither file is
+opened as your working document — the diff is read-only.
 
 ---
 
