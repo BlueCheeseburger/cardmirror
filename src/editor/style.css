@@ -5665,6 +5665,13 @@ body.pmd-nav-resize-active {
 .pmd-nav-chevron-active:hover {
   color: var(--pmd-c-emphasis-box);
 }
+/* Classic icons: the generic classic chevron-down is the small \25BE
+   (right for dropdown buttons), but beside the nav pane's collapsed
+   \25B6 it reads as a different size. Here only, the expanded twisty
+   uses the large \25BC, the down-pointing mate of \25B6. */
+:root[data-icons="classic"] .pmd-nav-chevron .pmd-icon-chevron-down::before {
+  content: "\25BC ";
+}
 
 .pmd-nav-chevron-leaf {
   visibility: hidden;
@@ -5861,6 +5868,17 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 .pmd-read-mode .pmd-analytic-unit > .pmd-analytic { display: block; }
 .pmd-read-mode .pmd-analytic-unit > .pmd-card-body {
   display: contents;
+}
+
+/* "Read mode: show undertags" (settings.readModeShowUndertags →
+   `pmd-rm-show-undertags` on the editor host, beside the other read-mode
+   setting classes): undertag paragraphs come back as blocks — in cards, in
+   analytic units, and at document level — and the read-mode plugin keeps
+   every run of theirs (keepsWholeParagraph), so the whole undertag shows. */
+.pmd-read-mode.pmd-rm-show-undertags .pmd-card > .pmd-undertag,
+.pmd-read-mode.pmd-rm-show-undertags .pmd-analytic-unit > .pmd-undertag,
+.pmd-read-mode.pmd-rm-show-undertags .ProseMirror > .pmd-undertag {
+  display: block;
 }
 
 /* Tables inside a card/analytic. A table is a non-listed child, so `.pmd-card >
@@ -10851,6 +10869,42 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   border-bottom: 1px solid var(--pmd-c-divider-faint);
   padding: 0.25rem;
 }
+.pmd-qcs-browse-header {
+  padding: 0.45rem 0.75rem 0.35rem;
+  color: var(--pmd-c-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--pmd-c-divider-faint);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmd-qcs-browse-header[hidden] { display: none; }
+.pmd-qcs-browse-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmd-qcs-browse-current-hint {
+  color: var(--pmd-c-text-muted);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pmd-qcs-browse-notice {
+  margin: 0.45rem 0.6rem 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 5px;
+  color: var(--pmd-c-text-muted);
+  background: var(--pmd-c-surface-soft);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
 .pmd-qcs-row {
   padding: 0.4rem 0.5rem;
   border-radius: 5px;
@@ -10895,6 +10949,10 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 .pmd-qcs-badge-fileobject {
   color: var(--pmd-c-text-secondary);
   border-color: var(--pmd-c-text-secondary);
+}
+.pmd-qcs-badge-folder {
+  color: var(--pmd-c-warning);
+  border-color: var(--pmd-c-warning);
 }
 /* Collapse chevron / spacer in the file-search outline browse. */
 .pmd-qcs-twisty {
@@ -10970,6 +11028,10 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   padding: 0.6rem 0.5rem;
   color: var(--pmd-c-text-muted);
   font-size: 0.82rem;
+}
+.pmd-qcs-empty-separator {
+  color: var(--pmd-c-text-secondary);
+  font-weight: 800;
 }
 .pmd-qcs-more {
   padding: 0.45rem 0.5rem;
@@ -13727,6 +13789,19 @@ html.pmd-timer-right #timer-panel {
   #timer-display.pmd-timer-expired[data-mode]:not([contenteditable="true"]) {
   background: var(--pmd-c-neg);
   color: white;
+}
+
+/* Stopwatch (Start pressed with 0:00 loaded): a small up-arrow before
+   the time says this clock is counting up, so 0:07 elapsed can't be
+   read as 0:07 remaining. Speech mode only, so it never meets the
+   prep-label ::before. */
+:is(#ribbon, body.pmd-timer-popout-page)
+  .pmd-timer-panel
+  #timer-display.pmd-timer-up:not([contenteditable="true"])::before {
+  content: '\25B2'; /* ▲ — escaped: the icon-coverage guard wants ASCII-only content strings */
+  font-size: 0.55em;
+  margin-right: 0.25em;
+  opacity: 0.7;
 }
 
 /* Compact mode: drop the 3 preset buttons; reset moves under
@@ -16944,6 +17019,16 @@ body.pmd-multi-doc #collab-chip {
 .pmd-reader-edge-left { left: 0; }
 .pmd-reader-edge-right { right: 0; }
 .pmd-reader-edge-hidden { visibility: hidden; }
+/* Scroll-extent sentinel (reader-view.ts): keeps the host scrollable to
+ * the last page's boundary when that page is short. Invisible, inert. */
+.pmd-reader-tail {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  visibility: hidden;
+}
 .pmd-reader-page-indicator {
   position: absolute;
   bottom: 0.4rem;

@@ -8,11 +8,13 @@
  */
 
 import { EditorState, Plugin, Selection, TextSelection, type Command } from 'prosemirror-state';
-import { serializeRangesForClipboard } from './clipboard-slice.js';
+import { serializeRangesForClipboard, serializeNodesForClipboard } from './clipboard-slice.js';
 import { EditorView } from 'prosemirror-view';
 import { keymap } from 'prosemirror-keymap';
 import { history, redo, undo, redoDepth } from 'prosemirror-history';
-import { repeatLastActionPlugin, repeatLastAction, noteCommandRun } from './repeat-last-action.js';
+import { repeatLastActionPlugin, repeatLastAction, noteCommandRun, type RepeatKey } from './repeat-last-action.js';
+import { applyNumberingExport, exportFreezesNumbering, type NumberingExportMode } from './numbering-bake.js';
+import { collectCardsWithMatchingCite } from './copy-matching-cite.js';
 import { baseKeymap } from 'prosemirror-commands';
 import { Node as PMNode, type Mark } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
@@ -173,7 +175,7 @@ import {
   ZOOM_MAX_PCT,
   CHROME_SCALE_MIN_PCT,
   CHROME_SCALE_MAX_PCT,
-  migrateAutoUpdateOptOut, effectiveDocTypeFormat } from './settings.js';
+  migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
 import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.js';
 import { resolveRenameFilename, installInlineRename, isInlineRenaming } from './doc-rename.js';
@@ -276,6 +278,8 @@ import { isLiteBuild } from './lite.js';
 import { isTransclusionNode, fragmentHasZone } from './transclusion.js';
 import { showConfirm } from './confirm-dialog.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
+import { autolinkPlugin, autolinkEnterPlugin, linkModClickPlugin } from './autolink.js';
+import { isRightClickContextMenu } from './context-menu-gate.js';
 import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
@@ -817,6 +821,26 @@ async function copyCurrentHeadingIn(sourceView: EditorView): Promise<void> {
   // Shared host-first / retrying path — and every outcome surfaces
   // (see clipboard-write.ts for the silent-failure history).
   if (await writeClipboardHtml(html, text)) showToast('Copied!');
+  else showToast(CLIPBOARD_BUSY_MESSAGE);
+}
+
+/** Copy every card whose cite matches the cursor's cite, or contains
+ *  the selected part of one (copy-matching-cite.ts), in document order
+ *  with numbering cleared. Touching no cite is a no-op with a hint. */
+async function copyCardsWithMatchingCiteIn(sourceView: EditorView): Promise<void> {
+  const found = collectCardsWithMatchingCite(sourceView.state.doc, sourceView.state.selection);
+  if (!found) {
+    showToast('Put the cursor in a cite, or select part of one, to copy the cards that share it.');
+    return;
+  }
+  if (found.cards.length === 0) {
+    showToast('No card has a matching cite.');
+    return;
+  }
+  const { html, text } = serializeNodesForClipboard(sourceView, found.cards);
+  const n = found.cards.length;
+  const what = found.query.whole ? 'with this cite' : 'whose cite contains the selection';
+  if (await writeClipboardHtml(html, text)) showToast(`Copied ${n} card${n === 1 ? '' : 's'} ${what}.`);
   else showToast(CLIPBOARD_BUSY_MESSAGE);
 }
 
@@ -1726,6 +1750,15 @@ const ribbonContext: RibbonContext = {
   extractUndertagInQuotes: () => settings.get('extractUndertagInQuotes'),
   headingMode: () => settings.get('headingMode'),
   condenseOnPaste: () => settings.get('condenseOnPaste'),
+  // Undo / redo route per FOCUSED document (the keymaps only fire on the
+  // focused view, whose record uid is activeDocIdentity's): the session's
+  // undo manager when a live collaboration owns undo, else history with
+  // read mode's limits. Resolved lazily — the commands are defined later
+  // in this module and only run at press time.
+  undoCommand: () =>
+    collabPluginSourceFor(activeDocIdentity().sessionUid)?.ownsUndo() ? collabUndo : readModeAwareUndo,
+  redoCommand: () =>
+    collabPluginSourceFor(activeDocIdentity().sessionUid)?.ownsUndo() ? collabRedoOrRepeat : redoOrRepeat,
   collabStartSession: () => {
     void loadCollabUi().then((m) => m.startSessionFlow(collabDeps));
   },
@@ -2309,6 +2342,16 @@ const ribbonContext: RibbonContext = {
   copyCurrentHeading: () => {
     if (view) void copyCurrentHeadingIn(view);
   },
+  copyCardsWithMatchingCite: () => {
+    if (view) void copyCardsWithMatchingCiteIn(view);
+  },
+  // Settings-only: the pickers persist their active color in settings and
+  // the color panel redraws its indicator bars on any settings change.
+  resetDefaultColors: () => {
+    settings.set('lastHighlightColor', settings.get('defaultHighlightColor'));
+    settings.set('lastShadingColor', settings.get('defaultShadingColor'));
+    showToast('Highlight and background colors reset to their defaults.');
+  },
   addQuickCard: () => {
     if (view) void runAddQuickCard(view);
   },
@@ -2840,6 +2883,11 @@ if (docMenuBtn) {
             label: 'Remove Hyperlinks',
             commandId: 'removeHyperlinks',
             run: () => runRibbon('removeHyperlinks'),
+          },
+          {
+            label: 'Link URLs',
+            commandId: 'linkUrls',
+            run: () => runRibbon('linkUrls'),
           },
         ],
       },
@@ -3453,6 +3501,7 @@ for (const [id, btnId] of Object.entries(FORMATTING_PANEL_BUTTONS) as [Formattin
   if (selectAll) {
     btn.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      if (!isRightClickContextMenu(e)) return;
       if (!view) return;
       // Scoped when there's a live selection OR a sticky scope from a
       // prior right-click — both bound the search to a region.
@@ -4167,6 +4216,7 @@ let lastReadMode = settings.get('readMode');
 let lastReadModeBorders = settings.get('hideEmphasisBordersInReadMode');
 let lastReadModeParaIntegrity = settings.get('readModeParagraphIntegrity');
 let lastReadModeKeepCite = settings.get('readModeKeepEntireCite');
+let lastReadModeShowUndertags = settings.get('readModeShowUndertags');
 let lastMarkUnread = settings.get('markUnreadAfterMarker');
 let lastNumberingDisplay = numberingDisplaySig();
 
@@ -4232,12 +4282,14 @@ settings.subscribe((s) => {
     (s.readMode !== lastReadMode ||
       s.hideEmphasisBordersInReadMode !== lastReadModeBorders ||
       s.readModeParagraphIntegrity !== lastReadModeParaIntegrity ||
-      s.readModeKeepEntireCite !== lastReadModeKeepCite)
+      s.readModeKeepEntireCite !== lastReadModeKeepCite ||
+      s.readModeShowUndertags !== lastReadModeShowUndertags)
   ) {
     lastReadMode = s.readMode;
     lastReadModeBorders = s.hideEmphasisBordersInReadMode;
     lastReadModeParaIntegrity = s.readModeParagraphIntegrity;
     lastReadModeKeepCite = s.readModeKeepEntireCite;
+    lastReadModeShowUndertags = s.readModeShowUndertags;
     // (applyReadMode re-sends the toggle, which rebuilds the plugin's
     // decoration set — how a keep-entire-cite flip reaches the text.)
     applyReadMode(s.readMode);
@@ -4810,6 +4862,8 @@ document.addEventListener('keydown', suppressGuiSelectAll, true);
  *  open hits this path. */
 const VIEWLESS_RIBBON_COMMANDS = new Set<AnyCommandId>([
   'newDocument',
+  // Settings-only; no doc needed.
+  'resetDefaultColors',
   'openFile',
   'saveAs',
   'openShortcutsReference',
@@ -4878,6 +4932,7 @@ function runViewlessRibbon(id: AnyCommandId): void {
     case 'zoomIn': ribbonContext.zoomIn(); return;
     case 'zoomOut': ribbonContext.zoomOut(); return;
     case 'zoomReset': ribbonContext.zoomReset(); return;
+    case 'resetDefaultColors': ribbonContext.resetDefaultColors(); return;
     case 'toggleNavPane': ribbonContext.toggleNavPane(); return;
     case 'goHome': ribbonContext.goHome(); return;
     case 'openQuickCardSearch': ribbonContext.openQuickCardSearch(); return;
@@ -5538,6 +5593,7 @@ function applyReadMode(on: boolean): void {
     'pmd-rm-para-integrity',
     on && settings.get('readModeParagraphIntegrity'),
   );
+  editorEl.classList.toggle('pmd-rm-show-undertags', on && settings.get('readModeShowUndertags'));
   if (!multiDocActive) refreshReadModeBtn();
   if (view) {
     // Read mode keeps the editor EDITABLE so the caret stays placeable
@@ -5567,6 +5623,7 @@ export function applyReadModeToTarget(
   on: boolean,
   hideEmphasisBorders: boolean,
   readParagraphIntegrity: boolean,
+  showUndertags: boolean,
 ): void {
   const anchor = settings.get('jumpToDocTopOnReadModeToggle')
     ? null
@@ -5574,6 +5631,7 @@ export function applyReadModeToTarget(
   hostEl.classList.toggle('pmd-read-mode', on);
   hostEl.classList.toggle('pmd-rm-no-emphasis-borders', on && hideEmphasisBorders);
   hostEl.classList.toggle('pmd-rm-para-integrity', on && readParagraphIntegrity);
+  hostEl.classList.toggle('pmd-rm-show-undertags', on && showUndertags);
   // Stay editable so the caret is placeable; edits are blocked by the
   // read-mode plugin's filterTransaction.
   targetView.setProps({ editable: () => true });
@@ -5920,6 +5978,10 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // plugin so its hooks see typing, Backspace/Delete and paste first
     // (they record and return false). Inert unless `repeatWithModY`.
     repeatLastActionPlugin(),
+    // Autolink's Enter hook must run before the Enter keymaps below claim
+    // the key; its space hook sits after the autocorrect rules (see the
+    // push further down).
+    autolinkEnterPlugin(),
     // Cut in place — ahead of the undo keymap (Cmd-Z while a cut is
     // pending clears the mark, not the last edit) and of the paste
     // plugin (our own payload pasted in the same document is a MOVE).
@@ -5928,12 +5990,15 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // reverts only this peer's edits, which prosemirror-history cannot
     // guarantee once remote transactions interleave. Outside a session,
     // the plain history stack as always.
-    ...(collabPluginSourceFor(targetUid)?.ownsUndo()
-      ? [keymap({ 'Mod-z': collabUndo, 'Mod-y': collabRedoOrRepeat, 'Mod-Shift-z': collabRedo })]
-      : [
-          history(),
-          keymap({ 'Mod-z': readModeAwareUndo, 'Mod-y': redoOrRepeat, 'Mod-Shift-z': readModeAwareRedo }),
-        ]),
+    // The undo / redo KEYS are the rebindable `undo` / `redo` ribbon
+    // commands (Settings → Keyboard shortcuts), dispatched through the
+    // ribbon keymap further down and routed per focused document by
+    // ribbonContext.undoCommand / redoCommand. Only the history plugin
+    // itself is conditional here: a live collaboration session owns undo
+    // (the CRDT undo manager reverts only this peer's edits, which
+    // prosemirror-history cannot guarantee once remote transactions
+    // interleave); outside a session, the plain history stack as always.
+    ...(collabPluginSourceFor(targetUid)?.ownsUndo() ? [] : [history()]),
     // Tag/analytic boundary editing rules (ARCHITECTURE.md §14.3).
     // These run before baseKeymap so they get first crack at
     // Backspace / Delete / Enter when the cursor is in a tag.
@@ -6078,6 +6143,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     }),
     imageContextMenuPlugin,
     linkContextMenuPlugin,
+    linkModClickPlugin,
     // Word-style mouse-selection state machine: owns single-,
     // double-, and triple-click + drag + shift+click. Lets PM
     // place the caret on single-click (preventDefault on the
@@ -6166,6 +6232,9 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
   // Auto-capitalization in tags/analytics — sentence starts + standalone `i`,
   // gated on `autoCapitalizeSentences` (inert otherwise).
   plugins.push(autoCapitalizePlugin());
+  // After the autocorrect rules, so a claimed space (a custom autocorrect
+  // firing) takes precedence; the link lands on the next chance.
+  plugins.push(autolinkPlugin());
   plugins.push(footnotePopoverPlugin());
   // Editor spellcheck — viewport-scoped custom checker, gated internally
   // on the `editorSpellcheck` setting (does nothing when off).
@@ -6197,15 +6266,19 @@ const collabUndo: Command = (state, dispatch, viewArg) =>
 const collabRedo: Command = (state, dispatch, viewArg) =>
   collabPluginSourceFor(activeDocIdentity().sessionUid)?.redo(state, dispatch, viewArg) ?? false;
 
-// ─── Mod-Y: Redo, else Word-style Repeat (setting `repeatWithModY`) ────
+// ─── Redo, else Word-style Repeat (setting `repeatWithModY`) ──────────
 // Redo always wins while there is something to redo; with the stack
-// empty and the setting on, Mod-Y re-runs the last editing action at
-// the selection (see repeat-last-action.ts). Mod-Shift-Z stays Redo.
+// empty and the setting on, the `redo` command (Mod-Y and Mod-Shift-Z
+// by default, rebindable) re-runs the last editing action at the
+// selection (see repeat-last-action.ts).
 // Read mode: a no-op that still claims the key (nothing may edit).
 /** Feed one more press of `key` through the app's own key handlers
- *  (tag-boundary rules, node-select guards); false if none claimed it. */
-function replayKeyDown(v: EditorView, key: 'Backspace' | 'Delete'): boolean {
-  const event = new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true });
+ *  (tag-boundary rules, enter styles, indent, table cells, node-select
+ *  guards); false if none claimed it. */
+function replayKeyDown(v: EditorView, key: RepeatKey): boolean {
+  const shift = key === 'Shift-Tab';
+  const name = shift ? 'Tab' : key;
+  const event = new KeyboardEvent('keydown', { key: name, code: name, shiftKey: shift, bubbles: true, cancelable: true });
   return v.someProp('handleKeyDown', (f) => f(v, event)) === true;
 }
 const runRepeat = (v: EditorView | undefined): boolean =>
@@ -7518,6 +7591,9 @@ const homeCallbacks: HomeScreenCallbacks = {
   compareDocuments: () => {
     openDocDiff();
   },
+  openSettings: () => {
+    void loadSettingsUi().then((m) => m.openSettings());
+  },
   // Clean: Electron gets the folder-recursive modal; web cleans one file at a time.
   clean:
     getHost().kind === 'electron'
@@ -8554,12 +8630,23 @@ async function serializeForSave(
     includeAiThreads?: boolean;
     /** Keep only the cards that contain a reading marker, flat. */
     markedCardsOnly?: boolean;
+    /** Card numbers: keep the live skeleton, freeze as heading text, or
+     *  remove. Omitted → freeze when the export drops numbered content
+     *  (analytics / read mode / marked cards), else keep. */
+    numbering?: NumberingExportMode;
   },
   /** Stable doc identity to embed (`.cmir` field / `.docx` docProps).
    *  Omitted for derived/lossy exports, which stay clean (no identity). */
   docId?: string,
 ): Promise<Uint8Array> {
-  const docToExport = view ? view.state.doc : currentDoc;
+  const liveDoc = view ? view.state.doc : currentDoc;
+  // Card numbers are settled FIRST, on the full document, so the strips
+  // below cannot renumber what survives: frozen as heading text or removed,
+  // per the preset's setting or the Custom save's choice; a caller that
+  // states no mode gets the rule (freeze when the export drops numbered
+  // content). A full save keeps the live skeleton (numbering-bake.ts).
+  const numbering: NumberingExportMode = opts.numbering ?? (exportFreezesNumbering(opts) ? 'freeze' : 'keep');
+  const docToExport = applyNumberingExport(liveDoc, numbering);
   let exportDocNode = transformForExport(docToExport, {
     includeComments: opts.includeComments,
     includeAnalytics: opts.includeAnalytics,
@@ -8770,7 +8857,8 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     !choice.readMode &&
     !choice.includeNotes &&
     !choice.includeAiThreads &&
-    !choice.markedCardsOnly;
+    !choice.markedCardsOnly &&
+    choice.numbering === 'keep';
   try {
     // A full Save As is a distinct logical doc → fork a new docId (the
     // original file keeps its own). Derived/lossy exports get no docId
@@ -8792,6 +8880,7 @@ async function runSaveAsFlowInner(): Promise<boolean> {
           includeNotes: choice.includeNotes,
           includeAiThreads: choice.includeAiThreads,
           markedCardsOnly: choice.markedCardsOnly,
+          numbering: choice.numbering,
         },
         forkDocId,
       ),
@@ -8901,6 +8990,7 @@ interface SilentExportSpec {
     includeAnalytics: boolean;
     includeUndertags: boolean;
     readMode: boolean;
+    numbering: NumberingExportMode;
   };
 }
 async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
@@ -8983,12 +9073,14 @@ export async function runSaveSendDocFlow(): Promise<boolean> {
     prefixKey: 'sendDocPrefix',
     destinationKey: 'sendDocDestination',
     folderKey: 'sendDocFolder',
-    // Send Doc filtering — drop comments / analytics / undertags.
+    // Send Doc filtering — drop comments / analytics / undertags; card
+    // numbers frozen or removed per the setting.
     exportOptions: {
       includeComments: false,
       includeAnalytics: false,
       includeUndertags: false,
       readMode: false,
+      numbering: settings.get('sendDocNumbering'),
     },
   });
 }
@@ -9012,6 +9104,8 @@ export async function runSaveReadDocFlow(): Promise<boolean> {
       includeAnalytics: false,
       includeUndertags: false,
       readMode: true,
+      // Read mode keeps every heading, so nothing renumbers: live numbering.
+      numbering: 'keep',
     },
   });
 }
@@ -9055,6 +9149,7 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
       includeUndertags: true,
       readMode: false,
       markedCardsOnly: true,
+      numbering: settings.get('markedDocNumbering'),
     });
 
     const electron = getElectronHost();
@@ -11244,6 +11339,9 @@ async function initSingleDocBoot(): Promise<void> {
   }
   if (isFirst) {
     const electron = getElectronHost();
+    // "Distinguish background color from highlighting" became ON by
+    // default (2026-09-21): flip an older install's stored `false` once.
+    migrateDistinguishShadingDefault();
     // Update checks became opt-OUT (2026-07-27): flip an older
     // install's stored `false` default exactly once, with a one-time
     // notice pointing at the toggle. Runs before the launch check so

@@ -10,6 +10,80 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.12.0-bcb.1 — 2026-09-23
+
+Upstream sync through v1.12.0. Ten files conflicted; how each was resolved:
+
+### Changed: home-screen Settings tile on key 0 (`home-screen.ts`)
+
+Upstream's Settings tile (`eca4df97`) is pushed last onto `actionRunners`,
+expecting to be the ninth runner (1 New, 2 New speech, 3 Open, 4 Clean,
+5 Convert, 6 Quick Cards, 7 Review all, 8 Manage flashcards, 9 Settings).
+This fork's always-present Compare runner (`1.10.0-bcb.4`) sits between
+Convert and Quick Cards, making Settings the tenth — past the old `1`–`9`
+digit map, so it had no key at all. The digit map now also takes `'0'` →
+index 9, the key after 9 on the number row. With the gated Compress tile
+present Settings is eleventh and still keyless, accepted since Compress is
+a temporary migration tool. `tests/editor/home-screen-shortcuts.test.ts`:
+upstream's two Settings tests now supply `compareDocuments` (required in
+this fork) and press `0`.
+
+### Changed: card-number export in the fork's Save As (`save-as-ui.ts`)
+
+Upstream's `de46a0dd` / `3e684c6c` added `numbering: NumberingExportMode`
+to `SaveAsResult` and threaded it through the upstream dialog's
+immediate-save preset buttons. This fork replaced that dialog with a radio
+list of modes plus a pinned footer (`1.10.0-bcb.3.x`), so the fork's
+version was kept and upstream's feature ported into it:
+- Each `MODE_DEFS` entry's static `options` carries `numbering: 'keep'`;
+  Send Doc and Marked Doc gain `numberingSetting` (`sendDocNumbering` /
+  `markedDocNumbering`), resolved in `currentContentOptions()` at commit
+  time — same pattern as the existing `prefixSetting`, and same timing as
+  upstream (which read the setting when the dialog was built). Read Doc has
+  none: read mode keeps every heading, so nothing renumbers.
+- Custom Save gets upstream's two mutually-exclusive checkboxes ("Freeze
+  card numbers as text", "Remove card numbers") in upstream's position,
+  after the three include-* boxes and before the two private layers.
+- `index.ts`'s `isFullSave` (auto-merged) already requires
+  `numbering === 'keep'`, so a Custom Save with either box ticked is a
+  derived export and doesn't rebind the document's handle.
+- `tests/editor/save-as-ui.test.ts`: checkbox indices updated for the
+  seven boxes. Upstream's `tests/editor/save-as-numbering.test.ts` was
+  written against its preset buttons; adapted to select the mode radio and
+  submit, its "neither box" case now actually selects Custom Save (it passed
+  vacuously on the As-Is default otherwise), and a Marked Doc case added.
+
+### Changed: link and context-menu merge (`link-context-menu-plugin.ts`, `ribbon-commands.ts`, `index.ts`, `text-`/`image-context-menu-plugin.ts`)
+
+All additive. The three context-menu plugins conflicted only on imports —
+the fork's `positionFloatingMenu` (viewport clamping) and upstream's
+`isRightClickContextMenu` gate are both kept and both used. In
+`ribbon-commands.ts` the fork's `toggleLink` (Mod-K add/remove hyperlink,
+with URL auto-detect) and upstream's `linkUrls` (bulk-link bare URLs,
+unbound) are distinct commands and both stay, in every table (ids, labels,
+aliases, default keys, dispatch). Upstream's `linkModClickPlugin` and
+`autolinkPlugin`/`autolinkEnterPlugin` registered cleanly beside the fork's
+link plugin; `openLinkExternally` is now exported (upstream) and still the
+single opener for both the menu's Open and Mod+click. Two URL detectors
+now exist — the fork's Ctrl+K pre-fill check and upstream's `findUrls` —
+serving different entry points; left separate for now.
+
+### Other resolutions
+
+- `index.ts` home-screen callbacks: the fork's `compareDocuments` and
+  upstream's `openSettings` both kept.
+- `tests/collab/room-client.test.ts`: both sides fixed the same flaky
+  backoff test; upstream's fix (pin `Math.random` so the jitter is exact,
+  bound 4–6) replaces the fork's (loosen the bound to 12).
+- `package.json` / `apps/desktop/package.json`: `1.12.0-bcb.1`.
+  `packaging/aur/PKGBUILD`: upstream's `_origver=1.12.0`.
+
+### From upstream
+
+See [CHANGELOG.md's summary](./CHANGELOG.md) for the highlights, and
+[1.12.0](#1120--2026-09-21) and [1.11.0](#1110--2026-09-19) below for
+upstream's full detailed notes.
+
 ## 1.10.0-bcb.4 — 2026-09-18
 
 ### Added: Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `home-screen.ts`, `index.ts`, `style.css`)
@@ -1391,6 +1465,431 @@ clearing `policyDebateFlowToken` locally). The chip never calls it.
 *The sections below are upstream CardMirror's own detailed release notes,
 synced into this fork. For the user-facing short summary of each upstream
 release, see [CHANGELOG.md § Upstream Releases](./CHANGELOG.md#upstream-releases).*
+
+## 1.12.0 — 2026-09-21
+
+### Added: URLs → links (Link URLs, autolink, Mod+click)
+
+Prompted by a community plugin (UnderAK/cardmirror-autolinks, 2026-09-20)
+that autolinked by editing the contenteditable DOM with `execCommand`
+and letting ProseMirror reconcile — safe, but the wrong layer: it
+rescanned every text node on every keystroke, only ever found the
+first editor on the page, and clobbered the selection. The plugin API
+exposes no transactions, so it could not be done right as a plugin;
+the feature moved into core (`autolink.ts`).
+
+The detection rule (`findUrls`): an `http://` / `https://` address or
+a `www.` address (href gets `https://`), running to the next whitespace,
+angle bracket or quote, straight or curly; the host must contain a dot,
+a port, or be localhost; trailing `. , ; : ! ?` stay outside, and so
+does a closing bracket with no opening partner inside the address
+(`(see https://x.org/a)` links the address alone; a Wikipedia-style
+`…/Foo_(bar)` keeps its parenthesis). Text already carrying the link
+mark is never re-linked.
+
+`linkUrls()` (ribbon command `linkUrls`, Doc menu beside Remove
+Hyperlinks, unbound) uses the classic scope — the selection, else the
+whole document — and links every unlinked address in it in one
+transaction; a partially selected address is linked whole. The
+`autoLinkUrls` setting (Typing, OFF by default per the user) drives
+`autolinkPlugin`: on a typed space the address before the caret is
+linked in the same transaction as the space (one Undo takes both
+back); on Enter the link is its own step and Enter proceeds. The plugin
+sits after the autocorrect rules so a claimed space wins. Pastes are not
+touched. `linkModClickPlugin` opens a link on Cmd-click (Mac) / Ctrl-click
+(elsewhere) through the same opener the link context menu uses (now
+exported); a plain click does nothing, as before. Tests: autolink.test.ts.
+
+Dev-build find, same day: Enter never autolinked live, because the
+plugin sat after the editor's Enter keymap, which claims the key, so
+its `handleKeyDown` never ran (the unit test had driven the hook
+directly). The Enter hook is now its own plugin (`autolinkEnterPlugin`)
+registered right after the Repeat recorder, ahead of every Enter
+keymap; the space hook stays after the autocorrect rules. A real-view
+test with a claiming keymap and a source-order guard pin the placement.
+Its link transaction carries the recorder's new `REPEAT_IGNORE_META`
+(look through an edit that accompanies a key), so Repeat still records
+the Enter.
+
+### Added: Reset to Default Colors + Default colors settings
+
+User request 2026-09-21. The color panel already persists each picker's
+active color in settings (`lastHighlightColor`, a Word highlight name or
+null for the "none" pen; `lastShadingColor`, a bare hex or null) and
+redraws its indicator bars on any settings change, so the command is
+settings-only: `resetDefaultColors` (ribbon command in the Color
+pickers & menus group, unbound, viewless so it works with no document
+open) writes the two new settings into the two active-color settings
+and toasts. `defaultHighlightColor` (Word name, `yellow`) and
+`defaultShadingColor` (hex, `C0C0C0` — the shading picker's own default
+light gray, not Verbatim's D2D2D2 protected grey) live in a new
+Editing-tab section, Default colors, placed between Standardize
+exceptions and Acronym marking as asked. Their editors are the
+standardize-exception editors generalized to take a key
+(`buildHighlightNameEditor` / `buildShadingHexEditor`); sanitizers
+mirror the exception ones. Tests: default-colors.test.ts.
+
+### Changed: "Distinguish background color from highlighting" on by default
+
+User request 2026-09-21. DEFAULTS flipped to `true`, and — because
+`persist()` snapshots every key, so a defaults change alone reaches only
+fresh installs — `migrateDistinguishShadingDefault` flips a stored
+`false` to `true` exactly once per install (marker
+`cm-distinguish-shading-migrated` outside the blob), on every edition
+since the cue is a stylesheet class. Same shape and caveat as the
+update-check migration: a deliberate "off" is flipped once too, and the
+re-toggle then sticks. No notice — it is display-only.
+
+### Added: Read mode: show undertags
+
+User request 2026-09-21, "implemented the same way in the same place"
+as keep-entire-cite. Setting `readModeShowUndertags` (General → Editor
+behavior, right under keep-entire-cite, off by default). Two halves,
+because read mode hides undertags at two levels: the stylesheet's
+per-container allowlists (`.pmd-card > *`, `.pmd-analytic-unit > *`,
+`.ProseMirror > *` are `display: none` with the audible children
+re-shown) drop the BLOCK, and the plugin's per-run decorations would
+hide its unhighlighted text even if the block showed. So: the host
+class `pmd-rm-show-undertags` (stamped beside `pmd-rm-para-integrity`
+in `applyReadMode`, `applyReadModeToTarget` — new parameter — the
+multi-pane shell's per-pane re-stamp, and the card preview) brings the
+undertag blocks back in all three containers, and `keepsWholeParagraph`
+returns the setting for `undertag` paragraphs so every run is kept.
+Both shells add the setting to the diff that rebuilds the decoration
+set on a flip. Convert Cards to Read Mode follows automatically: it
+already visits undertag paragraphs through `isReadModeKeptText`.
+
+Counting: untouched by construction. `readAloudBucket` (word-count.ts)
+is mark-based — in an undertag only highlighted unshaded text counts,
+at body speed — and never consults either read-mode setting, so the
+revealed text adds nothing to the status-bar count, the selection count
+or the live read time. read-mode-show-undertags.test.ts pins both the
+display and that the count is unchanged with the setting on. (Noted in
+passing, not changed: highlighted undertag text has always counted even
+though read mode hid the block until now.)
+
+### Added: a Settings tile on the home screen
+
+The home screen reached Settings only through the command bar. A
+Settings labeled group (`HomeScreenCallbacks.openSettings`, wired to
+the lazy settings-UI loader) now fills the third column of the Learn
+row — Learn spans two — with its own heading like the other utility
+groups, and its runner is appended last to the number-key list, so it
+is 9 in the normal layout and reflows with the gated tiles as they do.
+Omitted callback → no tile. Tests in home-screen-shortcuts.test.ts.
+
+### Fixed: classic icons — the nav pane's expanded arrow matched nothing
+
+The classic icon set maps chevron-down to the small U+25BE (right for
+the dropdown buttons) and chevron-right to the large U+25B6, so the nav
+pane's twisty changed size between collapsed and expanded. A nav-pane-
+scoped stylesheet override (`.pmd-nav-chevron .pmd-icon-chevron-down`)
+uses U+25BC, the large down-pointing mate — the icon generator and
+every other arrow are untouched. The content escape is ASCII-only, as
+the icon-coverage guard requires.
+
+### Changed: context menus open on a right-click only
+
+Field request 2026-09-21: Ctrl+click on macOS opened the editor's text
+menu, the nav pane's row menu and the palette's row actions, because
+the browser synthesizes `contextmenu` for it. `context-menu-gate.ts`'s
+`isRightClickContextMenu` accepts `button === 2` and a keyboard-invoked
+menu (`button === 0`, no Ctrl — not a click, kept for accessibility) and
+refuses anything with Ctrl held; every `contextmenu` listener asks it
+first (text / link / image / misspelling plugins, nav rows, the four
+palette row actions, the formatting panel's select-all buttons) and,
+when refused, cancels the browser's own menu and opens nothing. A
+right-click with Ctrl held is refused too — a small cost that keeps the
+rule sound even if a browser reports Ctrl+click as the right button.
+Tests: context-menu-gate.test.ts.
+
+## 1.11.0 — 2026-09-19
+
+### Added: folder browsing in the Search Everything palette
+
+The palette's file search finds a document by name; when you know
+where a file lives but not what it is called, that is the wrong tool.
+PR #56 (chips, @cheepsahoy) added a folder browser over the same index,
+reworked here into the palette's prefix model. `/ ` is the prefix: it
+starts at the configured file-search roots, Enter/Tab steps into a
+folder, Esc steps up (and closes from the roots), and text after the
+prefix searches the folder you are in. `/c ` is the same browser
+started in the launching document's own folder. Three rules keep the
+bar and the location in step: only a CHANGE of prefix relocates (typing
+after `/c ` landed you somewhere, then navigating away, never snaps
+back; deleting the `c` returns to the roots), a keystroke in the query
+only filters, and stepping into or out of a folder clears the query. A
+bare `/` or `/c` with no space yet shows a hint instead of running the
+everything search, which would otherwise match every file path.
+
+Nothing new reaches the filesystem. The index service derives the
+listing from its in-memory entries (`file-browse.ts`, a pure helper
+shared with the palette test fake so the two cannot drift): a folder
+exists only while an indexed, non-excluded file sits beneath it,
+relative directories are rejected on any `..` or absolute segment, and
+the root must be one of the configured roots. With a query, every file
+beneath the folder is ranked by the shared file matcher (folder-path
+hits included, as in `f` search) and carries the sub-path it sits in;
+subfolders appear only when their name matches. Pins float first in
+both views. `/c` resolves the deepest configured root containing the
+document and reports "outside the roots" or "excluded" otherwise; the
+current-document path comes from the per-view lookup, so three-pane
+mode browses from the focused pane's document.
+
+### Added: Undo and Redo are rebindable commands
+
+Undo and Redo were the one pair of editing keys missing from
+Settings → Keyboard shortcuts. They were never in the command registry:
+the right command is decided per document at run time — a live
+collaboration session's own undo manager (which reverts only this
+peer's edits, something prosemirror-history cannot guarantee once
+remote transactions interleave) versus history with read mode's
+marker-only limits — so each editor got a fixed ProseMirror keymap
+built for its case, outside the rebindable ribbon keymap.
+
+Now `undo` and `redo` are ribbon commands (Editing utilities group;
+defaults `Mod-z` and `Mod-y` + `Mod-Shift-z`; command-bar aliases
+ctrl-z / cmd-y / etc.). The per-document routing moved into two
+optional `RibbonContext` hooks, `undoCommand` / `redoCommand`, which
+the editor host resolves at PRESS time from the focused document's
+session (`activeDocIdentity`), so a session document and a plain one
+in three-pane mode each get their own stack under the same key. The
+fixed keymaps are gone; only the `history()` plugin stays conditional
+on whether a session owns undo. A bare context (tests, previews) falls
+back to plain history undo/redo. Repeat already excludes `undo` and
+`redo` from what it records, so no repeat loop is possible.
+
+One behaviour change: with the Repeat setting on, the repeat fallback
+belongs to the Redo COMMAND, so every key bound to it (Mod-Shift-Z by
+default) repeats when nothing is left to redo; before, only Mod-Y did
+and Mod-Shift-Z stayed plain Redo. The setting (`repeatWithModY`,
+Settings → General → Editor behavior) is relabelled "Redo repeats the
+last action" and its description and manual entry say so; the key name
+stays in the setting's id and search aliases.
+The other editor keys still fixed outside the registry are the
+navigation and structure conventions — word/paragraph jumps with
+Ctrl/Alt-Arrow, PageUp/Down, Tab/Shift-Tab indent, and the Enter,
+Backspace and Delete rules inside tags — which no editor lets you
+rebind.
+
+### Added: Copy All Cards With Matching Cite
+
+Field request 2026-09-19: gather every card with the same source into a
+speech at once. `copy-matching-cite.ts` derives a query from the
+selection — a cursor in a cite paragraph, or a selection covering a
+whole cite (a whole card selected), asks for cards whose cite EQUALS
+it; a selection of part of a cite asks for cards whose cite CONTAINS
+that text; a selection that runs into other content is clipped to the
+first cite paragraph it reaches; touching no cite yields null and the
+command no-ops with a hint toast. Comparison uses Find's
+`normalizeForMatch` (curly quotes, dashes, ellipses folded) plus
+whitespace collapse and case folding, so a re-pasted cite with one
+smart quote still matches. `cardsWithMatchingCite` walks the document
+in order, skipping live-view mirrors (the source card matches) and
+descending into linked copies, and returns each card or analytic unit
+with a cite paragraph that matches, with `numRole` / `numRestart`
+cleared so the paste carries no numbers. The clipboard write goes
+through a new `serializeNodesForClipboard` in clipboard-slice.ts — the
+same serializer (comment payloads, frozen styles) and live-view
+materialization as a range copy, for nodes that are not a document
+range. Registered as `copyCardsWithMatchingCite` beside Copy Current
+Heading, unbound, with command-bar aliases. Tests:
+copy-matching-cite.test.ts.
+
+### Added: stopwatch — Start at 0:00 counts up
+
+Field request 2026-09-19. `startTimer` no-op'd when the active clock's
+base was zero ("nothing to count down"), so a reset speech clock was
+dead until a preset was loaded. Now, in speech mode, Start with the
+base at 0 — a reset clock, a typed 0:00, or a ran-out countdown after
+its pause — enters STOPWATCH state (`TimerState.stopwatch`, with
+`speechStopwatchBaseMs` as the elapsed snapshot, the count-up twin of
+`speechBaseRemainingMs`), and `getVisibleRemainingMs` returns elapsed
+= base + (now − runningSince). Pause snapshots elapsed; Start resumes
+it; a preset, a typed time (even 0:00, which arms a fresh count) and
+Reset clear it. Invariant: stopwatch ⇒ speech base is 0. Prep clocks
+never count up — a prep balance at zero is spent — and switching to a
+prep clock pauses the stopwatch as it pauses any clock, so coming back
+resumes it. State is sanitized and broadcast like every other field,
+so the pop-out and other windows agree.
+
+Everything that assumed a countdown keys on `isStopwatch(s)`:
+`markTimerExpired` returns early (a count-up never runs out, and the
+render tick reads 0:00 on the first frame), the flash window is
+skipped, and `timer-audio`'s `reschedule` returns before computing a
+plan (the schedule would have read the elapsed value as time remaining
+and beeped through every alert point on a resume). The display rounds
+DOWN while counting up (`formatMs(ms, up)`) — 0:01 once a full second
+has elapsed — and carries `pmd-timer-up`, which the CSS turns into a
+small ▲ before the time so 0:07 elapsed cannot be read as 0:07
+remaining. Overtime after an expiry keeps the ran-out red: `expiredMode`
+is not cleared by starting the stopwatch, only by the same re-arms as
+before. Tests: timer-state.test.ts, the stopwatch describe.
+
+### Added: copied HTML carries the copier's appearance as inline styles
+
+Field report 2026-09-19: copying from CardMirror and pasting into an
+email body arrived as plain text. The clipboard `text/html` is the
+schema's own DOM — `pmd-*` classes and `data-*` attributes styled by the
+app's stylesheet — so any app without that stylesheet had only bold,
+italic and heading tags to work with.
+
+`clipboard-styles.ts` adds a pass over the serialized DOM that writes
+the look those classes have on this machine as inline styles: display
+sizes per style, analytic / undertag colors, the typography flags (hat
+double underline, cite underline, emphasis and pocket boxes with their
+thickness, underline thickness), the body font, the 16 highlight fills
+with their black / white band text, shading band text, and the pilcrow
+size. Always the light palette. It is applied by wrapping the one
+clipboard serializer (`withFrozenStyles`, in comment-clipboard's
+`buildClipboardSerializer`), which every producer of clipboard HTML
+goes through — native copy / cut / drag, the outline pane, Copy
+Current Heading, the card preview, cut in place, the discontinuous
+copy — plus Create Reference's own serializer. `text/plain` and
+`data-pm-slice` are untouched.
+
+The invariant, and why the pass is shaped as it is: a paste back into
+CardMirror, this version or an earlier one, must produce the same
+document as before. The schema's parseDOM (byte-identical since 1.6.0)
+reads a few inline properties into marks and attrs — `font-weight`,
+`font-style`, a `line-through` text-decoration, `vertical-align`,
+`padding-left`, and `text-align` on paragraphs — so the pass never
+writes those and never overwrites a property an element already
+carries (an indent, a run size, a color). A cite inside a sized run
+takes the run size, as the CSS does. The dialect router still sees
+CardMirror HTML (the `pmd-*` check precedes the Word / haku
+fingerprints). The cost is that style-borne bold (tags, cites,
+analytics, headings) cannot be conveyed except through the receiving
+app's own h1–h4 defaults, because every CardMirror version would read
+`font-weight` as a Bold mark. clipboard-styles.test.ts round-trips a
+fragment touching every node and mark through the schema parser and
+asserts the styled and unstyled HTML parse identically, scans the
+output for the forbidden properties, checks the dialect routing, and
+pins the settings-to-style mapping.
+
+### Changed: lossy exports freeze card numbers into heading text
+
+Numbering is display-only: the document stores a skeleton (`numRole` /
+`numRestart` on cards and analytic units, `numRestart` on blocks) and
+the numbers are computed from position at render, in the nav pane and
+at docx export (as native Word numbering). The Send Doc and
+Marked Doc presets strip analytics or unmarked cards before export, so
+the survivors renumbered: a speech prepped as 1, 3, 5 saved as 1, 2, 3,
+and any card deleted from the copy during the round shifted the rest
+again. Field request 2026-09-19.
+
+Now `serializeForSave` bakes the numbers before the strips when the
+export drops numbered content (`exportFreezesNumbering`: analytics
+stripped outside read mode, or marked cards only — the Send and Marked
+presets and any custom save that unticks analytics; a Read Doc keeps
+every heading, so nothing renumbers and it keeps the live skeleton, as
+a full save does). `bakeCardNumbers` (numbering-bake.ts) runs `computeNumbering`
+on the FULL document, inserts each glyph as literal text at the head of
+its heading — the user's display separators via the plugin's
+`glyphText`, e.g. "3. " / "b) ", no marks, so it takes the heading's
+own style as a Word number takes the paragraph's — and clears the
+unit's role, so neither the docx exporter (no `numPr`, no
+`numbering.xml`) nor a later CardMirror session numbers it a second
+time. Descending positions, so inserts never shift a position still to
+be visited; live-view and linked-copy children are real nodes and are
+baked at their host positions like everything else. The working
+document is untouched: the transform runs on the export copy, as the
+other export transforms do. Tests: numbering-bake.test.ts, including
+the 1, 3 → 1, 2 scenario and the read-mode strip.
+
+Follow-up the same day: a `remove` alternative (`removeCardNumbers`:
+roles cleared, nothing written) behind two Files settings —
+`sendDocNumbering` / `markedDocNumbering`, each `freeze` (default) or
+`remove`, rendered as a radio pair (`numberingExport` kind) directly
+under the type's format setting — read by the silent Save Send / Marked
+commands and by the Save As dialog's presets (the Read Doc preset passes
+`keep`: read mode drops no heading, so nothing renumbers). The dialog's Custom save
+offers "Freeze card numbers as text" and "Remove card numbers" as
+checkboxes that untick each other; neither means `keep`, the live
+skeleton (so an As-Is-like custom copy is exact). `serializeForSave`
+takes an explicit `numbering` mode (`applyNumberingExport`); a caller
+that passes none gets the earlier rule, so autosave and the plain save
+are untouched. A custom save with freeze or remove ticked is a derived
+export (the working document keeps its identity), like the other lossy
+options. Tests: numbering-bake.test.ts (remove + dispatcher),
+numbering-export-setting.test.ts, save-as-numbering.test.ts.
+
+### Fixed: Repeat skipped Enter, Tab, macro text and autocorrect
+
+Field observation (2026-09-18): with "Redo repeats the last action" on,
+pressing Enter to make a new heading and then Repeat did nothing. The
+recorder (`repeat-last-action.ts`) knew four actions — a typed burst
+through the text-input hook, a Backspace or Delete keydown, a paste,
+and a command run through the command runner — and treated every other
+document change as "don't guess": not recorded, and the previous record
+cleared. Enter, Tab and Shift-Tab are fixed app keymaps, and a keyboard
+macro inserts its text with its own transaction, so all four fell into
+that bucket. A fifth gap was quieter: a typed burst was recorded as the
+raw keystrokes and replayed with a direct insert, which bypasses the
+text-input hooks where the autocorrect engine lives, so Repeat after an
+autocorrected burst typed the uncorrected keystrokes back (a straight
+quote for a curled one, a lowercase tag).
+
+Now the key hook announces Enter, Tab and Shift-Tab (without Ctrl, Alt
+or Mod) alongside Backspace and Delete, and Repeat replays any of them
+as one more press through the app's own handlers, so the enter-style
+settings, tag-boundary rules and table cells behave as on a real press.
+A macro's transaction carries its text in a meta the recorder counts as
+typing, extending a burst it follows. Typing replays through
+`typeThroughInputRules`, moved out of voice landing into the shared
+`type-through-hooks.ts` and chunked as the keyboard delivers it, so
+every autocorrect rule fires on the replay as it did originally. Two
+hardenings came with it: an announcement is consumed by the first
+transaction after the hook (a key that changed nothing, such as Delete
+at the end of the document, no longer lingers to be recorded on a later
+caret move), and a command run clears the announcement of the keystroke
+that triggered it (a command bound to Tab or Enter records as the
+command, not the key). Cut, spellcheck picks, Find & Replace, drag/drop
+and remote edits still clear the record by design.
+
+### Fixed: Reading View clipped the last page's final column under the flip lane
+
+Field report (2026-09-14, with screenshots): on the last
+page of Reading View the words at the far right were cut off by the
+arrow lane. Root cause: flips are native scrolls of the clipped host,
+and the browser clamps `scrollLeft` to `scrollWidth - clientWidth`.
+When the final page holds fewer columns than a full page, the strip
+ends inside the viewport, the flip to the last page is clamped one
+column pitch short, the previous page's tail column appears on the
+left, and the document's last column lands flush with the host's
+right edge — under the opaque 48 px right gutter that hosts the flip
+button, which covered its last words. Both screenshots showed exactly
+that: a "left column" that was the prior page's tail and a right
+column ending at the window edge.
+
+Fix (`reader-view.ts`): a 1×1 absolutely positioned sentinel inside
+the host (`.pmd-reader-tail`) parks the scrollable extent at
+`(pages - 1) × stride + viewport` (`scrollExtentNeeded`, unit-tested)
+so every page, the last included, can be scrolled to its own boundary.
+The sentinel sits at 0 while the strip is measured so it never inflates
+the page count, and is placed before the relayout's own `goTo`. No
+transform, no layer: the strip still flips by native scroll.
+
+### Fixed: the last of several selected headings carries its section
+
+`normalizeSelectionForSend` rounded the selection end to the nearest
+top-level boundary. Headings are flat siblings of their cards, not
+containers, so rounding to a heading's boundary never picked up its
+section: a drag ending in the last heading's second half sent that
+heading bare, and one ending in its first half dropped it entirely. The
+bare-cursor path (`enclosingStructureRange`) already expanded a heading
+to its section through `sectionEndFromHeading`; the selection path now
+does the same. Three rules: a heading with any of its text selected is
+included (a caret parked at its very start, as after shift-down onto the
+next line, is not); a heading that ends the range extends to the end of
+its section, up to the next heading at the same or a higher level; and
+the collapsed-selection fallback expands a heading likewise. Every
+send-to command shares the normalizer through `takeSendSlice`, which
+also reflects the widened range back as the visible selection. Deleting
+a heading is unaffected: Delete Current Heading resolves its range from
+the bare cursor, never from this normalizer. The start side keeps its
+half-of-the-heading rule, so the two ends are deliberately asymmetric.
+PR #51 by Cora (@coralynnkc).
 
 ## 1.10.0 — 2026-09-10
 

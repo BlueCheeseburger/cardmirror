@@ -428,6 +428,14 @@ export function applyNumberingSeparator(text: string, sep: NumberingSeparator): 
  *  = follow `defaultSaveFormat`. */
 export type DocTypeFormat = 'default' | 'cmir' | 'docx';
 
+/** What the Send Doc and Marked Cards presets do with card numbers: `freeze`
+ *  writes each number into its heading as text (the copy keeps the
+ *  numbers it was prepped with); `remove` clears them (the copy has no
+ *  numbers). Live numbering is not offered — those exports drop analytics
+ *  or unmarked cards, so what survived would renumber. (A Read Doc keeps
+ *  every heading, so it keeps live numbering and has no such setting.) */
+export type NumberingExport = 'freeze' | 'remove';
+
 export interface VoiceCalibrationProfile {
   aliases: Record<string, string[]>;
   updatedAt: number;
@@ -546,6 +554,12 @@ export interface Settings {
   readDocFormat: DocTypeFormat;
   /** Same for Save Marked Cards. */
   markedDocFormat: DocTypeFormat;
+  /** Card numbers in a Send Doc: frozen as heading text (default) or
+   *  removed. Read by the Save Send Doc command AND the Save As dialog's
+   *  Send Doc preset. */
+  sendDocNumbering: NumberingExport;
+  /** Same for Marked Cards. */
+  markedDocNumbering: NumberingExport;
   /** When on, the highlight marks in the doc render in the colors
    *  defined by `overrideHighlightSlots` rather than their stored
    *  colors. Display-only — does NOT mutate the doc, so saving
@@ -892,6 +906,9 @@ export interface Settings {
   /** Word-style smart quotes: as you type a straight ' or ", curl it to the
    *  right direction based on the preceding character. Off by default. */
   smartQuotes: boolean;
+  /** Link a web address the moment a space or Enter follows it (autolink.ts).
+   *  Off by default; the Link URLs command covers what is already written. */
+  autoLinkUrls: boolean;
   /** Auto-capitalize sentence starts (and standalone `i`) in TAGS and
    *  ANALYTICS only — the user's own prose. Card bodies / cites are source
    *  excerpts whose casing must be preserved verbatim. Off by default. */
@@ -1004,10 +1021,18 @@ export interface Settings {
    *  Convert Cards to Read Mode follows it. Off by default: the marked
    *  runs are what most people read at the podium. */
   readModeKeepEntireCite: boolean;
+  /** When true, read mode shows undertag paragraphs — every run of them,
+   *  in cards, analytic units and at document level — instead of hiding
+   *  them. Display-only, like keep-entire-cite; Convert Cards to Read
+   *  Mode follows it. Off by default. Never counted toward word counts /
+   *  read time: the counter is mark-based and unhighlighted undertag
+   *  text carries no read-aloud mark. */
+  readModeShowUndertags: boolean;
   /** Word-style Repeat: when true, Mod-Y with nothing left to redo
    *  re-runs the last editing action at the current selection (the
    *  last burst of typing, a formatting command, Backspace/Delete, a
-   *  paste). Off by default: Mod-Y is plain Redo. */
+   *  paste). Applies to every key bound to Redo. Off by default: Redo is
+   *  plain Redo. */
   repeatWithModY: boolean;
   /** When true, tint every run of card body text that falls AFTER a
    *  reading-position marker red, a visual record of what you didn't reach
@@ -1368,6 +1393,12 @@ export interface Settings {
    * case-insensitively.
    */
   standardizeShadingException: string;
+  /** The highlight the "Reset to Default Colors" command puts back on the
+   *  highlight swatch picker (a Word highlight name). Yellow by default. */
+  defaultHighlightColor: string;
+  /** Same for the background-color picker: a bare uppercase hex. Word's
+   *  light gray (C0C0C0), the picker's own starting color, by default. */
+  defaultShadingColor: string;
   /** When true, "Create Reference" (Card menu) emits its body text
    *  in Gray-50% (#808080) instead of black. Heading line stays
    *  black either way. */
@@ -1803,6 +1834,8 @@ const DEFAULTS: Settings = {
   sendDocFormat: 'docx',
   readDocFormat: 'docx',
   markedDocFormat: 'docx',
+  sendDocNumbering: 'freeze',
+  markedDocNumbering: 'freeze',
   theme: 'system',
   docTheme: 'light',
   iconSet: 'modern',
@@ -1815,7 +1848,7 @@ const DEFAULTS: Settings = {
   readerReduceMotion: false,
   colorVisionFriendly: false,
   annotationShapes: false,
-  distinguishShading: false,
+  distinguishShading: true,
   navAnalyticItalics: false,
   unboldCites: false,
   disableCursorBlink: false,
@@ -1866,6 +1899,7 @@ const DEFAULTS: Settings = {
   flashcardDueDot: true,
   editorSpellcheck: false,
   smartQuotes: false,
+  autoLinkUrls: false,
   autoCapitalizeSentences: false,
   customAutocorrectEnabled: false,
   customAutocorrects: [],
@@ -1898,6 +1932,7 @@ const DEFAULTS: Settings = {
   hideEmphasisBordersInReadMode: false,
   readModeParagraphIntegrity: false,
   readModeKeepEntireCite: false,
+  readModeShowUndertags: false,
   repeatWithModY: false,
   markUnreadAfterMarker: false,
   defaultZoomPct: 100,
@@ -1963,6 +1998,8 @@ const DEFAULTS: Settings = {
   clearFormattingOnNamedStyleToggleOff: true,
   standardizeHighlightException: 'yellow',
   standardizeShadingException: 'FFFF00',
+  defaultHighlightColor: 'yellow',
+  defaultShadingColor: 'C0C0C0',
   forReferenceUseGray50: false,
   createReferenceIncludeHeading: true,
   createReferenceDelimiter: '<<',
@@ -2163,6 +2200,8 @@ export interface SettingMeta {
     | 'shrinkCustomProtections'
     | 'standardizeHighlightException'
     | 'standardizeShadingException'
+    | 'defaultHighlightColor'
+    | 'defaultShadingColor'
     | 'acronymPatterns'
     | 'createReferenceHighlightMode'
     | 'createReferenceDelimiter'
@@ -2183,6 +2222,7 @@ export interface SettingMeta {
     | 'speechFilenameTemplate'
     | 'saveFormat'
     | 'docTypeFormat'
+    | 'numberingExport'
     | 'formattingGapClass'
     | 'pasteCursor'
     | 'versionHistory'
@@ -2428,14 +2468,24 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['whole cite', 'full cite', 'entire cite', 'read mode cite', 'quals'],
   },
   {
-    key: 'repeatWithModY',
-    label: 'Mod-Y repeats the last action',
+    key: 'readModeShowUndertags',
+    label: 'Read mode: show undertags',
     description:
-      'Word-style Repeat. When on, Mod-Y with nothing left to redo does the last editing action again at the cursor: types the last thing you typed, applies the same formatting to the new selection, deletes one more character, pastes the same thing again, or re-runs the last command. Mod-Shift-Z stays plain Redo. Off by default: Mod-Y is Redo only.',
+      'When on, read mode shows undertags — the whole of each one — instead of hiding them. Off by default. Display-only, like keep entire cite; Convert Cards to Read Mode follows it too. Undertag text still does not count toward word counts or read-time estimates unless it is highlighted.',
     kind: 'toggle',
     category: 'general',
     section: 'Editor behavior',
-    aliases: ['repeat', 'repeat last action', 'ctrl y', 'cmd y', 'word repeat', 'f4'],
+    aliases: ['undertags read mode', 'show undertags', 'read mode undertags'],
+  },
+  {
+    key: 'repeatWithModY',
+    label: 'Redo repeats the last action',
+    description:
+      'Word-style Repeat. When on, Mod-Y with nothing left to redo does the last editing action again at the cursor: types the last thing you typed (autocorrect included), applies the same formatting to the new selection, presses Backspace, Delete, Enter, Tab or Shift-Tab once more, pastes the same thing again, or re-runs the last command. Any key bound to Redo behaves this way (Mod-Y and Mod-Shift-Z by default). Off by default: Redo is Redo only.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Editor behavior',
+    aliases: ['repeat', 'repeat last action', 'mod-y', 'ctrl y', 'cmd y', 'word repeat', 'f4'],
   },
   // ─── General ────────────────────────────────────────────────────
   {
@@ -2584,12 +2634,14 @@ export const SETTING_METADATA: SettingMeta[] = [
       // but leading indentation collapses. Keep every line flush left.
       'The name New Speech Document gives a new file.\n' +
       '{speech} is the name you type at the prompt.\n' +
-      '{date:...} is a date. Double a token to zero-pad it:\n' +
+      '{date:...} is the date and time, written with these tokens. Double a token to zero-pad it:\n' +
       'year - YYYY 2026, YY 26\n' +
       'month - M 4, MM 04, MMM Apr, MMMM April\n' +
-      'day - D 12, DD 12, ddd Sun, dddd Sunday\n' +
+      'day - D 5, DD 05, ddd Sun, dddd Sunday\n' +
       'hour - h 7, hh 07 (12-hour), H 19, HH 19 (24-hour)\n' +
-      'minute - m 5, mm 05. second - s 7, ss 07. A PM, a pm\n' +
+      'minute - m 5, mm 05\n' +
+      'second - s 7, ss 07\n' +
+      'AM/PM - add A for AM or PM, or a for am or pm, after a 12-hour time: h-mmA gives 7-05PM, h-mm a gives 7-05 pm\n' +
       '\n' +
       'Anything that is not a token stays as you typed it, so dashes, ' +
       'slashes and spaces need no escaping. Inside {date:...} the letters ' +
@@ -2683,6 +2735,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Send / Read / Marked docs',
   },
   {
+    key: 'sendDocNumbering',
+    label: 'Send Doc card numbers',
+    description:
+      'What a Send Doc does with card numbers. Freeze writes each number into its heading as text, so the copy keeps the numbers you prepped with even though its analytics are gone and even if you delete cards from it later. Remove clears the numbers instead. Applies to the Save Send Doc command and to the Save As dialog\'s Send Doc preset; Custom save has its own choice.',
+    kind: 'numberingExport',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    aliases: ['freeze numbering', 'remove numbering', 'send doc numbering'],
+  },
+  {
     key: 'readDocDestination',
     label: 'Read Doc destination',
     description:
@@ -2739,6 +2801,15 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'docTypeFormat',
     category: 'files',
     section: 'Send / Read / Marked docs',
+  },
+  {
+    key: 'markedDocNumbering',
+    label: 'Marked Cards card numbers',
+    description: 'Same choice for Marked Cards: freeze the card numbers as heading text (default) or remove them.',
+    kind: 'numberingExport',
+    category: 'files',
+    section: 'Send / Read / Marked docs',
+    aliases: ['marked doc numbering', 'marked cards numbering'],
   },
   {
     key: 'fileSearchRoots',
@@ -3198,7 +3269,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'distinguishShading',
     label: 'Distinguish background color from highlighting',
     description:
-      'When on, background color gets a faint dot grid over its fill so it can be told apart from highlighting at a glance. Off by default — the two stay visually identical. Display-only — the file and exports are untouched.',
+      'When on, background color gets a faint dot grid over its fill so it can be told apart from highlighting at a glance. On by default; turn it off and the two look identical. Display-only — the file and exports are untouched.',
     kind: 'toggle',
     category: 'appearance',
     section: 'Document typography',
@@ -3449,6 +3520,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'editing',
     section: 'Typing',
     aliases: ['curly quotes', 'smart quotes', 'autocorrect quotes', 'typographic quotes'],
+  },
+  {
+    key: 'autoLinkUrls',
+    label: 'Link URLs as you type',
+    description:
+      'Turn a web address into a link the moment you type a space or press Enter after it: http:// and https:// addresses, and www. addresses (linked as https). Trailing punctuation and an unmatched closing bracket stay outside the link. Clicking a link only places the cursor; Mod+click opens it. Off by default. The Link URLs command (Doc menu) links what is already written — the selection, or the whole document.',
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Typing',
+    aliases: ['autolink', 'auto link', 'hyperlink urls', 'link urls', 'automatic links'],
   },
   {
     key: 'customDashEnabled',
@@ -3779,6 +3860,26 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'editing',
     section: 'Standardize exceptions',
     aliases: ['standardize background exception', 'protected background color', 'protected grey', 'protected gray'],
+  },
+  {
+    key: 'defaultHighlightColor',
+    label: 'Default highlight color',
+    description:
+      'The highlight the "Reset to Default Colors" command (command bar; unbound) puts back on the highlight swatch picker. One of Word\'s highlight colors; yellow by default.',
+    kind: 'defaultHighlightColor',
+    category: 'editing',
+    section: 'Default colors',
+    aliases: ['default highlight', 'reset highlight color', 'default swatch'],
+  },
+  {
+    key: 'defaultShadingColor',
+    label: 'Default background color',
+    description:
+      'The background color the "Reset to Default Colors" command puts back on the background-color swatch picker. Any color; the picker\'s own starting light gray by default.',
+    kind: 'defaultShadingColor',
+    category: 'editing',
+    section: 'Default colors',
+    aliases: ['default background color', 'default shading', 'reset background color'],
   },
   {
     key: 'acronymPatterns',
@@ -4603,6 +4704,10 @@ function sanitizeCustomAutocorrects(raw: unknown): Array<{ from: string; to: str
   return out;
 }
 
+function sanitizeNumberingExport(v: unknown): NumberingExport {
+  return v === 'remove' ? 'remove' : 'freeze';
+}
+
 function sanitizeDocTypeFormat(v: unknown): DocTypeFormat {
   return v === 'cmir' || v === 'docx' || v === 'default' ? v : 'docx';
 }
@@ -4673,6 +4778,8 @@ function sanitize(s: Settings): Settings {
     sendDocFormat: sanitizeDocTypeFormat(s.sendDocFormat),
     readDocFormat: sanitizeDocTypeFormat(s.readDocFormat),
     markedDocFormat: sanitizeDocTypeFormat(s.markedDocFormat),
+    sendDocNumbering: sanitizeNumberingExport(s.sendDocNumbering),
+    markedDocNumbering: sanitizeNumberingExport(s.markedDocNumbering),
     theme:
       s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system',
     // Migration: pre-independent-doc-theme installs had a boolean
@@ -4809,6 +4916,7 @@ function sanitize(s: Settings): Settings {
     editorSpellcheck: !!s.editorSpellcheck,
     copyPreviousCiteNearestOnly: s.copyPreviousCiteNearestOnly === false ? false : true,
     smartQuotes: !!s.smartQuotes,
+    autoLinkUrls: !!s.autoLinkUrls,
     autoCapitalizeSentences: !!s.autoCapitalizeSentences,
     customAutocorrectEnabled: !!s.customAutocorrectEnabled,
     customAutocorrects: sanitizeCustomAutocorrects(s.customAutocorrects),
@@ -4854,6 +4962,7 @@ function sanitize(s: Settings): Settings {
     hideEmphasisBordersInReadMode: !!s.hideEmphasisBordersInReadMode,
     readModeParagraphIntegrity: !!s.readModeParagraphIntegrity,
     readModeKeepEntireCite: !!s.readModeKeepEntireCite,
+    readModeShowUndertags: !!s.readModeShowUndertags,
     repeatWithModY: !!s.repeatWithModY,
     markUnreadAfterMarker: !!s.markUnreadAfterMarker,
     // A legacy persisted `zoomPct` is deliberately ignored — live body
@@ -5003,6 +5112,12 @@ function sanitize(s: Settings): Settings {
       s.forReferenceUseGray50 === undefined
         ? DEFAULTS.forReferenceUseGray50
         : !!s.forReferenceUseGray50,
+    defaultHighlightColor: isWordHighlightName(String(s.defaultHighlightColor ?? ''))
+      ? String(s.defaultHighlightColor)
+      : DEFAULTS.defaultHighlightColor,
+    defaultShadingColor: isHex6(s.defaultShadingColor)
+      ? String(s.defaultShadingColor).toUpperCase()
+      : DEFAULTS.defaultShadingColor,
     createReferenceIncludeHeading:
       s.createReferenceIncludeHeading === undefined
         ? DEFAULTS.createReferenceIncludeHeading
@@ -5985,6 +6100,25 @@ export function migrateAutoUpdateOptOut(onMigrated: () => void): void {
     settings.set('checkForUpdatesOnLaunch', true);
     onMigrated();
   }
+}
+
+/** One-shot migration for the 2026-09-21 default flip: "Distinguish
+ *  background color from highlighting" became ON by default. Same
+ *  reasoning as `migrateAutoUpdateOptOut`: `persist()` snapshots every
+ *  key, so an existing install carries the old `false` and a DEFAULTS
+ *  change alone would reach only fresh installs. Flips a stored `false`
+ *  to `true` exactly once per install (marker outside the blob); a user
+ *  who turns it back off stays off. Display-only, so no notice. Runs on
+ *  every edition (the cue is a stylesheet class). */
+export function migrateDistinguishShadingDefault(): void {
+  const MARKER = 'cm-distinguish-shading-migrated';
+  try {
+    if (localStorage.getItem(MARKER) !== null) return;
+    localStorage.setItem(MARKER, '1');
+  } catch {
+    return;
+  }
+  if (!settings.get('distinguishShading')) settings.set('distinguishShading', true);
 }
 
 /** The format a silent per-type save writes: the type's own setting, or the

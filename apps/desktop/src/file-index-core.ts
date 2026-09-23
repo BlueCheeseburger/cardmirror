@@ -7,8 +7,9 @@
  *     same file, same format as before),
  *   - recursive scans + background revalidation of search roots,
  *   - pruning roots that left settings (pruneIndexRoots),
- *   - and SEARCH itself: ranked, exclusion- and format-filtered,
- *     pin-partitioned, windowed results.
+ *   - SEARCH itself: ranked, exclusion- and format-filtered,
+ *     pin-partitioned, windowed results,
+ *   - and folder browsing derived on demand from those same indexed paths.
  *
  * Motivation (2026-07-30): the browser process paid for the index
  * (load, walk, persist) and every launch shipped the whole corpus over
@@ -38,8 +39,21 @@ import {
   isPathExcluded,
   fileFormat,
   type FileEntry,
-  type FileTiebreak,
 } from '../../../src/editor/file-search.js';
+import type {
+  FileBrowseParams,
+  FileBrowseResult,
+  FileIndexQueryParams,
+  FileIndexQueryResult,
+  FileIndexRow,
+  LocateCurrentFileResult,
+} from '../../../src/editor/file-index-protocol.js';
+import {
+  deriveBrowse,
+  locateInRoots,
+  normalizeRelativeDirectory,
+} from '../../../src/editor/file-browse.js';
+export type { FileIndexRow } from '../../../src/editor/file-index-protocol.js';
 
 /** On-disk entry shape — unchanged from the main-process era so the
  *  existing cache file carries over. `size` is unused today but kept
@@ -51,35 +65,8 @@ export interface StoredEntry {
   size: number;
 }
 
-/** One search hit, windowed — everything the palette row needs. */
-export interface FileIndexRow {
-  path: string;
-  relPath: string;
-  name: string;
-  mtimeMs: number;
-  pinned: boolean;
-}
-
-export interface FileIndexQuery {
-  query: string;
-  /** Roots to search (the renderer's current setting). */
-  roots: string[];
-  exclusions: string[];
-  formats: 'both' | 'cmir' | 'docx';
-  tiebreak: FileTiebreak;
-  /** Manual pins — always flagged on rows; partitioned to the top of
-   *  the ranked order only when `partitionPins` is set (`f`-mode). */
-  pins: string[];
-  partitionPins: boolean;
-  /** Window size: the first `limit` ranked rows come back. */
-  limit: number;
-}
-
-export interface FileIndexQueryResult {
-  rows: FileIndexRow[];
-  /** Full ranked match count — drives "Showing N of M". */
-  total: number;
-}
+/** Backward-compatible name used by the existing core tests. */
+export type FileIndexQuery = FileIndexQueryParams;
 
 export interface FileIndexCore {
   /** Report the current roots: prune departed ones, ensure the rest are
@@ -87,6 +74,12 @@ export interface FileIndexCore {
    *  their listing lands), revalidate the already-cached ones. */
   configure(roots: string[]): Promise<void>;
   query(q: FileIndexQuery): Promise<FileIndexQueryResult>;
+  browse(q: FileBrowseParams): Promise<FileBrowseResult>;
+  locateCurrentFile(args: {
+    filePath: string;
+    roots: string[];
+    exclusions: string[];
+  }): Promise<LocateCurrentFileResult>;
   /** mtimes for specific paths (the pin warm pass) — honors roots +
    *  exclusions so an excluded pin stays dormant. */
   entriesForPaths(args: {
@@ -269,6 +262,16 @@ export function createFileIndexCore(opts: {
     return out;
   }
 
+  function indexRow(f: FileEntry, pins: Set<string>): FileIndexRow {
+    return {
+      path: f.path,
+      relPath: f.relPath,
+      name: f.name,
+      mtimeMs: f.mtimeMs,
+      pinned: pins.has(f.path),
+    };
+  }
+
   return {
     async configure(roots: string[]): Promise<void> {
       await ensureLoaded();
@@ -291,13 +294,33 @@ export function createFileIndexCore(opts: {
           ? ranked
           : [...ranked.filter((f) => pins.has(f.path)), ...ranked.filter((f) => !pins.has(f.path))];
       const rows = ordered.slice(0, Math.max(0, q.limit)).map((f) => ({
-        path: f.path,
-        relPath: f.relPath,
-        name: f.name,
-        mtimeMs: f.mtimeMs,
-        pinned: pins.has(f.path),
+        ...indexRow(f, pins),
       }));
       return { rows, total: ordered.length };
+    },
+
+    async browse(q: FileBrowseParams): Promise<FileBrowseResult> {
+      await ensureLoaded();
+      const root = q.location.root;
+      const relDir = normalizeRelativeDirectory(q.location.relativeDirectory, path.sep);
+      if (!q.roots.includes(root) || relDir === null) return { rows: [], total: 0, valid: false };
+      return deriveBrowse({
+        entries: visibleEntries([root], q.exclusions, q.formats),
+        relDir,
+        query: q.query,
+        sep: path.sep,
+        tiebreak: q.tiebreak,
+        pins: q.pins,
+        limit: q.limit,
+      });
+    },
+
+    async locateCurrentFile(args): Promise<LocateCurrentFileResult> {
+      await ensureLoaded();
+      const located = locateInRoots(args.filePath, args.roots, path.sep);
+      if (!located) return { ok: false, reason: 'outside-roots' };
+      if (isPathExcluded(args.filePath, args.exclusions)) return { ok: false, reason: 'excluded' };
+      return { ok: true, location: located };
     },
 
     async entriesForPaths(args): Promise<Array<{ path: string; mtimeMs: number }>> {

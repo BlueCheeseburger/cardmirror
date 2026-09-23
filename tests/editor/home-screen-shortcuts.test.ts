@@ -119,3 +119,41 @@ describe('home-screen shortcuts reflow around the gated Compress tile', () => {
     expect(cb.manageQuickCards).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Settings tile (2026-09-21)', () => {
+  it('renders its own labeled group beside Learn and runs on key 9', () => {
+    document.body.innerHTML = '';
+    const openSettings = vi.fn();
+    const cb: HomeScreenCallbacks = { newDoc: vi.fn(), newSpeechDoc: vi.fn(), open: vi.fn(), openRecent: vi.fn(), manageQuickCards: vi.fn(), compareDocuments: vi.fn(), clean: vi.fn(), bulkConvert: vi.fn(), openSettings };
+    homeScreen.mount(document.body, cb);
+    homeScreen.show();
+    try {
+      const groups = Array.from(document.querySelectorAll('.pmd-home-labeled'));
+      const titles = groups.map((g) => g.querySelector('.pmd-home-section-title')?.textContent);
+      expect(titles.slice(-2)).toEqual(['Learn', 'Settings']);
+      const tile = groups[groups.length - 1]!.querySelector<HTMLButtonElement>('button.pmd-home-action')!;
+      expect(tile.textContent).toContain('Settings');
+      tile.click();
+      expect(openSettings).toHaveBeenCalledTimes(1);
+      // Runners: 1 New, 2 New speech, 3 Open, 4 Clean, 5 Convert, 6 Compare, 7 Quick Cards, 8 Review all, 9 Manage flashcards, 0 Settings.
+      press('0');
+      expect(openSettings).toHaveBeenCalledTimes(2);
+    } finally {
+      homeScreen.hide();
+    }
+  });
+
+  it('is absent, and 0 does nothing, when no callback is supplied', () => {
+    document.body.innerHTML = '';
+    const cb: HomeScreenCallbacks = { newDoc: vi.fn(), newSpeechDoc: vi.fn(), open: vi.fn(), openRecent: vi.fn(), manageQuickCards: vi.fn(), compareDocuments: vi.fn() };
+    homeScreen.mount(document.body, cb);
+    homeScreen.show();
+    try {
+      const titles = Array.from(document.querySelectorAll('.pmd-home-labeled .pmd-home-section-title')).map((h) => h.textContent);
+      expect(titles).not.toContain('Settings');
+      press('0');
+    } finally {
+      homeScreen.hide();
+    }
+  });
+});

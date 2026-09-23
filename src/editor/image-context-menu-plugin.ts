@@ -20,6 +20,7 @@ import { runGenerateAltText, runGenerateTable } from './ai/image-ai.js';
 import { AI_DISABLED_MESSAGE, AI_NO_KEY_MESSAGE, activeApiKey } from './ai/llm.js';
 import { promptForText } from './text-prompt.js';
 import { positionFloatingMenu } from './context-menu-position.js';
+import { isRightClickContextMenu } from './context-menu-gate.js';
 
 /** PM plugin. Installed via `buildEditorPlugins` so every editor
  *  view (single-doc + each multi-pane slot) picks it up. */
@@ -27,6 +28,7 @@ export const imageContextMenuPlugin: Plugin = new Plugin({
   props: {
     handleDOMEvents: {
       contextmenu(view, event) {
+        if (!isRightClickContextMenu(event)) return false;
         const target = event.target as HTMLElement | null;
         if (!target) return false;
         const imgEl = target.closest?.('[data-pmd-image]') as HTMLElement | null;
