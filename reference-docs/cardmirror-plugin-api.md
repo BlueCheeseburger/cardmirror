@@ -185,6 +185,7 @@ export interface PluginDefinition {
   apiVersion: number;
   commands: PluginCommandDef[];
   settings?: PluginSettingDef[];
+  activate?: (api: CardMirrorPluginApi) => void | (() => void) | Promise<void>;
 }
 ```
 
@@ -226,6 +227,29 @@ should set `minAppVersion` to `1.4.0`.
   plugin's bundle never ran, so its declared settings are unknown to
   the host.
 
+### Background activation (`activate`, this fork, unreleased)
+
+`activate` is optional. CardMirror calls it once, with the plugin's
+`api`, right after the plugin's first successful registration in a
+session — before the user has run any of its commands. Use it for work
+that has to be running in the background, like a socket that listens
+for jump requests and calls `api.jumpToSource()`.
+
+- It is not called again when the same definition registers again
+  (the re-enable no-op).
+- If it returns a function, CardMirror calls that function when the
+  plugin is unregistered (uninstall), so close sockets and timers there.
+  A disposer that throws is logged and ignored.
+- A sync throw or a rejected promise shows the toast
+  "`<name>`: activate failed — `<message>`". The plugin and its
+  commands stay registered.
+- A non-function `activate` rejects the registration.
+- Builds without this hook ignore the field, so a plugin can always
+  define it. It can't detect an older build from inside `activate`;
+  keep a fallback such as saving `api` on the first command run.
+- This hook exists only in BlueCheeseburger/cardmirror, not in
+  upstream CardMirror.
+
 ### Failure behavior
 
 Registration never throws and never crashes the app. The registry
@@ -236,6 +260,7 @@ toast "Plugin failed to load: `<reason>`". Rejection reasons:
 - The plugin id is missing, or a plugin with that id is already
   registered.
 - `commands` is not an array.
+- `activate` is present but not a function.
 - A command id lacks the `<pluginId>.` prefix, or is a duplicate.
 - A command lacks a `label` or a `run` function.
 - A declared setting is off-shape: bad or duplicate `key`, missing
@@ -335,7 +360,12 @@ export interface CardMirrorPluginApi {
 - `jumpToSource(token)` - scroll to and select the source of an
   extracted item. The resolver tries the focused document first, then
   every open window. `doc-not-open` carries `docTitle` so you can tell
-  the user which document to open.
+  the user which document to open. On success, the window that did the
+  jump comes to the front: restored if minimized, shown, and focused,
+  taking activation from the foreground app on macOS. This happens
+  whether the jump resolved in the calling window or in another one.
+  In this fork, unreleased: earlier builds only raised the window when
+  the jump resolved in a different window.
 - `flowApps()` - every REGISTERED flowing app from the handshake
   directory (section 4), each with a `running` flag from a liveness
   ping. Closed apps are listed with `running: false` — selection UIs

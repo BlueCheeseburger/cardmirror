@@ -16,6 +16,14 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   bottom of the window opens Search Everything with one click, without
   needing the shortcut.
 
+- **Plugins can run in the background.** A plugin can now start work when
+  it loads (like listening for jump requests from a flow app) instead of
+  waiting until you run one of its commands.
+- **Jumping to a card from a flow app brings CardMirror to the front.**
+  Before, when the card was in the window the plugin ran in, the document
+  scrolled to the card but CardMirror stayed behind your browser or flow
+  app.
+
 ### Removed
 
 - **The built-in PolicyDebateFlow integration.** The send-tagline shortcut,
