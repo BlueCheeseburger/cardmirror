@@ -1278,14 +1278,14 @@ the top-right corner.
 
 See [CHANGELOG.md § 1.10.0-bcb.2.1](./CHANGELOG.md#1100-bcb21--2026-09-11)
 for the user-facing summary. The integration was later removed from the
-app (see [Unreleased](#unreleased)); its implementation notes live in git
+app (see [1.12.0-bcb.2](#1120-bcb2--2026-09-23)); its implementation notes live in git
 history.
 
 ### Fixed: PolicyDebateFlow status chip pauses instead of disconnecting
 
 See [CHANGELOG.md § 1.10.0-bcb.3](./CHANGELOG.md#1100-bcb3--2026-09-12)
 for the user-facing summary. The integration was later removed from the
-app (see [Unreleased](#unreleased)); its implementation notes live in git
+app (see [1.12.0-bcb.2](#1120-bcb2--2026-09-23)); its implementation notes live in git
 history.
 
 ---
