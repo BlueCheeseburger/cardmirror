@@ -13,7 +13,7 @@
  * heading in the backfile — "Source section not found in this document"
  * (field reports, 2026-09-09). Every such command now goes through here.
  */
-import { DOMSerializer, Fragment, Slice } from 'prosemirror-model';
+import { DOMSerializer, Fragment, Slice, type Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 import { newHeadingId } from '../schema/index.js';
 import { flattenSelfRefsInSlice, fragmentHasSelfRef } from './self-transclusion.js';
@@ -70,4 +70,17 @@ export function serializeRangesForClipboard(view: EditorView, ranges: readonly D
     clearLinkedCopy();
   }
   return { html: tmp.innerHTML, text: texts.join('\n') };
+}
+
+/** HTML + plain text for nodes that are not a range of the document —
+ *  built or rewritten by a command (cards with their numbering cleared,
+ *  say) — through the same serializer and live-view materialization as
+ *  a range copy. Never a linked copy: the nodes are already copies. */
+export function serializeNodesForClipboard(view: EditorView, nodes: readonly PMNode[]): { html: string; text: string } {
+  const serializer = view.someProp('clipboardSerializer') ?? DOMSerializer.fromSchema(view.state.schema);
+  const flat = flattenSelfRefsInSlice(new Slice(Fragment.from(nodes), 0, 0), view.state.doc, newHeadingId);
+  const tmp = document.createElement('div');
+  tmp.appendChild(serializer.serializeFragment(flat.content));
+  clearLinkedCopy();
+  return { html: tmp.innerHTML, text: flat.content.textBetween(0, flat.content.size, '\n', '\n') };
 }

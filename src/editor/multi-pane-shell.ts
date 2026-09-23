@@ -1748,6 +1748,7 @@ function closeOpenStackDropdown(): void {
  *  shell only rebuilds pane decorations when it actually flips. */
 let shellLastMarkUnread = settings.get('markUnreadAfterMarker');
 let shellLastKeepEntireCite = settings.get('readModeKeepEntireCite');
+let shellLastShowUndertags = settings.get('readModeShowUndertags');
 let shellLastNumberingSig = numberingDisplaySig();
 
 class MultiPaneShell {
@@ -1882,6 +1883,7 @@ class MultiPaneShell {
       // currently-read-mode'd pane to match.
       const hideEmphasisBorders = s.hideEmphasisBordersInReadMode;
       const readParagraphIntegrity = s.readModeParagraphIntegrity;
+      const showUndertags = s.readModeShowUndertags;
       for (const id of SLOT_IDS) {
         for (const rec of this.slots[id].stack) {
           if (rec.readMode) {
@@ -1893,6 +1895,7 @@ class MultiPaneShell {
               'pmd-rm-para-integrity',
               readParagraphIntegrity,
             );
+            rec.editorEl.classList.toggle('pmd-rm-show-undertags', showUndertags);
           }
         }
       }
@@ -1912,8 +1915,9 @@ class MultiPaneShell {
       // its decoration set (re-sending the on-toggle is the rebuild; the
       // single-doc path does the same through applyReadMode). Diff-gated
       // like the mark-unread nudge: the rebuild is O(doc).
-      if (s.readModeKeepEntireCite !== shellLastKeepEntireCite) {
+      if (s.readModeKeepEntireCite !== shellLastKeepEntireCite || s.readModeShowUndertags !== shellLastShowUndertags) {
         shellLastKeepEntireCite = s.readModeKeepEntireCite;
+        shellLastShowUndertags = s.readModeShowUndertags;
         for (const id of SLOT_IDS) {
           for (const rec of this.slots[id].stack) {
             if (rec.readMode) rec.view.dispatch(rec.view.state.tr.setMeta(PMD_READ_MODE_TOGGLE, true));
@@ -2785,6 +2789,7 @@ class MultiPaneShell {
       rec.readMode,
       settings.get('hideEmphasisBordersInReadMode'),
       settings.get('readModeParagraphIntegrity'),
+      settings.get('readModeShowUndertags'),
     );
     // setActiveView is the path that drives `refreshReadModeBtn`,
     // so we route through it to keep the ribbon button in sync.

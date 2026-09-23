@@ -40,7 +40,7 @@ export const NUMBERING_REFRESH = 'pmd-numbering-refresh';
 /** Per-user glyph separators (display-only; the .docx carries a canonical
  *  form). Number and substructure each pick their own separator
  *  independently; the glyph table lives in settings.ts beside the type. */
-function glyphText(label: NumberLabel): string {
+export function glyphText(label: NumberLabel): string {
   if (label.kind === 'sub') {
     const core = settings.get('cardNumberingSubCapitalized')
       ? label.text.toUpperCase()

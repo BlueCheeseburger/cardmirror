@@ -14,9 +14,11 @@ import {
   type FileEntry,
 } from '../../src/editor/file-search.js';
 import type {
+  FileBrowseParams,
   FileIndexClient,
   FileIndexQueryParams,
 } from '../../src/editor/file-search-client.js';
+import { deriveBrowse, locateInRoots, normalizeRelativeDirectory } from '../../src/editor/file-browse.js';
 
 export interface FakeFileListing {
   path: string;
@@ -64,6 +66,31 @@ export function makeFakeFileIndexClient(listing: { files: FakeFileListing[] }): 
         })),
         total: ordered.length,
       };
+    },
+    // Browse rides the SAME pure derivation the service uses (file-browse.ts),
+    // over '/' paths; only the root/exclusion plumbing is faked.
+    browse: async (params: FileBrowseParams) => {
+      const relDir = normalizeRelativeDirectory(params.location.relativeDirectory, '/');
+      if (!params.roots.includes(params.location.root) || relDir === null) {
+        return { rows: [], total: 0, valid: false };
+      }
+      let pool = entries(params).filter((f) => f.path.startsWith(params.location.root + '/'));
+      if (params.formats !== 'both') pool = pool.filter((f) => fileFormat(f.path) === params.formats);
+      return deriveBrowse({
+        entries: pool,
+        relDir,
+        query: params.query,
+        sep: '/',
+        tiebreak: params.tiebreak,
+        pins: params.pins,
+        limit: params.limit,
+      });
+    },
+    locateCurrentFile: async (args) => {
+      const located = locateInRoots(args.filePath, args.roots, '/');
+      if (!located) return { ok: false as const, reason: 'outside-roots' as const };
+      if (isPathExcluded(args.filePath, args.exclusions)) return { ok: false as const, reason: 'excluded' as const };
+      return { ok: true as const, location: located };
     },
     entriesForPaths: async (args) => {
       const wanted = new Set(args.paths);

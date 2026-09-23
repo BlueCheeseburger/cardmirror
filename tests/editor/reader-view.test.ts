@@ -11,6 +11,7 @@ import { schema, newHeadingId } from '../../src/schema/index.js';
 import {
   computeReaderLayout,
   pageCount,
+  scrollExtentNeeded,
   pageOfOffset,
   WheelPager,
   readerViewPlugin,
@@ -134,5 +135,16 @@ describe('reader lock (filterTransaction)', () => {
     let s = state(true);
     s = s.apply(s.tr.setMeta(PMD_READER_VIEW_TOGGLE, false));
     expect(s.apply(s.tr.insertText('x', 3, 3)).doc.eq(s.doc)).toBe(false);
+  });
+});
+
+describe('scrollExtentNeeded', () => {
+  it('the scrollable extent reaches the last page boundary even when that page is short', () => {
+    // 5 pages of stride 1600 in a 1662-wide viewport: the last page must be
+    // scrollable to 4 × 1600 = 6400 — i.e. content must extend to 6400 +
+    // 1662. Any less and the browser clamps the flip one column early.
+    expect(scrollExtentNeeded(5, 1600, 1662)).toBe(4 * 1600 + 1662);
+    expect(scrollExtentNeeded(1, 1600, 1662)).toBe(1662);
+    expect(scrollExtentNeeded(0, 1600, 1662)).toBe(1662);
   });
 });

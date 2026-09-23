@@ -5,11 +5,17 @@ writes the same Microsoft Word `.docx` files as
 [Verbatim](https://paperlessdebate.com) — same Pocket / Hat / Block / Tag
 structure, same F-key shortcuts, same send-to-speech workflow — but it's
 a standalone app, so you don't need Word, macros, or an add-in. It runs
-on Windows, macOS, and Linux, and in any modern browser.
+on Windows and macOS, and in any modern browser.
 
 This manual covers the whole editor. If you already know Verbatim, most
 of it will feel familiar; skip to **[New in CardMirror](#new-in-cardmirror)**
 for the parts that aren't.
+
+This is the manual for the
+[`BlueCheeseburger/cardmirror`](https://github.com/BlueCheeseburger/cardmirror)
+fork of CardMirror. Features this fork adds on top of the upstream project
+are marked **(fork)** in [New in CardMirror](#new-in-cardmirror) and where
+they're described.
 
 > Throughout this manual, **Mod** means the platform's main modifier key:
 > **Ctrl** on Windows and Linux, **⌘ Cmd** on macOS. Every keyboard
@@ -46,11 +52,13 @@ for the parts that aren't.
 
 ### Installing CardMirror
 
-Download the desktop app for your operating system from the
-[Releases page](https://github.com/ant981228/cardmirror/releases), or try
-the [live web preview](https://cardmirror.app/) in a
-browser. Full install instructions — including the one-time "unsigned
-app" prompts on Windows and macOS — are in the project README.
+Download the desktop app for Windows or macOS from this fork's
+[Releases page](https://github.com/BlueCheeseburger/cardmirror/releases).
+This fork doesn't publish Linux or CardMirror Lite builds. The
+[live web preview](https://cardmirror.app/) is the upstream project's hosted
+build, so it doesn't have this fork's additions. Full install
+instructions — including the one-time "unsigned app" prompts on Windows and
+macOS — are in the project README.
 
 Save often and keep a copy of anything critical in a second format —
 no editor is bug-free, and your own backups are the last line of
@@ -105,7 +113,8 @@ features, no card sharing or co-editing, no account linking, no
 plugins, and no update checks. The web version at
 **lite.cardmirror.app** is locked down by a browser-enforced security
 policy so it cannot contact anything but its own address; the desktop
-version ("CardMirror Lite" installers on the releases page) blocks
+version ("CardMirror Lite" installers on the upstream project's releases
+page — this fork doesn't build Lite) blocks
 network requests at the application level and installs alongside a
 standard copy without touching it.
 
@@ -138,6 +147,8 @@ The ribbon across the top is grouped into panels, left to right:
 
 - **File** — open, new, save, and the autosave toggle.
 - **Structural styles** — Pocket, Hat, Block, Tag, Analytic, Undertag.
+  Each style button, and Cite / Underline / Emphasis / Clear, shows its
+  F-key in a small badge in its corner **(fork)**.
 - **Cite / Underline / Emphasis / Clear** — the inline marks.
 - **Colors** — highlight, background, and font color, each a split button
   with a swatch picker.
@@ -145,6 +156,9 @@ The ribbon across the top is grouped into panels, left to right:
   font size.
 - **Doc / Card** menus — bulk operations on the document or a card.
 - **View** — read mode, the navigation pane, and the comments column.
+- **Three-pane toggle** **(fork)** — turns the
+  [multi-doc workspace](#7-the-multi-doc-workspace) on or off for this
+  window only.
 - **Comments cluster** — add a comment, a note, or a flashcard (and Ask
   AI, if AI is on).
 - **Right side** — the keyboard-shortcut reference (📖), settings (⚙),
@@ -159,11 +173,15 @@ The **status bar** at the bottom shows the word count and read-time
 estimate (click it for details), the zoom controls, and — when there
 is something to report — the [notice chip](#the-notice-chip).
 
+**Right-click anywhere on the ribbon** to [name the window](#naming-windows-and-renaming-documents)
+**(fork, desktop only)**.
+
 <a id="new-in-cardmirror"></a>
 ### New in CardMirror
 
 If you're coming from stock Verbatim, these are the new features. Each is
-covered in full in the section linked.
+covered in full in the section linked. Entries marked **(fork)** are this
+fork's own additions; upstream CardMirror doesn't have them.
 
 - **[Built-in Analytic and Undertag styles](#cards-analytics-and-undertags)**
   — both ship as first-class structural styles with their own shortcuts and
@@ -202,6 +220,16 @@ covered in full in the section linked.
 - **[A real multi-doc workspace](#7-the-multi-doc-workspace)** — three
   editable panes side by side, each with its own outline and history, and
   drag-copy between them.
+- **[Independent three-pane windows](#multiple-workspaces)** **(fork)** —
+  each window keeps its own layout and documents. Drag a pane's title chip
+  to move its document to another slot, or right-click the chip to move it
+  to another window, unsaved edits and all.
+- **[Window names and in-app renaming](#naming-windows-and-renaming-documents)**
+  **(fork)** — name a window so you can tell windows apart, and rename a
+  document's file by double-clicking its name.
+- **[Per-pane cloud-sync status](#files-in-dropbox-and-other-shared-folders)**
+  **(fork)** — each pane shows its own Dropbox / OneDrive / Google Drive /
+  iCloud status.
 - **[Live views and linked copies](#10-live-views-and-linked-copies)** — show a
   section in more than one place: a read-only **live view** that always tracks
   its source, or an editable **linked copy** you refresh — from this document or
@@ -212,9 +240,12 @@ covered in full in the section linked.
 - **[Read-time word counts](#read-time-estimates)** — the status bar shows
   how long the visible (or selected) text takes to read, per reader, not
   just a raw word count.
-- **[Auto-scroll](#auto-scroll)** — a hands-free teleprompter that scrolls
-  the document at your actual reading pace, slowing for dense highlighted
-  text and speeding through everything else.
+- **[Lay-speaking read times](#read-time-estimates)** **(fork)** — give
+  a reader a second, slower rate for lay judges and flip every readout
+  between flow and lay time with one click.
+- **[Auto-scroll](#auto-scroll)** **(fork)** — a hands-free teleprompter
+  that scrolls the document at your actual reading pace, slowing for dense
+  highlighted text and speeding through everything else.
 - **[Send-to-speech with a dropzone](#send-to-speech-and-the-dropzone)** —
   send cards and headings into a speech doc, with a holding shelf for
   staging evidence before you place it.
@@ -228,7 +259,20 @@ covered in full in the section linked.
   like flashcards, stays out of the file you share unless you opt in.
 - **[AI features](#13-ai-features)** — format a cite, repair OCR/PDF
   extraction errors, ask a question about a selection, or generate alt text
-  and tables from an image.
+  and tables from an image. This fork adds **[Google Gemini](#setup-google-gemini)**
+  as a third provider **(fork)**.
+- **[Send taglines to PolicyDebateFlow](#send-taglines-to-policydebateflow)**
+  **(fork)** — one key sends the tagline and cite under your cursor into
+  your open flow.
+- **[Compare documents](#comparing-two-documents)** **(fork)** — a
+  side-by-side, code-diff-style comparison of two files' text.
+- **[Save As modes and remembered folders](#save-as)** **(fork)** — pick
+  what to save and where, then save once; save straight into a folder
+  you've used before without the file dialog.
+- **[Autosave for `.docx`](#saving)** **(fork)** — autosave covers Word
+  files as well as `.cmir`, and is on by default.
+- **[Settings search](#17-settings-reference)** **(fork)** — find any
+  setting by name or description across every tab.
 - **[Translate a selection](#13-ai-features)** — to the clipboard, with a
   keyless backend that works even without AI features set up.
 - **[Display customizations and accessibility](#18-appearance-and-accessibility)**
@@ -408,6 +452,19 @@ If **Condense on paste** is on (Settings → Editing), the
 pasted text is condensed as it lands.
 
 <a id="smart-paste"></a>
+### Copying into other apps
+
+A copy from CardMirror carries its look with it. Paste into an email,
+Google Docs, or Word and the tags, cites, underlining, emphasis boxes,
+highlights, colors, sizes, and your body font arrive as they showed on
+your screen — frozen to your Appearance settings at the moment you
+copied (in light colors, even if you work in dark mode). Pasting back
+into CardMirror is unaffected: the same content, marks and structure as
+always, in this version or an older one. Plain-text pastes are
+unchanged. The one thing that does not travel is bold that comes from
+a style rather than the Bold mark — tags, cites, analytics — which
+shows only where the receiving app bolds headings on its own.
+
 ### Smart paste from Word and haku.cards
 
 A regular Ctrl/Cmd-V of content copied from Microsoft Word (including
@@ -466,9 +523,20 @@ every conversion is reversible with **Backspace** right after it fires.
   or the start of a line; closing (and the apostrophe) otherwise — so `don't`
   and `(he said "hi")` come out right.
 
+- **Link URLs as you type** (Settings → Editing → "Link URLs as you type", off
+  by default) turns a web address into a link the moment you type a space or
+  press Enter after it — `http://`, `https://` and `www.` addresses, with
+  trailing punctuation left outside the link. A plain click on a link only
+  places the cursor; **Mod+click** opens it. The **Link URLs** command (Doc
+  menu) does the same for what is already written — the selection, or the
+  whole document — and **Remove Hyperlinks** undoes it.
+
 - **Custom dash** (Settings → Editing → "Custom dash") turns a typed `---` into
   an en or em dash, with or without surrounding spaces (your choice), the moment
-  you type the third hyphen.
+  you type the third hyphen. **(fork)** You can also convert `--` and `---`
+  at the same time, each to its own dash, as Word does: with both on, `--`
+  converts on the next character you type (so a third hyphen can still
+  turn it into `---`'s dash).
 
 - **Custom autocorrect** (Settings → Editing → "Custom autocorrect") is
   Word's "replace text as you type": define your own entries — `fwk` →
@@ -521,6 +589,15 @@ warnings, your custom rules), and regular **Shrink (Mod-8)** and **Regrow
   as above.
 - **Copy Previous Cite (Alt-F8)** pulls the cite from the previous card
   into the current one — handy when cutting a long article.
+- **Copy All Cards With Matching Cite** (unbound; run it from Search
+  Everything or give it a key) copies every card in the document that
+  shares the cite at the cursor — in document order, numbering removed —
+  so you can pull all of an author's cards into a speech at once. Put the
+  cursor anywhere in a cite to match cards whose cite is the same; select
+  part of a cite (the cite mark, a title, a URL, a journal) to match every
+  card whose cite contains that text. A selection that runs past the cite
+  uses just the part inside it. With no cite under the cursor or in the
+  selection, nothing is copied.
 - **Format Cite from selection (Mod-Shift-X)** uses AI to turn a pasted
   citation or URL into a properly styled cite (see
   [AI features](#13-ai-features)).
@@ -558,7 +635,10 @@ turning their highlighting into background color so it isn't affected by
 
 Each of the three color controls is a **split button**: the main button
 applies the active color, and the small arrow opens a 16-swatch picker.
-The picker remembers your last color per control. The top-left swatch
+The picker remembers your last color per control; **Reset to Default
+Colors** (command bar) puts the highlight and background pickers back on
+the colors you set under Settings → Editing → Default colors (yellow and
+light gray unless you change them). The top-left swatch
 selects **no color** (No highlight / No background / Automatic) — and
 "no color" is a real pen, not just a one-off eraser: it stays active
 (the indicator bar under the button turns white), and the main button,
@@ -646,8 +726,15 @@ The **Doc** and **Card** ribbon menus hold document- and card-level
 operations. From the **Doc** menu: **Convert Analytics to Tags**,
 **Convert Cited Analytics to Tags** (the same, but only for analytics
 that actually carry a cite — bare analytics stay analytics), **Fix
-Formatting Gaps**, and **Remove Hyperlinks**. **Select Similar
+Formatting Gaps**, **Link URLs**, and **Remove Hyperlinks**. **Select Similar
 Formatting** selects everything that matches the cursor's styles.
+
+**Add / Remove Hyperlink (Mod-K)** **(fork)** links or unlinks one piece of
+text. With the cursor on a link, it removes the link. With text selected, it
+asks for the text to show and the address to link to; leave the text as it
+is and its formatting is kept. If the selection already looks like a web
+address, the address field starts filled in with it. Unlike **Link URLs**,
+it links any text you choose, not just addresses.
 
 When you apply formatting to a word right next to an already-formatted word,
 CardMirror automatically bridges the small gap between them so the styling reads
@@ -758,6 +845,14 @@ the last sync. If the file changes underneath you, because a teammate
 saved it on another machine, the pill turns amber and says how long
 ago. Nothing pops up, so a conflict never interrupts a speech; the pill
 waits until read mode and the timer pop-out are off.
+
+**(fork)** In the [multi-doc workspace](#7-the-multi-doc-workspace), each
+pane shows its own cloud status in its own footer instead of one shared
+pill, so it's always clear which document a warning is about. While a file
+is fully synced the badge is just the service's icon (Dropbox, OneDrive,
+Google Drive, or iCloud); it adds a short label when the file changed on
+disk or was saved as a conflicted copy. Clicking it offers the same choices
+as the pill.
 
 Saving then never destroys the other version. Your document is written
 beside it as a conflicted copy, named the way Dropbox names its own
@@ -889,6 +984,7 @@ you *browse* that whole source.
 | **`c`** | Ribbon **commands** — each row shows its current shortcut | Runs the command |
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
+| **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
 
 Searching **version** (or "about this install") shows the running app
 version, and Enter jumps to the About this install section of Settings.
@@ -913,6 +1009,21 @@ see it in context — the query clears and the outline opens to that spot,
 ancestors expanded. **Esc** returns you to the file
 list with your search restored. Undo (**Mod-Z**) works while you're diving,
 so you can take an insert back without closing the palette.
+
+**Browsing folders (`/`, desktop only).** When you know *where* a document
+lives but not what it is called, type `/` and a space: the palette lists
+the folders you have set up for file search. **Enter** or **Tab** steps
+into a folder, **Esc** steps back up (and closes the palette from the top
+level), and the header above the results shows where you are. Only folders
+that hold documents the file search can see are shown. Type after the prefix
+to search the folder you are in — every document beneath it, at any depth,
+plus subfolders whose name matches; each file shows the subfolder it sits
+in. Files here behave exactly as they do in an `f` search: Enter opens,
+Tab dives in, Alt-P pins. `/c` and a space starts in the folder of the
+document you are working in instead (it needs to be inside one of your
+file-search folders). Moving into or out of a folder clears what you had
+typed, and only changing the prefix itself takes you somewhere else — so
+after `/c` you can wander off and keep typing without being pulled back.
 
 **Pinning and speed.** Press **Alt-P** to pin or unpin the selected file
 (★). Pinned files sort to the top and stay parsed for instant search;
@@ -975,6 +1086,10 @@ Enable **Settings → General → Multi-doc workspace** and reload. With one
 document open it looks like a normal editor; the layout fills in
 as you open more. 
 
+**(fork)** Or click the **three-pane** button in the ribbon. It switches
+only the window you click it in, so one window can be a three-pane
+workspace while another shows a single document.
+
 ### Working with slots
 
 - Each of the three slots is independent: its own outline section, its own
@@ -989,17 +1104,60 @@ as you open more.
 - Each slot's footer has its own **+ New** button (blank doc into that
   slot) and **+ Open file** button, so you can build up a workspace slot
   by slot.
+- **(fork)** Each document's **title chip** (the strip with its filename)
+  has its own **Save** and **Autosave** buttons, so it's always clear which
+  document they act on. The ribbon's Save and Mod-S save the focused
+  document only.
+- **(fork)** **Drag a title chip onto another slot** to move that document
+  there. An empty slot shows a labelled drop zone while you drag. Dropping
+  on an occupied slot swaps the two documents. **Esc** cancels the drag.
+- **(fork)** **Right-click a title chip** for **Move to…**, which lists
+  every other open three-pane window plus **New Window**. The document goes
+  with its current content, unsaved edits included. If the move fails, the
+  document stays where it was. **(Desktop only.)**
+- **(fork)** The pane holding your speech document stays tinted amber even
+  while it's the focused pane, so you can always see which one it is.
 
 ### Multiple workspaces
 
-Three-pane windows are independent — you can have several open at once,
-each with its own three slots. The ribbon/keyboard **New** command spawns
-another three-pane window rather than adding a document to the one you're
-in (use a slot's own **+ New** button, or the home screen's **New** tile
-on an empty workspace, to add a document to the *current* workspace
-instead). Opening a file from the OS ("Open with…", double-click) reuses
-your most recently focused three-pane window's slot picker rather than
-spawning a blank one.
+**(fork)** Three-pane windows are independent — you can have several open
+at once, each with its own layout, documents, and three slots.
+
+**Where new and opened documents go.** Instead of guessing, CardMirror
+asks:
+
+- **File → Open** asks which slot of the current window to use, or **New
+  window**.
+- **New Document**, and opening a file from the OS ("Open with…" or a
+  double-click), work the same way when one three-pane window is open.
+  With several open, you pick the window first, then a slot in it.
+- A brand-new, empty workspace skips the question: the document goes into
+  Slot 1.
+- A slot's own **+ New** button always puts the document in that slot.
+
+**Closing with unsaved changes.** The prompt names the document it's about.
+Closing a window with several unsaved documents shows one prompt per
+document, stacked together. If a document's file has been moved or deleted,
+its prompt offers **Bind new filepath…** in place of Save.
+
+**Reopening a workspace.** When you close a three-pane window holding two
+or more saved documents, the home screen's **Recent** list offers the whole
+set back as one entry, next to your recently opened files.
+
+### Naming windows and renaming documents
+
+**(fork, desktop only)**
+
+- **Name a window**: right-click anywhere on the ribbon and choose **Name
+  This Window…**. The window's title bar then shows that name instead of
+  the document's filename ("Speech Doc", "Research"). Right-click again
+  for **Rename Window…** or **Clear Window Name**. The name survives
+  switching the window between single and three-pane layouts.
+- **Rename a document**: double-click its name in the ribbon's doc-name
+  chip or a pane's title chip, type the new name, and press **Enter** (or
+  click away). **Esc** cancels. This renames the real file on disk: it
+  stays in the same folder and keeps its format (use Save As to change
+  format), and an existing file with that name is never overwritten.
 
 ### Per-document outlines
 
@@ -1053,10 +1211,15 @@ entire cite* is on. Undo restores the cards.
   undertags, and un-highlighted body text disappear. Of a cite, only
   its cite-marked and highlighted words show unless you turn on
   *Read mode: keep entire cite* (Settings → General), which shows the
-  whole citation.
+  whole citation; *Read mode: show undertags* (same place) brings the
+  undertags back, whole. Neither adds to the word count or read time.
 
 - It **locks the keyboard**, so a stray key or trackpad twitch at the
   podium can't edit your file.
+
+- **(fork)** **Copying copies what you see.** Text that read mode hides is
+  left out of the clipboard, so copying and pasting from read mode gives
+  you exactly what was on screen.
 
 Only two editing actions are allowed in read mode. First, you can drop a
 **reading-position marker** — red text like "Marked 7:32" at your cursor
@@ -1141,6 +1304,14 @@ covers everything; set it, and every readout splits the math (the Word
 Count dialog shows both, e.g. "200 / 260"). The **first two** readers appear live in the status bar; the
 numbers update as you highlight and trim.
 
+**Lay-speaking times** **(fork)**. A reader can also have a **lay-speaking**
+rate, a slower pace for a lay judge. In the readers list, pick **Lay
+speaking** from the dropdown next to the reader's rates and enter it. Then
+**click the read-time readout** in the status bar (or a pane's footer in the
+three-pane workspace) to switch every reader between flow time and lay time.
+A reader without a lay rate shows "—" in lay mode, so you can see who still
+needs one. The readers editor also links to an online reading-speed test.
+
 Click the word count (the **Σ** button / Word Count) for the full
 breakdown — that dialog shows the read time for **every** reader on your
 list, not just the two in the bar, and the word count and read time for
@@ -1213,6 +1384,14 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   stays red until you re-arm that clock — load a preset, hit Reset, or type
   a new time. (Pausing or switching clocks doesn't dismiss it; the sound,
   if on, is a single double beep, never repeated.)
+
+- **Stopwatch.** With the speech clock at **0:00** — after Reset, or after
+  typing 0:00 — press Start and it counts **up**; a small **▲** before the
+  time marks the count. Pause and Start work as always, and no alert points
+  flash or beep on the way up. Load a preset, type a time, or press Reset
+  to return to a countdown. When a countdown has run out, pause it and press
+  Start to count the overtime, still in red. Prep clocks never count up: a
+  prep balance at 0:00 is spent.
 
 - **Pop the timer out** *(desktop)*. The **⇱** button moves the timer into a
   small floating window that stays on top of every app — handy for keeping
@@ -1317,12 +1496,13 @@ or in one keystroke with **Save Send Doc (Mod-Alt-S)**.
 To send a copy of just the cards you marked in your speech, use **Save Marked Cards** 
 — it pulls just those cards out and saves them on their own, in the format you set 
 for marked cards (Settings → Files → *Marked Cards format*; `.docx` by default). 
-Two ways in: a **Marked Doc** button in the Save As dialog, and a **Save Marked Cards** 
+Two ways in: the **Marked Doc** option in the [Save As](#save-as) dialog, and a **Save Marked Cards** 
 command (default **Mod-Alt-M**, rebindable) that saves silently to a destination you 
 choose under Settings → *Marked Cards destination* (the source file's folder, or a 
 fixed folder), using the `MARKED_` filename prefix and the Marked Cards format — mirroring 
 Save Send Doc. It keeps cards only (analytics and headings are dropped); if nothing is marked,
-it does nothing and tells you so.
+it does nothing and tells you so. Card numbers are frozen into the saved copy as text (see
+[Send Doc](#16-saving-and-file-formats)), so the marked cards keep the numbers they had.
 
 ---
 
@@ -1749,11 +1929,11 @@ turn it off under Settings → Appearance → **Flashcards-due dot**.
 ## 13. AI features
 
 A handful of features call a large language model. They're **off by
-default** and require a key. Two providers are supported, chosen under
+default** and require a key. Three providers are supported, chosen under
 **Settings → Comments & AI → AI provider**: **Anthropic** (the default —
 CardMirror talks straight to Anthropic's Claude, and picks a current model
-automatically) and **OpenRouter** (one account that can route to many
-models, including Claude).
+automatically), **OpenRouter** (one account that can route to many
+models, including Claude), and **Google Gemini** **(fork)**.
 
 ### Setup (Anthropic, the default)
 
@@ -1800,6 +1980,16 @@ Two things to know:
   OpenRouter may allow their operators to train on your prompts — avoid
   them for evidence you care about (see the privacy policy).
 
+### Setup (Google Gemini)
+
+**(fork)** To use Google's Gemini models, set **AI provider** to **Google
+Gemini**, create an API key in Google AI Studio,
+and paste it into the **Gemini API key** field. CardMirror uses
+`gemini-2.5-flash` unless you enter a different model id (for example
+`gemini-2.5-pro`) in **Gemini model (advanced)**; a malformed entry is
+ignored. As with OpenRouter, CardMirror's prompts are tuned for Claude, so
+results from other models can differ.
+
 ### Keys and privacy
 
 Whichever provider you pick, the key is stored locally and sent directly
@@ -1828,8 +2018,9 @@ at a specific Claude model (**AI model (advanced)** — leave blank to use
 the model built into your release) in Settings → Comments & AI. If a
 model is ever retired, AI features show a message telling you to update
 CardMirror or set a newer model id there. On OpenRouter, the model is
-whatever the **OpenRouter model** field says. **Max output tokens** caps
-how long AI replies can run (both providers); if you use a reasoning
+whatever the **OpenRouter model** field says; on Gemini, the **Gemini
+model** field. **Max output tokens** caps
+how long AI replies can run (every provider); if you use a reasoning
 model, raise it — hidden thinking spends from the same budget, and too
 low a cap can cut the answer off.
 
@@ -1939,15 +2130,40 @@ These commands aren't on the ribbon and have no default shortcuts — find
 them in the command palette, or bind keys to them under **Settings →
 Keyboard shortcuts**. They appear only on Windows.
 
+### Send taglines to PolicyDebateFlow
+
+**(fork, desktop only)** If you flow on
+PolicyDebateFlow, CardMirror can send
+taglines straight into your open flow without switching windows.
+
+1. In **Settings → PolicyDebateFlow**, turn on **Connect to
+   PolicyDebateFlow**.
+2. In PolicyDebateFlow's own settings, copy your personal token and paste
+   it into **PolicyDebateFlow connection**. The token gives access to all
+   your flows and doesn't expire; **Disconnect** in the same place revokes
+   it.
+3. With your flow open in PolicyDebateFlow, put your cursor on (or in) a
+   card or analytic and press **Shift-`` ` ``** (*Send Tagline to
+   PolicyDebateFlow*). The tagline and its short cite land in the flow's
+   next empty cell, and the flow moves down a row, so you can send a whole
+   case one key at a time.
+
+A **Flow** chip in the status bar shows whether you're connected. Click it
+to pause or resume sending on this machine; pausing doesn't revoke your
+token, so resuming is instant. If the flow tab is closed, or paused on
+PolicyDebateFlow's side, CardMirror tells you which instead of sending.
+Nothing contacts PolicyDebateFlow until the integration is on and a token is
+saved.
+
 ---
 
 ## 15. Voice control
 
-> **Experimental — and, in 1.10.0, commands are unreliable.** Dictation works
+> **Experimental — and, as of 1.12.0, commands are still unreliable.** Dictation works
 > well. The single-word commands do not yet: the recognizer decodes an open
 > vocabulary, so a one-word utterance often comes back as some other word
 > and nothing fires. Calibration helps only a little. A keyword-spotting pass
-> for the command channel is planned for the next release; until then, treat
+> for the command channel is planned for a coming release; until then, treat
 > the commands as a preview and the dictation key as the working part.
 
 **(Desktop only.)** Voice control lets you work a document with your
@@ -2068,7 +2284,11 @@ calibration, and the model download.
 
 ### Opening files
 
-Open a working file with **File → Open**, or from the Home screen's recents. On
+Open a working file with **File → Open**, or from the Home screen's recents.
+**(fork)** If a recent file has moved or been deleted, CardMirror offers
+**Locate…** to find it or **Remove from Recents**, instead of dropping it.
+A recently closed three-pane workspace also appears in the Recent list (see
+[Multiple workspaces](#multiple-workspaces)). On
 desktop you can also **drag a `.docx`, `.cmir`, or `.cmir-journal`** from your
 file manager onto any CardMirror window — the editor, the navigation pane, or the
 home screen — to open it, exactly like File → Open (including the unsaved-changes
@@ -2113,7 +2333,7 @@ focused document.
 ### Two formats
 
 - **`.cmir`** — CardMirror's native format. Lossless, and required for
-  autosave and crash recovery. Use it for your working files. Files are
+  crash recovery. Use it for your working files. Files are
   saved compressed (roughly 10× smaller than before) and open just as fast;
   any older uncompressed file shrinks automatically the next time you save
   it — no action needed.
@@ -2173,6 +2393,32 @@ be fully understood). The same applies when you simply **open** an old `.docx`
 in CardMirror: for files it recognizes, it reconstructs the cards, tags, cites,
 and headings instead of importing flat text.
 
+### Comparing two documents
+
+**(fork)** **Compare**, on the Home screen, shows how two documents differ:
+this season's file against last season's, your partner's edit against
+yours, or a file before and after cutting.
+
+1. Click **Compare** (or press its number key on the Home screen), then
+   **Choose…** a `.cmir` or `.docx` file for **First document** and
+   **Second document**.
+2. Click **Compare**. The comparison opens full-screen: the first file on
+   the left, the second on the right, line by line, like a code diff.
+   Lines only in the first file are red, lines only in the second are
+   green, and unchanged lines are plain. The top bar counts the changed
+   lines (for example "+12 −4 lines changed").
+3. Each side has its own **outline** of that file's headings. Click one to
+   jump to it in the comparison. A heading greyed out in the outline has
+   no matching line to jump to.
+
+**Compare different files** returns to the file picker; **Close** (or
+**Esc**) returns to the Home screen. The comparison is text only — formatting such as highlighting
+and underlining isn't compared — and it's read-only: neither file is opened
+for editing or changed. Two very large files that differ almost everywhere
+may be too big to compare; CardMirror says so rather than freezing. On a
+narrow window the outlines hide and each changed line stacks its two
+versions.
+
 ### Saving
 
 - **Save (Mod-S)** / **Save As… (Mod-Shift-S)**.
@@ -2187,6 +2433,14 @@ and headings instead of importing flat text.
   button with a solid outline** means the last autosave FAILED and your
   latest changes are not on disk — hover over it for the reason.
   **(Desktop only.)**
+- **(fork)** Autosave is **on by default**. Turn it off for a document with
+  the toggle; CardMirror remembers the documents you've turned it off for.
+  In the three-pane workspace, each pane's title chip has its own Save and
+  Autosave buttons (see [Working with slots](#working-with-slots)), and the
+  Save button flashes when an autosave lands. If an autosave fails because
+  the file is gone, the notice has a **Save As…** button.
+- **(fork)** **Rename a document** by double-clicking its name — see
+  [Naming windows and renaming documents](#naming-windows-and-renaming-documents).
 - **If a file (or its folder) gets renamed, moved, or deleted** while the
   document is open (say, someone reorganizes a shared Dropbox), the next
   save can't find the old location. CardMirror will tell you what happened
@@ -2201,17 +2455,47 @@ and headings instead of importing flat text.
   that changed underneath it; it pauses and tells you to use Save to
   review. **(Desktop only.)**
 
-### Save As presets
+### Save As
 
-The Save As dialog offers presets so you can produce the right kind of
-copy:
+**(fork)** The Save As dialog (Mod-Shift-S) is a set of choices you make
+first; nothing is saved until you click **Save As** (or press **Enter**).
+Picking an option never saves by itself, so it's safe to look at what a mode
+would leave out. The **Cancel** and **Save As** buttons stay pinned to the
+bottom of the dialog.
 
-- **As-is** — a full copy.
-- **Send Doc** — a clean reading copy with comments, analytics, and
-  undertags stripped, for the judge or opponent (optionally with a
-  `SEND_` filename prefix).
-- Checkboxes (off by default) let you include **private notes** and **AI
-  comments** in the saved file.
+- **Name** — the file name. A `/` or any other character your file system
+  can't use in a name becomes a hyphen, so `R3 2NC (redo 9/17/26)` saves
+  as one file rather than a set of folders.
+- **Format** — CardMirror native (`.cmir`) or Microsoft Word (`.docx`).
+  Switching updates the name's extension.
+- **Save** — what goes in the copy:
+  - **As-Is** (the default) — the whole document.
+  - **Send Doc** — a clean copy with comments, analytics, and undertags
+    stripped, for the judge or opponent (optionally with a `SEND_`
+    filename prefix).
+  - **Read Doc** — the read-mode view of the document.
+  - **Marked Doc** — only the cards you marked.
+  - **Custom Save** — shows checkboxes under it so you choose exactly what
+    to include: comments, analytics, undertags, **Freeze card numbers as
+    text** or **Remove card numbers** (one or the other; neither keeps live
+    numbering), **private notes**, and **AI comments** (the last two off
+    by default).
+- **Save in a previously saved location** **(desktop only)** — a
+  collapsible list (it remembers whether you left it open). The first row,
+  **Choose location when saving**, is the default and opens the usual file
+  dialog. Below it are the folders you've saved into, most recent first —
+  up to five, plus any you've pinned with the ☆ (pinned folders stay at the
+  top and never drop off). Select a folder and Save As writes straight
+  into it, no file dialog.
+
+Send and Marked Docs **freeze their card numbers**: every numbered heading
+gets its number written in as plain text, in your display format, and the
+copy is no longer auto-numbered. Dropping the analytics (or the unmarked
+cards) therefore does not renumber what is left, and deleting a card from
+the copy during the round leaves the other numbers alone. Each of the two
+can **remove** the numbers instead (Settings → Files → *Send Doc card
+numbers* and *Marked Cards card numbers*). A Read Doc keeps every heading,
+so it keeps live numbering, as do As-Is and a normal save.
 
 **Save Send Doc (Mod-Alt-S)** does the Send Doc export in one keystroke,
 no dialog. Two Settings → Files options control where it goes (the
@@ -2226,7 +2510,7 @@ and format settings beside the Send Doc ones.
 The filename prefixes for the preset saves — **Send Doc**, **Read Doc**, and
 **Marked Doc** (defaults `SEND_`, `READ_`, `MARKED_`) — are configurable under
 Settings → Files; change any of them, or leave one empty for no prefix. They
-apply to both the Save As preset buttons and the silent Save Send Doc /
+apply to both the Save As modes and the silent Save Send Doc /
 Save Read Doc / [Save Marked Cards](#saving-marked-cards) commands, gated on
 the existing "Prefix preset saves" toggle.
 
@@ -2302,10 +2586,11 @@ instead.
 
 **(Desktop only.)** CardMirror checks for updates automatically — silently
 at launch and once a day — and only speaks up when a new version is
-actually ready. You can turn this off with the **Check for updates
+actually ready. **(fork)** Updates come from this fork's releases, not the
+upstream project's. You can turn this off with the **Check for updates
 automatically** toggle in Settings → General → About this install;
-**Help → Check for Updates…** always works either way. Linux users who
-installed via the AUR update with `yay -Syu`.
+**Help → Check for Updates…** always works either way. (This fork doesn't
+publish Linux builds; the AUR package installs the upstream project.)
 
 **Going to a tournament?** The **Pause update checks for 1 week**
 button (next to the auto-check toggle in Settings → General → About
@@ -2316,7 +2601,9 @@ checks now** button. Manual checks still work.
 
 Automatic updates never interrupt you: when a new version has been
 downloaded in the background, a small **chip appears in the status bar**
-("Update x.y.z ready — restart to install"). Nothing installs until you
+("Update x.y.z ready — restart to install"). **(fork)** While the update
+downloads, the chip fills in from left to right and shows the percentage
+done. Nothing installs until you
 click it — on Windows and Linux, quitting the app normally also applies
 a downloaded update on the way out. On macOS the update is staged the
 same way and clicking the chip restarts straight into the new version;
@@ -2342,6 +2629,11 @@ collapses into a single entry with a ×N counter instead of nagging.
 ## 17. Settings reference
 
 Open settings with the **gear** icon. Settings are grouped into tabs.
+
+**Searching settings** **(fork)**. Type in the search box next to the
+**Settings** title to search every setting's name and description on every
+tab at once. Only the matching settings show, grouped by tab, with your
+search words highlighted. Clear the box to go back to browsing by tab.
 
 Some rows only exist on one platform — marked *(desktop)*, *(web)*, or
 *(Windows)* below — and don't appear elsewhere.
@@ -2403,25 +2695,32 @@ headers shown inside each tab.
   lines. Off by default. Display-only, like the rest of read mode — the
   document isn't touched (that's what
   [Condense](#condense-pilcrows-and-case) does).
-- **Mod-Y repeats the last action** — Word's Repeat. When on, Mod-Y with
+- **Redo repeats the last action** — Word's Repeat. When on, Redo with
   nothing left to redo does the last editing action again at the cursor:
-  types the last thing you typed, applies the same formatting to the
-  new selection, deletes one more character after a Backspace or
-  Delete, pastes the same thing again, or re-runs the last command.
-  Redo still comes first whenever there is something to redo, and
-  Mod-Shift-Z stays plain Redo. Off by default.
+  types the last thing you typed (a keyboard macro's text included,
+  with autocorrect applied as you go), applies the same formatting to
+  the new selection, presses Backspace, Delete, Enter, Tab or Shift-Tab
+  once more, pastes the same thing again, or re-runs the last command.
+  Redo still comes first whenever there is something to redo. Any key
+  bound to Redo behaves this way (Mod-Y and Mod-Shift-Z by default; see
+  Settings → Keyboard shortcuts). Off by default.
 - **Read mode: keep entire cite** — when on, read mode shows the whole of
   any cite that has read-aloud text in it — qualifications, source, date
   and all — instead of only its cite-marked and highlighted words. A cite
   with nothing marked stays hidden. Off by default. Display-only, and
   Convert Cards to Read Mode follows it too.
+- **Read mode: show undertags** — when on, read mode shows undertags, the
+  whole of each one, instead of hiding them. Off by default. Display-only,
+  and Convert Cards to Read Mode follows it too. Undertag text still does
+  not count toward word counts or read-time estimates unless it is
+  highlighted.
 
 **Word counts**
 
 - **Readers for read-time estimates** — each reader is a name and a
-  words-per-minute rate. The first two show live in the status bar; all
-  appear in the Word Count dialog
-  (see [Read-time estimates](#read-time-estimates)).
+  words-per-minute rate, plus an optional lay-speaking rate **(fork)**.
+  The first two show live in the status bar; all appear in the Word
+  Count dialog (see [Read-time estimates](#read-time-estimates)).
 - **Live word count for the whole document** — on by default. Off drops
   the bar's first readout (the whole document's count and read times) so
   a narrow window can show only the specific counts you keep on. The Word
@@ -2503,6 +2802,9 @@ file search scans, and how much version history to keep.
 - **Send Doc format** — the format Save Send Doc writes: `.docx`
   (default), `.cmir`, or the same as new documents. The Save As dialog is
   unaffected.
+- **Send Doc card numbers** — freeze the card numbers as heading text
+  (default) or remove them. Read by Save Send Doc and by the Save As
+  dialog's Send Doc preset; Custom save has its own choice.
 - **Read Doc destination / folder / format** *(destination and folder:
   desktop)* — the same three options for the Save Read Doc command (unbound
   by default; run it from the command bar or give it a key).
@@ -2514,6 +2816,9 @@ file search scans, and how much version history to keep.
 - **Marked Cards format** — the format Save Marked Cards writes: `.docx`
   (default), `.cmir`, or the same as new documents. The Save As dialog is
   unaffected.
+- **Marked Cards card numbers** — freeze the card numbers as heading text
+  (default) or remove them. Read by Save Marked Cards and by the Save As
+  dialog's Marked Doc preset; Custom save has its own choice.
 
 **File search**
 
@@ -2610,7 +2915,7 @@ How things look. None of these change the file — only your view (see
   control as Accessibility → Color overrides → Document text).
 - **Distinguish background color from highlighting** — overlays a
   deliberately faint dot grid on background color so it can be told
-  apart from highlighting at a glance. Off by default — the two stay
+  apart from highlighting at a glance. On by default — the two stay
   visually identical. Display-only; the file and anything you copy or
   export are untouched.
 - **Show character styles** — show the cite / underline / emphasis
@@ -2675,9 +2980,12 @@ Typing helpers and the behavior of the cutting and condense commands
 
 - **Smart quotes** — curl a straight `'` / `"` to the right direction as you
   type; Backspace right after reverts. Off by default.
+- **Link URLs as you type** — link a web address the moment a space or Enter
+  follows it. Off by default; the Link URLs command covers existing text.
 - **Custom dash** — turn a typed `---` (or `--`, your choice) into an en
   or em dash (spaced or unspaced) on the trigger's last hyphen;
   Backspace right after reverts to the literal hyphens. Off by default.
+  **(fork)** Optionally convert the other trigger too, with its own style.
 - **Auto-capitalize tags and analytics** — sentence starts (and a
   standalone `i`) capitalize as you finish each word, in tags and
   analytics only; Backspace right after reverts. Off by default.
@@ -2773,6 +3081,15 @@ Typing helpers and the behavior of the cutting and condense commands
   Background Color (with Exception)" leaves untouched. Any color; defaults
   to yellow.
 
+**Default colors**
+
+- **Default highlight color** — the highlight that **Reset to Default
+  Colors** (command bar; unbound) puts back on the highlight swatch picker.
+  One of Word's 15 highlight colors; yellow by default.
+- **Default background color** — the background color the same command
+  puts back on the background-color swatch picker. Any color; the picker's
+  own starting light gray by default.
+
 **Acronym marking**
 
 - **Custom acronym letters** — teach the acronym commands (Alt-F10
@@ -2806,6 +3123,11 @@ remove one, **↺** to restore its default. A few window-level shortcuts
 (like Mod-W) are handled by the OS and can't be overridden (see
 [Keyboard shortcuts](#19-keyboard-shortcuts)).
 
+**(fork)** On macOS, binding a key that macOS itself uses (Quit, Hide,
+Hide Others, Log Out, the screenshot keys) shows a warning. It doesn't stop
+you, since you can remap some of those in System Settings. Shortcuts that
+use the Control key show as **⌃** and Command shortcuts as **⌘**.
+
 ### Comments & AI
 
 - **Comment author name** — the name attached to comments you write.
@@ -2813,7 +3135,11 @@ remove one, **↺** to restore its default. A few window-level shortcuts
   auto-derived from the name if left blank.
 - **Enable AI features** — master switch for the AI comment features;
   needs an API key (see [AI features](#13-ai-features)).
+- **AI provider** — Anthropic, OpenRouter, or Google Gemini **(fork)**.
 - **Anthropic API key** — stored locally; sent only to api.anthropic.com.
+- **Gemini API key** / **Gemini model (advanced)** **(fork)** — shown when
+  the provider is Google Gemini; the key is sent only to Google's
+  Generative Language API.
 - **AI model (advanced)** — the Claude model id all AI features use; blank
   uses the model built into your release. Set a newer id if the built-in
   one is retired. A malformed entry is ignored.
@@ -2898,6 +3224,17 @@ remove one, **↺** to restore its default. A few window-level shortcuts
 **Plugins** — the Plugins tab has its own chapter: see
 [section 20](#20-plugins-experimental).
 
+### PolicyDebateFlow
+
+**(fork, desktop)**
+
+- **Connect to PolicyDebateFlow** — turns on sending taglines to a
+  PolicyDebateFlow flow. Off by default; nothing contacts PolicyDebateFlow
+  while it's off.
+- **PolicyDebateFlow connection** — paste the personal token from
+  PolicyDebateFlow's settings to connect; **Disconnect** revokes it. See
+  [Send taglines to PolicyDebateFlow](#send-taglines-to-policydebateflow).
+
 ---
 
 ## 18. Appearance and accessibility
@@ -2948,7 +3285,9 @@ All defaults; rebind any of them in **Settings → Keyboard shortcuts**.
 | F10 / Alt-F10 | Emphasis / Emphasize acronym |
 | F11 / Alt-F11 | Highlight / Highlight acronym |
 | Mod-F11 | Background color |
+| Mod-Z / Mod-Y | Undo / Redo (Mod-Shift-Z also redoes) |
 | Mod-B / Mod-I | Bold / Italic |
+| Mod-K | Add / remove hyperlink (fork) |
 | Mod-Shift-= / Mod-= | Superscript / Subscript |
 | F12 | Clear formatting |
 | F2 | Paste Text |
@@ -2976,7 +3315,7 @@ these to extend the selection.
 |----------|--------|
 | Mod-F / Mod-H | Find / Find and Replace |
 | Alt-F | Find without grouping |
-| Mod-Shift-Space | Search Everything palette (files `f`, Quick Cards `q`) |
+| Mod-Shift-Space | Search Everything palette (files `f`, folders `/`, Quick Cards `q`) |
 
 ### Speech, comments, and AI
 | Shortcut | Action |
@@ -2992,6 +3331,7 @@ these to extend the selection.
 | Mod-Alt-R | Repair Formatting in selection (AI) |
 | Mod-Shift-T | Translate selection to clipboard (AI) |
 | Mod-Shift-D | Toggle a reading-position marker (Space / Enter also work in read mode) |
+| Shift-`` ` `` | Send tagline to PolicyDebateFlow (fork, desktop) |
 
 ### Files and view
 | Shortcut | Action |

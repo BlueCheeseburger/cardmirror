@@ -11,7 +11,7 @@
  *
  * Layout: a Name section, a Format section, a Save section — a radio
  * list (As-Is / Send Doc / Read Doc / Marked Doc / Custom Save, the
- * last revealing its five content checkboxes inline when selected) —
+ * last revealing its content checkboxes inline when selected) —
  * a "Save in a previously saved location" section (also a radio list:
  * "Choose location when saving" plus one row per remembered folder),
  * then Cancel and a single "Save As" button at the bottom. Choosing a
@@ -25,6 +25,7 @@
  */
 
 import { settings } from './settings.js';
+import type { NumberingExportMode } from './numbering-bake.js';
 import { setIcon } from './icons';
 import { pushOverlay, popOverlay } from './overlay-stack.js';
 import { installModalKeys, captureFocusForDialog } from './text-prompt.js';
@@ -64,6 +65,10 @@ export interface SaveAsResult {
   /** Keep ONLY the cards that contain a reading marker, flat (no headings, no
    *  analytics). Mutually exclusive with the include-* / readMode options. */
   markedCardsOnly: boolean;
+  /** Card numbers: `keep` the live skeleton (As-Is, or Custom with neither
+   *  box ticked), `freeze` them as heading text, or `remove` them. Send Doc
+   *  and Marked Doc read the `*DocNumbering` settings. */
+  numbering: NumberingExportMode;
   /** Set when the user selected a remembered folder instead of "Choose
    *  location when saving": write `filename` straight into this
    *  directory and skip the OS picker. Absent otherwise. */
@@ -116,6 +121,7 @@ const AS_IS_OPTIONS: SaveContentOptions = {
   includeNotes: false,
   includeAiThreads: false,
   markedCardsOnly: false,
+  numbering: 'keep',
 };
 
 type SaveMode = 'asIs' | 'sendDoc' | 'readDoc' | 'markedDoc' | 'custom';
@@ -125,12 +131,15 @@ interface ModeDef {
   label: string;
   description: string;
   /** Fixed content options for every mode except `custom`, whose
-   *  options come from its five inline checkboxes instead. */
+   *  options come from its inline checkboxes instead. */
   options: SaveContentOptions | null;
   /** Settings key for this mode's filename prefix (subject to
    *  `prefixPresetSaveFilenames`). Omitted for As-Is and Custom Save
    *  — neither has ever taken a prefix. */
   prefixSetting?: 'sendDocPrefix' | 'readDocPrefix' | 'markedDocPrefix';
+  /** Settings key overriding `options.numbering` at save time. Read Doc
+   *  has none — read mode keeps every heading, so nothing renumbers. */
+  numberingSetting?: 'sendDocNumbering' | 'markedDocNumbering';
 }
 
 const MODE_DEFS: ModeDef[] = [
@@ -152,8 +161,10 @@ const MODE_DEFS: ModeDef[] = [
       includeNotes: false,
       includeAiThreads: false,
       markedCardsOnly: false,
+      numbering: 'keep',
     },
     prefixSetting: 'sendDocPrefix',
+    numberingSetting: 'sendDocNumbering',
   },
   {
     id: 'readDoc',
@@ -167,6 +178,7 @@ const MODE_DEFS: ModeDef[] = [
       includeNotes: false,
       includeAiThreads: false,
       markedCardsOnly: false,
+      numbering: 'keep',
     },
     prefixSetting: 'readDocPrefix',
   },
@@ -182,8 +194,10 @@ const MODE_DEFS: ModeDef[] = [
       includeNotes: false,
       includeAiThreads: false,
       markedCardsOnly: true,
+      numbering: 'keep',
     },
     prefixSetting: 'markedDocPrefix',
+    numberingSetting: 'markedDocNumbering',
   },
   {
     id: 'custom',
@@ -201,13 +215,15 @@ class SaveAsModal {
   private formatRadios!: Record<SaveAsFormat, HTMLInputElement>;
   /** Radio inputs keyed by save mode. */
   private modeRadios!: Record<SaveMode, HTMLInputElement>;
-  /** Custom Save's five checkboxes, shown inline under its row only
+  /** Custom Save's checkboxes, shown inline under its row only
    *  while that mode is selected. */
   private customComments!: HTMLInputElement;
   private customAnalytics!: HTMLInputElement;
   private customUndertags!: HTMLInputElement;
   private customNotes!: HTMLInputElement;
   private customAiThreads!: HTMLInputElement;
+  private customFreezeNumbers!: HTMLInputElement;
+  private customRemoveNumbers!: HTMLInputElement;
   private customOptionsEl!: HTMLElement;
   /** The location radio group (present only when `allowSaveLocations`). */
   private locationList: HTMLElement | null = null;
@@ -377,7 +393,7 @@ class SaveAsModal {
   }
 
   /** SAVE section: a heading + a radio row per mode. Custom Save's
-   *  row carries the five content checkboxes right after it, shown
+   *  row carries the content checkboxes right after it, shown
    *  only while that mode is the selected one. Selecting a mode never
    *  saves anything by itself — see the module doc comment. */
   private buildModeSection(): HTMLElement {
@@ -406,7 +422,7 @@ class SaveAsModal {
     return wrap;
   }
 
-  /** The five Custom Save checkboxes, indented under its radio row.
+  /** The Custom Save checkboxes, indented under its radio row.
    *  Built once; `applyModeVisibility` toggles `hidden`. */
   private buildCustomOptions(): HTMLElement {
     const options = document.createElement('div');
@@ -414,6 +430,16 @@ class SaveAsModal {
     this.customComments = this.appendCheckbox(options, 'Include comments', true);
     this.customAnalytics = this.appendCheckbox(options, 'Include analytics', true);
     this.customUndertags = this.appendCheckbox(options, 'Include undertags', true);
+    // Card numbers: freeze as heading text, or remove — one or the other,
+    // never both; neither ticked keeps the live numbering (an As-Is copy).
+    this.customFreezeNumbers = this.appendCheckbox(options, 'Freeze card numbers as text', false);
+    this.customRemoveNumbers = this.appendCheckbox(options, 'Remove card numbers', false);
+    this.customFreezeNumbers.addEventListener('change', () => {
+      if (this.customFreezeNumbers.checked) this.customRemoveNumbers.checked = false;
+    });
+    this.customRemoveNumbers.addEventListener('change', () => {
+      if (this.customRemoveNumbers.checked) this.customFreezeNumbers.checked = false;
+    });
     // Private annotation layers — off by default (they normally never
     // leave CardMirror). Checking them bakes the notes / AI threads
     // into the saved file as real Word-style comments.
@@ -450,9 +476,17 @@ class SaveAsModal {
         includeNotes: this.customNotes.checked,
         includeAiThreads: this.customAiThreads.checked,
         markedCardsOnly: false,
+        numbering: this.customFreezeNumbers.checked
+          ? 'freeze'
+          : this.customRemoveNumbers.checked
+            ? 'remove'
+            : 'keep',
       };
     }
-    return MODE_DEFS.find((d) => d.id === this.currentMode)!.options!;
+    const def = MODE_DEFS.find((d) => d.id === this.currentMode)!;
+    return def.numberingSetting
+      ? { ...def.options!, numbering: settings.get(def.numberingSetting) }
+      : def.options!;
   }
 
   /** "Save in a previously saved location": a disclosure whose open /
