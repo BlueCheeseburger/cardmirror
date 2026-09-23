@@ -76,6 +76,12 @@ app build) are untouched — still `ubuntu-latest`, since that's not what
 "build" meant here. Don't re-add an `ubuntu-latest` build/test leg to
 either workflow without the user asking again.
 
+**Docs too (2026-09-23):** the user asked not to include Linux versions
+at all — no Linux install section in `README.md` (not even
+build-from-source steps), no Linux bullets in its *Run from source*, and no
+Linux build/update notes in `MANUAL.md`. Don't add Linux install or build
+instructions back without the user asking.
+
 ## Never re-add `docx` to `apps/desktop/package.json`'s top-level `fileAssociations`
 
 `16a3060` ("Windows: .docx becomes Open-With-only; heal machines we

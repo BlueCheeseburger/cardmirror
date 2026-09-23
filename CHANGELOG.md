@@ -21,11 +21,12 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 
-- **Linux: build from source.** This fork doesn't publish Linux installers,
-  so the README's Linux install steps now walk through building the
-  AppImage (and the Arch `.pacman`) from this fork's source. Its "Download
-  the source" step also now points at this fork instead of upstream, which
-  would have built upstream's app without this fork's features.
+- **No more Linux install instructions.** This fork only ships Windows and
+  macOS, so the README's Linux install section (AppImage, `.pacman`, AUR —
+  none of which this fork publishes) is gone, along with the Linux-specific
+  steps in "Run from source". That section's "Download the source" step
+  also now points at this fork instead of upstream, which would have built
+  upstream's app without this fork's features.
 
 ## 1.12.0-bcb.2 — 2026-09-23
 
