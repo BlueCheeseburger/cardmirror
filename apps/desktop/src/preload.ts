@@ -982,6 +982,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  above (`external:jump` / `external:jump-result`). */
   pluginJump: (source: string): Promise<Record<string, unknown>> =>
     ipcRenderer.invoke('host:plugin-jump', source),
+  /** Raise this window (restore/show/focus, activating the app on macOS)
+   *  after a plugin jump resolved locally. */
+  focusSelf: (): Promise<void> => ipcRenderer.invoke('host:focus-self'),
   flowApps: (): Promise<unknown[]> => ipcRenderer.invoke('host:flow-apps'),
   flowPost: (appId: string, route: string, body: unknown): Promise<Record<string, unknown>> =>
     ipcRenderer.invoke('host:flow-post', appId, route, body),

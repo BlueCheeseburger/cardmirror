@@ -24,7 +24,6 @@ import type { Thread, Comment } from './comments-plugin.js';
 import type { LocalComment } from './learn-store.js';
 import { NavigationPanel } from './nav-panel.js';
 import { initUpdateChip } from './update-chip.js';
-import { initFlowChip } from './flow-chip.js';
 import { mountTimerUI } from './timer-ui.js';
 import { initTimerAudio } from './timer-audio.js';
 import {
@@ -48,7 +47,6 @@ import {
   buildDeleteStructureTr,
   installIncomingSpeechSliceHandler,
 } from './speech-doc-send.js';
-import { sendTaglineToFlowAtCursor } from './flow-send.js';
 import { promptForChoice, promptForText, promptForRouteChoice, alertDialog, confirmDialog, installModalKeys, armDialogFocus } from './text-prompt.js';
 import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
 import { positionFloatingMenu } from './context-menu-position.js';
@@ -1030,15 +1028,6 @@ function updatePlainPasteIndicator(armed: boolean): void {
   const updateChipEl = document.getElementById('update-chip') as HTMLButtonElement | null;
   const chipHost = getElectronHost();
   if (updateChipEl && chipHost) initUpdateChip(updateChipEl, chipHost);
-}
-// PolicyDebateFlow connection chip — desktop only, same gate as the
-// update chip; whether it's actually shown (a token is paired) is
-// decided inside initFlowChip's own render().
-{
-  const flowChipEl = document.getElementById('pf-flow-chip') as HTMLButtonElement | null;
-  if (flowChipEl && getElectronHost()) {
-    initFlowChip(flowChipEl, () => settingsBtn.click());
-  }
 }
 
 // Timer pop-out reconciliation — the timer always LAUNCHES popped
@@ -2288,12 +2277,6 @@ const ribbonContext: RibbonContext = {
     }
     if (view) void sendViewToDropzone(view);
   },
-  // No multi-pane routing needed — unlike send-to-speech/dropzone, this
-  // always acts on whichever pane's view has the cursor, not a shared
-  // cross-pane destination.
-  sendToFlowAtCursor: () => {
-    if (view) sendTaglineToFlowAtCursor(view);
-  },
   sendToStarred: () => {
     if (multiDocSendToStarred) {
       multiDocSendToStarred();
@@ -3133,6 +3116,10 @@ for (const btn of [qcSearchBtn, qcTagPickerBtn, qcManageBtn, qcAddBtn]) {
 qcAddBtn?.addEventListener('click', () => runRibbon('addQuickCard'));
 // Search is view-less — call ctx directly so it opens even with no doc.
 qcSearchBtn?.addEventListener('click', () => ribbonContext.openQuickCardSearch());
+// Status-bar twin of the search button — same view-less entry point.
+const statusSearchBtn = document.getElementById('status-search-btn') as HTMLButtonElement | null;
+statusSearchBtn?.addEventListener('mousedown', (e) => e.preventDefault());
+statusSearchBtn?.addEventListener('click', () => ribbonContext.openQuickCardSearch());
 qcTagPickerBtn?.addEventListener('click', () => {
   if (qcTagPickerBtn) openQuickCardTagPicker(qcTagPickerBtn);
 });
