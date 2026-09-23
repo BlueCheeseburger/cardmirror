@@ -78,6 +78,11 @@ export interface HomeScreenCallbacks {
   reopenRecentWorkspace?: (ws: RecentWorkspace) => void;
   /** Open the Quick Cards manage overlay. */
   manageQuickCards: () => void;
+  /** Open the Settings panel. Rendered as its own labeled group in the
+   *  slot beside Learn (the last tile, so number key 0 in the normal
+   *  desktop layout, after Compare); omitted → no tile. Until 2026-09-21 the home screen
+   *  reached Settings only through the command bar. */
+  openSettings?: () => void;
   /** Open the .docx style cleaner. Electron-only (recursive folder I/O +
    *  write-to-path), like bulkConvert; omitted on the web edition. */
   clean?: () => void;
@@ -214,6 +219,8 @@ class HomeScreen {
     // Manage is always reachable — even with zero cards, the user may
     // want to import flashcards from a file.
     runners.push(() => openLearnManage());
+    // Settings — the last tile (9 in the normal layout).
+    if (callbacks.openSettings) runners.push(() => this.callbacks?.openSettings?.());
     this.actionRunners = runners;
     const actions = document.createElement('div');
     actions.className = 'pmd-home-actions';
@@ -398,6 +405,20 @@ class HomeScreen {
     const learnGroup = labeledGroup('Learn', this.learnEl);
     learnGroup.classList.add('pmd-home-labeled-learn');
     qcGrid.appendChild(learnGroup);
+    // Settings — its own labeled group in the third column of the Learn
+    // row (Learn spans two), so the panel is one click from home.
+    if (callbacks.openSettings) {
+      qcGrid.appendChild(
+        labeledGroup(
+          'Settings',
+          this.actionCard(
+            'Settings',
+            'Appearance, keyboard shortcuts, files, and everything else.',
+            () => this.callbacks?.openSettings?.(),
+          ),
+        ),
+      );
+    }
     qcSection.appendChild(qcGrid);
     inner.appendChild(qcSection);
 
@@ -471,7 +492,9 @@ class HomeScreen {
     // inputs to conflict with, but still ignore the chord variants so a
     // stray modifier doesn't fire an action unexpectedly.
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const idx = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8 }[e.key];
+    // 0 is the tenth runner (it follows 9 on the number row) — Compare
+    // pushes Settings to tenth in the usual desktop layout.
+    const idx = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '0': 9 }[e.key];
     if (idx === undefined) return;
     const run = this.actionRunners[idx];
     if (run) {

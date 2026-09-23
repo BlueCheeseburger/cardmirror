@@ -111,6 +111,8 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
   {
     title: 'Editing utilities',
     commands: [
+      'undo',
+      'redo',
       'pasteAsText',
       'pasteCondensed',
       'clearToNormal',
@@ -133,6 +135,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'selectCurrentHeading',
       'deleteCurrentHeading',
       'copyCurrentHeading',
+      'copyCardsWithMatchingCite',
       'moveContainerUp',
       'moveContainerDown',
       'flipQuoteDirection',
@@ -159,6 +162,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'openShadingPicker',
       'openFontColorPicker',
       'openFontSizePicker',
+      'resetDefaultColors',
       'openDocToolsMenu',
       'openCardToolsMenu',
       'openTableMenu',
@@ -290,6 +294,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'fixFormattingGaps',
       'repairParagraphIntegrity',
       'removeHyperlinks',
+      'linkUrls',
     ],
   },
   {

@@ -34,10 +34,12 @@
  * of an analytic_unit.
  */
 
+import { linkUrls } from './autolink.js';
 import { Fragment, type Mark, type MarkType, type Node as PMNode, type ResolvedPos } from 'prosemirror-model';
 import { Selection, TextSelection, type Command, type EditorState, type Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { toggleMark } from 'prosemirror-commands';
+import { undo as historyUndo, redo as historyRedo } from 'prosemirror-history';
 import { toggleReadingMarkerCommand } from './reading-marker.js';
 import { convertCardsToReadMode } from './convert-cards-to-read-mode.js';
 import { openFootnoteEditor } from './footnote-popover.js';
@@ -4317,6 +4319,8 @@ export type StructuralRibbonCommandId =
 
 export type RibbonCommandId =
   | StructuralRibbonCommandId
+  | 'undo'
+  | 'redo'
   | 'moveContainerUp'
   | 'moveContainerDown'
   | 'toggleBold'
@@ -4394,6 +4398,7 @@ export type RibbonCommandId =
   | 'selectSimilar'
   | 'removeHyperlinks'
   | 'toggleLink'
+  | 'linkUrls'
   | 'convertAnalyticsToTags'
   | 'convertCitedAnalyticsToTags'
   | 'fixFormattingGaps'
@@ -4444,6 +4449,7 @@ export type RibbonCommandId =
   | 'toggleSubRole'
   | 'toggleNumRestart'
   | 'copyCurrentHeading'
+  | 'copyCardsWithMatchingCite'
   // Quick Cards (see reference-docs/SPEC-quick-cards.md). Add saves the
   // current selection as a named, tagged snippet (no default binding);
   // the search palette opens on Mod-Shift-Space.
@@ -4504,6 +4510,7 @@ export type RibbonCommandId =
   | 'openShadingPicker'
   | 'openFontColorPicker'
   | 'openFontSizePicker'
+  | 'resetDefaultColors'
   | 'openDocToolsMenu'
   | 'openCardToolsMenu'
   | 'openTableMenu'
@@ -4560,6 +4567,8 @@ export const STRUCTURAL_RIBBON_COMMAND_IDS: StructuralRibbonCommandId[] = [
 
 export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   ...STRUCTURAL_RIBBON_COMMAND_IDS,
+  'undo',
+  'redo',
   'moveContainerUp',
   'moveContainerDown',
   'toggleBold',
@@ -4637,6 +4646,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'selectSimilar',
   'removeHyperlinks',
   'toggleLink',
+  'linkUrls',
   'convertAnalyticsToTags',
   'convertCitedAnalyticsToTags',
   'fixFormattingGaps',
@@ -4682,6 +4692,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'toggleSubRole',
   'toggleNumRestart',
   'copyCurrentHeading',
+  'copyCardsWithMatchingCite',
   'addQuickCard',
   'manageQuickCards',
   'openQuickCardSearch',
@@ -4724,6 +4735,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'openShadingPicker',
   'openFontColorPicker',
   'openFontSizePicker',
+  'resetDefaultColors',
   'openDocToolsMenu',
   'openCardToolsMenu',
   'openTableMenu',
@@ -4749,6 +4761,8 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
 ];
 
 export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
+  undo: 'Undo',
+  redo: 'Redo',
   setPocket: 'Apply Pocket Style',
   setHat: 'Apply Hat Style',
   setBlock: 'Apply Block Style',
@@ -4832,6 +4846,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   selectSimilar: 'Select Similar Formatting',
   removeHyperlinks: 'Remove Hyperlinks',
   toggleLink: 'Add / Remove Hyperlink',
+  linkUrls: 'Link URLs',
   convertAnalyticsToTags: 'Convert Analytics to Tags',
   convertCitedAnalyticsToTags: 'Convert Cited Analytics to Tags',
   fixFormattingGaps: 'Fix Formatting Gaps',
@@ -4877,6 +4892,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   toggleSubRole: 'Number: Toggle Substructure Role',
   toggleNumRestart: 'Number: Toggle Start-Over-Here',
   copyCurrentHeading: 'Copy Current Heading',
+  copyCardsWithMatchingCite: 'Copy All Cards With Matching Cite',
   addQuickCard: 'Add Quick Card',
   manageQuickCards: 'Manage Quick Cards',
   openQuickCardSearch: 'Search Everything',
@@ -4918,6 +4934,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   openShadingPicker: 'Open Background Color Picker',
   openFontColorPicker: 'Open Font Color Picker',
   openFontSizePicker: 'Open Font Size Picker',
+  resetDefaultColors: 'Reset to Default Colors',
   openDocToolsMenu: 'Open Doc Tools Menu',
   openCardToolsMenu: 'Open Card Tools Menu',
   openTableMenu: 'Open Table Menu',
@@ -4955,6 +4972,8 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
  * Keep entries lowercase. Only commands that need an alias appear here.
  */
 export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly string[]>> = {
+  undo: ['ctrl-z', 'cmd-z', 'take back', 'revert'],
+  redo: ['ctrl-y', 'cmd-y', 'ctrl-shift-z', 'do again'],
   sendToRecipient: ['send to contact', 'send card to', 'pick recipient', 'send to group'],
   minimizeWindow: ['minimize', 'hide window', 'window menu'],
   openJournalsFolder: ['crash', 'recovery', 'journal', 'restore', 'lost work', 'autosave folder'],
@@ -5007,6 +5026,8 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   pasteCondensed: ['paste condense', 'paste merge', 'paste flatten', 'paste no paragraphs', 'destructive paste'],
   removeHyperlinks: ['remove links', 'unlink'], // "delete …" via the delete/remove synonym group
   toggleLink: ['add link', 'insert link', 'hyperlink', 'create link', 'remove link', 'unlink selection'],
+  linkUrls: ['hyperlink urls', 'autolink', 'make links', 'add links', 'linkify'],
+  resetDefaultColors: ['default colors', 'reset colors', 'reset swatches', 'reset highlight color', 'reset background color'],
   applyShading: ['shading', 'text highlight color'],
   insertImage: ['add image', 'insert picture', 'photo'],
   // "Insert …" element commands also answer to "add …" (genuine equivalence —
@@ -5083,6 +5104,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   timerReset: ['reset timer', 'reset prep'],
   flipQuoteDirection: ['flip quotes', 'curly quotes', 'reverse quote direction', 'smart quote direction', 'fix apostrophe', 'quote direction'],
   deleteCurrentHeading: ['delete card', 'delete heading', 'delete current card'], // "remove …" via the delete/remove synonym group
+  copyCardsWithMatchingCite: ['copy matching cite', 'copy same cite', 'copy cards by cite', 'copy all cards with this cite', 'cite cards'],
   toggleNumberRole: ['number', 'numbering', 'numbered card', 'auto number', 'list number'],
   toggleSubRole: ['substructure', 'sub number', 'sub letter', 'numbering', 'sublist', 'letter'],
   toggleNumRestart: ['restart numbering', 'start over', 'renumber', 'continue numbering', 'number restart'],
@@ -5120,6 +5142,8 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
  * inline marks.
  */
 export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
+  undo: 'Mod-z',
+  redo: ['Mod-y', 'Mod-Shift-z'],
   setPocket: 'F4',
   setHat: 'F5',
   setBlock: 'F6',
@@ -5209,6 +5233,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   selectSimilar: '',
   removeHyperlinks: '',
   toggleLink: 'Mod-k',
+  linkUrls: '',
   convertAnalyticsToTags: '',
   convertCitedAnalyticsToTags: '',
   fixFormattingGaps: '',
@@ -5272,6 +5297,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   toggleSubRole: 'Mod-Alt-2',
   toggleNumRestart: 'Mod-Alt-3',
   copyCurrentHeading: '',
+  copyCardsWithMatchingCite: '',
   addQuickCard: '',
   manageQuickCards: '',
   openQuickCardSearch: 'Mod-Shift-Space',
@@ -5343,6 +5369,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   openShadingPicker: '',
   openFontColorPicker: '',
   openFontSizePicker: '',
+  resetDefaultColors: '',
   openDocToolsMenu: '',
   openCardToolsMenu: '',
   openTableMenu: '',
@@ -5531,6 +5558,13 @@ export interface RibbonContext {
    *  heading + subtree) outright — no blank heading left behind. */
   deleteCurrentHeading: () => void;
   copyCurrentHeading: () => void;
+  /** Copy every card whose cite matches the cursor's cite (or contains
+   *  the selected part of one) — copy-matching-cite.ts. No-op + toast
+   *  when the selection touches no cite. */
+  copyCardsWithMatchingCite: () => void;
+  /** Put the highlight and background-color swatch pickers back on the
+   *  defaults from Settings → Editing → Default colors. */
+  resetDefaultColors: () => void;
   /** Save the current selection as a named, tagged quick card
    *  (opens the Add dialog). No-op + toast if the selection is empty. */
   addQuickCard: () => void;
@@ -5614,6 +5648,16 @@ export interface RibbonContext {
   openDocToolsMenu: () => void;
   openCardToolsMenu: () => void;
   openTableMenu: () => void;
+  /** Undo / redo for the FOCUSED document — supplied by the editor host
+   *  because the right command is decided at run time: a live
+   *  collaboration session's own undo manager (it reverts only this
+   *  peer's edits, which history cannot guarantee once remote edits
+   *  interleave), else prosemirror-history with read mode's marker-only
+   *  limits; with `repeatWithModY` on, Redo falls through to Word-style
+   *  Repeat when nothing is left to redo. Optional so a bare context
+   *  (tests, previews) gets plain history undo/redo. */
+  undoCommand?: () => Command;
+  redoCommand?: () => Command;
 }
 
 const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
@@ -5693,6 +5737,8 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   selectCurrentHeading: () => {},
   deleteCurrentHeading: () => {},
   copyCurrentHeading: () => {},
+  copyCardsWithMatchingCite: () => {},
+  resetDefaultColors: () => {},
   addQuickCard: () => {},
   manageQuickCards: () => {},
   openQuickCardSearch: () => {},
@@ -5761,6 +5807,10 @@ function startSpeechPreset(idx: number): void {
 
 function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
   switch (id) {
+    // Resolved per press, not per build: the routing depends on which
+    // document has focus (see RibbonContext.undoCommand).
+    case 'undo': return (state, dispatch, view) => (ctx.undoCommand?.() ?? historyUndo)(state, dispatch, view);
+    case 'redo': return (state, dispatch, view) => (ctx.redoCommand?.() ?? historyRedo)(state, dispatch, view);
     case 'setPocket': return setHeading('pocket');
     case 'setHat': return setHeading('hat');
     case 'setBlock': return setHeading('block');
@@ -6123,6 +6173,8 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         void toggleOrCreateLink(view);
         return true;
       };
+    case 'linkUrls':
+      return linkUrls();
     case 'convertAnalyticsToTags':
       return convertAnalyticsToTags();
     case 'convertCitedAnalyticsToTags':
@@ -6374,6 +6426,18 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.copyCurrentHeading();
+        return true;
+      };
+    case 'copyCardsWithMatchingCite':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.copyCardsWithMatchingCite();
+        return true;
+      };
+    case 'resetDefaultColors':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.resetDefaultColors();
         return true;
       };
     case 'addQuickCard':

@@ -189,7 +189,7 @@ export const readModePlugin: Plugin<ReadModeState> = new Plugin<ReadModeState>({
 
 /** Undo — but in read mode, only as far back as the markers dropped since
  *  read mode was entered (never earlier edits). Outside read mode, plain
- *  undo. Bound to Mod-Z. */
+ *  undo. The `undo` ribbon command (default Mod-Z). */
 export const readModeAwareUndo: Command = (state, dispatch, view) => {
   const rm = readModePlugin.getState(state);
   if (rm?.on) {
@@ -201,7 +201,8 @@ export const readModeAwareUndo: Command = (state, dispatch, view) => {
 
 /** Redo — in read mode, only marker edits undone since entry (a dropped
  *  marker clears any earlier redo, so `dirtied` means redo is marker-only).
- *  Outside read mode, plain redo. Bound to Mod-Y / Mod-Shift-Z. */
+ *  Outside read mode, plain redo. The `redo` ribbon command (defaults
+ *  Mod-Y and Mod-Shift-Z). */
 export const readModeAwareRedo: Command = (state, dispatch, view) => {
   const rm = readModePlugin.getState(state);
   if (rm?.on) {
@@ -226,9 +227,12 @@ function isReadKept(child: PMNode, markNames: readonly string[]): boolean {
  *  run shows all of its text (qualifications, source, date), not just the
  *  marked runs. A cite with nothing marked still collapses, like a body
  *  paragraph with nothing highlighted, so an unmarked cite never shows as
- *  a stray line. The setting is read at decoration time; both shells
- *  rebuild the set when it flips. */
+ *  a stray line. "Read mode: show undertags" — every undertag paragraph
+ *  shows whole (the block itself comes back through the host's
+ *  `pmd-rm-show-undertags` class; style.css). Both settings are read at
+ *  decoration time; both shells rebuild the set when either flips. */
 function keepsWholeParagraph(para: PMNode, markNames: readonly string[]): boolean {
+  if (para.type.name === 'undertag') return settings.get('readModeShowUndertags');
   if (para.type.name !== 'cite_paragraph' || !settings.get('readModeKeepEntireCite')) return false;
   let any = false;
   para.forEach((child) => {

@@ -8,6 +8,32 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.12.0-bcb.1 — 2026-09-23
+
+### Changed
+
+- **Settings on the home screen answers to 0, not 9.** Upstream's new
+  Settings tile is the last tile, which upstream puts on the 9 key; this
+  fork's extra Compare tile pushes it one further, so it now sits on 0
+  (the key after 9). Every other tile keeps its number.
+- **Custom Save's card-number options fit the Save As redesign.** Upstream's
+  new "Freeze card numbers as text" / "Remove card numbers" pair appears
+  among Custom Save's checkboxes, and Send Doc / Marked Doc apply your card
+  number settings when saved, the same as upstream.
+
+### From upstream
+
+Syncs all changes from [v1.12.0](#1120--2026-09-21) and [v1.11.0](#1110--2026-09-19). Highlights:
+- **Link URLs** — turn every web address in the selection (or document) into a link, plus an optional link-as-you-type setting (off by default). Works alongside this fork's Ctrl/Cmd+K Add/Remove Hyperlink
+- **Mod+click opens a link**; a plain click just places the cursor
+- **Context menus open on a right-click only** — Ctrl+click on a Mac no longer opens them
+- **Send and Marked Docs freeze (or remove) card numbers** so a speech prepped as 1, 3, 5 doesn't come out 1, 2, 3
+- **Copies keep their look when pasted into other apps** (email, Google Docs, Word)
+- **Browse file-search folders** from Search Everything with `/` (desktop)
+- **Undo and Redo can be rebound**; Repeat now covers Enter, Tab, macros and autocorrect
+- **Copy All Cards With Matching Cite**, a **stopwatch** mode for the timer, **Reset to Default Colors**, and a **show undertags** option for read mode
+- Fixes to Reading View's last page and to sending several selected headings
+
 ## 1.10.0-bcb.4 — 2026-09-18
 
 ### Added
@@ -312,6 +338,141 @@ side.
 
 *The sections below are upstream CardMirror's own release notes, synced into
 this fork. This fork's own changes are covered above in [Fork Changes](#fork-changes).*
+
+## 1.12.0 — 2026-09-21
+
+### Added
+
+- **Link URLs.** A new Doc-menu command (also in Search Everything;
+  unbound) turns every web address in the selection, or in the whole
+  document when nothing is selected, into a link: http:// and https://
+  addresses, and www. addresses. Trailing punctuation and an unmatched
+  closing bracket stay outside the link, and text that is already a
+  link is left alone. Remove Hyperlinks is still there to undo it all.
+- **Link URLs as you type** (Settings → Editing → Typing, off by
+  default) does the same to an address the moment you type a space or
+  press Enter after it.
+- **Mod+click opens a link.** A plain click on a link only places the
+  cursor, as on any text; hold Cmd (Mac) or Ctrl (Windows, Linux) and
+  click to open it. Right-click still offers Open, Copy, Edit and
+  Remove.
+- **Read mode: show undertags** (Settings → General → Editor behavior,
+  off by default) shows every undertag, whole, in read mode, beside the
+  existing keep-entire-cite option. Convert Cards to Read Mode follows
+  it. Undertag text still counts toward word counts and read time only
+  where it is highlighted, as before.
+- **Settings from the home screen.** A Settings tile sits beside Learn,
+  with its own heading, and answers to the 9 key like the other tiles.
+  Until now the home screen reached Settings only through the command
+  bar.
+- **Reset to Default Colors.** A new command (command bar; unbound) puts
+  the highlight and background-color swatch pickers back on their
+  defaults. Which defaults is up to you: a new **Default colors** section
+  under Settings → Editing holds the two, yellow and the picker's light
+  gray unless you change them.
+
+### Changed
+
+- **Background color is distinguished from highlighting by default.**
+  The faint dot grid over background color (Settings → Appearance →
+  Document typography) is now on for everyone, once; turn it off and it
+  stays off.
+- **Context menus open on a right-click only.** Ctrl+click on a Mac
+  used to open the editor's Cut / Copy / Paste menu, the nav pane's row
+  menu and the palette's row actions, since the system treats it as a
+  secondary click. It now opens nothing. Two-finger tap and the
+  keyboard menu key still work.
+
+### Fixed
+
+- **Classic icons: the nav pane's expanded arrow matches its collapsed
+  one.** The down arrow was a smaller glyph than the sideways one; in
+  the nav pane it is now the same size. Arrows elsewhere are unchanged.
+
+## 1.11.0 — 2026-09-19
+
+### Added
+
+- **Browse your file-search folders from the Search Everything palette
+  (desktop).** Type `/` and a space to see the folders you have set up
+  for file search; **Enter** or **Tab** steps into a folder, **Esc** steps
+  back up, and a folder only appears when it holds documents the file
+  search can see. Type after the prefix to search the folder you are in —
+  every document beneath it, plus subfolders whose name matches — and
+  pick a file exactly as you would from an `f` search, diving into it
+  with Tab included. `/c` and a space starts in the folder of the
+  document you are working in instead. Thanks to chips (@cheepsahoy)!
+- **Undo and Redo can be rebound.** They now appear under Editing
+  utilities in Settings → Keyboard shortcuts, with the usual defaults
+  (Mod-Z; Mod-Y and Mod-Shift-Z), and answer to the command bar. If
+  "Redo repeats the last action" (Settings → General → Editor behavior,
+  formerly "Mod-Y repeats the last action") is on, every key bound to
+  Redo repeats the last action once there is nothing left to redo —
+  Mod-Shift-Z included, which used to stay plain Redo.
+- **Copies keep their look when pasted into other apps.** Paste from
+  CardMirror into an email, Google Docs or Word and the tags, cites,
+  underlining, emphasis boxes, highlights, colors, sizes and your body
+  font come along, frozen to how the document looked on your screen
+  (light colors even in dark mode). Pasting back into CardMirror, this
+  version or an older one, produces exactly what it did before; plain
+  text copies are unchanged. One limit: bold that comes from a style
+  rather than a Bold mark (tags, cites, analytics) shows only where the
+  other app bolds headings itself.
+- **Copy All Cards With Matching Cite.** A new command (unbound; run it
+  from Search Everything or give it a key) copies every card in the
+  document that shares the cite at the cursor, in document order with
+  numbering removed. Select part of a cite — the cite mark, a title, a
+  URL — to copy every card whose cite contains that text instead. A
+  selection that runs past the cite counts only the part inside it;
+  with no cite under the cursor, nothing is copied.
+- **The timer doubles as a stopwatch.** Press Start with the speech
+  clock at 0:00 and it counts up instead of doing nothing; a small
+  up-arrow marks the count. Pause and Start work as always, and no
+  alert points flash or beep on the way up. Load a preset, type a
+  time, or press Reset to get a countdown back. After a countdown
+  runs out, pause it and press Start to count overtime, still in red.
+  Prep clocks are unchanged: a prep balance at 0:00 is spent.
+
+### Changed
+
+- **Send and Marked Docs keep their card numbers, or drop them.**
+  Those exports drop analytics or unmarked cards, and the numbers on
+  what was left used to be recomputed, so a speech prepped as 1, 3, 5
+  came out as 1, 2, 3. Saving one of them now freezes the numbers
+  first: each numbered heading gets its number as plain text, in your
+  display format, and the copy is no longer auto-numbered, so deleting
+  a card from it during the round does not shift the rest. Two new
+  Files settings (Send Doc card numbers, Marked Cards card numbers) can
+  switch each preset to removing the numbers instead. Read Docs keep
+  every heading, so they keep live numbering. Custom save
+  offers the same two as a pair of checkboxes, one or the other;
+  neither keeps live numbering. A full save is unchanged; so is the
+  working document.
+
+### Fixed
+
+- **Reading View: the last page no longer loses its right-hand words
+  under the flip arrow.** When a document's final page held fewer
+  columns than a full page, the view stopped one column short of the
+  page boundary, so the previous page's last column showed on the left
+  and the document's last column sat under the right-hand arrow lane,
+  which hid its final words. The last page now lands on its own
+  boundary like every other page.
+- **Sending several selected headings sends the last one with its
+  cards.** Select from one heading down into another and press Send to
+  Speech (or send to a starred partner, a recipient, or the dropzone),
+  and the last heading used to arrive without its cards, or not at all,
+  depending on where the drag ended. A heading that ends the selection
+  now brings its whole section along, exactly as a bare cursor on that
+  heading does. Thanks to Cora (@coralynnkc)!
+- **Repeat covers Enter, Tab, keyboard macros and autocorrect.** With
+  "Redo repeats the last action" on, Repeat now presses Enter, Tab or
+  Shift-Tab once more (another paragraph or heading, another indent),
+  counts a keyboard macro's text as typing, and replays typed text
+  through autocorrect, so smart quotes, dashes and capitalization come
+  out as they did the first time instead of as raw keystrokes. Those
+  edits used to be unrepeatable, and also made Repeat forget whatever
+  came before them.
 
 ## 1.10.0 — 2026-09-10
 

@@ -408,6 +408,19 @@ If **Condense on paste** is on (Settings → Editing), the
 pasted text is condensed as it lands.
 
 <a id="smart-paste"></a>
+### Copying into other apps
+
+A copy from CardMirror carries its look with it. Paste into an email,
+Google Docs, or Word and the tags, cites, underlining, emphasis boxes,
+highlights, colors, sizes, and your body font arrive as they showed on
+your screen — frozen to your Appearance settings at the moment you
+copied (in light colors, even if you work in dark mode). Pasting back
+into CardMirror is unaffected: the same content, marks and structure as
+always, in this version or an older one. Plain-text pastes are
+unchanged. The one thing that does not travel is bold that comes from
+a style rather than the Bold mark — tags, cites, analytics — which
+shows only where the receiving app bolds headings on its own.
+
 ### Smart paste from Word and haku.cards
 
 A regular Ctrl/Cmd-V of content copied from Microsoft Word (including
@@ -466,6 +479,14 @@ every conversion is reversible with **Backspace** right after it fires.
   or the start of a line; closing (and the apostrophe) otherwise — so `don't`
   and `(he said "hi")` come out right.
 
+- **Link URLs as you type** (Settings → Editing → "Link URLs as you type", off
+  by default) turns a web address into a link the moment you type a space or
+  press Enter after it — `http://`, `https://` and `www.` addresses, with
+  trailing punctuation left outside the link. A plain click on a link only
+  places the cursor; **Mod+click** opens it. The **Link URLs** command (Doc
+  menu) does the same for what is already written — the selection, or the
+  whole document — and **Remove Hyperlinks** undoes it.
+
 - **Custom dash** (Settings → Editing → "Custom dash") turns a typed `---` into
   an en or em dash, with or without surrounding spaces (your choice), the moment
   you type the third hyphen.
@@ -521,6 +542,15 @@ warnings, your custom rules), and regular **Shrink (Mod-8)** and **Regrow
   as above.
 - **Copy Previous Cite (Alt-F8)** pulls the cite from the previous card
   into the current one — handy when cutting a long article.
+- **Copy All Cards With Matching Cite** (unbound; run it from Search
+  Everything or give it a key) copies every card in the document that
+  shares the cite at the cursor — in document order, numbering removed —
+  so you can pull all of an author's cards into a speech at once. Put the
+  cursor anywhere in a cite to match cards whose cite is the same; select
+  part of a cite (the cite mark, a title, a URL, a journal) to match every
+  card whose cite contains that text. A selection that runs past the cite
+  uses just the part inside it. With no cite under the cursor or in the
+  selection, nothing is copied.
 - **Format Cite from selection (Mod-Shift-X)** uses AI to turn a pasted
   citation or URL into a properly styled cite (see
   [AI features](#13-ai-features)).
@@ -558,7 +588,10 @@ turning their highlighting into background color so it isn't affected by
 
 Each of the three color controls is a **split button**: the main button
 applies the active color, and the small arrow opens a 16-swatch picker.
-The picker remembers your last color per control. The top-left swatch
+The picker remembers your last color per control; **Reset to Default
+Colors** (command bar) puts the highlight and background pickers back on
+the colors you set under Settings → Editing → Default colors (yellow and
+light gray unless you change them). The top-left swatch
 selects **no color** (No highlight / No background / Automatic) — and
 "no color" is a real pen, not just a one-off eraser: it stays active
 (the indicator bar under the button turns white), and the main button,
@@ -646,7 +679,7 @@ The **Doc** and **Card** ribbon menus hold document- and card-level
 operations. From the **Doc** menu: **Convert Analytics to Tags**,
 **Convert Cited Analytics to Tags** (the same, but only for analytics
 that actually carry a cite — bare analytics stay analytics), **Fix
-Formatting Gaps**, and **Remove Hyperlinks**. **Select Similar
+Formatting Gaps**, **Link URLs**, and **Remove Hyperlinks**. **Select Similar
 Formatting** selects everything that matches the cursor's styles.
 
 When you apply formatting to a word right next to an already-formatted word,
@@ -889,6 +922,7 @@ you *browse* that whole source.
 | **`c`** | Ribbon **commands** — each row shows its current shortcut | Runs the command |
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
+| **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
 
 Searching **version** (or "about this install") shows the running app
 version, and Enter jumps to the About this install section of Settings.
@@ -913,6 +947,21 @@ see it in context — the query clears and the outline opens to that spot,
 ancestors expanded. **Esc** returns you to the file
 list with your search restored. Undo (**Mod-Z**) works while you're diving,
 so you can take an insert back without closing the palette.
+
+**Browsing folders (`/`, desktop only).** When you know *where* a document
+lives but not what it is called, type `/` and a space: the palette lists
+the folders you have set up for file search. **Enter** or **Tab** steps
+into a folder, **Esc** steps back up (and closes the palette from the top
+level), and the header above the results shows where you are. Only folders
+that hold documents the file search can see are shown. Type after the prefix
+to search the folder you are in — every document beneath it, at any depth,
+plus subfolders whose name matches; each file shows the subfolder it sits
+in. Files here behave exactly as they do in an `f` search: Enter opens,
+Tab dives in, Alt-P pins. `/c` and a space starts in the folder of the
+document you are working in instead (it needs to be inside one of your
+file-search folders). Moving into or out of a folder clears what you had
+typed, and only changing the prefix itself takes you somewhere else — so
+after `/c` you can wander off and keep typing without being pulled back.
 
 **Pinning and speed.** Press **Alt-P** to pin or unpin the selected file
 (★). Pinned files sort to the top and stay parsed for instant search;
@@ -1053,7 +1102,8 @@ entire cite* is on. Undo restores the cards.
   undertags, and un-highlighted body text disappear. Of a cite, only
   its cite-marked and highlighted words show unless you turn on
   *Read mode: keep entire cite* (Settings → General), which shows the
-  whole citation.
+  whole citation; *Read mode: show undertags* (same place) brings the
+  undertags back, whole. Neither adds to the word count or read time.
 
 - It **locks the keyboard**, so a stray key or trackpad twitch at the
   podium can't edit your file.
@@ -1214,6 +1264,14 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   a new time. (Pausing or switching clocks doesn't dismiss it; the sound,
   if on, is a single double beep, never repeated.)
 
+- **Stopwatch.** With the speech clock at **0:00** — after Reset, or after
+  typing 0:00 — press Start and it counts **up**; a small **▲** before the
+  time marks the count. Pause and Start work as always, and no alert points
+  flash or beep on the way up. Load a preset, type a time, or press Reset
+  to return to a countdown. When a countdown has run out, pause it and press
+  Start to count the overtime, still in red. Prep clocks never count up: a
+  prep balance at 0:00 is spent.
+
 - **Pop the timer out** *(desktop)*. The **⇱** button moves the timer into a
   small floating window that stays on top of every app — handy for keeping
   speech and prep time in view while reading a speech doc or anything else.
@@ -1322,7 +1380,8 @@ command (default **Mod-Alt-M**, rebindable) that saves silently to a destination
 choose under Settings → *Marked Cards destination* (the source file's folder, or a 
 fixed folder), using the `MARKED_` filename prefix and the Marked Cards format — mirroring 
 Save Send Doc. It keeps cards only (analytics and headings are dropped); if nothing is marked,
-it does nothing and tells you so.
+it does nothing and tells you so. Card numbers are frozen into the saved copy as text (see
+[Send Doc](#16-saving-and-file-formats)), so the marked cards keep the numbers they had.
 
 ---
 
@@ -1943,11 +2002,11 @@ Keyboard shortcuts**. They appear only on Windows.
 
 ## 15. Voice control
 
-> **Experimental — and, in 1.10.0, commands are unreliable.** Dictation works
+> **Experimental — and, as of 1.12.0, commands are still unreliable.** Dictation works
 > well. The single-word commands do not yet: the recognizer decodes an open
 > vocabulary, so a one-word utterance often comes back as some other word
 > and nothing fires. Calibration helps only a little. A keyword-spotting pass
-> for the command channel is planned for the next release; until then, treat
+> for the command channel is planned for a coming release; until then, treat
 > the commands as a preview and the dictation key as the working part.
 
 **(Desktop only.)** Voice control lets you work a document with your
@@ -2210,6 +2269,18 @@ copy:
 - **Send Doc** — a clean reading copy with comments, analytics, and
   undertags stripped, for the judge or opponent (optionally with a
   `SEND_` filename prefix).
+- Send and Marked Docs **freeze their card numbers**: every
+  numbered heading gets its number written in as plain text, in your
+  display format, and the copy is no longer auto-numbered. Dropping the
+  analytics (or the unmarked cards) therefore does not renumber what is
+  left, and deleting a card from the copy during the round leaves the
+  other numbers alone. Each of the two can **remove** the numbers
+  instead (Settings → Files → *Send Doc card numbers* and *Marked Cards
+  card numbers*). A Read Doc keeps every heading, so it keeps live
+  numbering. Custom save has its own pair of boxes, **Freeze card
+  numbers as text** and **Remove card numbers** — one or the other;
+  leave both off to keep live numbering, as As-Is does. A full save
+  keeps live numbering.
 - Checkboxes (off by default) let you include **private notes** and **AI
   comments** in the saved file.
 
@@ -2403,18 +2474,25 @@ headers shown inside each tab.
   lines. Off by default. Display-only, like the rest of read mode — the
   document isn't touched (that's what
   [Condense](#condense-pilcrows-and-case) does).
-- **Mod-Y repeats the last action** — Word's Repeat. When on, Mod-Y with
+- **Redo repeats the last action** — Word's Repeat. When on, Redo with
   nothing left to redo does the last editing action again at the cursor:
-  types the last thing you typed, applies the same formatting to the
-  new selection, deletes one more character after a Backspace or
-  Delete, pastes the same thing again, or re-runs the last command.
-  Redo still comes first whenever there is something to redo, and
-  Mod-Shift-Z stays plain Redo. Off by default.
+  types the last thing you typed (a keyboard macro's text included,
+  with autocorrect applied as you go), applies the same formatting to
+  the new selection, presses Backspace, Delete, Enter, Tab or Shift-Tab
+  once more, pastes the same thing again, or re-runs the last command.
+  Redo still comes first whenever there is something to redo. Any key
+  bound to Redo behaves this way (Mod-Y and Mod-Shift-Z by default; see
+  Settings → Keyboard shortcuts). Off by default.
 - **Read mode: keep entire cite** — when on, read mode shows the whole of
   any cite that has read-aloud text in it — qualifications, source, date
   and all — instead of only its cite-marked and highlighted words. A cite
   with nothing marked stays hidden. Off by default. Display-only, and
   Convert Cards to Read Mode follows it too.
+- **Read mode: show undertags** — when on, read mode shows undertags, the
+  whole of each one, instead of hiding them. Off by default. Display-only,
+  and Convert Cards to Read Mode follows it too. Undertag text still does
+  not count toward word counts or read-time estimates unless it is
+  highlighted.
 
 **Word counts**
 
@@ -2503,6 +2581,9 @@ file search scans, and how much version history to keep.
 - **Send Doc format** — the format Save Send Doc writes: `.docx`
   (default), `.cmir`, or the same as new documents. The Save As dialog is
   unaffected.
+- **Send Doc card numbers** — freeze the card numbers as heading text
+  (default) or remove them. Read by Save Send Doc and by the Save As
+  dialog's Send Doc preset; Custom save has its own choice.
 - **Read Doc destination / folder / format** *(destination and folder:
   desktop)* — the same three options for the Save Read Doc command (unbound
   by default; run it from the command bar or give it a key).
@@ -2514,6 +2595,9 @@ file search scans, and how much version history to keep.
 - **Marked Cards format** — the format Save Marked Cards writes: `.docx`
   (default), `.cmir`, or the same as new documents. The Save As dialog is
   unaffected.
+- **Marked Cards card numbers** — freeze the card numbers as heading text
+  (default) or remove them. Read by Save Marked Cards and by the Save As
+  dialog's Marked Doc preset; Custom save has its own choice.
 
 **File search**
 
@@ -2610,7 +2694,7 @@ How things look. None of these change the file — only your view (see
   control as Accessibility → Color overrides → Document text).
 - **Distinguish background color from highlighting** — overlays a
   deliberately faint dot grid on background color so it can be told
-  apart from highlighting at a glance. Off by default — the two stay
+  apart from highlighting at a glance. On by default — the two stay
   visually identical. Display-only; the file and anything you copy or
   export are untouched.
 - **Show character styles** — show the cite / underline / emphasis
@@ -2675,6 +2759,8 @@ Typing helpers and the behavior of the cutting and condense commands
 
 - **Smart quotes** — curl a straight `'` / `"` to the right direction as you
   type; Backspace right after reverts. Off by default.
+- **Link URLs as you type** — link a web address the moment a space or Enter
+  follows it. Off by default; the Link URLs command covers existing text.
 - **Custom dash** — turn a typed `---` (or `--`, your choice) into an en
   or em dash (spaced or unspaced) on the trigger's last hyphen;
   Backspace right after reverts to the literal hyphens. Off by default.
@@ -2772,6 +2858,15 @@ Typing helpers and the behavior of the cutting and condense commands
 - **Background color exception** — the background color that "Standardize
   Background Color (with Exception)" leaves untouched. Any color; defaults
   to yellow.
+
+**Default colors**
+
+- **Default highlight color** — the highlight that **Reset to Default
+  Colors** (command bar; unbound) puts back on the highlight swatch picker.
+  One of Word's 15 highlight colors; yellow by default.
+- **Default background color** — the background color the same command
+  puts back on the background-color swatch picker. Any color; the picker's
+  own starting light gray by default.
 
 **Acronym marking**
 
@@ -2948,6 +3043,7 @@ All defaults; rebind any of them in **Settings → Keyboard shortcuts**.
 | F10 / Alt-F10 | Emphasis / Emphasize acronym |
 | F11 / Alt-F11 | Highlight / Highlight acronym |
 | Mod-F11 | Background color |
+| Mod-Z / Mod-Y | Undo / Redo (Mod-Shift-Z also redoes) |
 | Mod-B / Mod-I | Bold / Italic |
 | Mod-Shift-= / Mod-= | Superscript / Subscript |
 | F12 | Clear formatting |
@@ -2976,7 +3072,7 @@ these to extend the selection.
 |----------|--------|
 | Mod-F / Mod-H | Find / Find and Replace |
 | Alt-F | Find without grouping |
-| Mod-Shift-Space | Search Everything palette (files `f`, Quick Cards `q`) |
+| Mod-Shift-Space | Search Everything palette (files `f`, folders `/`, Quick Cards `q`) |
 
 ### Speech, comments, and AI
 | Shortcut | Action |
