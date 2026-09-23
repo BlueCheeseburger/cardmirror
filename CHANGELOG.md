@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.12.0-bcb.2 — 2026-09-23
 
 ### Added
 
@@ -33,8 +33,6 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   Settings → PolicyDebateFlow tab, and the status-bar Flow chip are gone —
   the integration is moving to a CardMirror plugin instead of living in the
   app itself. Shift-`` ` `` is unbound by default again.
-
----
 
 ## 1.12.0-bcb.1 — 2026-09-23
 
