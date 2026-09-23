@@ -68,6 +68,12 @@ reached the relay. An empty or malformed server response is treated as
 a failed fetch (cache/baked fallback), never as "block everything". To
 get a plugin listed, contact the CardMirror maintainer.
 
+This fork (BlueCheeseburger/cardmirror) also always allows its own
+plugins (`FORK_PLUGIN_ALLOWLIST`, currently `BlueCheeseburger/policy-flow`),
+whatever list resolved. The relay is upstream's and doesn't list them,
+and a fetched list replaces the baked one, so an entry only in the baked
+list would disappear whenever the relay is reachable.
+
 Self-hosted relays serve the same endpoint (see `relay/README.md`):
 the fetch goes to whichever relay the client is configured to use, so
 a self-hosting operator curates their own users' allowlist via

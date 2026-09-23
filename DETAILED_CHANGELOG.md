@@ -64,6 +64,18 @@ macOS, since `win.focus()` alone doesn't activate a background app there
 `tests/editor/plugin-api-jump-focus.test.ts`; `_electron-stub.ts` gains
 `app.focus`.
 
+### Added: fork plugin allowlist (`plugin-manager.ts`)
+
+`BlueCheeseburger/policy-flow` (the plugin replacing the removed built-in
+integration) goes on the baked `PLUGIN_INSTALL_ALLOWLIST`, and in a new
+`FORK_PLUGIN_ALLOWLIST` that `currentAllowlist` unions into whatever list
+resolved (relay → disk cache → baked). The baked entry alone wouldn't be
+enough: the relay is upstream's, doesn't list fork plugins, and a
+fetched list replaces the baked one wholesale. So fork entries can't be
+revoked from the relay; that's acceptable for plugins the fork owns. Two
+new cases in `tests/desktop/plugin-manager.test.ts`, covering the baked
+check and a relay list that omits the entry.
+
 ### Added: status-bar Search Everything button (`index.html`, `index.ts`, `style.css`)
 
 `#status-search-btn` takes the old chip's slot in the status bar — an
