@@ -54,8 +54,7 @@ they're described.
 
 Download the desktop app for Windows or macOS from this fork's
 [Releases page](https://github.com/BlueCheeseburger/cardmirror/releases).
-This fork doesn't publish Linux or CardMirror Lite builds; on Linux, build
-the app from source (the README's Linux install steps walk through it). The
+This fork doesn't publish CardMirror Lite builds. The
 [live web preview](https://cardmirror.app/) is the upstream project's hosted
 build, so it doesn't have this fork's additions. Full install
 instructions — including the one-time "unsigned app" prompts on Windows and
@@ -2568,8 +2567,7 @@ at launch and once a day — and only speaks up when a new version is
 actually ready. **(fork)** Updates come from this fork's releases, not the
 upstream project's. You can turn this off with the **Check for updates
 automatically** toggle in Settings → General → About this install;
-**Help → Check for Updates…** always works either way. (A Linux build you
-made from source doesn't update itself — rebuild from the new source.)
+**Help → Check for Updates…** always works either way.
 
 **Going to a tournament?** The **Pause update checks for 1 week**
 button (next to the auto-check toggle in Settings → General → About

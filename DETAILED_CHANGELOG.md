@@ -51,21 +51,23 @@ region (a run of removes + adds between equal lines) before zipping it:
   input). `tests/editor/doc-diff-ui.test.ts`: `<del>`/`<ins>` rendering and
   no word marks on unrelated replaced lines.
 
-### Changed: Linux install is build-from-source (`README.md`, `MANUAL.md`)
+### Changed: Linux dropped from the install docs (`README.md`, `MANUAL.md`, `CLAUDE.md`)
 
-Requested directly. `README.md`'s Linux section documented the
-`.AppImage`/`.pacman`/AUR installs that stopped shipping when `ubuntu-latest`
-left the release matrix. It now points at *Run from source* steps 1–4 plus
-`npm run desktop:install` and `npm run desktop:dist`. Verified by running
-exactly that in the Linux sandbox: the AppImage built
-(`apps/desktop/release/cardmirror-1.12.0-bcb.1.AppImage`, ~129 MB); the
-`.pacman` target then failed only because the sandbox lacks `bsdtar` (fpm's
-`.MTREE` step), which Arch ships in its base system — so the README says
-that, and that the AppImage is already usable if the pacman step fails.
-Also: the updater can't update a self-built Linux app (no `latest-linux.yml`
-on this fork's releases), the AUR package installs upstream, "Download the
-source" now links this fork rather than upstream, and the Windows-and-Linux
-"quitting applies an update" line is Windows-only in both files.
+Requested directly: don't include Linux versions at all. `README.md`'s
+Linux section documented `.AppImage`/`.pacman`/AUR installs that stopped
+shipping when `ubuntu-latest` left the release matrix. A first pass
+rewrote it as build-from-source instructions (`npm run desktop:install` +
+`npm run desktop:dist`, verified here to produce the AppImage); per the
+request it's now removed outright instead, along with the Linux bullets in
+*Run from source* (Node install, opening a terminal, the `ls`/`pwd` hints)
+and "a platform we don't publish binaries for" from its intro. The Windows-
+and-Linux "quitting applies an update" line is Windows-only, the AUR note is
+gone, and `MANUAL.md` no longer mentions Linux builds. Kept: the manual's
+keyboard notes ("Ctrl on Windows/Linux"), which describe key behavior in a
+browser rather than a Linux build, and `apps/desktop/package.json`'s
+`linux` electron-builder config, which nothing in CI or the release builds.
+"Download the source" now links this fork rather than upstream.
+`CLAUDE.md` records the no-Linux rule for future sessions.
 
 ## 1.12.0-bcb.2 — 2026-09-23
 

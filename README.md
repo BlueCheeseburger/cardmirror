@@ -129,34 +129,6 @@ launch CardMirror like any other app.
 3. **First launch only.** SmartScreen shows "Windows protected your
    PC." Click **More info** → **Run anyway**.
 
-### Linux
-
-This fork doesn't publish Linux builds, so build it yourself from
-source. Follow [Run from source](#run-from-source) steps 1–4, then, in
-the same terminal:
-
-```sh
-npm run desktop:install
-npm run desktop:dist
-```
-
-This takes a few minutes and writes the app to `apps/desktop/release/`:
-
-- **`cardmirror-x.x.x.AppImage`** works on every modern distro. Run
-  `chmod +x cardmirror-x.x.x.AppImage` once, then double-click it (or run
-  `./cardmirror-x.x.x.AppImage`).
-- **`cardmirror-x.x.x.pacman`** is for Arch and Arch-based distros:
-  `sudo pacman -U apps/desktop/release/cardmirror-x.x.x.pacman`. Building it
-  needs `bsdtar`, which Arch already has. On other distros, if the build
-  stops with a `bsdtar` error after the AppImage is written, the AppImage
-  is ready to use (or install `libarchive-tools` and build again).
-
-The in-app updater can't update a build you made yourself. To update,
-download the new source and run the two commands again.
-
-The AUR's `cardmirror-bin` package installs the upstream project, not this
-fork.
-
 ### Updates
 
 Updates specifically pull from BlueCheeseburger/cardmirror, not upstream cardmirror.
@@ -232,8 +204,7 @@ Translation key. Configure it under Settings → Editing → Translation.
 ## Run from source
 
 You only need this if you want to **build CardMirror yourself**
-(contribute, run a development branch, or use the editor on a
-platform we don't publish binaries for). For day-to-day use,
+(contribute or run a development branch). For day-to-day use,
 download a release above.
 
 ### 1. Install Node.js
@@ -247,9 +218,6 @@ to run. Node is a regular desktop installer.
 - **Windows** — open [nodejs.org](https://nodejs.org/) and click the
   blue **"LTS"** download button. Open the `.msi` file from
   Downloads and click through the installer.
-- **Linux** — the easiest path is the official installer at
-  [nodejs.org/en/download](https://nodejs.org/en/download/) — pick
-  your distro and follow the few commands it shows.
 
 You don't need to verify the install — if the next step works, Node
 is installed.
@@ -281,15 +249,12 @@ open one already pointing at the CardMirror folder.
   right-click the folder.
 - **Windows** — open File Explorer in the folder, click the address
   bar, type `cmd`, press Enter.
-- **Linux** — right-click inside the folder and pick *Open Terminal
-  Here* (Nautilus / Dolphin / Thunar all offer it), or open in terminal and
-  `cd` to the filepath.
 
-To make sure you're in the right directory, type `ls` (macOS / Linux)
+To make sure you're in the right directory, type `ls` (macOS)
 or `dir` (Windows) and press Enter. You should see `package.json`,
 `README.md`, `src`, `apps`. If you don't, your terminal is likely one
 folder too high up — verify your current folder with the `pwd` command
-(macOS / Linux / Windows PowerShell) or by typing `echo %cd%` (Windows, non-PowerShell).
+(macOS / Windows PowerShell) or by typing `echo %cd%` (Windows, non-PowerShell).
 
 ### 4. Install dependencies
 
