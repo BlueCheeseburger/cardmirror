@@ -31,6 +31,39 @@ Kept: the shifted-Backquote key-capture fix (`ribbonKeyStringFor` emits
 `'~'`, `formatKeyForDisplay('~')` → `Shift+\`` / `⇧\``) — generic, and
 still needed for anyone who binds a command to Shift+`` ` `` themselves.
 
+### Added: plugin `activate(api)` lifecycle hook (`plugin-registry.ts`, `reference-docs/cardmirror-plugin-api.md`)
+
+Requested for the PolicyDebateFlow plugin, whose right-click → jump
+feature keeps a Supabase Realtime socket open and calls
+`api.jumpToSource()` when a jump arrives — impossible before, since a
+plugin only received `api` inside a command's `run()`.
+`PluginDefinition.activate?` is read once like every other field
+(non-function → rejected), and called with the plugin's already-minted
+api immediately after its first successful registration — never on the
+same-ids re-register no-op. A returned function is stored as the
+plugin's disposer and called (try/catch, logged) in `unregisterPlugin`.
+Sync throws and rejected promises toast
+"`<name>`: activate failed — `<message>`", like a failed `run()`, and
+leave the registration in place. Six new cases in
+`tests/editor/plugin-registry.test.ts`. Documented in the plugin API
+reference §2. Fork-only; upstream builds ignore the field.
+
+### Fixed: plugin jumps raise CardMirror even when they resolve locally (`plugin-api.ts`, `fast-paste-bridge.ts`, `main.ts`, `preload.ts`, `electron-host.ts`)
+
+`api.jumpToSource` resolves in the calling window first
+(`findViewForDocId` → `jumpToTokenInView`) and only falls back to the
+`host:plugin-jump` broadcast when the doc isn't there. Only the
+broadcast's winner was raised (`broadcastJump`: restore/show/focus), so
+a local hit scrolled the doc while CardMirror stayed behind the app that
+asked for the jump — which, for a jump, is always another app. The local
+path now calls a new `host:focus-self` IPC (`ElectronHost.focusSelf`,
+optional so an older preload no-ops) on an `ok` result. Both paths share
+`raiseWindowForJump`, which also calls `app.focus({ steal: true })` on
+macOS, since `win.focus()` alone doesn't activate a background app there
+(this changes ebb's `/jump` too, for the same reason). New
+`tests/editor/plugin-api-jump-focus.test.ts`; `_electron-stub.ts` gains
+`app.focus`.
+
 ### Added: status-bar Search Everything button (`index.html`, `index.ts`, `style.css`)
 
 `#status-search-btn` takes the old chip's slot in the status bar — an

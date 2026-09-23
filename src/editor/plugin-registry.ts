@@ -47,6 +47,15 @@ export interface PluginDefinition {
   apiVersion: number;
   commands: PluginCommandDef[];
   settings?: PluginSettingDef[];
+  /** Optional background lifecycle hook, called once with the plugin's
+   *  api right after its first successful registration (not on the
+   *  re-enable no-op) — for plugins that must listen before the user
+   *  runs any of their commands (e.g. a socket that triggers
+   *  `api.jumpToSource`). May return a disposer, called on unregister
+   *  (uninstall). Failures (sync throw or rejected promise) are
+   *  reported like a command failure and leave the registration in
+   *  place. */
+  activate?: (api: CardMirrorPluginApi) => void | (() => void) | Promise<void>;
 }
 
 declare global {
@@ -59,6 +68,8 @@ interface RegisteredPlugin {
   def: PluginDefinition;
   api: CardMirrorPluginApi;
   settings: PluginSettingDef[];
+  /** What `activate` returned, if it returned a function. */
+  dispose?: () => void;
 }
 
 const plugins = new Map<string, RegisteredPlugin>();
@@ -182,6 +193,11 @@ export function registerPluginDefinition(
   }
   const settingsRes = validateSettings(def);
   if (!settingsRes.ok) return settingsRes;
+  // Read once, like every other field.
+  const activate = def.activate;
+  if (activate !== undefined && typeof activate !== 'function') {
+    return { ok: false, error: 'activate must be a function' };
+  }
   if (plugins.has(def.id)) {
     // Already registered: an identical command-id list is a silent no-op
     // success (the re-enable path); any difference still rejects. The
@@ -196,9 +212,35 @@ export function registerPluginDefinition(
     return { ok: false, error: `plugin "${def.id}" already registered` };
   }
   const api = makeApi(def.id);
-  plugins.set(def.id, { def, api, settings: settingsRes.settings });
+  const entry: RegisteredPlugin = { def, api, settings: settingsRes.settings };
+  plugins.set(def.id, entry);
   for (const c of snapshots) commands.set(c.id, { pluginId: def.id, cmd: c });
+  if (activate) runActivate(entry, activate);
   return { ok: true };
+}
+
+/** Report a plugin lifecycle/command failure: log + toast by name. */
+function reportPluginError(pluginName: string, what: string, err: unknown): void {
+  console.error(`[plugins] ${what} failed:`, err);
+  const message = err instanceof Error ? err.message : String(err);
+  showToast(`${pluginName}: ${what} failed — ${message}`);
+}
+
+function runActivate(
+  entry: RegisteredPlugin,
+  activate: NonNullable<PluginDefinition['activate']>,
+): void {
+  const report = (err: unknown): void => reportPluginError(entry.def.name, 'activate', err);
+  try {
+    const r = activate(entry.api);
+    if (typeof r === 'function') {
+      entry.dispose = r;
+    } else if (r && typeof (r as Promise<void>).catch === 'function') {
+      void (r as Promise<void>).catch(report);
+    }
+  } catch (err) {
+    report(err);
+  }
 }
 
 /** Declared settings of a registered plugin — [] when it declared none
@@ -232,6 +274,14 @@ export function unregisterPlugin(pluginId: string): string[] {
     if (entry.pluginId === pluginId) {
       commands.delete(id);
       removed.push(id);
+    }
+  }
+  const entry = plugins.get(pluginId);
+  if (entry?.dispose) {
+    try {
+      entry.dispose();
+    } catch (err) {
+      console.error(`[plugins] ${pluginId} dispose failed:`, err);
     }
   }
   const had = plugins.delete(pluginId);

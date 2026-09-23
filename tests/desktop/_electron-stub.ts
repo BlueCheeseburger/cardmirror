@@ -80,6 +80,10 @@ export const app = {
     return (app as any).__userData as string;
   },
   getVersion: () => 'TEST-1.2.3',
+  /** macOS activation steal used when raising a window for a jump. */
+  focus: (_opts?: { steal?: boolean }) => {
+    (app as any).__focusCalls = ((app as any).__focusCalls ?? 0) + 1;
+  },
   on: (event: string, listener: (evt: unknown, ...args: any[]) => void) => {
     const arr = appEventListeners.get(event) ?? [];
     arr.push(listener);
