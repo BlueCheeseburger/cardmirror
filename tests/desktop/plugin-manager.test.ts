@@ -81,6 +81,7 @@ describe('checkInstallCollision', () => {
 describe('checkInstallAllowed (curated allowlist)', () => {
   it('allows an allowlisted repo while locked', () => {
     expect(checkInstallAllowed('shreerammodi/ebb', false)).toBeNull();
+    expect(checkInstallAllowed('BlueCheeseburger/policy-flow', false)).toBeNull();
   });
   it('is case-insensitive about the ref', () => {
     expect(checkInstallAllowed('ShreeramModi/Ebb', false)).toBeNull();
@@ -184,6 +185,18 @@ describe('fetchPluginDirectory (browse picker data)', () => {
     const res = await fetchPluginDirectory();
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.plugins.map((p) => p.repo)).toEqual(['good/one']);
+  });
+
+  it("keeps the fork's own plugins even when the relay's list omits them", async () => {
+    stubRelay({
+      schema: 1,
+      plugins: [{ repo: 'good/one' }, { repo: 'BlueCheeseburger/policy-flow' }],
+    });
+    const res = await fetchPluginDirectory();
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.plugins.map((p) => p.repo)).toEqual(['good/one', 'bluecheeseburger/policy-flow']);
+    }
   });
 
   it('drops malformed rows instead of failing the whole listing', async () => {

@@ -2406,10 +2406,9 @@ body:not(.pmd-multi-doc) #app {
   font-variant-numeric: tabular-nums;
 }
 
-/* PolicyDebateFlow status chip: green-outlined when connected (matches
-   the success token used for "saved"/connected states elsewhere),
-   neutral outline when off. Hidden until policyDebateFlowEnabled. */
-#pf-flow-chip {
+/* Status-bar Search Everything button: neutral outlined pill that
+   fills on hover, opening the quick-card search palette. */
+#status-search-btn {
   cursor: pointer;
   font-family: inherit;
   font-size: inherit;
@@ -2420,16 +2419,9 @@ body:not(.pmd-multi-doc) #app {
   line-height: 1.4;
   color: var(--pmd-c-text-secondary);
 }
-#pf-flow-chip[data-pf-state='connected'] {
-  color: var(--pmd-c-success);
-  border-color: var(--pmd-c-success);
-}
-#pf-flow-chip:hover {
+#status-search-btn:hover {
   color: #fff;
   background: var(--pmd-c-text-secondary);
-}
-#pf-flow-chip[data-pf-state='connected']:hover {
-  background: var(--pmd-c-success);
 }
 
 .status-segment {
@@ -7876,22 +7868,6 @@ body.pmd-steady-cursor .pmd-italic-caret,
   align-items: center;
   gap: 0.4rem;
   flex-wrap: wrap;
-}
-
-.pmd-flow-connection {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.pmd-flow-connection-status {
-  font-size: 0.85rem;
-  color: var(--pmd-c-text-muted);
-}
-
-.pmd-flow-connection-status-on {
-  color: var(--pmd-c-success);
 }
 
 /* Code left, Copy/Regenerate pushed to the right edge — the auto margin

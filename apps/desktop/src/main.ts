@@ -105,6 +105,7 @@ import {
   startFastPasteBridge,
   stopFastPasteBridge,
   broadcastJump,
+  raiseWindowForJump,
   getRunningEndpoint,
 } from './fast-paste-bridge.js';
 import {
@@ -2831,6 +2832,12 @@ registerFlowIpc();
 ipcMain.handle('host:plugin-jump', async (_event, source: string) => {
   if (typeof source !== 'string') return { ok: false, error: 'bad-request' };
   return broadcastJump(source);
+});
+// A plugin jump that resolved in the calling window itself (no broadcast)
+// still needs that window raised — see raiseWindowForJump.
+ipcMain.handle('host:focus-self', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) raiseWindowForJump(win);
 });
 ipcMain.handle('host:flow-apps', async () => scanFlowApps());
 ipcMain.handle('host:flow-post', async (_event, appId: string, route: string, body: unknown) => {
