@@ -12,6 +12,7 @@ import {
   getTimerState,
   getPrepRemainingMs,
   getVisibleRemainingMs,
+  isStopwatch,
   loadSpeechPreset,
   pauseTimer,
   reconcileTimerPopout,
@@ -244,6 +245,139 @@ describe('expiry latch (ran-out red)', () => {
       vi.setSystemTime(Date.now() + 11 * MIN);
       markTimerExpired();
       expect(getTimerState().expiredMode).toBe('affPrep');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('stopwatch: Start with 0:00 loaded counts up (2026-09-19)', () => {
+  const SEC = 1000;
+  const advance = (ms: number): void => {
+    vi.setSystemTime(Date.now() + ms);
+  };
+
+  it('counts up from a reset speech clock, pauses, and resumes where it left off', () => {
+    vi.useFakeTimers();
+    try {
+      resetTimer(10 * MIN);
+      expect(getVisibleRemainingMs(getTimerState())).toBe(0);
+      startTimer();
+      const s = getTimerState();
+      expect(s.running).toBe(true);
+      expect(isStopwatch(s)).toBe(true);
+      advance(65 * SEC);
+      expect(getVisibleRemainingMs(getTimerState())).toBe(65 * SEC);
+      pauseTimer();
+      expect(getTimerState().running).toBe(false);
+      expect(getVisibleRemainingMs(getTimerState()), 'paused value holds').toBe(65 * SEC);
+      advance(30 * SEC);
+      expect(getVisibleRemainingMs(getTimerState()), 'not counting while paused').toBe(65 * SEC);
+      startTimer();
+      advance(5 * SEC);
+      expect(getVisibleRemainingMs(getTimerState())).toBe(70 * SEC);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never latches expiry — not at the first 0:00 tick, not later', () => {
+    vi.useFakeTimers();
+    try {
+      resetTimer(10 * MIN);
+      startTimer();
+      markTimerExpired(); // the render tick at 0:00
+      expect(getTimerState().expiredMode).toBeNull();
+      advance(3 * MIN);
+      markTimerExpired();
+      expect(getTimerState().expiredMode).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a preset, a typed time or Reset arms a countdown again', () => {
+    vi.useFakeTimers();
+    try {
+      resetTimer(10 * MIN);
+      startTimer();
+      advance(20 * SEC);
+      loadSpeechPreset(1);
+      expect(isStopwatch(getTimerState())).toBe(false);
+      expect(getVisibleRemainingMs(getTimerState())).toBe(1 * MIN);
+      startTimer();
+      advance(10 * SEC);
+      expect(getVisibleRemainingMs(getTimerState()), 'counting down again').toBe(50 * SEC);
+      pauseTimer();
+      // Back to a stopwatch, then a typed time replaces it.
+      setActiveRemainingMs(0);
+      startTimer();
+      advance(5 * SEC);
+      expect(isStopwatch(getTimerState())).toBe(true);
+      pauseTimer();
+      setActiveRemainingMs(30 * SEC);
+      expect(isStopwatch(getTimerState())).toBe(false);
+      expect(getVisibleRemainingMs(getTimerState())).toBe(30 * SEC);
+      // Typing 0:00 arms a fresh stopwatch, not a resume.
+      setActiveRemainingMs(0);
+      startTimer();
+      expect(getVisibleRemainingMs(getTimerState()), 'fresh count from zero').toBe(0);
+      resetTimer(10 * MIN);
+      expect(isStopwatch(getTimerState())).toBe(false);
+      expect(getTimerState().speechStopwatchBaseMs).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('after a countdown runs out: pause, then Start counts overtime up and stays red', () => {
+    vi.useFakeTimers();
+    try {
+      resetTimer(10 * MIN);
+      loadSpeechPreset(1);
+      startTimer();
+      advance(1 * MIN + 500);
+      markTimerExpired();
+      expect(getTimerState().expiredMode).toBe('speech');
+      pauseTimer();
+      expect(getVisibleRemainingMs(getTimerState())).toBe(0);
+      startTimer();
+      expect(isStopwatch(getTimerState())).toBe(true);
+      advance(12 * SEC);
+      expect(getVisibleRemainingMs(getTimerState())).toBe(12 * SEC);
+      expect(getTimerState().expiredMode, 'overtime keeps the ran-out red').toBe('speech');
+      markTimerExpired();
+      expect(getTimerState().expiredMode).toBe('speech');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a prep clock at 0:00 is spent: Start stays a no-op', () => {
+    resetTimer(0);
+    selectMode('affPrep');
+    startTimer();
+    expect(getTimerState().running).toBe(false);
+    expect(isStopwatch(getTimerState())).toBe(false);
+    resetTimer(10 * MIN);
+  });
+
+  it('switching to a prep clock pauses the stopwatch; coming back resumes it', () => {
+    vi.useFakeTimers();
+    try {
+      resetTimer(10 * MIN);
+      startTimer();
+      advance(20 * SEC);
+      selectMode('affPrep');
+      expect(getTimerState().running).toBe(false);
+      expect(getTimerState().speechStopwatchBaseMs).toBe(20 * SEC);
+      expect(isStopwatch(getTimerState()), 'a prep clock is never a stopwatch').toBe(false);
+      selectMode('speech');
+      expect(getVisibleRemainingMs(getTimerState())).toBe(20 * SEC);
+      startTimer();
+      advance(4 * SEC);
+      expect(getVisibleRemainingMs(getTimerState())).toBe(24 * SEC);
+      pauseTimer();
     } finally {
       vi.useRealTimers();
     }

@@ -22,40 +22,11 @@ import { getRibbonCommand, type RibbonContext } from '../ribbon-commands.js';
 import type { Transaction } from 'prosemirror-state';
 import { patchVoiceState, sealUtterance, voiceDispatcher, voicePluginKey } from './plugin.js';
 import type { PenName } from './types';
+import { typingChunks, typeThroughInputRules } from '../type-through-hooks.js';
 
-/** Split into chunks the typing hook receives one at a time. */
-export function typingChunks(text: string): string[] {
-  const out: string[] = [];
-  let word = '';
-  for (const ch of text) {
-    if (/[\p{L}\p{N}]/u.test(ch)) {
-      word += ch;
-      continue;
-    }
-    if (word) {
-      out.push(word);
-      word = '';
-    }
-    out.push(ch);
-  }
-  if (word) out.push(word);
-  return out;
-}
-
-/** Type `text` at the selection through the view's text-input hooks.
- *  Returns the inserted range. */
-export function typeThroughInputRules(view: EditorView, text: string, tag: (tr: import('prosemirror-state').Transaction) => void): { from: number; to: number } {
-  const start = view.state.selection.from;
-  for (const chunk of typingChunks(text)) {
-    const { from, to } = view.state.selection;
-    const handled = view.someProp('handleTextInput', (f) => f(view, from, to, chunk, () => view.state.tr.insertText(chunk, from, to)));
-    if (!handled) {
-      const tr = view.state.tr.insertText(chunk, from, to);
-      tag(tr);
-    }
-  }
-  return { from: start, to: view.state.selection.from };
-}
+// `typingChunks` / `typeThroughInputRules` live in type-through-hooks.ts
+// (shared with Repeat's typing replay); re-exported for the tests.
+export { typingChunks, typeThroughInputRules };
 
 export interface LandingOptions {
   utteranceId: number;

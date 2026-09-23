@@ -67,8 +67,8 @@ describe('doc-type formats', () => {
     expect(keys.indexOf('sendDocFormat')).toBe(keys.indexOf('sendDocFolder') + 1);
     expect(keys.indexOf('readDocFormat')).toBe(keys.indexOf('readDocFolder') + 1);
     expect(keys.indexOf('markedDocFormat')).toBe(keys.indexOf('markedCardsFolder') + 1);
-    // Read Doc rows follow the Send Doc rows and precede Marked Cards.
-    expect(keys.indexOf('readDocDestination')).toBe(keys.indexOf('sendDocFormat') + 1);
+    // Read Doc rows follow the Send Doc rows (format, then card numbers) and precede Marked Cards.
+    expect(keys.indexOf('readDocDestination')).toBe(keys.indexOf('sendDocNumbering') + 1);
     expect(keys.indexOf('markedCardsDestination')).toBe(keys.indexOf('readDocFormat') + 1);
   });
 

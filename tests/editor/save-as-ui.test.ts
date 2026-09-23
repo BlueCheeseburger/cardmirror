@@ -175,10 +175,10 @@ describe('Save As — mode selection', () => {
     selectMode('Custom Save');
     expect(options.hidden).toBe(false);
     const boxes = qa('.pmd-save-as-custom-options .pmd-save-as-option input') as HTMLInputElement[];
-    expect(boxes).toHaveLength(5);
-    // Defaults match As-Is: the three content layers on, the two
-    // private ones off.
-    expect(boxes.map((b) => b.checked)).toEqual([true, true, true, false, false]);
+    expect(boxes).toHaveLength(7);
+    // Defaults match As-Is: the three content layers on; freeze/remove
+    // numbers off (live numbering); the two private layers off.
+    expect(boxes.map((b) => b.checked)).toEqual([true, true, true, false, false, false, false]);
 
     selectMode('As-Is');
     expect(options.hidden).toBe(true);
@@ -191,7 +191,7 @@ describe('Save As — mode selection', () => {
     selectMode('Custom Save');
     const boxes = qa('.pmd-save-as-custom-options .pmd-save-as-option input') as HTMLInputElement[];
     boxes[1]!.checked = false; // drop analytics
-    boxes[4]!.checked = true; // bake AI comments in
+    boxes[6]!.checked = true; // bake AI comments in
     saveAsBtn().click();
 
     const result = await p;
@@ -203,8 +203,10 @@ describe('Save As — mode selection', () => {
       includeAiThreads: true,
       readMode: false,
       markedCardsOnly: false,
+      numbering: 'keep',
     });
   });
+
 
   it('an empty filename is refused — Save As is a no-op', async () => {
     const p = open();

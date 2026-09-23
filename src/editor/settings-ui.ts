@@ -1138,6 +1138,10 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildDocTypeFormatEditor(meta.key as 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'));
       return row;
+    } else if (meta.kind === 'numberingExport') {
+      row.appendChild(text);
+      row.appendChild(buildNumberingExportEditor(meta.key as 'sendDocNumbering' | 'markedDocNumbering'));
+      return row;
     } else if (meta.kind === 'aiProvider') {
       row.appendChild(text);
       row.appendChild(buildAiProviderEditor());
@@ -1184,11 +1188,19 @@ class SettingsModal {
       return row;
     } else if (meta.kind === 'standardizeHighlightException') {
       row.appendChild(text);
-      row.appendChild(buildHighlightExceptionEditor());
+      row.appendChild(buildHighlightNameEditor('standardizeHighlightException'));
       return row;
     } else if (meta.kind === 'standardizeShadingException') {
       row.appendChild(text);
-      row.appendChild(buildShadingExceptionEditor());
+      row.appendChild(buildShadingHexEditor('standardizeShadingException'));
+      return row;
+    } else if (meta.kind === 'defaultHighlightColor') {
+      row.appendChild(text);
+      row.appendChild(buildHighlightNameEditor('defaultHighlightColor'));
+      return row;
+    } else if (meta.kind === 'defaultShadingColor') {
+      row.appendChild(text);
+      row.appendChild(buildShadingHexEditor('defaultShadingColor'));
       return row;
     } else if (meta.kind === 'colorSlots') {
       row.appendChild(text);
@@ -5058,10 +5070,11 @@ function buildColorEditor(key: string): HTMLElement {
   return wrap;
 }
 
-/** Highlighting-exception editor: a swatch row of Word's 15 named
- *  highlight colors (highlight marks can only be one of these) plus
- *  a label naming the current pick. Stores the OOXML color name. */
-function buildHighlightExceptionEditor(): HTMLElement {
+/** Word-highlight-name editor (the highlighting exception, the default
+ *  highlight color): a swatch row of Word's 15 named highlight colors
+ *  (highlight marks can only be one of these) plus a label naming the
+ *  current pick. Stores the OOXML color name under `key`. */
+function buildHighlightNameEditor(key: 'standardizeHighlightException' | 'defaultHighlightColor'): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-color-editor';
 
@@ -5083,7 +5096,7 @@ function buildHighlightExceptionEditor(): HTMLElement {
     sw.title = c.label;
     sw.setAttribute('aria-label', c.label);
     sw.addEventListener('click', () => {
-      settings.set('standardizeHighlightException', c.name);
+      settings.set(key, c.name);
       refresh();
     });
     presets.appendChild(sw);
@@ -5092,7 +5105,7 @@ function buildHighlightExceptionEditor(): HTMLElement {
   wrap.appendChild(presets);
 
   function refresh(): void {
-    const current = settings.get('standardizeHighlightException');
+    const current = settings.get(key);
     label.textContent = highlightColorLabel(current);
     for (const { btn, name } of swatchButtons) {
       btn.classList.toggle('pmd-color-editor-swatch-active', name === current);
@@ -5107,12 +5120,11 @@ function buildHighlightExceptionEditor(): HTMLElement {
  *  editor (picker + preset swatches) but stores a bare uppercase hex
  *  (matching the shading mark's attr) and adds a Protected Grey
  *  swatch after the shading palette. */
-function buildShadingExceptionEditor(): HTMLElement {
+function buildShadingHexEditor(key: 'standardizeShadingException' | 'defaultShadingColor'): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-color-editor';
-  const get = () => settings.get('standardizeShadingException');
-  const set = (v: string) =>
-    settings.set('standardizeShadingException', v.replace(/^#/, '').toUpperCase());
+  const get = () => settings.get(key);
+  const set = (v: string) => settings.set(key, v.replace(/^#/, '').toUpperCase());
 
   const top = document.createElement('div');
   top.className = 'pmd-color-editor-row';
@@ -6181,6 +6193,36 @@ function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'mark
     { value: 'default', label: 'Same as new documents' },
   ];
   const groupName = `pmd-doc-type-format-${key}-${Math.random().toString(36).slice(2, 8)}`;
+  for (const o of options) {
+    const row = document.createElement('label');
+    row.className = 'pmd-multi-doc-layout-mode-row';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = groupName;
+    input.value = o.value;
+    input.checked = o.value === settings.get(key);
+    input.addEventListener('change', () => {
+      if (input.checked) settings.set(key, o.value);
+    });
+    row.appendChild(input);
+    const labelText = document.createElement('span');
+    labelText.className = 'pmd-multi-doc-layout-mode-row-label';
+    labelText.textContent = o.label;
+    row.appendChild(labelText);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+/** Freeze-or-remove radio pair for the two `*DocNumbering` settings. */
+function buildNumberingExportEditor(key: 'sendDocNumbering' | 'markedDocNumbering'): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-multi-doc-layout-mode-editor pmd-numbering-export-editor';
+  const options: { value: 'freeze' | 'remove'; label: string }[] = [
+    { value: 'freeze', label: 'Freeze numbers as heading text (default)' },
+    { value: 'remove', label: 'Remove numbers' },
+  ];
+  const groupName = `pmd-numbering-export-${key}-${Math.random().toString(36).slice(2, 8)}`;
   for (const o of options) {
     const row = document.createElement('label');
     row.className = 'pmd-multi-doc-layout-mode-row';

@@ -137,6 +137,18 @@ export function pageCount(stripWidth: number, stride: number): number {
   return Math.max(1, Math.ceil(stripWidth / Math.max(1, stride)));
 }
 
+/** How far (host px) the scrollable extent must reach so the LAST page
+ *  can be scrolled to its own boundary. A short last page (fewer
+ *  columns than a full page) leaves the strip ending inside the
+ *  viewport; the browser then clamps the flip short of the boundary,
+ *  the previous page's tail column shows on the left and the final
+ *  column lands flush with the host's right edge — under the flip
+ *  lane, which covered its last words (field report: "the arrows cut
+ *  off the words on the far right on the last page"). */
+export function scrollExtentNeeded(pages: number, stride: number, viewportW: number): number {
+  return Math.max(0, pages - 1) * stride + viewportW;
+}
+
 /** Which page a strip-local x offset lives on. */
 export function pageOfOffset(x: number, stride: number): number {
   return Math.max(0, Math.floor(x / Math.max(1, stride)));
@@ -210,6 +222,11 @@ export class ReaderController {
   private mutObs: MutationObserver | null = null;
   private leftGutter!: HTMLElement;
   private rightGutter!: HTMLElement;
+  /** 1×1 absolutely positioned sentinel INSIDE the host: parks the
+   *  scrollable extent at a whole-page boundary (see
+   *  `scrollExtentNeeded`). Sits at 0 while the strip is measured so it
+   *  never inflates the page count. */
+  private readonly tail: HTMLElement;
   private readonly leftBtn: HTMLButtonElement;
   private readonly rightBtn: HTMLButtonElement;
   private readonly indicator: HTMLElement;
@@ -248,6 +265,9 @@ export class ReaderController {
     this.indicator = document.createElement('div');
     this.indicator.className = 'pmd-reader-page-indicator';
     this.overlayHost.appendChild(this.indicator);
+    this.tail = document.createElement('div');
+    this.tail.className = 'pmd-reader-tail';
+    host.appendChild(this.tail);
 
     const onKey = (e: KeyboardEvent): void => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -333,6 +353,7 @@ export class ReaderController {
     this.leftBtn.remove();
     this.rightBtn.remove();
     this.indicator.remove();
+    this.tail.remove();
     this.host.style.removeProperty('clip-path');
     const strip = this.strip();
     if (strip) {
@@ -508,9 +529,14 @@ export class ReaderController {
       if (moved > 0) this.scrollScale = moved;
       this.host.scrollLeft = 0;
     }
+    this.tail.style.left = '0px';
     const stripW = this.measureStripExtent(strip);
     this.stripExtent = stripW;
     this.pages = pageCount(stripW, this.layout.stride);
+    // Now that the page count is known, extend the scroll range to the
+    // last page's boundary BEFORE scrolling there, so a short last page
+    // is never clamped one column early.
+    this.tail.style.left = `${Math.round(scrollExtentNeeded(this.pages, this.layout.stride, available))}px`;
     this.goTo(pageOfOffset(frac * stripW, this.layout.stride), { animate: false });
   }
 

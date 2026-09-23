@@ -161,6 +161,7 @@ export function openCardPreview(opts: CardPreviewOptions): boolean {
     editorHost?.classList.toggle('pmd-read-mode', on);
     editorHost?.classList.toggle('pmd-rm-no-emphasis-borders', on && settings.get('hideEmphasisBordersInReadMode'));
     editorHost?.classList.toggle('pmd-rm-para-integrity', on && settings.get('readModeParagraphIntegrity'));
+    editorHost?.classList.toggle('pmd-rm-show-undertags', on && settings.get('readModeShowUndertags'));
     if (previewView && (readModePlugin.getState(previewView.state)?.on ?? false) !== on) {
       previewView.dispatch(previewView.state.tr.setMeta(PMD_READ_MODE_TOGGLE, on));
     }
