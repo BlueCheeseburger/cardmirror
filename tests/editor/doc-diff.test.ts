@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { schema, newHeadingId } from '../../src/schema/index.js';
-import { extractDiffLines, diffLines, toDiffRows, summarize, diffDocs, DiffTooLargeError } from '../../src/editor/doc-diff.js';
+import { extractDiffLines, diffLines, toDiffRows, summarize, diffDocs, wordDiff, DiffTooLargeError } from '../../src/editor/doc-diff.js';
 import type { Node as PMNode } from 'prosemirror-model';
 
 function card(tagText: string, bodyText: string): PMNode {
@@ -161,21 +161,121 @@ describe('toDiffRows', () => {
     ]);
   });
 
-  it('zips a same-length changed region position-for-position', () => {
-    const lines = diffLines(['old A', 'old B'], ['new A', 'new B']);
+  it('zips a same-length region of unrelated lines position-for-position', () => {
+    const lines = diffLines(['alpha one', 'beta two'], ['gamma three', 'delta four']);
     expect(toDiffRows(lines)).toEqual([
-      { left: { type: 'remove', text: 'old A' }, right: { type: 'add', text: 'new A' } },
-      { left: { type: 'remove', text: 'old B' }, right: { type: 'add', text: 'new B' } },
+      { left: { type: 'remove', text: 'alpha one' }, right: { type: 'add', text: 'gamma three' } },
+      { left: { type: 'remove', text: 'beta two' }, right: { type: 'add', text: 'delta four' } },
     ]);
   });
 
-  it('pads the shorter side of an uneven changed region with blank cells', () => {
-    const lines = diffLines(['old A', 'old B', 'old C'], ['new A']);
+  it('pads the shorter side of an uneven region of unrelated lines with blank cells', () => {
+    const lines = diffLines(['alpha one', 'beta two', 'epsilon five'], ['gamma three']);
     expect(toDiffRows(lines)).toEqual([
-      { left: { type: 'remove', text: 'old A' }, right: { type: 'add', text: 'new A' } },
-      { left: { type: 'remove', text: 'old B' }, right: { type: 'blank', text: '' } },
-      { left: { type: 'remove', text: 'old C' }, right: { type: 'blank', text: '' } },
+      { left: { type: 'remove', text: 'alpha one' }, right: { type: 'add', text: 'gamma three' } },
+      { left: { type: 'remove', text: 'beta two' }, right: { type: 'blank', text: '' } },
+      { left: { type: 'remove', text: 'epsilon five' }, right: { type: 'blank', text: '' } },
     ]);
+  });
+
+  it('pairs an edited line with its new version and marks the changed words', () => {
+    const lines = diffLines(['The plan causes war by 2030.'], ['The plan prevents war by 2035.']);
+    expect(toDiffRows(lines)).toEqual([
+      {
+        left: {
+          type: 'remove',
+          text: 'The plan causes war by 2030.',
+          segments: [
+            { text: 'The plan ', changed: false },
+            { text: 'causes', changed: true },
+            { text: ' war by ', changed: false },
+            { text: '2030', changed: true },
+            { text: '.', changed: false },
+          ],
+        },
+        right: {
+          type: 'add',
+          text: 'The plan prevents war by 2035.',
+          segments: [
+            { text: 'The plan ', changed: false },
+            { text: 'prevents', changed: true },
+            { text: ' war by ', changed: false },
+            { text: '2035', changed: true },
+            { text: '.', changed: false },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it('lines up an edited line with its new version even when other lines sit between them', () => {
+    const lines = diffLines(
+      ['intro', 'Warming is real and bad', 'totally unrelated line'],
+      ['intro', 'brand new tagline', 'Warming is real and very bad'],
+    );
+    const rows = toDiffRows(lines);
+    expect(rows.map((r) => [r.left.text, r.right.text])).toEqual([
+      ['intro', 'intro'],
+      ['', 'brand new tagline'],
+      ['Warming is real and bad', 'Warming is real and very bad'],
+      ['totally unrelated line', ''],
+    ]);
+    expect(rows[1]!.right.segments).toBeUndefined();
+    expect(rows[2]!.right.segments).toEqual([
+      { text: 'Warming is real and ', changed: false },
+      { text: 'very', changed: true },
+      { text: ' bad', changed: false },
+    ]);
+    expect(rows[3]!.left.segments).toBeUndefined();
+  });
+
+  it('keeps every line of a very large rewritten region, zipped, without pairing', () => {
+    const a = Array.from({ length: 120 }, (_, i) => `old line ${i} about topic`);
+    const b = Array.from({ length: 120 }, (_, i) => `new line ${i} about topic`);
+    const rows = toDiffRows(diffLines(a, b));
+    expect(rows).toHaveLength(120);
+    expect(rows.every((r) => r.left.segments === undefined)).toBe(true);
+    expect(rows[5]).toEqual({
+      left: { type: 'remove', text: 'old line 5 about topic' },
+      right: { type: 'add', text: 'new line 5 about topic' },
+    });
+  });
+});
+
+describe('wordDiff', () => {
+  const join = (segs: { text: string }[]): string => segs.map((s) => s.text).join('');
+
+  it('segments rejoin to exactly the original text on both sides', () => {
+    const a = "Don't  vote aff — it's (really) bad.";
+    const b = "Don't vote neg: it's (truly) bad!";
+    const { left, right } = wordDiff(a, b);
+    expect(join(left)).toBe(a);
+    expect(join(right)).toBe(b);
+  });
+
+  it('keeps a word with an apostrophe whole', () => {
+    const { left, right } = wordDiff("don't vote", "won't vote");
+    expect(left).toEqual([
+      { text: "don't", changed: true },
+      { text: ' vote', changed: false },
+    ]);
+    expect(right[0]).toEqual({ text: "won't", changed: true });
+  });
+
+  it('joins adjacent changed words into one run across the space between them', () => {
+    const { left } = wordDiff('keep these old words here', 'keep these new text here');
+    expect(left).toEqual([
+      { text: 'keep these ', changed: false },
+      { text: 'old words', changed: true },
+      { text: ' here', changed: false },
+    ]);
+  });
+
+  it('identical text has no changed runs', () => {
+    expect(wordDiff('same text', 'same text')).toEqual({
+      left: [{ text: 'same text', changed: false }],
+      right: [{ text: 'same text', changed: false }],
+    });
   });
 
   it('a pure addition pads the left side blank', () => {

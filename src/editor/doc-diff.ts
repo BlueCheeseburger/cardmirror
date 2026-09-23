@@ -21,11 +21,21 @@ export interface DiffLine {
   text: string;
 }
 
+/** A run of one line's text, marked `changed` when a word-level diff
+ *  against its paired line found it on only this side. */
+export interface DiffSegment {
+  text: string;
+  changed: boolean;
+}
+
 /** One side of a paired diff row. `blank` means the other side has a
- *  line here and this side doesn't (an unmatched add or remove). */
+ *  line here and this side doesn't (an unmatched add or remove).
+ *  `segments` is set only on a remove/add pair similar enough to be one
+ *  edited line; joining them gives back `text`. */
 export interface DiffCell {
   type: DiffLineType | 'blank';
   text: string;
+  segments?: DiffSegment[];
 }
 
 export interface DiffRow {
@@ -157,9 +167,10 @@ function diffMiddle(a: readonly string[], b: readonly string[]): DiffLine[] {
 /**
  * Pair a diff sequence into side-by-side rows: an `equal` line occupies
  * both columns on one row; a run of consecutive `remove`/`add` lines
- * (a "changed" region) zips removes against adds position-for-position,
- * padding the shorter side with `blank` cells — the same alignment a
- * GitHub-style split diff shows.
+ * (a "changed" region) is aligned by `alignRegion` — edited lines face
+ * each other with word-level `segments`, everything else zips
+ * position-for-position with the shorter side padded by `blank` cells,
+ * the same alignment a GitHub-style split diff shows.
  */
 export function toDiffRows(lines: readonly DiffLine[]): DiffRow[] {
   const rows: DiffRow[] = [];
@@ -179,15 +190,191 @@ export function toDiffRows(lines: readonly DiffLine[]): DiffRow[] {
       else adds.push(l.text);
       i++;
     }
-    const max = Math.max(removes.length, adds.length);
-    for (let k = 0; k < max; k++) {
-      rows.push({
-        left: k < removes.length ? { type: 'remove', text: removes[k]! } : { type: 'blank', text: '' },
-        right: k < adds.length ? { type: 'add', text: adds[k]! } : { type: 'blank', text: '' },
-      });
-    }
+    rows.push(...alignRegion(removes, adds));
   }
   return rows;
+}
+
+/** Word-bag Dice similarity at or above which a removed and an added
+ *  line count as one edited line rather than two unrelated ones. */
+const PAIR_SIMILARITY = 0.5;
+/** A changed region with more remove×add candidate pairs than this is
+ *  zipped positionally without word-level pairing — a wholesale rewrite
+ *  gains nothing from the search and would pay for every pair. */
+const MAX_REGION_PAIRS = 10_000;
+/** Token-LCS table cap for one line pair (after prefix/suffix trim);
+ *  beyond it the differing middle is marked changed as a whole. */
+const MAX_WORD_CELLS = 250_000;
+
+/** Words (letters/digits, with inner apostrophes), single punctuation
+ *  marks, and whitespace runs — joining the tokens gives back the line. */
+const TOKEN_RE = /\s+|[\p{L}\p{N}_]+(?:['\u2019][\p{L}\p{N}_]+)*|[^\s\p{L}\p{N}_]/gu;
+
+function tokenize(text: string): string[] {
+  return text.match(TOKEN_RE) ?? [];
+}
+
+function wordBag(text: string): Map<string, number> {
+  const bag = new Map<string, number>();
+  for (const tok of tokenize(text)) {
+    if (/^\s/.test(tok)) continue;
+    const key = tok.toLowerCase();
+    bag.set(key, (bag.get(key) ?? 0) + 1);
+  }
+  return bag;
+}
+
+function bagSize(bag: Map<string, number>): number {
+  let n = 0;
+  for (const c of bag.values()) n += c;
+  return n;
+}
+
+/** Dice coefficient over the two lines' word multisets, 0..1. */
+function similarity(a: Map<string, number>, aSize: number, b: Map<string, number>, bSize: number): number {
+  if (aSize === 0 || bSize === 0) return 0;
+  let shared = 0;
+  for (const [word, count] of a) {
+    const other = b.get(word);
+    if (other) shared += Math.min(count, other);
+  }
+  return (2 * shared) / (aSize + bSize);
+}
+
+/** Lay out one changed region. Finds the in-order set of remove/add
+ *  pairs (each at least `PAIR_SIMILARITY`) with the greatest total
+ *  similarity; each pair gets its own row with word-level segments, and
+ *  the unpaired lines between pairs zip positionally as before. */
+function alignRegion(removes: readonly string[], adds: readonly string[]): DiffRow[] {
+  const r = removes.length;
+  const a = adds.length;
+  if (r === 0 || a === 0 || r * a > MAX_REGION_PAIRS) return zipUnpaired(removes, adds);
+
+  const bagsR = removes.map(wordBag);
+  const bagsA = adds.map(wordBag);
+  const sizesR = bagsR.map(bagSize);
+  const sizesA = bagsA.map(bagSize);
+  const sim = new Float64Array(r * a);
+  for (let x = 0; x < r; x++) {
+    for (let y = 0; y < a; y++) sim[x * a + y] = similarity(bagsR[x]!, sizesR[x]!, bagsA[y]!, sizesA[y]!);
+  }
+
+  // best[x][y]: greatest total similarity pairing removes[x..] with adds[y..].
+  const w = a + 1;
+  const best = new Float64Array((r + 1) * w);
+  for (let x = r - 1; x >= 0; x--) {
+    for (let y = a - 1; y >= 0; y--) {
+      let v = Math.max(best[(x + 1) * w + y]!, best[x * w + y + 1]!);
+      const s = sim[x * a + y]!;
+      if (s >= PAIR_SIMILARITY) v = Math.max(v, s + best[(x + 1) * w + y + 1]!);
+      best[x * w + y] = v;
+    }
+  }
+
+  const rows: DiffRow[] = [];
+  let x = 0;
+  let y = 0;
+  let fromX = 0;
+  let fromY = 0;
+  while (x < r && y < a) {
+    const s = sim[x * a + y]!;
+    if (s >= PAIR_SIMILARITY && best[x * w + y] === s + best[(x + 1) * w + y + 1]!) {
+      rows.push(...zipUnpaired(removes.slice(fromX, x), adds.slice(fromY, y)));
+      const { left, right } = wordDiff(removes[x]!, adds[y]!);
+      rows.push({
+        left: { type: 'remove', text: removes[x]!, segments: left },
+        right: { type: 'add', text: adds[y]!, segments: right },
+      });
+      x++;
+      y++;
+      fromX = x;
+      fromY = y;
+    } else if (best[x * w + y] === best[(x + 1) * w + y]!) {
+      x++;
+    } else {
+      y++;
+    }
+  }
+  rows.push(...zipUnpaired(removes.slice(fromX), adds.slice(fromY)));
+  return rows;
+}
+
+function zipUnpaired(removes: readonly string[], adds: readonly string[]): DiffRow[] {
+  const rows: DiffRow[] = [];
+  const max = Math.max(removes.length, adds.length);
+  for (let k = 0; k < max; k++) {
+    rows.push({
+      left: k < removes.length ? { type: 'remove', text: removes[k]! } : { type: 'blank', text: '' },
+      right: k < adds.length ? { type: 'add', text: adds[k]! } : { type: 'blank', text: '' },
+    });
+  }
+  return rows;
+}
+
+/**
+ * Word-level diff of one edited line: an LCS over tokens (words,
+ * punctuation, whitespace), returning each side's text as runs marked
+ * `changed` where the token is only on that side. A space between two
+ * changed words is folded into the change so "old words" reads as one
+ * highlighted run, not two.
+ */
+export function wordDiff(a: string, b: string): { left: DiffSegment[]; right: DiffSegment[] } {
+  const ta = tokenize(a);
+  const tb = tokenize(b);
+  let start = 0;
+  const minLen = Math.min(ta.length, tb.length);
+  while (start < minLen && ta[start] === tb[start]) start++;
+  let end = 0;
+  while (end < minLen - start && ta[ta.length - 1 - end] === tb[tb.length - 1 - end]) end++;
+
+  const midA = ta.slice(start, ta.length - end);
+  const midB = tb.slice(start, tb.length - end);
+  const keepA = new Array<boolean>(midA.length).fill(false);
+  const keepB = new Array<boolean>(midB.length).fill(false);
+  if (midA.length * midB.length <= MAX_WORD_CELLS) {
+    const n = midA.length;
+    const m = midB.length;
+    const dp: Uint32Array[] = new Array(n + 1);
+    for (let i = 0; i <= n; i++) dp[i] = new Uint32Array(m + 1);
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i]![j] = midA[i] === midB[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
+      }
+    }
+    let i = 0;
+    let j = 0;
+    while (i < n && j < m) {
+      if (midA[i] === midB[j]) {
+        keepA[i++] = true;
+        keepB[j++] = true;
+      } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) {
+        i++;
+      } else {
+        j++;
+      }
+    }
+  }
+  const flagsA = [...new Array<boolean>(start).fill(false), ...keepA.map((k) => !k), ...new Array<boolean>(end).fill(false)];
+  const flagsB = [...new Array<boolean>(start).fill(false), ...keepB.map((k) => !k), ...new Array<boolean>(end).fill(false)];
+  return { left: toSegments(ta, flagsA), right: toSegments(tb, flagsB) };
+}
+
+function toSegments(tokens: readonly string[], changed: boolean[]): DiffSegment[] {
+  const isSpace = (k: number): boolean => /^\s+$/.test(tokens[k]!);
+  // Whitespace at the edge of a changed run isn't part of the edit.
+  for (let k = 0; k < tokens.length; k++) {
+    if (changed[k] && isSpace(k) && !(changed[k - 1] && changed[k + 1])) changed[k] = false;
+  }
+  for (let k = 1; k < tokens.length - 1; k++) {
+    if (!changed[k] && changed[k - 1] && changed[k + 1] && isSpace(k)) changed[k] = true;
+  }
+  const out: DiffSegment[] = [];
+  for (let k = 0; k < tokens.length; k++) {
+    const last = out[out.length - 1];
+    if (last && last.changed === changed[k]) last.text += tokens[k]!;
+    else out.push({ text: tokens[k]!, changed: changed[k]! });
+  }
+  return out;
 }
 
 export interface DiffSummary {
