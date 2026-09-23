@@ -76,6 +76,35 @@ revoked from the relay; that's acceptable for plugins the fork owns. Two
 new cases in `tests/desktop/plugin-manager.test.ts`, covering the baked
 check and a relay list that omits the entry.
 
+### Added: plugin settings — `info` sections, file-loaded rows, forward-compatible types (`plugin-registry.ts`, `plugin-settings.ts`, `plugin-settings-modal.ts`, `plugins-settings-ui.ts`, `index.ts`, `style.css`)
+
+Requested by the PolicyDebateFlow plugin, whose user hit the first one:
+
+- **File-loaded plugins get a row.** Settings → Plugins only listed
+  installed plugins (`host.pluginList()`), so a bundle loaded with "Load
+  plugin from file…" had no row and no gear — its declared settings
+  were unreachable. `refresh()` now also lists `registeredPlugins()`
+  that aren't installed, as "`<name>` — loaded from file (this
+  session)" with the gear when it declared settings. No enable, update
+  or uninstall controls, because nothing is installed. The dev-load
+  button refreshes the list on success. The gear builder is shared
+  (`buildGear`).
+- **`info` setting type.** `{ key, label, type: 'info', body }`: a
+  read-only `<details>` (label as summary, collapsed by default). `body`
+  is plain text — blank line = paragraph, `- ` lines = bullets — built
+  with `textContent`, never HTML. It holds no value: `default` is
+  snapshotted as `''`, `getPluginSettingValue` returns `undefined`. A
+  missing/blank `body`, or `body` on any other type, rejects.
+- **Unknown setting types are skipped, not fatal.** A string `type` the
+  build doesn't know drops that one setting with a console warning,
+  instead of rejecting the plugin, so future types degrade gracefully.
+  A non-string `type` still rejects.
+- **`window.__cardmirrorAppVersion`**, set just before the registry
+  installs. It exists because `api.appVersion` isn't available until
+  after registration, so a bundle can check whether this global exists
+  and leave newer setting types out on older builds (which still reject
+  unknown types).
+
 ### Added: status-bar Search Everything button (`index.html`, `index.ts`, `style.css`)
 
 `#status-search-btn` takes the old chip's slot in the status bar — an

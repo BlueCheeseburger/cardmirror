@@ -239,7 +239,11 @@ describe('plugin settings declarations', () => {
       [{ key: 'bad key!', label: 'X', type: 'boolean', default: true }],
       [{ key: 'a', label: 'A', type: 'boolean', default: true }, { key: 'a', label: 'B', type: 'boolean', default: false }],
       [{ key: 'a', label: '', type: 'boolean', default: true }],
-      [{ key: 'a', label: 'A', type: 'color', default: '#fff' }],
+      [{ key: 'a', label: 'A', type: 42, default: '#fff' }],
+      [{ key: 'a', label: 'A', type: 'info', default: '' }],
+      [{ key: 'a', label: 'A', type: 'info', default: '', body: '   ' }],
+      [{ key: 'a', label: 'A', type: 'info', default: '', body: 'x', options: ['a'] }],
+      [{ key: 'a', label: 'A', type: 'text', default: 'x', body: 'not an info' }],
       [{ key: 'a', label: 'A', type: 'select', default: 'x' }],
       [{ key: 'a', label: 'A', type: 'select', default: 'x', options: [] }],
       [{ key: 'a', label: 'A', type: 'select', default: 'z', options: ['x', 'y'] }],
@@ -258,6 +262,45 @@ describe('plugin settings declarations', () => {
     }
     // Every rejection is whole-definition: nothing registered at all.
     expect(pluginCommandIds()).toEqual([]);
+  });
+
+  it('skips a setting of an unknown type instead of rejecting the plugin', () => {
+    installPluginRegistry(() => stubApi);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = registerPluginDefinition(
+      def({
+        settings: [
+          { key: 'future', label: 'F', type: 'color', default: '#fff' } as never,
+          { key: 'on', label: 'On', type: 'boolean', default: true },
+        ],
+      }),
+    );
+    expect(res.ok).toBe(true);
+    expect(pluginSettingsDefs('demo').map((d) => d.key)).toEqual(['on']);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('registers an info section with its body and an ignored default', () => {
+    installPluginRegistry(() => stubApi);
+    const res = registerPluginDefinition(
+      def({
+        settings: [
+          { key: 'about', label: 'What it does', type: 'info', default: 'ignored', body: 'Hello\n\n- one' },
+        ],
+      }),
+    );
+    expect(res.ok).toBe(true);
+    expect(pluginSettingsDefs('demo')).toEqual([
+      {
+        key: 'about',
+        label: 'What it does',
+        type: 'info',
+        default: '',
+        description: undefined,
+        body: 'Hello\n\n- one',
+      },
+    ]);
   });
 
   it('snapshots are immune to post-registration mutation of the definition', () => {

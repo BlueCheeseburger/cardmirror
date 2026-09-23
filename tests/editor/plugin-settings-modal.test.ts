@@ -145,3 +145,46 @@ describe('multiline control', () => {
     expect(getPluginSettingValue('demo', 'list')).toBe('one\ntwo\nthree');
   });
 });
+
+describe('info sections', () => {
+  beforeEach(() => {
+    resetPluginRegistryForTests();
+    installPluginRegistry(() => stubApi);
+    registerPluginDefinition({
+      id: 'info-demo',
+      name: 'Info Demo',
+      apiVersion: 1,
+      commands: [{ id: 'info-demo.x', label: 'X', run: () => {} }],
+      settings: [
+        { key: 'code', label: 'Pairing code', type: 'text', default: '' },
+        {
+          key: 'setup',
+          label: 'How to set it up',
+          type: 'info',
+          default: '',
+          body: 'First line\ncontinues here.\n\n- Step one\n- Step two\n\n<b>not html</b>',
+        },
+      ],
+    });
+  });
+
+  it('renders a collapsed details block with paragraphs and bullets as text', () => {
+    openPluginSettingsModal('info-demo', 'Info Demo');
+    const details = document.querySelector<HTMLDetailsElement>('.pmd-plugin-settings-info');
+    expect(details).not.toBeNull();
+    expect(details!.open).toBe(false);
+    expect(details!.querySelector('summary')!.textContent).toBe('How to set it up');
+    const paras = [...details!.querySelectorAll('p')].map((p) => p.textContent);
+    expect(paras).toEqual(['First line continues here.', '<b>not html</b>']);
+    expect([...details!.querySelectorAll('li')].map((li) => li.textContent)).toEqual([
+      'Step one',
+      'Step two',
+    ]);
+    expect(details!.querySelector('b')).toBeNull();
+  });
+
+  it('holds no value', () => {
+    expect(getPluginSettingValue('info-demo', 'setup')).toBeUndefined();
+    expect(getPluginSettingValue('info-demo', 'code')).toBe('');
+  });
+});
