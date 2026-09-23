@@ -145,11 +145,16 @@ export function createPluginApi(pluginId: string, deps: PluginApiDeps): CardMirr
       const view = deps.findViewForDocId(payload.docId);
       // A matched view always carries payload.docId, so the local jump is
       // authoritative — jumpToTokenInView can't answer 'not-mine' here.
+      const host = getElectronHost();
       if (view) {
         const local = jumpToTokenInView(view, payload.docId, token);
-        if (local !== 'not-mine') return local;
+        if (local !== 'not-mine') {
+          // The caller is another app (the flow), so CardMirror is in the
+          // background — raise this window like the broadcast path does.
+          if (local.ok) void host?.focusSelf?.();
+          return local;
+        }
       }
-      const host = getElectronHost();
       if (host?.pluginJump) return (await host.pluginJump(token)) as JumpResult;
       return { ok: false, error: 'doc-not-open', docTitle: payload.docTitle };
     },

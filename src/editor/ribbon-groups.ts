@@ -31,10 +31,6 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
     ],
   },
   {
-    title: 'PolicyDebateFlow',
-    commands: ['sendToFlowAtCursor'],
-  },
-  {
     title: 'Dropzone / Send and Receive Cards',
     commands: [
       'sendToDropzone',

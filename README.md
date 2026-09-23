@@ -37,13 +37,9 @@
 >    logged fallback for the zip worker and a ribbon button that
 >    distinguishes "saving" from "paused" (e.g. a doc with a live view Word
 >    can't hold open). (main)
-> 8. **Send taglines straight to a connected PolicyDebateFlow flow** — with
->    your cursor on a tagline, Shift-` sends it (tagline + cite) into your
->    open flow, landing in the next empty cell with the flow's focus
->    auto-advancing a row. Connect from Settings → PolicyDebateFlow, and a
->    status-bar chip shows Connected/Off — click it to pause or resume the
->    connection instantly, without re-pairing (the real disconnect, which
->    does revoke your token, stays a Settings action). Desktop only. (main)
+> 8. **Compare documents** — a "Compare" card on the home screen picks two
+>    `.cmir`/`.docx` files and shows a read-only, side-by-side line diff of
+>    their text, with an outline on each side to jump to a heading. (main)
 
 CardMirror is a debate text editor focused on high school and college
 policy debate. It's a standalone

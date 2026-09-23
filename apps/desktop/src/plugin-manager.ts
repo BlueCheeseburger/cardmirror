@@ -176,7 +176,14 @@ async function downloadAsset(release: GithubRelease, name: string): Promise<stri
  */
 export const PLUGIN_INSTALL_ALLOWLIST: ReadonlySet<string> = new Set([
   'shreerammodi/ebb',
+  'bluecheeseburger/policy-flow',
 ]);
+/** Fork-owned plugins (BlueCheeseburger/cardmirror). The relay list
+ *  REPLACES the baked one, and the relay is upstream's — it doesn't list
+ *  these — so they're unioned into whichever list resolved instead of
+ *  living only in the baked floor, where a reachable relay would hide
+ *  them. Lowercase, like every allowlist entry. */
+export const FORK_PLUGIN_ALLOWLIST: ReadonlySet<string> = new Set(['bluecheeseburger/policy-flow']);
 const ALLOWLIST_FETCH_TIMEOUT_MS = 4000;
 const ALLOWLIST_MAX_ENTRIES = 200;
 const ALLOWLIST_CACHE_NAME = 'plugin-allowlist.json';
@@ -223,8 +230,13 @@ async function fetchServerAllowlist(): Promise<Set<string> | null> {
   }
 }
 
-/** The effective allowlist: live server list → disk cache → baked floor. */
+/** The effective allowlist: live server list → disk cache → baked floor,
+ *  always plus the fork's own plugins. */
 async function currentAllowlist(): Promise<ReadonlySet<string>> {
+  return new Set([...(await resolvedAllowlist()), ...FORK_PLUGIN_ALLOWLIST]);
+}
+
+async function resolvedAllowlist(): Promise<ReadonlySet<string>> {
   const fetched = await fetchServerAllowlist();
   if (fetched) {
     try {

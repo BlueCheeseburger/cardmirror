@@ -496,8 +496,22 @@ function docTitleFromToken(source: string): string | undefined {
   }
 }
 
+/** Bring `win` to the front for a jump: restore, show, focus. A jump is
+ *  always asked for from another app (a flow app or a browser tab), so
+ *  CardMirror is in the background — on macOS `win.focus()` alone won't
+ *  activate a background app, so steal activation explicitly. Exported
+ *  for the host:focus-self IPC (jumps that resolve in the caller's own
+ *  window never reach broadcastJump). */
+export function raiseWindowForJump(win: BrowserWindow): void {
+  if (win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  if (process.platform === 'darwin') app.focus({ steal: true });
+  win.focus();
+}
+
 /** Ask each window in turn to resolve the token; the first ok wins and
- *  its window is focused. Exported for the host:plugin-jump IPC. */
+ *  its window is raised. Exported for the host:plugin-jump IPC. */
 export async function broadcastJump(
   source: string,
 ): Promise<{ ok: boolean; error?: string; docTitle?: string }> {
@@ -525,9 +539,7 @@ export async function broadcastJump(
   // so multiple-ok isn't a real case; if it ever is, the first still wins.
   const winner = acks.find((a) => a.ack.ok);
   if (winner) {
-    if (winner.win.isMinimized()) winner.win.restore();
-    winner.win.show();
-    winner.win.focus();
+    raiseWindowForJump(winner.win);
     return { ok: true };
   }
   if (acks.some((a) => a.ack.error === 'bad-request')) {

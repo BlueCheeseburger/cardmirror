@@ -801,16 +801,15 @@ describe('global hotkey fallback (focus outside the editor)', () => {
     expect(ribbonKeyStringFor(kbd({ key: 'é', code: 'KeyE' }))).toBe('é');
   });
 
-  it('Shift+Backquote → "~" (PM canonical for sendToFlowAtCursor)', () => {
+  it('Shift+Backquote → "~" (PM canonical, not "Shift-`")', () => {
     // On a US layout, Shift+Backquote produces e.key === '~'. PM-keymap
     // uses the literal character as the binding key (shift is implied by
     // the character itself), so the canonical string is '~', not 'Shift-`'.
     const s = ribbonKeyStringFor(kbd({ key: '~', code: 'Backquote', shiftKey: true }));
     expect(s).toBe('~');
-    expect(ribbonCommandForKey(s)).toBe('sendToFlowAtCursor');
   });
 
-  it('unshifted Backquote → "`" (sendToSpeechAtCursor, not sendToFlow)', () => {
+  it('unshifted Backquote → "`" (sendToSpeechAtCursor)', () => {
     const s = ribbonKeyStringFor(kbd({ key: '`', code: 'Backquote' }));
     expect(s).toBe('`');
     expect(ribbonCommandForKey(s)).toBe('sendToSpeechAtCursor');
