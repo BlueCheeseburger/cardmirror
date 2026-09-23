@@ -22,6 +22,11 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **The PolicyDebateFlow plugin can be installed from Settings → Plugins.**
   Paste `BlueCheeseburger/policy-flow` into the install field. It replaces
   the built-in integration removed below.
+- **Plugins loaded from a file show up in Settings → Plugins.** They're
+  marked "loaded from file (this session)" and get the settings gear, so
+  their settings are reachable.
+- **Plugin settings can include collapsible help sections**, such as
+  "What it does" and "How to set it up".
 - **Jumping to a card from a flow app brings CardMirror to the front.**
   Before, when the card was in the window the plugin ran in, the document
   scrolled to the card but CardMirror stayed behind your browser or flow

@@ -8,7 +8,7 @@ import { getElectronHost } from './host/index.js';
 import { setIcon } from './icons';
 import { isLiteBuild } from './lite.js';
 import { isTopOverlay, popOverlay, pushOverlay } from './overlay-stack.js';
-import { pluginSettingsDefs, unregisterPlugin } from './plugin-registry.js';
+import { pluginSettingsDefs, registeredPlugins, unregisterPlugin } from './plugin-registry.js';
 import { openPluginSettingsModal } from './plugin-settings-modal.js';
 import { isPluginEnabled, setPluginEnabled } from './plugins-store.js';
 import { settings } from './settings.js';
@@ -135,7 +135,12 @@ export function renderPluginsPanel(container: HTMLElement): void {
   async function refresh(): Promise<void> {
     const plugins = ((await host!.pluginList()) as InstalledPlugin[]) ?? [];
     list.textContent = '';
-    if (plugins.length === 0) {
+    // Registered this session but not installed = loaded via "Load plugin
+    // from file…". Listed so their declared settings get a gear too.
+    const installedIds = new Set(plugins.map((p) => p.id));
+    const fileLoaded = registeredPlugins().filter((r) => !installedIds.has(r.id));
+    for (const f of fileLoaded) list.append(buildFileLoadedRow(f));
+    if (plugins.length === 0 && fileLoaded.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'pmd-settings-empty';
       empty.textContent = 'No plugins installed.';
@@ -270,15 +275,7 @@ export function renderPluginsPanel(container: HTMLElement): void {
       // plugin's bundle never ran, so its settings defs are unknown (and
       // the modal would have nothing trustworthy to render).
       if (!p.incompatible && isPluginEnabled(p.id) && pluginSettingsDefs(p.id).length > 0) {
-        const gear = document.createElement('button');
-        gear.type = 'button';
-        gear.className = 'pmd-plugins-gear';
-        gear.title = `${p.name} settings`;
-        setIcon(gear, 'settings', { label: `${p.name} settings` });
-        gear.addEventListener('click', () => {
-          openPluginSettingsModal(p.id, p.name);
-        });
-        row.append(gear);
+        row.append(buildGear(p));
       }
       row.append(update, remove);
       list.append(row);
@@ -363,10 +360,39 @@ export function renderPluginsPanel(container: HTMLElement): void {
       if (!path) return;
       const r = await host.pluginLoadFile(path);
       showToast(r.ok ? 'Plugin bundle loaded for this session.' : `Load failed: ${r.error ?? 'unknown'}`);
+      // List it (with its gear, if it declared settings).
+      if (r.ok) guarded(refresh);
     });
   });
 
   guarded(refresh);
+}
+
+/** Row for a plugin loaded with "Load plugin from file…": no enable,
+ *  update, or uninstall (it isn't installed, and it's gone next launch),
+ *  just its name and — when it declared settings — the gear. */
+function buildFileLoadedRow(p: { id: string; name: string }): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'pmd-plugins-row';
+  const label = document.createElement('span');
+  label.className = 'pmd-plugins-name';
+  label.textContent = `${p.name} — loaded from file (this session)`;
+  row.append(label);
+  if (pluginSettingsDefs(p.id).length > 0) row.append(buildGear(p));
+  return row;
+}
+
+/** Gear → the plugin's own settings modal. */
+function buildGear(p: { id: string; name: string }): HTMLElement {
+  const gear = document.createElement('button');
+  gear.type = 'button';
+  gear.className = 'pmd-plugins-gear';
+  gear.title = `${p.name} settings`;
+  setIcon(gear, 'settings', { label: `${p.name} settings` });
+  gear.addEventListener('click', () => {
+    openPluginSettingsModal(p.id, p.name);
+  });
+  return gear;
 }
 
 // ── Browse plugins modal ────────────────────────────────────────────

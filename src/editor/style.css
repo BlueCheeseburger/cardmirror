@@ -6721,6 +6721,21 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 .pmd-plugin-settings-row .pmd-settings-row-desc {
   margin: 0.3rem 0 0;
 }
+/* Read-only `info` setting: a collapsible section. */
+.pmd-plugin-settings-info > summary {
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.pmd-plugin-settings-info > p,
+.pmd-plugin-settings-info > ul {
+  margin: 0.4rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--pmd-c-text-secondary);
+}
+.pmd-plugin-settings-info > ul {
+  padding-left: 1.2rem;
+}
 
 .pmd-settings-row {
   padding: 0.75rem 0;

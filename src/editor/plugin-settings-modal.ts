@@ -80,6 +80,10 @@ export function openPluginSettingsModal(pluginId: string, pluginName: string): v
 function buildRow(pluginId: string, def: PluginSettingDef): HTMLElement {
   const row = document.createElement('div');
   row.className = 'pmd-plugin-settings-row';
+  if (def.type === 'info') {
+    row.appendChild(buildInfoSection(def));
+    return row;
+  }
   const label = document.createElement('label');
   label.className = 'pmd-plugin-settings-label';
   const title = document.createElement('span');
@@ -97,6 +101,51 @@ function buildRow(pluginId: string, def: PluginSettingDef): HTMLElement {
     row.appendChild(desc);
   }
   return row;
+}
+
+/** Read-only collapsible section for an `info` setting: the label is the
+ *  summary; the body is plain text — a blank line starts a paragraph,
+ *  consecutive "- " lines form a bullet list. textContent only, never
+ *  HTML, so a plugin can't inject markup through it. */
+function buildInfoSection(def: PluginSettingDef): HTMLElement {
+  const details = document.createElement('details');
+  details.className = 'pmd-plugin-settings-info';
+  const summary = document.createElement('summary');
+  summary.textContent = def.label;
+  details.appendChild(summary);
+  for (const block of (def.body ?? '').split(/\n\s*\n/)) {
+    const lines = block.split('\n').filter((l) => l.trim());
+    let list: HTMLUListElement | null = null;
+    let para: HTMLParagraphElement | null = null;
+    for (const line of lines) {
+      if (line.startsWith('- ')) {
+        para = null;
+        if (!list) {
+          list = document.createElement('ul');
+          details.appendChild(list);
+        }
+        const li = document.createElement('li');
+        li.textContent = line.slice(2).trim();
+        list.appendChild(li);
+      } else {
+        list = null;
+        if (!para) {
+          para = document.createElement('p');
+          details.appendChild(para);
+          para.textContent = line.trim();
+        } else {
+          para.textContent += ` ${line.trim()}`;
+        }
+      }
+    }
+  }
+  if (def.description) {
+    const desc = document.createElement('p');
+    desc.className = 'pmd-settings-row-desc';
+    desc.textContent = def.description;
+    details.appendChild(desc);
+  }
+  return details;
 }
 
 function buildControl(pluginId: string, def: PluginSettingDef): HTMLElement {
@@ -167,5 +216,8 @@ function buildControl(pluginId: string, def: PluginSettingDef): HTMLElement {
       });
       return select;
     }
+    case 'info':
+      // Rendered by buildInfoSection before buildControl is reached.
+      return document.createElement('span');
   }
 }

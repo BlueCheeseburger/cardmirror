@@ -31,14 +31,19 @@ export interface PluginSettingDef {
   label: string;
   /** `text` renders a single-line input; `multiline` a textarea (for
    *  list-shaped values — one entry per line by convention). Both hold
-   *  a plain string value. */
-  type: 'boolean' | 'text' | 'multiline' | 'number' | 'select';
-  /** Must match `type`; for `select`, must be one of `options`. */
+   *  a plain string value. `info` holds no value: a read-only,
+   *  collapsible section (`label` as its summary, `body` inside). */
+  type: 'boolean' | 'text' | 'multiline' | 'number' | 'select' | 'info';
+  /** Must match `type`; for `select`, must be one of `options`. Ignored
+   *  (snapshotted as '') for `info`. */
   default: PluginSettingValue;
   /** Required for `select` (the choices), forbidden otherwise. */
   options?: readonly string[];
   /** Muted helper line rendered under the control. */
   description?: string;
+  /** `info` only (required there, forbidden otherwise): plain text. A
+   *  blank line starts a new paragraph; lines starting "- " are bullets. */
+  body?: string;
 }
 
 export interface PluginDefinition {
@@ -61,6 +66,10 @@ export interface PluginDefinition {
 declare global {
   interface Window {
     __registerCardMirrorPlugin?: (def: PluginDefinition) => void;
+    /** The running CardMirror version, readable before registration (the
+     *  api object only exists after it) — lets a bundle leave out setting
+     *  types an older build would reject. Absent on builds before it. */
+    __cardmirrorAppVersion?: string;
   }
 }
 
@@ -78,7 +87,7 @@ let makeApi: ((pluginId: string) => CardMirrorPluginApi) | null = null;
 
 const PLUGIN_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 const SETTING_KEY_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
-const SETTING_TYPES = new Set(['boolean', 'text', 'multiline', 'number', 'select']);
+const SETTING_TYPES = new Set(['boolean', 'text', 'multiline', 'number', 'select', 'info']);
 
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string');
@@ -87,7 +96,10 @@ function isStringArray(v: unknown): v is string[] {
 /** Validate + snapshot a definition's `settings` array. Same discipline
  *  as commands: every field is read exactly once, and any off-shape
  *  entry rejects the whole registration — the settings modal renders
- *  these blind, so it must be able to trust the shape. */
+ *  these blind, so it must be able to trust the shape. The one
+ *  exception is an unknown `type` string: that entry is dropped with a
+ *  console warning, so a bundle using a type added in a later build
+ *  still loads (minus that setting) instead of failing outright. */
 function validateSettings(
   def: PluginDefinition,
 ): { ok: true; settings: PluginSettingDef[] } | { ok: false; error: string } {
@@ -98,7 +110,7 @@ function validateSettings(
   const seen = new Set<string>();
   for (const s of raw) {
     if (!s || typeof s !== 'object') return { ok: false, error: 'settings entries must be objects' };
-    const { key, label, type, options, description } = s;
+    const { key, label, type, options, description, body } = s;
     const dflt = s.default;
     if (typeof key !== 'string' || !SETTING_KEY_RE.test(key)) {
       return { ok: false, error: `setting key "${String(key)}" is invalid` };
@@ -107,11 +119,29 @@ function validateSettings(
     if (typeof label !== 'string' || !label) {
       return { ok: false, error: `setting "${key}" has no label` };
     }
-    if (typeof type !== 'string' || !SETTING_TYPES.has(type)) {
+    if (typeof type !== 'string') {
       return { ok: false, error: `setting "${key}" has invalid type "${String(type)}"` };
+    }
+    if (!SETTING_TYPES.has(type)) {
+      console.warn(`[plugins] ${def.id}: skipping setting "${key}" of unknown type "${type}"`);
+      continue;
     }
     if (description !== undefined && typeof description !== 'string') {
       return { ok: false, error: `setting "${key}" has an invalid description` };
+    }
+    if (type === 'info') {
+      if (typeof body !== 'string' || !body.trim()) {
+        return { ok: false, error: `info setting "${key}" needs a non-empty body` };
+      }
+      if (options !== undefined) {
+        return { ok: false, error: `setting "${key}" has options but is not a select` };
+      }
+      seen.add(key);
+      snapshots.push({ key, label, type, default: '', description, body });
+      continue;
+    }
+    if (body !== undefined) {
+      return { ok: false, error: `setting "${key}" has a body but is not an info section` };
     }
     if (type === 'select') {
       if (!isStringArray(options) || options.length === 0 || options.some((o) => !o)) {
