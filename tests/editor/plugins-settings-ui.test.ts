@@ -248,6 +248,24 @@ describe('per-plugin settings gear', () => {
     expect(await renderedGear()).toBeNull();
   });
 
+  it('lists a plugin loaded from file, with its gear', async () => {
+    installPluginRegistry(() => stubApi);
+    registerPluginDefinition({
+      id: 'from-file',
+      name: 'From File',
+      apiVersion: 1,
+      commands: [{ id: 'from-file.x', label: 'X', run: () => {} }],
+      settings: [{ key: 'code', label: 'Code', type: 'text', default: '' }],
+    });
+    const el = document.createElement('div');
+    renderPluginsPanel(el);
+    await settled();
+    const names = [...el.querySelectorAll('.pmd-plugins-name')].map((n) => n.textContent);
+    expect(names).toContain('From File — loaded from file (this session)');
+    const gear = el.querySelector<HTMLButtonElement>('.pmd-plugins-gear[title="From File settings"]');
+    expect(gear).toBeTruthy();
+  });
+
   it('clicking the gear opens the plugin settings modal', async () => {
     registerDemo(true);
     setEnabled(true);

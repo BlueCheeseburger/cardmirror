@@ -117,7 +117,10 @@ the allowlist.
    load from disk at each launch and work offline.
 
 A developer path exists: "Load plugin from file..." in the Plugins tab
-loads a local `plugin.js` without an install.
+loads a local `plugin.js` without an install. In this fork (unreleased),
+a plugin loaded that way gets its own row in the Plugins tab, marked
+"loaded from file (this session)", with the settings gear if it
+declared settings.
 
 ### Uninstall
 
@@ -175,14 +178,18 @@ export interface PluginSettingDef {
   label: string;
   /** `text` renders a single-line input; `multiline` a full-width
    *  textarea (for list-shaped values — one entry per line by
-   *  convention). Both hold a plain string value. */
-  type: 'boolean' | 'text' | 'multiline' | 'number' | 'select';
-  /** Must match `type`; for `select`, must be one of `options`. */
+   *  convention). Both hold a plain string value. `info` holds no
+   *  value: a read-only, collapsible section. */
+  type: 'boolean' | 'text' | 'multiline' | 'number' | 'select' | 'info';
+  /** Must match `type`; for `select`, must be one of `options`.
+   *  Ignored for `info`. */
   default: PluginSettingValue;
   /** Required for `select` (the choices), forbidden otherwise. */
   options?: readonly string[];
   /** Muted helper line rendered under the control. */
   description?: string;
+  /** `info` only (required there, forbidden otherwise): plain text. */
+  body?: string;
 }
 
 export interface PluginDefinition {
@@ -233,6 +240,38 @@ should set `minAppVersion` to `1.4.0`.
   plugin's bundle never ran, so its declared settings are unknown to
   the host.
 
+#### `info` sections (this fork, unreleased)
+
+A setting with `type: 'info'` is read-only text, rendered as a
+collapsible `<details>` with `label` as its summary. It starts collapsed.
+`body` is required and is plain text: a blank line starts a new
+paragraph, lines starting with `- ` become bullets, and it's rendered
+as text, never HTML. `default` is ignored, and `api.settings.get(key)`
+returns `undefined` for it. Example:
+
+```js
+{ key: 'setup', label: 'How to set it up', type: 'info', default: '',
+  body: 'Pair once, then send with ~.\n\n- Open the flow\n- Paste the code above' }
+```
+
+#### Unknown setting types and version checks
+
+In this fork (unreleased), a setting whose `type` is a string this
+build doesn't know is skipped with a console warning, instead of
+rejecting the whole plugin. That way, setting types added later degrade
+gracefully. Builds before that still reject such a setting, so the
+whole plugin fails to load there.
+
+To leave a newer type out on older builds, check
+`window.__cardmirrorAppVersion` at load time. It's the CardMirror
+version string, and it can be read before registration, unlike
+`api.appVersion`. It's missing on builds from before it existed, so
+treat a missing value as "old build":
+
+```js
+const hasInfo = typeof window.__cardmirrorAppVersion === 'string';
+```
+
 ### Background activation (`activate`, this fork, unreleased)
 
 `activate` is optional. CardMirror calls it once, with the plugin's
@@ -270,10 +309,12 @@ toast "Plugin failed to load: `<reason>`". Rejection reasons:
 - A command id lacks the `<pluginId>.` prefix, or is a duplicate.
 - A command lacks a `label` or a `run` function.
 - A declared setting is off-shape: bad or duplicate `key`, missing
-  `label`, unknown `type`, a `default` that doesn't match `type`, a
+  `label`, a non-string `type`, a `default` that doesn't match `type`, a
   `select` without a non-empty `options` list (or whose `default`
-  isn't among them), or `options` on a non-`select` type. One bad
-  setting rejects the whole registration.
+  isn't among them), `options` on a non-`select` type, an `info`
+  section without a non-empty `body`, or `body` on a non-`info` type.
+  One bad setting rejects the whole registration. An unknown `type`
+  string is the exception: that one setting is skipped (see above).
 
 A `run` function that throws, or that returns a rejected promise, does
 not crash the app. The registry logs the error and shows a toast with

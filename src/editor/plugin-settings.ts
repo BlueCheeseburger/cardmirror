@@ -44,16 +44,19 @@ export function effectivePluginSettingValue(
       return typeof raw === 'number' && Number.isFinite(raw) ? raw : def.default;
     case 'select':
       return typeof raw === 'string' && (def.options ?? []).includes(raw) ? raw : def.default;
+    case 'info':
+      return def.default;
   }
 }
 
-/** Current value of a declared setting; undefined for undeclared keys. */
+/** Current value of a declared setting; undefined for undeclared keys
+ *  and for `info` sections, which hold no value. */
 export function getPluginSettingValue(
   pluginId: string,
   key: string,
 ): PluginSettingValue | undefined {
   const def = pluginSettingsDefs(pluginId).find((d) => d.key === key);
-  if (!def) return undefined;
+  if (!def || def.type === 'info') return undefined;
   return effectivePluginSettingValue(def, readValues(pluginId)[key]);
 }
 
