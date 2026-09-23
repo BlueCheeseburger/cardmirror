@@ -4425,7 +4425,6 @@ export type RibbonCommandId =
   | 'sendToSpeechAtCursor'
   | 'sendToSpeechAtEnd'
   | 'sendToDropzone'
-  | 'sendToFlowAtCursor'
   | 'insertLiveZone'
   | 'insertSelfLiveZone'
   | 'insertInDocCopy'
@@ -4673,7 +4672,6 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'sendToSpeechAtCursor',
   'sendToSpeechAtEnd',
   'sendToDropzone',
-  'sendToFlowAtCursor',
   'insertLiveZone',
   'insertSelfLiveZone',
   'insertInDocCopy',
@@ -4873,7 +4871,6 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   sendToSpeechAtCursor: 'Send to Speech (At Cursor)',
   sendToSpeechAtEnd: 'Send to Speech (At End)',
   sendToDropzone: 'Send to Dropzone',
-  sendToFlowAtCursor: 'Send Tagline to PolicyDebateFlow',
   insertLiveZone: 'Insert Linked Copy from a File',
   insertSelfLiveZone: 'Insert Live View',
   insertInDocCopy: 'Insert Linked Copy from This Document',
@@ -5278,14 +5275,6 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   sendToSpeechAtCursor: '`',
   sendToSpeechAtEnd: 'Alt-`',
   sendToDropzone: 'Mod-`',
-  // Own chord, deliberately distinct from the three above so
-  // send-to-speech and send-to-flow never fight over the same key.
-  // Rebindable via Settings → Keybindings like everything else here.
-  // '~' is the w3c-keyname / prosemirror-keymap canonical string for
-  // Shift+Backquote on a US layout. PM matches by e.key directly for
-  // single-char keys, which is '~' when Shift is held — so the shift
-  // is implicit, not a prefix. 'Shift-`' never fires in the editor.
-  sendToFlowAtCursor: '~',
   sendToStarred: '',
   sendToRecipient: '',
   insertReceivedAtCursor: 'Mod-p',
@@ -5526,10 +5515,6 @@ export interface RibbonContext {
   sendToSpeechAtCursor: () => void;
   sendToSpeechAtEnd: () => void;
   sendToDropzone: () => void;
-  /** Send the tagline (+ short cite) under the cursor to a connected
-   *  PolicyDebateFlow flow. No-op (with its own toast) if not
-   *  connected — see `flow-send.ts`. */
-  sendToFlowAtCursor: () => void;
   /** Open the picker to insert a live zone (transclusion). Desktop-only UI. */
   insertLiveZone: () => void;
   /** Open the picker to insert a Live View — a read-only window onto another
@@ -5724,7 +5709,6 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   markActiveAsSpeech: () => {},
   sendToSpeechAtCursor: () => {},
   sendToDropzone: () => {},
-  sendToFlowAtCursor: () => {},
   insertLiveZone: () => {},
   insertSelfLiveZone: () => {},
   insertInDocCopy: () => {},
@@ -6281,12 +6265,6 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.sendToDropzone();
-        return true;
-      };
-    case 'sendToFlowAtCursor':
-      return (_state, dispatch) => {
-        if (!dispatch) return true;
-        ctx.sendToFlowAtCursor();
         return true;
       };
     case 'insertLiveZone':

@@ -560,6 +560,8 @@ interface ElectronAPI {
    *  jump request/result pair mirrors the external-insert pair
    *  above (`external:jump` / `external:jump-result`). */
   pluginJump?(source: string): Promise<Record<string, unknown>>;
+  /** Raise this window, activating the app (after a local plugin jump). */
+  focusSelf?(): Promise<void>;
   flowApps?(): Promise<unknown[]>;
   flowPost?(appId: string, route: string, body: unknown): Promise<Record<string, unknown>>;
   onExternalJumpRequest?(
@@ -730,6 +732,7 @@ export class ElectronHost implements Host {
    *  callers pick their own renderer-side fallback (e.g. jumpToSource's
    *  doc-not-open-with-title), which a stub wrapper couldn't produce. */
   readonly pluginJump? = api().pluginJump?.bind(api());
+  readonly focusSelf? = api().focusSelf?.bind(api());
   readonly flowApps? = api().flowApps?.bind(api());
   readonly flowPost? = api().flowPost?.bind(api());
 

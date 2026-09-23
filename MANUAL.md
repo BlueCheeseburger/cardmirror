@@ -262,9 +262,6 @@ fork's own additions; upstream CardMirror doesn't have them.
   extraction errors, ask a question about a selection, or generate alt text
   and tables from an image. This fork adds **[Google Gemini](#setup-google-gemini)**
   as a third provider **(fork)**.
-- **[Send taglines to PolicyDebateFlow](#send-taglines-to-policydebateflow)**
-  **(fork)** — one key sends the tagline and cite under your cursor into
-  your open flow.
 - **[Compare documents](#comparing-two-documents)** **(fork)** — a
   side-by-side, code-diff-style comparison of two files' text.
 - **[Save As modes and remembered folders](#save-as)** **(fork)** — pick
@@ -971,6 +968,9 @@ about — your Quick Cards, the dropzone, every command, every setting, and
 your files — and acts on what you pick. It opens centered over the active
 pane with results listed above the bar; **↑/↓** move the selection,
 **Enter** activates it, and **Esc** closes.
+
+You can also open it with the **Search** button in the status bar at the
+bottom of the window **(fork)**.
 
 By default it searches **everything at once**: as you type it blends matches
 from all the sources below. To narrow to one source, start your query with
@@ -2131,31 +2131,6 @@ These commands aren't on the ribbon and have no default shortcuts — find
 them in the command palette, or bind keys to them under **Settings →
 Keyboard shortcuts**. They appear only on Windows.
 
-### Send taglines to PolicyDebateFlow
-
-**(fork, desktop only)** If you flow on
-PolicyDebateFlow, CardMirror can send
-taglines straight into your open flow without switching windows.
-
-1. In **Settings → PolicyDebateFlow**, turn on **Connect to
-   PolicyDebateFlow**.
-2. In PolicyDebateFlow's own settings, copy your personal token and paste
-   it into **PolicyDebateFlow connection**. The token gives access to all
-   your flows and doesn't expire; **Disconnect** in the same place revokes
-   it.
-3. With your flow open in PolicyDebateFlow, put your cursor on (or in) a
-   card or analytic and press **Shift-`` ` ``** (*Send Tagline to
-   PolicyDebateFlow*). The tagline and its short cite land in the flow's
-   next empty cell, and the flow moves down a row, so you can send a whole
-   case one key at a time.
-
-A **Flow** chip in the status bar shows whether you're connected. Click it
-to pause or resume sending on this machine; pausing doesn't revoke your
-token, so resuming is instant. If the flow tab is closed, or paused on
-PolicyDebateFlow's side, CardMirror tells you which instead of sending.
-Nothing contacts PolicyDebateFlow until the integration is on and a token is
-saved.
-
 ---
 
 ## 15. Voice control
@@ -3228,17 +3203,6 @@ use the Control key show as **⌃** and Command shortcuts as **⌘**.
 **Plugins** — the Plugins tab has its own chapter: see
 [section 20](#20-plugins-experimental).
 
-### PolicyDebateFlow
-
-**(fork, desktop)**
-
-- **Connect to PolicyDebateFlow** — turns on sending taglines to a
-  PolicyDebateFlow flow. Off by default; nothing contacts PolicyDebateFlow
-  while it's off.
-- **PolicyDebateFlow connection** — paste the personal token from
-  PolicyDebateFlow's settings to connect; **Disconnect** revokes it. See
-  [Send taglines to PolicyDebateFlow](#send-taglines-to-policydebateflow).
-
 ---
 
 ## 18. Appearance and accessibility
@@ -3335,7 +3299,6 @@ these to extend the selection.
 | Mod-Alt-R | Repair Formatting in selection (AI) |
 | Mod-Shift-T | Translate selection to clipboard (AI) |
 | Mod-Shift-D | Toggle a reading-position marker (Space / Enter also work in read mode) |
-| Shift-`` ` `` | Send tagline to PolicyDebateFlow (fork, desktop) |
 
 ### Files and view
 | Shortcut | Action |

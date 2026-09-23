@@ -137,6 +137,69 @@ describe('plugin registry', () => {
   });
 });
 
+describe('activate lifecycle hook', () => {
+  it('calls activate once with the plugin api on first registration, not on the re-enable no-op', () => {
+    const api = { showToast: () => {} } as unknown as CardMirrorPluginApi;
+    installPluginRegistry(() => api);
+    const activate = vi.fn();
+    expect(registerPluginDefinition(def({ activate })).ok).toBe(true);
+    expect(activate).toHaveBeenCalledTimes(1);
+    expect(activate).toHaveBeenCalledWith(api);
+    expect(registerPluginDefinition(def({ activate })).ok).toBe(true);
+    expect(activate).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls the returned disposer on unregister', () => {
+    installPluginRegistry(() => stubApi);
+    const dispose = vi.fn();
+    registerPluginDefinition(def({ activate: () => dispose }));
+    expect(dispose).not.toHaveBeenCalled();
+    unregisterPlugin('demo');
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('a throwing activate toasts but keeps the plugin and its commands registered', () => {
+    installPluginRegistry(() => stubApi);
+    const res = registerPluginDefinition(
+      def({
+        activate: () => {
+          throw new Error('boom');
+        },
+      }),
+    );
+    expect(res.ok).toBe(true);
+    expect(pluginCommandIds()).toContain('demo.hello');
+    expect(showToast).toHaveBeenCalledWith('Demo: activate failed — boom');
+  });
+
+  it('toasts when an async activate rejects', async () => {
+    installPluginRegistry(() => stubApi);
+    registerPluginDefinition(def({ activate: () => Promise.reject(new Error('late')) }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(showToast).toHaveBeenCalledWith('Demo: activate failed — late');
+  });
+
+  it('rejects a non-function activate', () => {
+    installPluginRegistry(() => stubApi);
+    const res = registerPluginDefinition(def({ activate: 42 as unknown as PluginDefinition['activate'] }));
+    expect(res).toEqual({ ok: false, error: 'activate must be a function' });
+  });
+
+  it('a throwing disposer does not block unregistering', () => {
+    installPluginRegistry(() => stubApi);
+    registerPluginDefinition(
+      def({
+        activate: () => () => {
+          throw new Error('nope');
+        },
+      }),
+    );
+    expect(unregisterPlugin('demo')).toEqual(['demo.hello']);
+    expect(registeredPlugins()).toEqual([]);
+  });
+});
+
 describe('plugin settings declarations', () => {
   const SETTINGS = [
     { key: 'auto-send', label: 'Auto-send', type: 'boolean' as const, default: true },
