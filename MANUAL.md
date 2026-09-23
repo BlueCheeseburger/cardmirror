@@ -54,7 +54,8 @@ they're described.
 
 Download the desktop app for Windows or macOS from this fork's
 [Releases page](https://github.com/BlueCheeseburger/cardmirror/releases).
-This fork doesn't publish Linux or CardMirror Lite builds. The
+This fork doesn't publish Linux or CardMirror Lite builds; on Linux, build
+the app from source (the README's Linux install steps walk through it). The
 [live web preview](https://cardmirror.app/) is the upstream project's hosted
 build, so it doesn't have this fork's additions. Full install
 instructions — including the one-time "unsigned app" prompts on Windows and
@@ -2405,7 +2406,10 @@ yours, or a file before and after cutting.
 2. Click **Compare**. The comparison opens full-screen: the first file on
    the left, the second on the right, line by line, like a code diff.
    Lines only in the first file are red, lines only in the second are
-   green, and unchanged lines are plain. The top bar counts the changed
+   green, and unchanged lines are plain. When a line was edited rather
+   than replaced, its old and new versions sit side by side and the
+   words that changed are marked: struck through on the left, underlined
+   on the right, each in a stronger shade. The top bar counts the changed
    lines (for example "+12 −4 lines changed").
 3. Each side has its own **outline** of that file's headings. Click one to
    jump to it in the comparison. A heading greyed out in the outline has
@@ -2589,8 +2593,8 @@ at launch and once a day — and only speaks up when a new version is
 actually ready. **(fork)** Updates come from this fork's releases, not the
 upstream project's. You can turn this off with the **Check for updates
 automatically** toggle in Settings → General → About this install;
-**Help → Check for Updates…** always works either way. (This fork doesn't
-publish Linux builds; the AUR package installs the upstream project.)
+**Help → Check for Updates…** always works either way. (A Linux build you
+made from source doesn't update itself — rebuild from the new source.)
 
 **Going to a tournament?** The **Pause update checks for 1 week**
 button (next to the auto-check toggle in Settings → General → About
@@ -2604,7 +2608,7 @@ downloaded in the background, a small **chip appears in the status bar**
 ("Update x.y.z ready — restart to install"). **(fork)** While the update
 downloads, the chip fills in from left to right and shows the percentage
 done. Nothing installs until you
-click it — on Windows and Linux, quitting the app normally also applies
+click it — on Windows, quitting the app normally also applies
 a downloaded update on the way out. On macOS the update is staged the
 same way and clicking the chip restarts straight into the new version;
 if your install can't be updated in place (for example the app isn't in

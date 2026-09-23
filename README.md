@@ -135,27 +135,31 @@ launch CardMirror like any other app.
 
 ### Linux
 
-Two options for installation, depending upon distribution:
+This fork doesn't publish Linux builds, so build it yourself from
+source. Follow [Run from source](#run-from-source) steps 1–4, then, in
+the same terminal:
 
-- **AppImage** (works on every modern distro): download
-  `cardmirror-x.x.x.AppImage`. In a terminal, in the download
-  folder, run:
-  ```sh
-  chmod +x cardmirror-x.x.x.AppImage
-  ./cardmirror-x.x.x.AppImage
-  ```
-  For most graphical desktop environments with modern file managers, you should
-  be able to run the AppImage by double-clicking after the `chmod +x` command.
+```sh
+npm run desktop:install
+npm run desktop:dist
+```
 
-- **Arch and Arch-based distributions** — use the AUR:
-  ```sh
-  yay -S cardmirror-bin
-  # or with paru: paru -S cardmirror-bin
-  ```
-  Or grab `cardmirror-x.x.x.pacman` from the release directly and:
-  ```sh
-  sudo pacman -U cardmirror-x.x.x.pacman
-  ```
+This takes a few minutes and writes the app to `apps/desktop/release/`:
+
+- **`cardmirror-x.x.x.AppImage`** works on every modern distro. Run
+  `chmod +x cardmirror-x.x.x.AppImage` once, then double-click it (or run
+  `./cardmirror-x.x.x.AppImage`).
+- **`cardmirror-x.x.x.pacman`** is for Arch and Arch-based distros:
+  `sudo pacman -U apps/desktop/release/cardmirror-x.x.x.pacman`. Building it
+  needs `bsdtar`, which Arch already has. On other distros, if the build
+  stops with a `bsdtar` error after the AppImage is written, the AppImage
+  is ready to use (or install `libarchive-tools` and build again).
+
+The in-app updater can't update a build you made yourself. To update,
+download the new source and run the two commands again.
+
+The AUR's `cardmirror-bin` package installs the upstream project, not this
+fork.
 
 ### Updates
 
@@ -174,7 +178,7 @@ automatically**.
 Updates never interrupt you: when a new version has finished
 downloading, a small chip appears in the status bar ("Update x.y.z
 ready — restart to install"), and nothing installs until you click it.
-On Windows and Linux, quitting the app normally also applies a
+On Windows, quitting the app normally also applies a
 downloaded update on the way out. On macOS, clicking the chip restarts
 straight into the new version; if your install can't be updated in
 place (for example the app isn't in a writable folder), the chip opens
@@ -183,9 +187,6 @@ the releases page instead so you can grab the new `.dmg`.
 Going to a tournament? **Pause update checks for 1 week** (Settings →
 General → "About this install") stops all automatic checks and
 downloads until the shown resume date.
-
-Linux users who installed via the AUR can update with `yay -Syu`
-instead.
 
 ## (Optional) Set up AI features
 
@@ -260,7 +261,7 @@ is installed.
 ### 2. Download the source
 
 1. Open
-   [the CardMirror page on GitHub](https://github.com/ant981228/cardmirror)
+   [this fork's page on GitHub](https://github.com/BlueCheeseburger/cardmirror)
    in your browser.
 2. Click the **green `<> Code` button** near the top of the file list.
 3. Click **"Download ZIP"** at the bottom of the dropdown.

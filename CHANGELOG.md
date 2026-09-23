@@ -8,6 +8,25 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.12.0-bcb.1.1 — 2026-09-23
+
+### Added
+
+- **Compare documents marks the words that changed.** When a line was
+  edited rather than replaced — a date updated, a word swapped, a phrase
+  added — its old and new versions now line up side by side, and just the
+  changed words stand out: struck through on the left, underlined on the
+  right, in a stronger red or green than the rest of the line. Lines that
+  were replaced outright keep plain whole-line coloring.
+
+### Changed
+
+- **Linux: build from source.** This fork doesn't publish Linux installers,
+  so the README's Linux install steps now walk through building the
+  AppImage (and the Arch `.pacman`) from this fork's source. Its "Download
+  the source" step also now points at this fork instead of upstream, which
+  would have built upstream's app without this fork's features.
+
 ## 1.12.0-bcb.1 — 2026-09-23
 
 ### Changed
