@@ -19,6 +19,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **Plugins can run in the background.** A plugin can now start work when
   it loads (like listening for jump requests from a flow app) instead of
   waiting until you run one of its commands.
+- **The PolicyDebateFlow plugin can be installed from Settings → Plugins.**
+  Paste `BlueCheeseburger/policy-flow` into the install field. It replaces
+  the built-in integration removed below.
 - **Jumping to a card from a flow app brings CardMirror to the front.**
   Before, when the card was in the window the plugin ran in, the document
   scrolled to the card but CardMirror stayed behind your browser or flow
