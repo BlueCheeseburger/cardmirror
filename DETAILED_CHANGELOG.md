@@ -10,6 +10,38 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Removed: built-in PolicyDebateFlow integration
+
+The PolicyDebateFlow integration is being rebuilt as a CardMirror plugin
+(maintained on PolicyDebateFlow's side) rather than living in the app, so
+the in-app version is removed wholesale: `flow-send.ts`, `flow-chip.ts`
+and their tests; the `sendToFlowAtCursor` command (label, `~` default
+binding, ribbon group, context no-op, dispatch); the
+`policyDebateFlowEnabled` / `policyDebateFlowToken` settings (and the
+token's `SECRET_SETTING_KEYS` entry), the Settings → PolicyDebateFlow
+category, the `flowConnection` row kind and `buildFlowConnectionEditor`;
+the `#pf-flow-chip` status-bar element and its CSS. Settings files that
+still carry the two old keys are harmless — `normalize` drops unknown
+keys. Verbatim Flow (`flow-port.ts`, `apps/desktop/src/flow-bridge.ts`)
+is a separate feature and is untouched.
+
+Kept: the shifted-Backquote key-capture fix (`ribbonKeyStringFor` emits
+`'~'`, `formatKeyForDisplay('~')` → `Shift+\`` / `⇧\``) — generic, and
+still needed for anyone who binds a command to Shift+`` ` `` themselves.
+
+### Added: status-bar Search Everything button (`index.html`, `index.ts`, `style.css`)
+
+`#status-search-btn` takes the old chip's slot in the status bar — an
+outlined pill labeled "Search" that calls
+`ribbonContext.openQuickCardSearch()` directly (view-less, like the
+ribbon's `#qc-search-btn`, so it opens even with no document), with the
+same `mousedown` `preventDefault` so clicking it doesn't steal editor
+focus first. Always visible, web and desktop.
+
+---
+
 ## 1.12.0-bcb.1 — 2026-09-23
 
 Upstream sync through v1.12.0. Ten files conflicted; how each was resolved:
@@ -1200,16 +1232,16 @@ the top-right corner.
 ### Added / Fixed: PolicyDebateFlow status chip; the send-tagline hotkey now actually fires
 
 See [CHANGELOG.md § 1.10.0-bcb.2.1](./CHANGELOG.md#1100-bcb21--2026-09-11)
-for the user-facing summary. Full implementation details in
-[Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-flow-chipts-settingsts-settings-uits-ribbon-commandsts-ribbon-groupsts)
-below.
+for the user-facing summary. The integration was later removed from the
+app (see [Unreleased](#unreleased)); its implementation notes live in git
+history.
 
 ### Fixed: PolicyDebateFlow status chip pauses instead of disconnecting
 
 See [CHANGELOG.md § 1.10.0-bcb.3](./CHANGELOG.md#1100-bcb3--2026-09-12)
-for the user-facing summary. Full implementation details in
-[Fork Changes § 8. Send taglines to PolicyDebateFlow](#8-send-taglines-to-policydebateflow-flow-sendts-flow-chipts-settingsts-settings-uits-ribbon-commandsts-ribbon-groupsts)
-below.
+for the user-facing summary. The integration was later removed from the
+app (see [Unreleased](#unreleased)); its implementation notes live in git
+history.
 
 ---
 
@@ -1401,96 +1433,13 @@ then logs the fallback. The ribbon's Save button now distinguishes
 linked copy Word can't hold open), matching the visual feedback users
 already had for `.cmir` autosave.
 
-### 8. Send taglines to PolicyDebateFlow (`flow-send.ts`, `flow-chip.ts`, `settings.ts`, `settings-ui.ts`, `ribbon-commands.ts`, `ribbon-groups.ts`)
+### 8. Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `home-screen.ts`, `index.ts`, `style.css`)
 
-**Introduced in this release. Extended in this release (status-bar
-connection chip; hotkey fix).**
-
-A new `sendToFlowAtCursor` ribbon command, default-bound to `` ` `` while
-Shift is held (deliberately its own chord — the existing `` ` `` /
-`Alt-`` ` / `Mod-`` ` family is send-to-speech and send-to-dropzone, and
-this needed to never collide with those). With the cursor on or inside a
-card, it walks up to the enclosing `card`/`analytic_unit`, reads its `tag` text and the
-cite-marked run(s) anywhere in the card (`collectCiteText`, the same
-helper the nav pane uses for its short-cite display) as the tagline and
-author/date, and sends both to a connected PolicyDebateFlow flow.
-
-New Settings → PolicyDebateFlow tab (`policyDebateFlowEnabled` toggle,
-off by default; `policyDebateFlowToken`, a `SECRET_SETTING_KEYS` entry
-like the AI provider keys) with a paste-a-token Connect/Disconnect
-editor (`buildFlowConnectionEditor`). The token comes from a
-"Generate pairing code" action in PolicyDebateFlow's own Settings
-(`pf_create_api_token()`); one token per user, and generating a new one
-or disconnecting on either side revokes it.
-
-Sending is two Bearer-token calls to PolicyDebateFlow's Supabase Edge
-Functions, no Supabase anon key needed on CardMirror's side:
-
-1. `GET /pf-presence` — confirms a flow tab is actually open (present
-   within the last 5 minutes) and returns the live focused
-   flow/sheet/row/col to target. `present: false` stops here with a
-   toast — no send attempted. Two distinct reasons, both `present:
-   false`: a closed/stale tab ("PolicyDebateFlow isn't open") vs. an
-   open tab whose OWN status chip paused delivery on PolicyDebateFlow's
-   side (`paused: true`, "PolicyDebateFlow is paused") — a real,
-   separate case from CardMirror's own local pause (which never even
-   reaches this call, since `sendTaglineToFlowAsync` bails on
-   `policyDebateFlowEnabled` being false before any network access).
-   `paused` itself degrades back to plain `present: false` after the
-   same 5-minute staleness window, by PolicyDebateFlow's own design —
-   not distinguished from a closed tab past that point.
-2. `POST /pf-send-card` with `{taglineText, authorDate, sheetId,
-   targetRow, targetCol}` taken straight from the presence read. The
-   flow tab applies it directly (walking forward from the target cell to
-   the first empty one, never overwriting existing content) and
-   auto-advances its own focus down one row — fire-and-forget from
-   CardMirror's side, no apply-ack expected.
-
-A 401 from either call (expired/invalid token) shows a distinct
-"PolicyDebateFlow connection expired — re-pair in Settings" toast rather
-than the generic failure message. The integration is fully inert unless
-both the toggle is on and a token is saved — `flow-send.ts` is a
-self-contained module nothing else imports from, so it can be deleted
-wholesale without touching anything else. Desktop-only for now.
-
-**Hotkey fix.** The command was registered as `'Shift-\`'`, which never
-actually fired: prosemirror-keymap (via w3c-keyname) matches single-char
-keys by `e.key` directly, and Shift+Backquote produces `e.key === '~'`
-on a US layout — the shift is implied by the character itself, not a
-`Shift-` prefix. Fixed the registered binding to `'~'`, taught the
-outer-editor global-hotkey normalizer (`ribbonKeyStringFor`) to emit
-`'~'` for a shifted Backquote instead of `'Shift-\`'`, and special-cased
-`formatKeyForDisplay('~')` so the Settings shortcut editor still shows
-it as `Shift+\`` / `⇧\`` rather than a raw tilde.
-
-**Status-bar connection chip (`flow-chip.ts`).** A `Flow · Connected` /
-`Flow · Off` pill next to the collaboration chip, visible once a token
-is paired. Polls `GET /pf-presence` every 30 seconds while connected —
-a 401 means the token itself is dead (expired, or revoked from
-PolicyDebateFlow's side) and clears it, falling back to the same
-"never paired" Off state as before any token existed.
-
-Clicking the chip is a purely **local, instant pause/resume** — it
-toggles `policyDebateFlowEnabled` (the existing master switch,
-independent of the credential) and never touches the token or the
-network. That's deliberate, not a first draft: a hard revoke via
-`POST /pf-revoke-token` deletes the token row server-side, which
-can't be undone with a click — "reconnecting" after one would mean a
-whole new pairing (a fresh code generated in PolicyDebateFlow, pasted
-back into Settings), which is a bad trade for what's meant to be a
-quick status toggle. `flow-send.ts`'s own enabled check already makes
-`sendToFlowAtCursor` a no-op while paused, so the pause is fully
-effective without CardMirror losing its saved token or PolicyDebateFlow
-losing its side of the pairing. The one case where the chip still
-calls `openSettings()` instead of toggling: no token exists yet at
-all, since there's nothing local to pause — that's the "connect for
-the first time" bootstrap path, unchanged.
-
-The real disconnect (revoking the token) stays exactly where it was:
-Settings → PolicyDebateFlow's Disconnect button, via the shared
-`revokeFlowToken` export in `flow-send.ts` (`POST /pf-revoke-token`,
-`{ok: true}` on success or 401 if already gone, either way followed by
-clearing `policyDebateFlowToken` locally). The chip never calls it.
+**Introduced in 1.10.0-bcb.4.** A read-only, side-by-side line diff of
+two `.cmir`/`.docx` files, opened from the home screen's Compare card.
+Full implementation notes (LCS line diff, `MAX_DIFF_CELLS` cap,
+side-by-side row pairing, outline jump) are in
+[1.10.0-bcb.4's entry](#added-compare-documents-doc-diffts-doc-diff-uits-home-screents-indexts-stylecss).
 
 ---
 
