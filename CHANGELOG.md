@@ -20,6 +20,12 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   new "Freeze card numbers as text" / "Remove card numbers" pair appears
   among Custom Save's checkboxes, and Send Doc / Marked Doc apply your card
   number settings when saved, the same as upstream.
+- **The user manual now covers this fork.** `MANUAL.md` documents every
+  fork feature where it's used — the three-pane window moves, window names
+  and renaming, Save As modes, Compare documents, Gemini, PolicyDebateFlow,
+  lay-speaking read times, settings search, and more — each marked
+  "(fork)", and its install and update notes now point at this fork's
+  releases.
 
 ### From upstream
 
