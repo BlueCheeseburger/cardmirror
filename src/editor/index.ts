@@ -10883,6 +10883,8 @@ async function initPlugins(): Promise<void> {
     // the async plugin load), and an uninstalled plugin's button vanishes.
     renderCustomRibbonButtons();
   };
+  // Readable before registration, unlike api.appVersion.
+  window.__cardmirrorAppVersion = appVersion;
   installPluginRegistry((pluginId) =>
     createPluginApi(pluginId, {
       appVersion,

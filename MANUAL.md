@@ -3349,7 +3349,10 @@ any built-in command, and can be bound to
 **Plugin settings.** A plugin that offers its own options shows a
 gear on its row while it's enabled. Clicking it opens a small dialog
 of the plugin's settings; changes apply immediately, and Done just
-closes.
+closes. Some plugins include collapsible help sections there too, such
+as how to set them up; click a section's title to expand it. A plugin
+loaded with **Load plugin from file…** also gets a row, marked "loaded
+from file (this session)", so its settings are reachable **(fork)**.
 
 **Uninstalling.** The Uninstall button removes the plugin, its
 settings, its shortcuts, and any custom ribbon buttons bound to its
