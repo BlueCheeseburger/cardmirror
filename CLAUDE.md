@@ -275,8 +275,8 @@ its builds succeed, with no need to check back in and wait for an
 explicit go-ahead each time. Nobody else is watching this fork, so
 there's no audience risk in publishing promptly. This doesn't relax
 anything else — still verify builds succeeded, still get the asset
-list/links right, — it just removes the "wait for a human before hitting publish" step
-specifically.
+list/links right — it just removes the "wait for a human before hitting
+publish" step specifically.
 
 **Never delete older releases (2026-09-24).** This section used to say to
 keep only one live release current and delete the superseded one. The
