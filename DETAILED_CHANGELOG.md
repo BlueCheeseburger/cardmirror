@@ -10,6 +10,57 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: Logos as a Search Everything source (`logos-search.ts`, `quick-card-search-ui.ts`)
+
+A new `l ` prefix searches Logos (https://logos-debate.netlify.app). Logos
+indexes cards cut from the round docs teams open-source on opencaselist:
+the `ndtceda` and `hspolicy` caselists, 2018 onward. Its caselist is the
+only source; there's no openEv. The backend (`logos-debate.duckdns.org`)
+is a third-party server with no documented API. `logos-search.ts` uses
+the two endpoints the Logos frontend itself calls:
+
+- `GET /query?search=&cursor=0` returns 100 rows of tag, cite, division,
+  year, school and side.
+- `GET /card?id=` returns the full card: `body` paragraphs plus
+  `highlights`, `underlines` and `emphasis` as `[paragraph, start, end]`
+  (paragraph 0 is the tag, 1 the cite, and 2 and up are `body[i - 2]`),
+  and `cite_emphasis` as `[start, end]`.
+
+The server echoes any `Origin` in `Access-Control-Allow-Origin`, so a
+plain renderer `fetch` works on desktop (`file://`, Origin `null`) and on
+the web. Lite has `connect-src 'self'` and no network by design, so the
+prefix isn't recognized there and the hint leaves it out.
+
+**Palette.** A new `logos` source. `runLogosSearch` debounces 450 ms, shows
+"Searching Logos…", and aborts the in-flight request when a newer query
+starts. The answer is cached by query for the palette session and cleared
+on close. The arrival re-runs `runSearch` so the normal paging applies
+(50 of 100 with "show more"). Rows: badge `LOGOS`, the tag as the name,
+"HS 24 · Lowell · Neg" as meta, and the cite, truncated to 160 characters,
+as the snippet. Logos is deliberately left out of the no-prefix search:
+each query is a multi-second round trip to someone else's server, so it
+shouldn't run on every keystroke of every search.
+
+**Insert.** Enter or Alt-Enter closes the palette, fetches `/card`, builds
+the card with `buildLogosCardSlice`, and inserts it through the same
+`insertSpeechSlice` path quick cards use. The card is `tag` (fresh
+heading id), `cite_paragraph` (`cite_emphasis` as `cite_mark`), and one
+`card_body` per non-empty body entry. Body runs are cut at every range
+boundary and marked `underline_mark`, `emphasis_mark` or `highlight`, in
+the user's `defaultHighlightColor`. Emphasis is layered after underline,
+so the named-style exclusion drops underline where both apply. Ranges are
+clamped to the paragraph. If the view closed or went read-only while the
+card was loading, a toast says so instead.
+
+Tests: `tests/editor/logos-search.test.ts` (8) and
+`tests/editor/quick-card-search-logos.test.ts` (5). Also checked by hand
+against the live server in the web build: a real search returned 100 rows,
+and Enter inserted a formatted card.
+
+---
+
 ## 1.12.0-bcb.2.1 — 2026-09-23
 
 ### Added: word-level highlighting in Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `style.css`)

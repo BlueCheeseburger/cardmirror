@@ -18,6 +18,11 @@
  *            the bar) to search its objects (blocks / tags / cites);
  *            Esc from there returns to the file list with the prior
  *            query restored. Selecting an object inserts it.
+ *   - `l ` → search Logos (logos-debate.netlify.app) — cards from the
+ *            round docs teams open-source on opencaselist. Network-backed
+ *            and debounced; Enter fetches the full card and inserts it.
+ *            Not in the no-prefix search (each query is a slow round
+ *            trip) and absent from Lite (no network). See logos-search.ts.
  *   - `/ ` → browse the file-search folders (desktop only): subfolders and
  *            files, Enter/Tab steps into a folder, Esc steps back up. Text
  *            after the prefix searches the folder you're in — every file
@@ -78,6 +83,14 @@ import { searchQuickCards } from './quick-cards-match.js';
 import { parseNative } from '../native/index.js';
 import { fromDocx } from '../import/index.js';
 import { ensureHeadingAnchor } from '../anchor-docx.js';
+import { isLiteBuild } from './lite.js';
+import {
+  buildLogosCardSlice,
+  fetchLogosCard,
+  logosResultMeta,
+  searchLogos,
+  type LogosResult,
+} from './logos-search.js';
 import {
   extractFile,
   searchFileObjects,
@@ -444,7 +457,8 @@ interface PaletteResult {
     | 'settings'
     | 'folder'
     | 'file'
-    | 'fileobject';
+    | 'fileobject'
+    | 'logos';
   name: string;
   /** Right-aligned secondary text: card tags / command keybinding /
    *  the settings tab / the file's subfolder / a cite's owning tag. */
@@ -476,6 +490,8 @@ interface PaletteResult {
   /** Doc range to slice from the dived-into file on insert (fileobject
    *  source) — lazy, so no slice is built until you actually insert. */
   fileRange?: { from: number; to: number };
+  /** Logos card id — fetched in full on insert (logos source). */
+  logosId?: string;
   /** Outline depth (1-4) for indentation in the nav-pane-style browse. */
   indentLevel?: number;
   /** Index into `inFile.outline` (outline browse rows only) — the key
@@ -487,7 +503,7 @@ interface PaletteResult {
   collapsed?: boolean;
 }
 
-type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | null;
+type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'l' | null;
 
 function activeTagSet(): Set<string> {
   return new Set(settings.get('quickCardActiveTags').map(normalizeTag));
@@ -506,13 +522,14 @@ function parseBrowsePrefix(
   return /^\/c?$/i.test(raw) ? 'pending' : null;
 }
 
-/** Split a leading single-letter prefix (`q `/`d `/`c `/`s `) off the query. */
+/** Split a leading single-letter prefix (`q `/`d `/`c `/`s `/`f `/`l `) off the query. */
 function parsePrefix(raw: string): { prefix: Prefix; query: string } {
   const m = raw.match(/^([a-zA-Z])\s+(.*)$/);
   if (m) {
     const p = m[1]!.toLowerCase();
     if (p === 'q' || p === 'd' || p === 'c' || p === 's' || p === 'f')
       return { prefix: p, query: m[2]! };
+    if (p === 'l' && !isLiteBuild()) return { prefix: p, query: m[2]! };
   }
   return { prefix: null, query: raw };
 }
@@ -924,6 +941,26 @@ function browseResult(row: FileBrowseRow, root: string): PaletteResult {
  *  from 100): the rebuild runs on every keystroke, and nobody scans
  *  past ~50 rows without narrowing the query instead. */
 const RESULT_PAGE_SIZE = 50;
+/** Pause after typing before a Logos query goes out — each one is a
+ *  multi-second round trip to someone else's server. */
+const LOGOS_DEBOUNCE_MS = 450;
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function logosResult(r: LogosResult): PaletteResult {
+  return {
+    source: 'logos',
+    name: r.tag.trim() || r.cite.trim(),
+    meta: logosResultMeta(r),
+    // false so the row shows its snippet line — the cite, trimmed, which
+    // is what tells two same-tagged cards apart.
+    matchedName: false,
+    snippet: r.cite.trim() ? truncate(r.cite.trim(), 160) : null,
+    logosId: r.id,
+  };
+}
 
 /** Short left-aligned badge for a result row. */
 function badgeText(r: PaletteResult): string {
@@ -947,6 +984,8 @@ function badgeText(r: PaletteResult): string {
       return r.browseRoot ? 'ROOT' : 'DIR';
     case 'fileobject':
       return r.fileObjectKind ? FILE_OBJECT_KIND_BADGES[r.fileObjectKind] : 'OBJ';
+    case 'logos':
+      return 'LOGOS';
   }
 }
 
@@ -955,6 +994,7 @@ function badgeText(r: PaletteResult): string {
  *  bounce back to the top. */
 function resultKey(r: PaletteResult): string {
   const id = r.filePath
+    ?? r.logosId
     ?? (r.browseLocation
       ? `${r.browseLocation.root}:${r.browseLocation.relativeDirectory}`
       : r.commandId ?? r.name);
@@ -963,7 +1003,9 @@ function resultKey(r: PaletteResult): string {
 
 /** Sources whose Enter inserts a slice (and so support Alt+Enter "at end"). */
 function isInsertSource(source: PaletteResult['source']): boolean {
-  return source === 'quickcard' || source === 'dropzone' || source === 'fileobject';
+  return (
+    source === 'quickcard' || source === 'dropzone' || source === 'fileobject' || source === 'logos'
+  );
 }
 
 /** Verb for the Enter hint, given the selected result's source. */
@@ -1093,6 +1135,14 @@ class QuickCardSearchUI {
     /** Exact directory context when the file dive began in `/` mode. */
     returnBrowse: { location: FileBrowseLocation | null; selectedKey: string } | null;
   } | null = null;
+  // ── Logos search (the `l` prefix) ────────────────────────────────
+  /** Debounce timer for the next Logos query. */
+  private logosTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Aborts the Logos query in flight when a newer one starts. */
+  private logosAbort: AbortController | null = null;
+  /** Last query answered, with its rows — re-rendering the same query
+   *  (the arrival re-runs the search) doesn't refetch. Cleared on close. */
+  private logosCache: { query: string; rows: LogosResult[] } | null = null;
   /** Unsubscribe from main's live `.cmir` index-refresh broadcasts
    *  (Electron only); set on open, cleared on close. */
   private fileIndexUnsub: (() => void) | null = null;
@@ -1202,6 +1252,8 @@ class QuickCardSearchUI {
     this.fileIndexUnsub?.();
     this.fileIndexUnsub = null;
     this.asyncToken++; // invalidate any in-flight query / read
+    this.cancelLogos();
+    this.logosCache = null;
     this.fileQueryKey = null;
     this.fileQueryPending = null;
     this.fileRows = [];
@@ -1373,8 +1425,13 @@ class QuickCardSearchUI {
     }
     if (this.browseActive) this.resetBrowseState();
     const { prefix, query } = parsePrefix(this.input.value);
+    if (prefix !== 'l') this.cancelLogos();
     if (prefix === 'f') {
       this.runFileSearch(query);
+      return;
+    }
+    if (prefix === 'l') {
+      this.runLogosSearch(query);
       return;
     }
     if (prefix === 'q') {
@@ -1418,7 +1475,7 @@ class QuickCardSearchUI {
       this.results = [];
       this.emptyText = `Type to search everything · / browse · c commands${
         dropzoneOn() ? ' · d dropzone' : ''
-      } · f files · q cards · s settings`;
+      } · f files${isLiteBuild() ? '' : ' · l Logos'} · q cards · s settings`;
     } else {
       // No prefix — search everything. Files (by filename) join the
       // other sources; the ranked rows come from the file-index service
@@ -1443,6 +1500,78 @@ class QuickCardSearchUI {
       return;
     }
     this.finishSearch();
+  }
+
+  /** Stop any pending/in-flight Logos query. */
+  private cancelLogos(): void {
+    if (this.logosTimer) clearTimeout(this.logosTimer);
+    this.logosTimer = null;
+    this.logosAbort?.abort();
+    this.logosAbort = null;
+  }
+
+  /** `l` prefix: debounced network search against Logos. Shows a
+   *  searching state until the latest query answers; older answers are
+   *  aborted so a slow early response can't overwrite a newer one. */
+  private runLogosSearch(query: string): void {
+    const q = query.trim();
+    if (!q) {
+      this.cancelLogos();
+      this.results = [];
+      this.emptyText =
+        'Type to search Logos — cards from the round docs teams open-source on opencaselist (college and HS policy).';
+      this.finishSearch();
+      return;
+    }
+    if (this.logosCache?.query === q) {
+      this.results = this.logosCache.rows.map(logosResult);
+      this.emptyText = 'No matching cards on Logos.';
+      this.finishSearch();
+      return;
+    }
+    this.cancelLogos();
+    this.results = [];
+    this.emptyText = 'Searching Logos…';
+    this.finishSearch();
+    this.logosTimer = setTimeout(() => {
+      this.logosTimer = null;
+      const ctl = new AbortController();
+      this.logosAbort = ctl;
+      searchLogos(q, ctl.signal)
+        .then((rows) => {
+          if (ctl.signal.aborted || !this.root) return;
+          this.logosAbort = null;
+          this.logosCache = { query: q, rows };
+          this.runSearch();
+        })
+        .catch((err: unknown) => {
+          if (ctl.signal.aborted || !this.root) return;
+          this.logosAbort = null;
+          this.results = [];
+          this.emptyText = `Couldn't reach Logos: ${err instanceof Error ? err.message : String(err)}`;
+          this.finishSearch();
+        });
+    }, LOGOS_DEBOUNCE_MS);
+  }
+
+  /** Enter on a Logos row: fetch the full card, then insert it. The
+   *  palette closes first; the insert lands in the view it was opened
+   *  over, if that view is still editable when the card arrives. */
+  private async insertLogosCard(result: PaletteResult, view: EditorView, atEnd: boolean): Promise<void> {
+    this.close();
+    let slice: Slice;
+    try {
+      const card = await fetchLogosCard(result.logosId!);
+      slice = buildLogosCardSlice(card, settings.get('defaultHighlightColor') || 'yellow');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Couldn’t load the card from Logos.');
+      return;
+    }
+    if (view.isDestroyed || !view.editable) {
+      showToast('The document closed before the card arrived.');
+      return;
+    }
+    insertSpeechSlice(view, slice, atEnd);
   }
 
   /** Clamp to the first page, reset selection, render — the shared tail
@@ -2473,10 +2602,14 @@ class QuickCardSearchUI {
       if (path) this.openFilePath(path, name);
       return;
     }
-    // Everything else (quickcard / dropzone / fileobject) inserts a slice.
+    // Everything else (quickcard / dropzone / fileobject / logos) inserts a slice.
     const view = this.view;
     if (!view || !view.editable) {
       showToast('No editable document to insert into.');
+      return;
+    }
+    if (result.source === 'logos') {
+      void this.insertLogosCard(result, view, atEnd);
       return;
     }
     // Transclude a selected header into a live zone instead of a copy — either
