@@ -18,7 +18,7 @@
  *            the bar) to search its objects (blocks / tags / cites);
  *            Esc from there returns to the file list with the prior
  *            query restored. Selecting an object inserts it.
- *   - `l ` → search Logos (logos-debate.netlify.app) — cards from the
+ *   - `g ` → search Logos (logos-debate.netlify.app) — cards from the
  *            round docs teams open-source on opencaselist. Network-backed
  *            and debounced; Enter fetches the full card and inserts it.
  *            Not in the no-prefix search (each query is a slow round
@@ -506,7 +506,7 @@ interface PaletteResult {
   collapsed?: boolean;
 }
 
-type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'l' | null;
+type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'g' | null;
 
 function activeTagSet(): Set<string> {
   return new Set(settings.get('quickCardActiveTags').map(normalizeTag));
@@ -525,14 +525,14 @@ function parseBrowsePrefix(
   return /^\/c?$/i.test(raw) ? 'pending' : null;
 }
 
-/** Split a leading single-letter prefix (`q `/`d `/`c `/`s `/`f `/`l `) off the query. */
+/** Split a leading single-letter prefix (`q `/`d `/`c `/`s `/`f `/`g `) off the query. */
 function parsePrefix(raw: string): { prefix: Prefix; query: string } {
   const m = raw.match(/^([a-zA-Z])\s+(.*)$/);
   if (m) {
     const p = m[1]!.toLowerCase();
     if (p === 'q' || p === 'd' || p === 'c' || p === 's' || p === 'f')
       return { prefix: p, query: m[2]! };
-    if (p === 'l' && !isLiteBuild()) return { prefix: p, query: m[2]! };
+    if (p === 'g' && !isLiteBuild()) return { prefix: p, query: m[2]! };
   }
   return { prefix: null, query: raw };
 }
@@ -1138,7 +1138,7 @@ class QuickCardSearchUI {
     /** Exact directory context when the file dive began in `/` mode. */
     returnBrowse: { location: FileBrowseLocation | null; selectedKey: string } | null;
   } | null = null;
-  // ── Logos search (the `l` prefix) ────────────────────────────────
+  // ── Logos search (the `g` prefix) ────────────────────────────────
   /** Debounce timer for the next Logos query. */
   private logosTimer: ReturnType<typeof setTimeout> | null = null;
   /** Aborts the Logos query in flight when a newer one starts. */
@@ -1431,12 +1431,12 @@ class QuickCardSearchUI {
     }
     if (this.browseActive) this.resetBrowseState();
     const { prefix, query } = parsePrefix(this.input.value);
-    if (prefix !== 'l') this.cancelLogos();
+    if (prefix !== 'g') this.cancelLogos();
     if (prefix === 'f') {
       this.runFileSearch(query);
       return;
     }
-    if (prefix === 'l') {
+    if (prefix === 'g') {
       this.runLogosSearch(query);
       return;
     }
@@ -1481,7 +1481,7 @@ class QuickCardSearchUI {
       this.results = [];
       this.emptyText = `Type to search everything · / browse · c commands${
         dropzoneOn() ? ' · d dropzone' : ''
-      } · f files${isLiteBuild() ? '' : ' · l Logos'} · q cards · s settings`;
+      } · f files${isLiteBuild() ? '' : ' · g Logos'} · q cards · s settings`;
     } else {
       // No prefix — search everything. Files (by filename) join the
       // other sources; the ranked rows come from the file-index service
@@ -1516,7 +1516,7 @@ class QuickCardSearchUI {
     this.logosAbort = null;
   }
 
-  /** `l` prefix: debounced network search against Logos. Shows a
+  /** `g` prefix: debounced network search against Logos. Shows a
    *  searching state until the latest query answers; older answers are
    *  aborted so a slow early response can't overwrite a newer one. */
   private runLogosSearch(query: string): void {
