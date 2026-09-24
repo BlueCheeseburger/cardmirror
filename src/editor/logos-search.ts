@@ -17,6 +17,8 @@
  * separately as `cite_emphasis: [start, end][]`.
  */
 import { Fragment, Slice, type Mark, type Node as PMNode } from 'prosemirror-model';
+import { Selection, TextSelection } from 'prosemirror-state';
+import type { EditorView } from 'prosemirror-view';
 import { schema, newHeadingId } from '../schema/index.js';
 
 export const LOGOS_API = 'https://logos-debate.duckdns.org';
@@ -146,4 +148,42 @@ export function buildLogosCardSlice(card: LogosCard, highlightColor: string): Sl
     });
   const cardNode = schema.nodes['card']!.createChecked(null, [tag, citePara, ...bodyParas]);
   return new Slice(Fragment.from(cardNode), 0, 0);
+}
+
+/** Select the body paragraphs of the card just before the caret. After
+ *  `insertSpeechSlice`, the caret sits in the blank line it adds right
+ *  after the inserted card, so that's the card this finds. A body-only
+ *  selection is what Condense With Warning requires, and every other
+ *  condense/shrink accepts it. False (selection untouched) when there's
+ *  no card with a body right before the caret. */
+export function selectInsertedCardBody(view: EditorView): boolean {
+  const { state } = view;
+  const $pos = state.selection.$from;
+  if ($pos.depth < 1) return false;
+  const parent = $pos.node($pos.depth - 1);
+  const index = $pos.index($pos.depth - 1);
+  if (index === 0) return false;
+  const card = parent.child(index - 1);
+  if (card.type.name !== 'card') return false;
+  const cardStart = $pos.before($pos.depth) - card.nodeSize;
+  let from = -1;
+  let to = -1;
+  card.forEach((child, offset) => {
+    if (child.type.name !== 'card_body') return;
+    const start = cardStart + 1 + offset;
+    if (from < 0) from = start + 1;
+    to = start + child.nodeSize - 1;
+  });
+  if (from < 0) return false;
+  view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, from, to)));
+  return true;
+}
+
+/** Put the caret `fromEnd` positions before the end of the document —
+ *  used to return to the line after an inserted card once commands that
+ *  only edit the card itself (before that line) have run. */
+export function restoreCaretFromEnd(view: EditorView, fromEnd: number): void {
+  const { doc } = view.state;
+  const pos = Math.max(0, Math.min(doc.content.size, doc.content.size - fromEnd));
+  view.dispatch(view.state.tr.setSelection(Selection.near(doc.resolve(pos))));
 }

@@ -18,9 +18,14 @@ vi.mock('../../src/editor/toast.js', () => ({ showToast: vi.fn() }));
 import { quickCardSearchUI } from '../../src/editor/quick-card-search-ui.js';
 import { schema } from '../../src/schema/index.js';
 import { showToast } from '../../src/editor/toast.js';
+import { settings } from '../../src/editor/settings.js';
+import { getRibbonCommand, type AnyCommandId } from '../../src/editor/ribbon-commands.js';
 
-function openPalette(view: EditorView | null = null): void {
-  quickCardSearchUI.open({ view, paneEl: null, runCommand: () => {}, openFilePath: () => {} });
+function openPalette(
+  view: EditorView | null = null,
+  runCommand: (id: AnyCommandId) => void = () => {},
+): void {
+  quickCardSearchUI.open({ view, paneEl: null, runCommand, openFilePath: () => {} });
 }
 
 function type(q: string): void {
@@ -37,7 +42,8 @@ const searchBody = {
     { id: 'c1', tag: 'Warming causes extinction', cite: 'Mann 24 (Michael, climatologist)', division: 'hspolicy', year: '24', school: 'Lowell', side: 'N' },
   ],
 };
-const cardBody = {
+let cardBody: Record<string, unknown>;
+const baseCard = {
   id: 'c1',
   tag: 'Warming causes extinction',
   cite: 'Mann 24 (Michael, climatologist)',
@@ -51,6 +57,7 @@ const cardBody = {
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  cardBody = { ...baseCard };
   vi.useFakeTimers();
   fetchMock = vi.fn(async (url: string) => {
     if (url.includes('/query?')) return new Response(JSON.stringify(searchBody), { status: 200 });
@@ -61,6 +68,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  settings.set('logosImportCondense', 'none');
+  settings.set('logosImportShrink', 'none');
+  settings.set('logosImportHighlight', '');
   if (quickCardSearchUI.isOpen()) quickCardSearchUI.close();
   document.body.innerHTML = '';
   vi.unstubAllGlobals();
@@ -138,6 +148,92 @@ describe('palette Logos source (l prefix)', () => {
     expect(card).not.toBeNull();
     expect(card!.child(0).textContent).toBe('Warming causes extinction');
     expect(card!.textContent).toContain('Warming is an existential threat.');
+    view.destroy();
+  });
+
+  function mkView(): EditorView {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    return new EditorView(host, {
+      state: EditorState.create({
+        doc: schema.nodes['doc']!.create(null, [schema.nodes['paragraph']!.create()]),
+        schema,
+      }),
+    });
+  }
+
+  async function insertFirstResult(view: EditorView, runCommand?: (id: AnyCommandId) => void): Promise<void> {
+    openPalette(view, runCommand);
+    type('l warming');
+    await flush();
+    document
+      .querySelector('.pmd-qcs-input')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await vi.advanceTimersByTimeAsync(50);
+  }
+
+  function firstCard(view: EditorView): import('prosemirror-model').Node {
+    let card: import('prosemirror-model').Node | null = null;
+    view.state.doc.descendants((n) => {
+      if (!card && n.type.name === 'card') card = n;
+      return !card;
+    });
+    return card!;
+  }
+
+  it('uses the Logos highlight color setting, falling back to the default highlight color', async () => {
+    settings.set('logosImportHighlight', 'green');
+    const view = mkView();
+    await insertFirstResult(view);
+    const colors = new Set<string>();
+    firstCard(view).descendants((n) => {
+      for (const m of n.marks) if (m.type.name === 'highlight') colors.add(String(m.attrs['color']));
+      return true;
+    });
+    expect([...colors]).toEqual(['green']);
+    view.destroy();
+  });
+
+  it('runs the chosen condense then shrink on the inserted card body, then returns the caret below the card', async () => {
+    cardBody = { ...baseCard, body: ['First paragraph of evidence.', 'Second paragraph of evidence.'], underlines: [], highlights: [] };
+    settings.set('logosImportCondense', 'condenseNoIntegrity');
+    settings.set('logosImportShrink', 'shrink');
+    const view = mkView();
+    const ran: { id: string; selected: string }[] = [];
+    await insertFirstResult(view, (id) => {
+      const { from, to } = view.state.selection;
+      ran.push({ id, selected: view.state.doc.textBetween(from, to, '|') });
+      getRibbonCommand(id)(view.state, view.dispatch, view);
+    });
+    expect(ran.map((r) => r.id)).toEqual(['condenseNoIntegrity', 'shrink']);
+    // Condense saw both body paragraphs selected; shrink saw the merged one.
+    expect(ran[0]!.selected).toBe('First paragraph of evidence.|Second paragraph of evidence.');
+    expect(ran[1]!.selected).toBe('First paragraph of evidence. Second paragraph of evidence.');
+    const card = firstCard(view);
+    const bodies: string[] = [];
+    card.forEach((c) => {
+      if (c.type.name === 'card_body') bodies.push(c.textContent);
+    });
+    expect(bodies).toEqual(['First paragraph of evidence. Second paragraph of evidence.']);
+    let shrunk = false;
+    card.descendants((n) => {
+      if (n.marks.some((m) => m.type.name === 'font_size')) shrunk = true;
+      return true;
+    });
+    expect(shrunk).toBe(true);
+    // Caret back in the blank line after the card, nothing selected.
+    const { $from, empty } = view.state.selection;
+    expect(empty).toBe(true);
+    expect($from.parent.type.name).toBe('paragraph');
+    expect($from.parent.content.size).toBe(0);
+    view.destroy();
+  });
+
+  it('runs nothing when both are off', async () => {
+    const view = mkView();
+    const runCommand = vi.fn();
+    await insertFirstResult(view, runCommand);
+    expect(runCommand).not.toHaveBeenCalled();
     view.destroy();
   });
 });

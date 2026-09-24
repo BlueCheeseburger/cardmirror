@@ -4070,6 +4070,20 @@ body.pmd-override-shading [data-shading] {
   outline: 1px solid var(--pmd-c-accent);
   outline-offset: 1px;
 }
+/* "Use default" beside the color name (follow the default highlight). */
+.pmd-color-editor-default {
+  padding: 0.1rem 0.4rem;
+  font: inherit;
+  font-size: 0.75rem;
+  background: transparent;
+  color: var(--pmd-c-text-secondary);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.pmd-color-editor-default.pmd-color-editor-swatch-active {
+  color: var(--pmd-c-text);
+}
 /* Shared scaffolding (outset focus ring).
    Diverge by pulling a selector out, not by re-copying. */
 .pmd-color-editor-swatch-active,
