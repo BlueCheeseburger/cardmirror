@@ -8,6 +8,23 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+
+- **Search Logos from Search Everything.** Type `l` and a space to search
+  [Logos](https://logos-debate.netlify.app), a card search engine covering
+  cards from the round docs teams open-source on opencaselist (college and
+  high school policy). Press Enter to insert the full card, with its cite,
+  underlining and highlighting, at your cursor, or right-click a result to
+  preview the whole card first.
+- **Cards from Logos can be condensed, shrunk and recolored automatically.**
+  Settings → Editing → Cards from Logos picks a Condense command, a Shrink
+  command and a highlight color to apply to every card you insert from
+  Logos. All three are off, or your default color, until you set them.
+
+---
+
 ## 1.12.0-bcb.2.1 — 2026-09-23
 
 ### Added

@@ -10,6 +10,98 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: Logos as a Search Everything source (`logos-search.ts`, `quick-card-search-ui.ts`)
+
+A new `l ` prefix searches Logos (https://logos-debate.netlify.app). Logos
+indexes cards cut from the round docs teams open-source on opencaselist:
+the `ndtceda` and `hspolicy` caselists, 2018 onward. Its caselist is the
+only source; there's no openEv. The backend (`logos-debate.duckdns.org`)
+is a third-party server with no documented API. `logos-search.ts` uses
+the two endpoints the Logos frontend itself calls:
+
+- `GET /query?search=&cursor=0` returns 100 rows of tag, cite, division,
+  year, school and side.
+- `GET /card?id=` returns the full card: `body` paragraphs plus
+  `highlights`, `underlines` and `emphasis` as `[paragraph, start, end]`
+  (paragraph 0 is the tag, 1 the cite, and 2 and up are `body[i - 2]`),
+  and `cite_emphasis` as `[start, end]`.
+
+The server echoes any `Origin` in `Access-Control-Allow-Origin`, so a
+plain renderer `fetch` works on desktop (`file://`, Origin `null`) and on
+the web. Lite has `connect-src 'self'` and no network by design, so the
+prefix isn't recognized there and the hint leaves it out.
+
+**Palette.** A new `logos` source. `runLogosSearch` debounces 450 ms, shows
+"Searching Logos…", and aborts the in-flight request when a newer query
+starts. The answer is cached by query for the palette session and cleared
+on close. The arrival re-runs `runSearch` so the normal paging applies
+(50 of 100 with "show more"). Rows: badge `LOGOS`, the tag as the name,
+"HS 24 · Lowell · Neg" as meta, and the cite, truncated to 160 characters,
+as the snippet. Logos is deliberately left out of the no-prefix search:
+each query is a multi-second round trip to someone else's server, so it
+shouldn't run on every keystroke of every search.
+
+**Insert.** Enter or Alt-Enter closes the palette, fetches `/card`, builds
+the card with `buildLogosCardSlice`, and inserts it through the same
+`insertSpeechSlice` path quick cards use. The card is `tag` (fresh
+heading id), `cite_paragraph` (`cite_emphasis` as `cite_mark`), and one
+`card_body` per non-empty body entry. Body runs are cut at every range
+boundary and marked `underline_mark`, `emphasis_mark` or `highlight`, in
+the user's `defaultHighlightColor`. Emphasis is layered after underline,
+so the named-style exclusion drops underline where both apply. Ranges are
+clamped to the paragraph. If the view closed or went read-only while the
+card was loading, a toast says so instead.
+
+**Right-click preview.** Right-clicking a Logos row fetches `/card` and
+opens the shared card preview (`openCardPreview`, the same read-only
+dialog the dropzone and inbox use, with Copy and Close). The card is built
+exactly as Enter would build it, including the Logos highlight color but
+before any automatic condense or shrink. The palette stays open underneath:
+`onDocPointerDown` ignores clicks inside `.pmd-card-preview-overlay`, and
+the modal's capture-phase key handler already keeps Escape from reaching
+the palette. Closing the preview returns focus to the search box. A result
+that arrives after the palette closed or reopened is dropped
+(`asyncToken`). The hints bar shows "right-click: preview" on Logos rows.
+
+**Automatic condense / shrink / highlight color.** Three settings under
+Settings → Editing → *Cards from Logos*, all hidden in Lite (`hiddenInLite`
+matches `^logos`):
+
+- `logosImportCondense`: `'none'` or one of the four condense command ids.
+- `logosImportShrink`: `'none'`, `'shrink'` or `'smartShrink'`.
+- `logosImportHighlight`: a Word highlight name, or `''` to use
+  `defaultHighlightColor`.
+
+The command choices are dropdowns labelled with the commands' own ribbon
+labels (`buildCommandChoiceEditor`). The color reuses
+`buildHighlightNameEditor` with a new `allowDefault` "Use default" button
+beside the label, kept out of the fixed 15-column swatch grid.
+
+The color is applied when the slice is built. Condense and shrink run in
+`insertSpeechSlice`'s `afterInsert` hook: the caret is then in the blank line
+right after the new card, so `selectInsertedCardBody` selects that card's
+body paragraphs. Condense With Warning needs a body-only selection, and
+every other condense/shrink accepts one. Each command then runs through the
+palette's normal `runCommand` path, so the user's condense and shrink
+settings apply and each is its own undo step. Condense runs before shrink,
+re-selecting the body in between. The caret is restored by its distance
+from the end of the document, which stays the same because both commands
+only edit the card, which sits before it. The section is last in the
+Editing tab, so upstream's section-order assertion in
+`default-colors.test.ts` still holds.
+
+Tests: `tests/editor/logos-search.test.ts` (8) and
+`tests/editor/quick-card-search-logos.test.ts` (10, including the
+right-click preview and a real
+Condense Without Paragraph Integrity + Shrink run on an inserted
+two-paragraph card). Also checked by hand
+against the live server in the web build: a real search returned 100 rows,
+and Enter inserted a formatted card.
+
+---
+
 ## 1.12.0-bcb.2.1 — 2026-09-23
 
 ### Added: word-level highlighting in Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `style.css`)
