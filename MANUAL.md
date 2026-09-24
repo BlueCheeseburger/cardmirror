@@ -1009,7 +1009,10 @@ disclose. Results appear shortly after you stop typing, since every search
 is a request to Logos' server. Each row shows the tag, the cite, and the
 division, year, school and side. **Enter** (or **Alt-Enter** for the end of
 the document) downloads the full card and inserts it with its cite,
-underlining, emphasis and highlighting. To condense or shrink it
+underlining, emphasis and highlighting. **Right-click** a result to preview
+the full card first, without inserting it. The preview has **Copy to
+clipboard** and **Close**, and closing it (or pressing Esc) returns you to
+your results. To condense or shrink it
 automatically, or to pick its highlight color, see **Cards from Logos** in
 Settings → Editing. You need an internet connection, and the source isn't
 available in CardMirror Lite. It isn't part of the no-prefix search.

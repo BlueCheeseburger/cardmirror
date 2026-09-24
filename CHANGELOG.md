@@ -16,7 +16,8 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   [Logos](https://logos-debate.netlify.app), a card search engine covering
   cards from the round docs teams open-source on opencaselist (college and
   high school policy). Press Enter to insert the full card, with its cite,
-  underlining and highlighting, at your cursor.
+  underlining and highlighting, at your cursor, or right-click a result to
+  preview the whole card first.
 - **Cards from Logos can be condensed, shrunk and recolored automatically.**
   Settings → Editing → Cards from Logos picks a Condense command, a Shrink
   command and a highlight color to apply to every card you insert from

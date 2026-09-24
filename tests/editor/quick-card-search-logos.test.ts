@@ -14,12 +14,15 @@ vi.mock('../../src/editor/host/index.js', async (importOriginal) => {
   return { ...mod, getElectronHost: () => null };
 });
 vi.mock('../../src/editor/toast.js', () => ({ showToast: vi.fn() }));
+vi.mock('../../src/editor/card-preview-modal.js', () => ({ openCardPreview: vi.fn(() => true) }));
 
 import { quickCardSearchUI } from '../../src/editor/quick-card-search-ui.js';
 import { schema } from '../../src/schema/index.js';
 import { showToast } from '../../src/editor/toast.js';
 import { settings } from '../../src/editor/settings.js';
 import { getRibbonCommand, type AnyCommandId } from '../../src/editor/ribbon-commands.js';
+import { openCardPreview } from '../../src/editor/card-preview-modal.js';
+import { Slice } from 'prosemirror-model';
 
 function openPalette(
   view: EditorView | null = null,
@@ -235,5 +238,52 @@ describe('palette Logos source (l prefix)', () => {
     await insertFirstResult(view, runCommand);
     expect(runCommand).not.toHaveBeenCalled();
     view.destroy();
+  });
+
+  it('right-click previews the full card without inserting it, and keeps the palette open', async () => {
+    settings.set('logosImportHighlight', 'cyan');
+    const view = mkView();
+    openPalette(view);
+    type('l warming');
+    await flush();
+    const row = rows()[0]!;
+    row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('/card?id=c1');
+    expect(openCardPreview).toHaveBeenCalledTimes(1);
+    const opts = vi.mocked(openCardPreview).mock.calls[0]![0];
+    expect(opts.title).toBe('Warming causes extinction');
+    expect(opts.subtitle).toBe('HS 24 · Lowell · Neg');
+    const previewed = Slice.fromJSON(schema, opts.sliceJson as never).content.firstChild!;
+    expect(previewed.type.name).toBe('card');
+    expect(previewed.textContent).toContain('Warming is an existential threat.');
+    let color = '';
+    previewed.descendants((n) => {
+      for (const m of n.marks) if (m.type.name === 'highlight') color = String(m.attrs['color']);
+      return true;
+    });
+    expect(color).toBe('cyan');
+    // Nothing was inserted, and the palette is still up.
+    let cards = 0;
+    view.state.doc.descendants((n) => {
+      if (n.type.name === 'card') cards++;
+      return true;
+    });
+    expect(cards).toBe(0);
+    expect(quickCardSearchUI.isOpen()).toBe(true);
+    view.destroy();
+  });
+
+  it('a click inside an open card preview does not close the palette', async () => {
+    openPalette();
+    const overlay = document.createElement('div');
+    overlay.className = 'pmd-card-preview-overlay';
+    const inner = document.createElement('button');
+    overlay.appendChild(inner);
+    document.body.appendChild(overlay);
+    inner.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(quickCardSearchUI.isOpen()).toBe(true);
+    document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(quickCardSearchUI.isOpen()).toBe(false);
   });
 });

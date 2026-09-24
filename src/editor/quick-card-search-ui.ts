@@ -84,6 +84,7 @@ import { parseNative } from '../native/index.js';
 import { fromDocx } from '../import/index.js';
 import { ensureHeadingAnchor } from '../anchor-docx.js';
 import { isLiteBuild } from './lite.js';
+import { openCardPreview } from './card-preview-modal.js';
 import {
   buildLogosCardSlice,
   fetchLogosCard,
@@ -1273,6 +1274,9 @@ class QuickCardSearchUI {
   }
 
   private onDocPointerDown = (e: PointerEvent): void => {
+    // A card preview opened from a row (Logos right-click) sits on top of
+    // the palette; clicks inside it mustn't close the palette under it.
+    if ((e.target as Element | null)?.closest?.('.pmd-card-preview-overlay')) return;
     if (this.root && !this.root.contains(e.target as Node)) this.close();
   };
 
@@ -1577,6 +1581,28 @@ class QuickCardSearchUI {
       return;
     }
     insertSpeechSlice(view, slice, atEnd, (v) => this.runLogosImportCommands(v));
+  }
+
+  /** Right-click on a Logos row: fetch the full card and show it in the
+   *  shared card preview (read-only, Copy / Close). Built exactly as an
+   *  insert would build it, so the preview matches what Enter inserts
+   *  (before any automatic condense/shrink). */
+  private async previewLogosCard(result: PaletteResult): Promise<void> {
+    const token = this.asyncToken;
+    let slice: Slice;
+    try {
+      const card = await fetchLogosCard(result.logosId!);
+      slice = buildLogosCardSlice(
+        card,
+        settings.get('logosImportHighlight') || settings.get('defaultHighlightColor') || 'yellow',
+      );
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Couldn’t load the card from Logos.');
+      return;
+    }
+    // Palette closed (or reopened) while the card loaded: drop it.
+    if (!this.root || token !== this.asyncToken) return;
+    openCardPreview({ title: result.name, subtitle: result.meta, sliceJson: slice.toJSON() });
   }
 
   /** Settings → Editing → Cards from Logos: run the chosen condense, then
@@ -2326,6 +2352,7 @@ class QuickCardSearchUI {
       segs.push(`↵ ${enterVerb(sel.source)}`);
       // Alt+Enter (insert at end of doc) only applies to inserts.
       if (isInsertSource(sel.source)) segs.push('⌥↵ at end');
+      if (sel.source === 'logos') segs.push('right-click: preview');
       // In-file: any header can be transcluded (live zone) instead of copied.
       if (inFile && sel.source === 'fileobject' && !this.transcludeMode) {
         segs.push('⌘↵ transclude');
@@ -2425,6 +2452,16 @@ class QuickCardSearchUI {
           ev.preventDefault();
           if (!isRightClickContextMenu(ev)) return;
           this.jumpToOutline(range);
+        });
+      } else if (r.source === 'logos') {
+        // Right-click previews the full card (formatting and all) without
+        // inserting it — Logos tags alone often look alike. The palette
+        // stays open underneath, so closing the preview returns here.
+        row.addEventListener('contextmenu', (ev) => {
+          ev.preventDefault();
+          if (!isRightClickContextMenu(ev)) return;
+          this.setSelected(i);
+          void this.previewLogosCard(r);
         });
       } else if (r.source === 'folder') {
         row.addEventListener('contextmenu', (ev) => {
