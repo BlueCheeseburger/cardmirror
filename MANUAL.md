@@ -985,6 +985,7 @@ you *browse* that whole source.
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
+| **`l`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
 
 Searching **version** (or "about this install") shows the running app
 version, and Enter jumps to the About this install section of Settings.
@@ -998,6 +999,19 @@ the row, hovering it shows the full text in a tooltip.
 at your cursor (the same insertion the send-to-speech and Quick Card
 buttons use). If your cursor is in the middle of a paragraph, the insertion
 will drop at the nearest valid target. 
+
+**Searching Logos (`l`, fork).** `l` and a space searches
+[Logos](https://logos-debate.netlify.app), a card search engine run by
+someone else. It covers cards from the round docs teams open-source on
+opencaselist, for college and high school policy only. It doesn't include
+openEv camp files, teams that disclose cites only, or teams that don't
+disclose. Results appear shortly after you stop typing, since every search
+is a request to Logos' server. Each row shows the tag, the cite, and the
+division, year, school and side. **Enter** (or **Alt-Enter** for the end of
+the document) downloads the full card and inserts it with its cite,
+underlining, emphasis and highlighting. Highlighting uses your default
+highlight color. You need an internet connection, and the source isn't
+available in CardMirror Lite. It isn't part of the no-prefix search.
 
 **Diving into a file (`f`, desktop only).** Press **Tab** on a selected file
 — or right-click any file — to dive *into* it without leaving the palette.

@@ -8,6 +8,18 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+
+- **Search Logos from Search Everything.** Type `l` and a space to search
+  [Logos](https://logos-debate.netlify.app), a card search engine covering
+  cards from the round docs teams open-source on opencaselist (college and
+  high school policy). Press Enter to insert the full card, with its cite,
+  underlining and highlighting, at your cursor.
+
+---
+
 ## 1.12.0-bcb.2.1 — 2026-09-23
 
 ### Added
