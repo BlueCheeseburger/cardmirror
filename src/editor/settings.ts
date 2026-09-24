@@ -125,6 +125,20 @@ export interface PairingGroup {
  *  pulse; `off` = none; `repeat` = pulse then re-pulse every 10s until
  *  you open the receive pill and see the new card(s). */
 export type PairingReceiveFlash = 'once' | 'off' | 'repeat';
+
+/** Condense commands a card inserted from Logos can run through
+ *  automatically (`logosImportCondense`) — the ribbon command ids. */
+export const LOGOS_IMPORT_CONDENSE = [
+  'none',
+  'condenseDefault',
+  'condenseNoIntegrity',
+  'condenseNoIntegrityWithPilcrows',
+  'condenseWithWarning',
+] as const;
+export type LogosImportCondense = (typeof LOGOS_IMPORT_CONDENSE)[number];
+/** Same for shrink (`logosImportShrink`). */
+export const LOGOS_IMPORT_SHRINK = ['none', 'shrink', 'smartShrink'] as const;
+export type LogosImportShrink = (typeof LOGOS_IMPORT_SHRINK)[number];
 const PAIRING_RECEIVE_FLASHES: PairingReceiveFlash[] = ['once', 'off', 'repeat'];
 
 /**
@@ -1398,6 +1412,16 @@ export interface Settings {
   /** Same for the background-color picker: a bare uppercase hex. Word's
    *  light gray (C0C0C0), the picker's own starting color, by default. */
   defaultShadingColor: string;
+  /** Condense command run on a card right after it's inserted from Logos
+   *  (the `l ` Search Everything source), or 'none'. */
+  logosImportCondense: LogosImportCondense;
+  /** Shrink command run on a card inserted from Logos, after any condense,
+   *  or 'none'. */
+  logosImportShrink: LogosImportShrink;
+  /** Highlight color for a card inserted from Logos — a Word highlight
+   *  name, or '' to use `defaultHighlightColor`. Logos carries no color,
+   *  only which runs are highlighted. */
+  logosImportHighlight: string;
   /** When true, "Create Reference" (Card menu) emits its body text
    *  in Gray-50% (#808080) instead of black. Heading line stays
    *  black either way. */
@@ -1989,6 +2013,9 @@ const DEFAULTS: Settings = {
   standardizeShadingException: 'FFFF00',
   defaultHighlightColor: 'yellow',
   defaultShadingColor: 'C0C0C0',
+  logosImportCondense: 'none',
+  logosImportShrink: 'none',
+  logosImportHighlight: '',
   forReferenceUseGray50: false,
   createReferenceIncludeHeading: true,
   createReferenceDelimiter: '<<',
@@ -2188,6 +2215,9 @@ export interface SettingMeta {
     | 'standardizeShadingException'
     | 'defaultHighlightColor'
     | 'defaultShadingColor'
+    | 'logosImportCondense'
+    | 'logosImportShrink'
+    | 'logosImportHighlight'
     | 'acronymPatterns'
     | 'createReferenceHighlightMode'
     | 'createReferenceDelimiter'
@@ -3914,6 +3944,36 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Translation',
     aliases: ['translation marker', 'translation by', 'attribution'],
   },
+  {
+    key: 'logosImportCondense',
+    label: 'Condense cards from Logos',
+    description:
+      'Run a Condense command on a card as soon as you insert it from Logos (type "l " in Search Everything). Uses the same settings as running that command yourself. Off by default.',
+    kind: 'logosImportCondense',
+    category: 'editing',
+    section: 'Cards from Logos',
+    aliases: ['logos', 'logos condense', 'auto condense', 'import condense'],
+  },
+  {
+    key: 'logosImportShrink',
+    label: 'Shrink cards from Logos',
+    description:
+      'Run Shrink Card Text or Smart Shrink on a card as soon as you insert it from Logos, after any condense. Off by default.',
+    kind: 'logosImportShrink',
+    category: 'editing',
+    section: 'Cards from Logos',
+    aliases: ['logos', 'logos shrink', 'auto shrink', 'import shrink'],
+  },
+  {
+    key: 'logosImportHighlight',
+    label: 'Highlight color for cards from Logos',
+    description:
+      'The color a card from Logos is highlighted in. Logos only records which words were highlighted, not the color, so this picks one. "Use default" follows your default highlight color.',
+    kind: 'logosImportHighlight',
+    category: 'editing',
+    section: 'Cards from Logos',
+    aliases: ['logos', 'logos highlight', 'import highlight color'],
+  },
 
   // ─── Keyboard shortcuts ─────────────────────────────────────────
   {
@@ -4313,6 +4373,8 @@ export function hiddenInLite(meta: SettingMeta): boolean {
   if (meta.category === 'pairing' || meta.category === 'plugins') return true;
   const k = meta.key as string;
   if (/^(ai|clod|anthropic|openrouter)/i.test(k)) return true;
+  // Logos is a network source, absent from Lite (quick-card-search-ui.ts).
+  if (/^logos/i.test(k)) return true;
   // Lite is local-only: no model download, no AI cleanup of dictation.
   return k === 'voiceModelEngine' || k === 'voiceCleanupEnabled';
 }
@@ -5082,6 +5144,17 @@ function sanitize(s: Settings): Settings {
     defaultShadingColor: isHex6(s.defaultShadingColor)
       ? String(s.defaultShadingColor).toUpperCase()
       : DEFAULTS.defaultShadingColor,
+    logosImportCondense: (LOGOS_IMPORT_CONDENSE as readonly string[]).includes(
+      String(s.logosImportCondense),
+    )
+      ? (s.logosImportCondense as LogosImportCondense)
+      : DEFAULTS.logosImportCondense,
+    logosImportShrink: (LOGOS_IMPORT_SHRINK as readonly string[]).includes(String(s.logosImportShrink))
+      ? (s.logosImportShrink as LogosImportShrink)
+      : DEFAULTS.logosImportShrink,
+    logosImportHighlight: isWordHighlightName(String(s.logosImportHighlight ?? ''))
+      ? String(s.logosImportHighlight)
+      : DEFAULTS.logosImportHighlight,
     createReferenceIncludeHeading:
       s.createReferenceIncludeHeading === undefined
         ? DEFAULTS.createReferenceIncludeHeading

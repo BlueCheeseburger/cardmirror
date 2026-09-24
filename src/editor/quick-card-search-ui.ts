@@ -88,7 +88,9 @@ import {
   buildLogosCardSlice,
   fetchLogosCard,
   logosResultMeta,
+  restoreCaretFromEnd,
   searchLogos,
+  selectInsertedCardBody,
   type LogosResult,
 } from './logos-search.js';
 import {
@@ -1562,7 +1564,10 @@ class QuickCardSearchUI {
     let slice: Slice;
     try {
       const card = await fetchLogosCard(result.logosId!);
-      slice = buildLogosCardSlice(card, settings.get('defaultHighlightColor') || 'yellow');
+      slice = buildLogosCardSlice(
+        card,
+        settings.get('logosImportHighlight') || settings.get('defaultHighlightColor') || 'yellow',
+      );
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Couldn’t load the card from Logos.');
       return;
@@ -1571,7 +1576,27 @@ class QuickCardSearchUI {
       showToast('The document closed before the card arrived.');
       return;
     }
-    insertSpeechSlice(view, slice, atEnd);
+    insertSpeechSlice(view, slice, atEnd, (v) => this.runLogosImportCommands(v));
+  }
+
+  /** Settings → Editing → Cards from Logos: run the chosen condense, then
+   *  shrink, on the just-inserted card's body, each through the normal
+   *  ribbon command path (so the user's condense/shrink settings apply,
+   *  and each is its own undo step). The caret goes back to the line
+   *  after the card; both commands only edit the card, which sits before
+   *  that line, so its distance from the end of the doc doesn't move. */
+  private runLogosImportCommands(view: EditorView): void {
+    const ids = [settings.get('logosImportCondense'), settings.get('logosImportShrink')].filter(
+      (id): id is Exclude<typeof id, 'none'> => id !== 'none',
+    );
+    if (ids.length === 0) return;
+    const fromEnd = view.state.doc.content.size - view.state.selection.from;
+    for (const id of ids) {
+      restoreCaretFromEnd(view, fromEnd);
+      if (!selectInsertedCardBody(view)) break;
+      this.runCommand(id);
+    }
+    restoreCaretFromEnd(view, fromEnd);
   }
 
   /** Clamp to the first page, reset selection, render — the shared tail

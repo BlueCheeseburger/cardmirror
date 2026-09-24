@@ -54,8 +54,37 @@ so the named-style exclusion drops underline where both apply. Ranges are
 clamped to the paragraph. If the view closed or went read-only while the
 card was loading, a toast says so instead.
 
+**Automatic condense / shrink / highlight color.** Three settings under
+Settings → Editing → *Cards from Logos*, all hidden in Lite (`hiddenInLite`
+matches `^logos`):
+
+- `logosImportCondense`: `'none'` or one of the four condense command ids.
+- `logosImportShrink`: `'none'`, `'shrink'` or `'smartShrink'`.
+- `logosImportHighlight`: a Word highlight name, or `''` to use
+  `defaultHighlightColor`.
+
+The command choices are dropdowns labelled with the commands' own ribbon
+labels (`buildCommandChoiceEditor`). The color reuses
+`buildHighlightNameEditor` with a new `allowDefault` "Use default" button
+beside the label, kept out of the fixed 15-column swatch grid.
+
+The color is applied when the slice is built. Condense and shrink run in
+`insertSpeechSlice`'s `afterInsert` hook: the caret is then in the blank line
+right after the new card, so `selectInsertedCardBody` selects that card's
+body paragraphs. Condense With Warning needs a body-only selection, and
+every other condense/shrink accepts one. Each command then runs through the
+palette's normal `runCommand` path, so the user's condense and shrink
+settings apply and each is its own undo step. Condense runs before shrink,
+re-selecting the body in between. The caret is restored by its distance
+from the end of the document, which stays the same because both commands
+only edit the card, which sits before it. The section is last in the
+Editing tab, so upstream's section-order assertion in
+`default-colors.test.ts` still holds.
+
 Tests: `tests/editor/logos-search.test.ts` (8) and
-`tests/editor/quick-card-search-logos.test.ts` (5). Also checked by hand
+`tests/editor/quick-card-search-logos.test.ts` (8, including a real
+Condense Without Paragraph Integrity + Shrink run on an inserted
+two-paragraph card). Also checked by hand
 against the live server in the web build: a real search returned 100 rows,
 and Enter inserted a formatted card.
 

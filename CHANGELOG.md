@@ -17,6 +17,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   cards from the round docs teams open-source on opencaselist (college and
   high school policy). Press Enter to insert the full card, with its cite,
   underlining and highlighting, at your cursor.
+- **Cards from Logos can be condensed, shrunk and recolored automatically.**
+  Settings → Editing → Cards from Logos picks a Condense command, a Shrink
+  command and a highlight color to apply to every card you insert from
+  Logos. All three are off, or your default color, until you set them.
 
 ---
 

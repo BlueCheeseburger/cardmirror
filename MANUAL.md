@@ -1009,8 +1009,9 @@ disclose. Results appear shortly after you stop typing, since every search
 is a request to Logos' server. Each row shows the tag, the cite, and the
 division, year, school and side. **Enter** (or **Alt-Enter** for the end of
 the document) downloads the full card and inserts it with its cite,
-underlining, emphasis and highlighting. Highlighting uses your default
-highlight color. You need an internet connection, and the source isn't
+underlining, emphasis and highlighting. To condense or shrink it
+automatically, or to pick its highlight color, see **Cards from Logos** in
+Settings → Editing. You need an internet connection, and the source isn't
 available in CardMirror Lite. It isn't part of the no-prefix search.
 
 **Diving into a file (`f`, desktop only).** Press **Tab** on a selected file
@@ -3106,6 +3107,24 @@ Typing helpers and the behavior of the cutting and condense commands
   [Translate](#13-ai-features).
 - **Prepend a "translation by" marker** — put a `[TRANSLATION BY …]` line
   above the translated text on the clipboard. On by default.
+
+**Cards from Logos (fork)**
+
+These apply to cards you insert from Logos (`l` in
+[Search Everything](#the-search-everything-palette-mod-shift-space)). They
+aren't available in CardMirror Lite.
+
+- **Condense cards from Logos** — run one of the four Condense commands on
+  the card as soon as it's inserted. Off by default.
+- **Shrink cards from Logos** — run Shrink Card Text or Smart Shrink on the
+  card, after any condense. Off by default.
+- **Highlight color for cards from Logos** — the color Logos highlighting is
+  applied in, since Logos only records which words were highlighted. **Use
+  default** follows your default highlight color.
+
+Each one runs exactly like the command you'd run yourself, with your usual
+condense and shrink settings, and is its own undo step. The cursor ends up
+on the line below the card.
 
 ### Keyboard shortcuts
 
