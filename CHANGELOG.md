@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.12.0-bcb.3 — 2026-09-24
 
 ### Added
 
@@ -22,19 +22,17 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   Settings → Editing → Cards from Logos picks a Condense command, a Shrink
   command and a highlight color to apply to every card you insert from
   Logos. All three are off, or your default color, until you set them.
-
----
-
-## 1.12.0-bcb.2.1 — 2026-09-23
-
-### Added
-
 - **Compare documents marks the words that changed.** When a line was
   edited rather than replaced — a date updated, a word swapped, a phrase
   added — its old and new versions now line up side by side, and just the
   changed words stand out: struck through on the left, underlined on the
   right, in a stronger red or green than the rest of the line. Lines that
   were replaced outright keep plain whole-line coloring.
+- **Plugins loaded from a file show up in Settings → Plugins.** They're
+  marked "loaded from file (this session)" and get the settings gear, so
+  their settings are reachable.
+- **Plugin settings can include collapsible help sections**, such as
+  "What it does" and "How to set it up".
 
 ### Changed
 
@@ -44,6 +42,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   steps in "Run from source". That section's "Download the source" step
   also now points at this fork instead of upstream, which would have built
   upstream's app without this fork's features.
+- **The manual's Condense section is accurate again.** It said Condense
+  with paragraph integrity on keeps your breaks "as pilcrows"; with
+  integrity on nothing is merged at all, and pilcrows only matter when it's
+  off. The table now also lists Condense with warning.
 
 ## 1.12.0-bcb.2 — 2026-09-23
 
@@ -59,11 +61,6 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **The PolicyDebateFlow plugin can be installed from Settings → Plugins.**
   Paste `BlueCheeseburger/policy-flow` into the install field. It replaces
   the built-in integration removed below.
-- **Plugins loaded from a file show up in Settings → Plugins.** They're
-  marked "loaded from file (this session)" and get the settings gear, so
-  their settings are reachable.
-- **Plugin settings can include collapsible help sections**, such as
-  "What it does" and "How to set it up".
 - **Jumping to a card from a flow app brings CardMirror to the front.**
   Before, when the card was in the window the plugin ran in, the document
   scrolled to the card but CardMirror stayed behind your browser or flow
@@ -358,20 +355,29 @@ shows the provider's own icon (Dropbox / OneDrive / Google Drive /
 iCloud), drops the text label while fully synced, and keeps a short
 label only for "changed on disk" and "conflicted copy" states.
 
-### 3. Google Gemini as a third AI provider
+### 3. Logos card search
+
+Type `l` and a space in Search Everything to search Logos, a card search
+engine over the round docs college and high school policy teams
+open-source on opencaselist. Enter inserts the full card — cite,
+underlining and highlighting intact — at your cursor, and right-click
+previews it first. Settings → Editing → Cards from Logos can condense,
+shrink and recolor every card as it lands.
+
+### 4. Google Gemini as a third AI provider
 
 Google Gemini is available alongside Anthropic Claude and OpenRouter
 as a third AI provider option in this fork. Select it in AI
 settings the same way you'd choose any other provider.
 
-### 4. Paced auto-scroll
+### 5. Paced auto-scroll
 
 A hands-free teleprompter mode that scrolls the document at your
 actual reading pace, automatically slowing for dense highlighted
 text and speeding through everything else. Toggle it from the
 ribbon's auto-scroll button.
 
-### 5. Settings search
+### 6. Settings search
 
 A search bar next to the "Settings" title searches every setting's
 name and description across every tab at once. Matches are
@@ -379,7 +385,7 @@ highlighted in yellow and only the matching rows are shown while
 you're typing, grouped by tab. Clear the box to go back to normal
 browsing.
 
-### 6. Window naming
+### 7. Window naming
 
 Right-click anywhere on the ribbon to name (or rename) the window.
 A named window shows that name as its title bar instead of the
@@ -387,19 +393,21 @@ document filename — useful for telling windows apart at a glance
 ("Speech Doc", "Research"). The name persists across mode-switch
 reloads and clears with "Clear Window Name."
 
-### 7. Autosave for .docx files
+### 8. Autosave for .docx files
 
 Autosave now covers Word documents, not just .cmir files — with a
 time-boxed, logged fallback for the zip worker and a ribbon button
 that distinguishes "saving" from "paused" (e.g. a doc with a live
 view that Word can't hold open).
 
-### 8. Compare documents
+### 9. Compare documents
 
 A "Compare" card on the home screen picks two `.cmir`/`.docx` files and
 shows a full-screen, line-by-line diff of their text, side by side, with
 added/removed lines colored the way a code diff shows them, plus an
-outline on each side to jump straight to a heading. Neither file is
+outline on each side to jump straight to a heading. When a line was
+edited rather than replaced, just the changed words are struck through
+on the left and underlined on the right. Neither file is
 opened as your working document — the diff is read-only.
 
 ---

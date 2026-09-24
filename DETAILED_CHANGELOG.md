@@ -10,7 +10,8 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.12.0-bcb.3 — 2026-09-24
+
 
 ### Added: Logos as a Search Everything source (`logos-search.ts`, `quick-card-search-ui.ts`)
 
@@ -100,9 +101,34 @@ two-paragraph card). Also checked by hand
 against the live server in the web build: a real search returned 100 rows,
 and Enter inserted a formatted card.
 
----
+### Added: plugin settings — `info` sections, file-loaded rows, forward-compatible types (`plugin-registry.ts`, `plugin-settings.ts`, `plugin-settings-modal.ts`, `plugins-settings-ui.ts`, `index.ts`, `style.css`)
 
-## 1.12.0-bcb.2.1 — 2026-09-23
+Requested by the PolicyDebateFlow plugin, whose user hit the first one:
+
+- **File-loaded plugins get a row.** Settings → Plugins only listed
+  installed plugins (`host.pluginList()`), so a bundle loaded with "Load
+  plugin from file…" had no row and no gear — its declared settings
+  were unreachable. `refresh()` now also lists `registeredPlugins()`
+  that aren't installed, as "`<name>` — loaded from file (this
+  session)" with the gear when it declared settings. No enable, update
+  or uninstall controls, because nothing is installed. The dev-load
+  button refreshes the list on success. The gear builder is shared
+  (`buildGear`).
+- **`info` setting type.** `{ key, label, type: 'info', body }`: a
+  read-only `<details>` (label as summary, collapsed by default). `body`
+  is plain text — blank line = paragraph, `- ` lines = bullets — built
+  with `textContent`, never HTML. It holds no value: `default` is
+  snapshotted as `''`, `getPluginSettingValue` returns `undefined`. A
+  missing/blank `body`, or `body` on any other type, rejects.
+- **Unknown setting types are skipped, not fatal.** A string `type` the
+  build doesn't know drops that one setting with a console warning,
+  instead of rejecting the plugin, so future types degrade gracefully.
+  A non-string `type` still rejects.
+- **`window.__cardmirrorAppVersion`**, set just before the registry
+  installs. It exists because `api.appVersion` isn't available until
+  after registration, so a bundle can check whether this global exists
+  and leave newer setting types out on older builds (which still reject
+  unknown types).
 
 ### Added: word-level highlighting in Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `style.css`)
 
@@ -160,6 +186,38 @@ browser rather than a Linux build, and `apps/desktop/package.json`'s
 `linux` electron-builder config, which nothing in CI or the release builds.
 "Download the source" now links this fork rather than upstream.
 `CLAUDE.md` records the no-Linux rule for future sessions.
+
+### Changed: MANUAL.md's Condense section (`MANUAL.md`)
+
+The section said that with paragraph integrity on, condense "keeps your
+paragraph breaks (as pilcrows, or as real breaks if pilcrows are off)".
+The code disagrees: `condenseDefault` runs Branch C (per-paragraph
+whitespace cleanup, no merge) whenever `paragraphIntegrity` is on, and
+`usePilcrows` is only read when it's off (`settings.ts`'s own doc comment
+says so). The paragraph now describes that, the table rows say that
+Alt-F3 / Mod-Alt-F3 ignore both settings, Uncondense can only split at
+6-pt ¶ markers, and a new row plus paragraph cover Condense with warning
+(selection inside one card's body only, unbound by default, `[` delimiter
+by default). Scope (selection, else the cursor's card or analytic) is
+spelled out too.
+
+### Removed: Linux electron-builder config (`apps/desktop/package.json`, `CLAUDE.md`)
+
+Requested directly, following the docs removal above. The `build.linux`
+block (AppImage + pacman targets, Linux `.docx` association) and the
+`build.pacman` dependency list are gone, as are the
+`-c.linux.artifactName` / `-c.linux.executableName` overrides in the
+local-only `dist:lite` script. Nothing in CI or `release.yml` built
+Linux since 2026-09-15, so release output is unchanged. `CLAUDE.md`'s
+`.docx` file-association note no longer points at
+`linux.fileAssociations`.
+
+### Changed: README top 8 and Fork Changes lists (`README.md`, `CHANGELOG.md`, `DETAILED_CHANGELOG.md`)
+
+Logos card search enters the README's top 8 at #3. Window naming, the
+smallest of the old eight, drops out of the README list (it stays in both
+changelogs' Fork Changes lists, which now hold nine). Compare documents'
+blurb mentions the new word-level marks.
 
 ## 1.12.0-bcb.2 — 2026-09-23
 
@@ -226,35 +284,6 @@ fetched list replaces the baked one wholesale. So fork entries can't be
 revoked from the relay; that's acceptable for plugins the fork owns. Two
 new cases in `tests/desktop/plugin-manager.test.ts`, covering the baked
 check and a relay list that omits the entry.
-
-### Added: plugin settings — `info` sections, file-loaded rows, forward-compatible types (`plugin-registry.ts`, `plugin-settings.ts`, `plugin-settings-modal.ts`, `plugins-settings-ui.ts`, `index.ts`, `style.css`)
-
-Requested by the PolicyDebateFlow plugin, whose user hit the first one:
-
-- **File-loaded plugins get a row.** Settings → Plugins only listed
-  installed plugins (`host.pluginList()`), so a bundle loaded with "Load
-  plugin from file…" had no row and no gear — its declared settings
-  were unreachable. `refresh()` now also lists `registeredPlugins()`
-  that aren't installed, as "`<name>` — loaded from file (this
-  session)" with the gear when it declared settings. No enable, update
-  or uninstall controls, because nothing is installed. The dev-load
-  button refreshes the list on success. The gear builder is shared
-  (`buildGear`).
-- **`info` setting type.** `{ key, label, type: 'info', body }`: a
-  read-only `<details>` (label as summary, collapsed by default). `body`
-  is plain text — blank line = paragraph, `- ` lines = bullets — built
-  with `textContent`, never HTML. It holds no value: `default` is
-  snapshotted as `''`, `getPluginSettingValue` returns `undefined`. A
-  missing/blank `body`, or `body` on any other type, rejects.
-- **Unknown setting types are skipped, not fatal.** A string `type` the
-  build doesn't know drops that one setting with a console warning,
-  instead of rejecting the plugin, so future types degrade gracefully.
-  A non-string `type` still rejects.
-- **`window.__cardmirrorAppVersion`**, set just before the registry
-  installs. It exists because `api.appVersion` isn't available until
-  after registration, so a bundle can check whether this global exists
-  and leave newer setting types out on older builds (which still reject
-  unknown types).
 
 ### Added: status-bar Search Everything button (`index.html`, `index.ts`, `style.css`)
 
@@ -1472,8 +1501,8 @@ history.
 
 ## Fork Changes
 
-*Implementation details for the eight features this fork has added on top
-of upstream CardMirror, ranked by user impact. For the user-facing
+*Implementation details for the biggest features this fork has added on
+top of upstream CardMirror, ranked by user impact. For the user-facing
 summary of each feature, see [CHANGELOG.md § Fork Changes](./CHANGELOG.md#fork-changes).*
 
 ---
@@ -1558,7 +1587,15 @@ single-doc → multi-pane mode-switch stays hidden.
 Seven new tests in `tests/editor/disk-conflict-pane-badge.test.ts`.
 All 8 pre-existing `disk-conflict.test.ts` tests pass unchanged.
 
-### 3. Google Gemini as a third AI provider
+### 3. Logos card search (`logos-search.ts`, `quick-card-search-ui.ts`)
+
+**Introduced in 1.12.0-bcb.3.** An `l ` source in Search Everything that
+queries Logos's index of opencaselist round-doc cards and inserts the full
+card with its formatting, with optional automatic condense / shrink /
+highlight color on insert. Full notes are in
+[1.12.0-bcb.3's entry](#added-logos-as-a-search-everything-source-logos-searchts-quick-card-search-uits).
+
+### 4. Google Gemini as a third AI provider
 
 **Introduced in 1.6.0-bcb.1.**
 
@@ -1568,7 +1605,7 @@ model-list fetch all follow the same extension points the existing two
 providers already used. See the individual PRs on this fork's repository
 for the specific files changed.
 
-### 4. Paced auto-scroll
+### 5. Paced auto-scroll
 
 **Introduced in 1.6.0-bcb.1.**
 
@@ -1579,7 +1616,7 @@ slow the computed delta; plain text speeds it back up. The ribbon
 auto-scroll button starts and stops the loop; the loop halts automatically
 on any user scroll input so it doesn't fight manual navigation.
 
-### 5. Settings search (`settings-ui.ts`, `style.css`)
+### 6. Settings search (`settings-ui.ts`, `style.css`)
 
 **Introduced in 1.8.0-bcb.4. Bug-fixed in 1.8.0-bcb.4.1.**
 
@@ -1620,7 +1657,7 @@ previously-matched rows from the DOM, making them invisible to
 restoring each category panel from its `panelOriginalChildren` snapshot
 BEFORE clearing `resultsPanel`.
 
-### 6. Window naming (`apps/desktop/src/main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`)
+### 7. Window naming (`apps/desktop/src/main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`)
 
 **Introduced in 1.8.0-bcb.3.**
 
@@ -1645,7 +1682,7 @@ A follow-up fix in 1.8.0-bcb.4 raised `.pmd-nav-context-menu` to
 `z-index: 210` (above the ribbon's `z-index: 200`) so the menu is
 visible when opened from a click inside the ribbon's own bounds.
 
-### 7. Autosave for .docx files
+### 8. Autosave for .docx files
 
 **Introduced in 1.6.0-bcb.1.**
 
@@ -1658,13 +1695,15 @@ then logs the fallback. The ribbon's Save button now distinguishes
 linked copy Word can't hold open), matching the visual feedback users
 already had for `.cmir` autosave.
 
-### 8. Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `home-screen.ts`, `index.ts`, `style.css`)
+### 9. Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `home-screen.ts`, `index.ts`, `style.css`)
 
 **Introduced in 1.10.0-bcb.4.** A read-only, side-by-side line diff of
 two `.cmir`/`.docx` files, opened from the home screen's Compare card.
 Full implementation notes (LCS line diff, `MAX_DIFF_CELLS` cap,
 side-by-side row pairing, outline jump) are in
 [1.10.0-bcb.4's entry](#added-compare-documents-doc-diffts-doc-diff-uits-home-screents-indexts-stylecss).
+Word-level highlighting of edited lines was added in
+[1.12.0-bcb.3](#added-word-level-highlighting-in-compare-documents-doc-diffts-doc-diff-uits-stylecss).
 
 ---
 

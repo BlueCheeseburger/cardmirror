@@ -80,7 +80,10 @@ either workflow without the user asking again.
 at all — no Linux install section in `README.md` (not even
 build-from-source steps), no Linux bullets in its *Run from source*, and no
 Linux build/update notes in `MANUAL.md`. Don't add Linux install or build
-instructions back without the user asking.
+instructions back without the user asking. The `linux` and `pacman`
+electron-builder blocks in `apps/desktop/package.json` (and the
+`-c.linux.*` flags in `dist:lite`) were deleted too (2026-09-24), at the
+user's request.
 
 ## Never re-add `docx` to `apps/desktop/package.json`'s top-level `fileAssociations`
 
@@ -106,8 +109,9 @@ Caught and fixed again (2026-09-07) while doing an unrelated macOS
 Info.plist UTI fix that touched the same array. `.cmir` stays in the
 shared array (its own extension, no default-app collision risk);
 `.docx` is per-platform now — `mac.extendInfo.CFBundleDocumentTypes`
-declares it directly (see the next section), `linux.fileAssociations`
-still declares it (no evidence Linux has this failure mode), and
+declares it directly (see the next section), the `linux` build config
+(which used to declare it too) was deleted on 2026-09-24 since this fork
+builds no Linux packages, and
 `win.fileAssociations` MUST stay empty for docx — Windows already gets
 it, done safely, from `installer.nsh`.
 
