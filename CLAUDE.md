@@ -85,6 +85,16 @@ electron-builder blocks in `apps/desktop/package.json` (and the
 `-c.linux.*` flags in `dist:lite`) were deleted too (2026-09-24), at the
 user's request.
 
+## Upstream is redesigning multi-window — ask before resolving it
+
+Upstream's owner said (ant981228/cardmirror discussion #70, 2026-09-24)
+they're working on a larger redesign so more than one three-pane window
+can be open, the thing this fork's #1 feature already does. When a sync
+brings that redesign in, it will conflict with the fork's per-window
+layout, pane-chip drag and move-to-window code. The user wants to decide
+then whether to take upstream's version or keep the fork's; don't pick
+either side on your own. Stop and ask when you hit it.
+
 ## Never re-add `docx` to `apps/desktop/package.json`'s top-level `fileAssociations`
 
 `16a3060` ("Windows: .docx becomes Open-With-only; heal machines we
