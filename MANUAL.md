@@ -485,18 +485,32 @@ The F3 family collapses card text the way Verbatim's does:
 
 | Function | Shortcut | What it does |
 |----------|----------|--------------|
-| **Condense** | F3 | Collapses whitespace and merges paragraphs using your current paragraph-integrity and pilcrow settings. |
-| **Condense without integrity** | Alt-F3 | Forces a merge to a single paragraph, no integrity markers. |
-| **Condense with pilcrows** | Mod-Alt-F3 | Merges but marks the original breaks with small ¶ pilcrows. |
-| **Uncondense** | Mod-Alt-Shift-F3 | Restores the original paragraph breaks from pilcrows. |
+| **Condense** | F3 | Cleans up whitespace, and merges paragraphs only if paragraph integrity is off (see below). |
+| **Condense without integrity** | Alt-F3 | Always merges into a single paragraph joined by spaces, whatever your settings. The original breaks are gone for good. |
+| **Condense with pilcrows** | Mod-Alt-F3 | Always merges, but marks each original break with a small 6-pt ¶ so Uncondense can restore it. |
+| **Condense with warning** | unbound | Selection only, inside one card's body text: merges it with spaces and wraps it in PARAGRAPH INTEGRITY PAUSES / RESUMES marker lines. |
+| **Uncondense** | Mod-Alt-Shift-F3 | Splits the paragraph back apart at each 6-pt ¶ and removes them. It can't undo a merge joined by spaces. |
 | **Toggle case** | Shift-F3 | Cycles the selection: lowercase → UPPERCASE → Title Case. |
 
+All of them work on the selection, or on the whole card or analytic your
+cursor is in when nothing is selected. All five are also in the Card menu
+under Condense.
+
 **Paragraph integrity** is a toggle (in the ribbon's doc-ops controls and
-in Settings). With it on, condense keeps your paragraph breaks (as
-pilcrows, or as real breaks if pilcrows are off) instead of flattening
-everything to one block. As in Verbatim, when you cut a PDF that breaks
+in Settings) that decides what plain Condense (F3) does. With it on (the
+default), F3 keeps every paragraph separate and only cleans up the
+whitespace inside each one. With it off, F3 merges the paragraphs into one
+block, marking each old break with a 6-pt ¶ if **use pilcrow markers** is
+on (the default) or joining them with spaces if it's off. As in Verbatim, when you cut a PDF that breaks
 every line, turn integrity off for that article so you don't get a
 pilcrow on every line, then turn it back on.
+
+**Condense with warning** is for condensing part of a card honestly. It
+merges the selected paragraphs, then puts a marker line before and after
+them (`[PARAGRAPH INTEGRITY PAUSES]` / `[PARAGRAPH INTEGRITY RESUMES]` by
+default) so a reader can see where you did it. Pick the bracket style under
+Settings → Editing → *Condense with warning: marker delimiter*. It has no
+default key; assign one in Settings → Keybindings.
 
 The **Heading Mode** setting controls how a condense that spans headings
 behaves — `respect` (the default; leaves headings separate, merges only

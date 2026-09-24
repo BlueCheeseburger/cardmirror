@@ -22,24 +22,26 @@
 >    shows its own Dropbox/OneDrive/Google Drive/iCloud sync status in its
 >    own footer, instead of one shared pill that left it ambiguous which
 >    pane it was reporting on. (main)
-> 3. **Google Gemini** as a third AI provider, alongside Anthropic Claude
+> 3. **Logos card search** — type `l ` in Search Everything to search
+>    Logos's index of open-source round-doc cards (college and high school
+>    policy) and insert a full card, cite and formatting intact, at your
+>    cursor; it can condense, shrink and recolor each one as it lands. (main)
+> 4. **Google Gemini** as a third AI provider, alongside Anthropic Claude
 >    and OpenRouter. (main)
-> 4. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
+> 5. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
 >    text and speeding through everything else. (main)
-> 5. **Settings search** — a search bar next to the Settings title matches
+> 6. **Settings search** — a search bar next to the Settings title matches
 >    every setting's name and description at once and highlights the
 >    results as you type. (main)
-> 6. **Window naming** — right-click anywhere on the ribbon (desktop only)
->    to name a window; the name shows as its title instead of the document
->    filename, so windows stay easy to tell apart. (main)
 > 7. **Autosave for `.docx` files**, not just `.cmir` — plus a time-boxed,
 >    logged fallback for the zip worker and a ribbon button that
 >    distinguishes "saving" from "paused" (e.g. a doc with a live view Word
 >    can't hold open). (main)
 > 8. **Compare documents** — a "Compare" card on the home screen picks two
 >    `.cmir`/`.docx` files and shows a read-only, side-by-side line diff of
->    their text, with an outline on each side to jump to a heading. (main)
+>    their text, with the changed words in an edited line struck through or
+>    underlined, and an outline on each side to jump to a heading. (main)
 
 CardMirror is a debate text editor focused on high school and college
 policy debate. It's a standalone
