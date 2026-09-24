@@ -54,6 +54,17 @@ so the named-style exclusion drops underline where both apply. Ranges are
 clamped to the paragraph. If the view closed or went read-only while the
 card was loading, a toast says so instead.
 
+**Right-click preview.** Right-clicking a Logos row fetches `/card` and
+opens the shared card preview (`openCardPreview`, the same read-only
+dialog the dropzone and inbox use, with Copy and Close). The card is built
+exactly as Enter would build it, including the Logos highlight color but
+before any automatic condense or shrink. The palette stays open underneath:
+`onDocPointerDown` ignores clicks inside `.pmd-card-preview-overlay`, and
+the modal's capture-phase key handler already keeps Escape from reaching
+the palette. Closing the preview returns focus to the search box. A result
+that arrives after the palette closed or reopened is dropped
+(`asyncToken`). The hints bar shows "right-click: preview" on Logos rows.
+
 **Automatic condense / shrink / highlight color.** Three settings under
 Settings → Editing → *Cards from Logos*, all hidden in Lite (`hiddenInLite`
 matches `^logos`):
@@ -82,7 +93,8 @@ Editing tab, so upstream's section-order assertion in
 `default-colors.test.ts` still holds.
 
 Tests: `tests/editor/logos-search.test.ts` (8) and
-`tests/editor/quick-card-search-logos.test.ts` (8, including a real
+`tests/editor/quick-card-search-logos.test.ts` (10, including the
+right-click preview and a real
 Condense Without Paragraph Integrity + Shrink run on an inserted
 two-paragraph card). Also checked by hand
 against the live server in the web build: a real search returned 100 rows,
