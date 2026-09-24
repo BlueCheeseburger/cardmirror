@@ -372,7 +372,20 @@ class DocDiffModal {
       marker.textContent = cell.type === 'add' ? '+' : cell.type === 'remove' ? '−' : ' ';
       const text = document.createElement('span');
       text.className = 'pmd-doc-diff-text';
-      text.textContent = cell.text;
+      if (cell.segments) {
+        for (const seg of cell.segments) {
+          if (!seg.changed) {
+            text.append(seg.text);
+            continue;
+          }
+          const word = document.createElement(cell.type === 'add' ? 'ins' : 'del');
+          word.className = 'pmd-doc-diff-word';
+          word.textContent = seg.text;
+          text.appendChild(word);
+        }
+      } else {
+        text.textContent = cell.text;
+      }
       el.append(marker, text);
 
       const rowsByText = side === 'left' ? this.leftRowsByText : this.rightRowsByText;

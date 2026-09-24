@@ -17308,6 +17308,20 @@ body.pmd-multi-doc #collab-chip {
 .pmd-doc-diff-cell-blank {
   background: var(--pmd-c-surface);
 }
+.pmd-doc-diff-word {
+  color: inherit;
+  border-radius: 2px;
+  text-decoration-thickness: 1.5px;
+}
+del.pmd-doc-diff-word {
+  background: color-mix(in srgb, var(--pmd-c-error) 28%, transparent);
+  text-decoration-line: line-through;
+}
+ins.pmd-doc-diff-word {
+  background: color-mix(in srgb, var(--pmd-c-success) 35%, transparent);
+  text-decoration-line: underline;
+  text-underline-offset: 2px;
+}
 .pmd-doc-diff-cell-highlight {
   outline: 2px solid var(--pmd-c-accent);
   outline-offset: -2px;

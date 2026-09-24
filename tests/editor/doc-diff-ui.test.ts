@@ -129,6 +129,25 @@ describe('Compare documents — the results step', () => {
     expect(changedRow!.querySelector('.pmd-doc-diff-cell-add .pmd-doc-diff-text')?.textContent).toBe('New body');
   });
 
+  it('an edited line marks its changed words: struck through on the left, underlined on the right', async () => {
+    await runCompare(cardBytes('Tag', 'The plan causes war by 2030.'), cardBytes('Tag', 'The plan prevents war by 2035.'));
+    const changedRow = qa('.pmd-doc-diff-row')[1]!;
+    const left = changedRow.querySelector('.pmd-doc-diff-cell-remove .pmd-doc-diff-text')!;
+    const right = changedRow.querySelector('.pmd-doc-diff-cell-add .pmd-doc-diff-text')!;
+    expect(Array.from(left.querySelectorAll('del.pmd-doc-diff-word')).map((e) => e.textContent)).toEqual(['causes', '2030']);
+    expect(Array.from(right.querySelectorAll('ins.pmd-doc-diff-word')).map((e) => e.textContent)).toEqual(['prevents', '2035']);
+    expect(left.querySelector('ins')).toBeNull();
+    expect(right.querySelector('del')).toBeNull();
+    // The whole line still reads in order around the marked words.
+    expect(left.textContent).toBe('The plan causes war by 2030.');
+    expect(right.textContent).toBe('The plan prevents war by 2035.');
+  });
+
+  it('unrelated replaced lines stay whole-line colored, with no word marks', async () => {
+    await runCompare(cardBytes('Tag', 'Old body'), cardBytes('Tag', 'Entirely different sentence'));
+    expect(qa('.pmd-doc-diff-word')).toHaveLength(0);
+  });
+
   it('shows both filenames and a +/- summary count', async () => {
     await runCompare(cardBytes('Tag', 'Old body'), cardBytes('Tag', 'New body'), 'before.cmir', 'after.cmir');
     const names = q('.pmd-doc-diff-names')!.textContent!;

@@ -129,30 +129,6 @@ launch CardMirror like any other app.
 3. **First launch only.** SmartScreen shows "Windows protected your
    PC." Click **More info** → **Run anyway**.
 
-### Linux
-
-Two options for installation, depending upon distribution:
-
-- **AppImage** (works on every modern distro): download
-  `cardmirror-x.x.x.AppImage`. In a terminal, in the download
-  folder, run:
-  ```sh
-  chmod +x cardmirror-x.x.x.AppImage
-  ./cardmirror-x.x.x.AppImage
-  ```
-  For most graphical desktop environments with modern file managers, you should
-  be able to run the AppImage by double-clicking after the `chmod +x` command.
-
-- **Arch and Arch-based distributions** — use the AUR:
-  ```sh
-  yay -S cardmirror-bin
-  # or with paru: paru -S cardmirror-bin
-  ```
-  Or grab `cardmirror-x.x.x.pacman` from the release directly and:
-  ```sh
-  sudo pacman -U cardmirror-x.x.x.pacman
-  ```
-
 ### Updates
 
 Updates specifically pull from BlueCheeseburger/cardmirror, not upstream cardmirror.
@@ -170,7 +146,7 @@ automatically**.
 Updates never interrupt you: when a new version has finished
 downloading, a small chip appears in the status bar ("Update x.y.z
 ready — restart to install"), and nothing installs until you click it.
-On Windows and Linux, quitting the app normally also applies a
+On Windows, quitting the app normally also applies a
 downloaded update on the way out. On macOS, clicking the chip restarts
 straight into the new version; if your install can't be updated in
 place (for example the app isn't in a writable folder), the chip opens
@@ -179,9 +155,6 @@ the releases page instead so you can grab the new `.dmg`.
 Going to a tournament? **Pause update checks for 1 week** (Settings →
 General → "About this install") stops all automatic checks and
 downloads until the shown resume date.
-
-Linux users who installed via the AUR can update with `yay -Syu`
-instead.
 
 ## (Optional) Set up AI features
 
@@ -231,8 +204,7 @@ Translation key. Configure it under Settings → Editing → Translation.
 ## Run from source
 
 You only need this if you want to **build CardMirror yourself**
-(contribute, run a development branch, or use the editor on a
-platform we don't publish binaries for). For day-to-day use,
+(contribute or run a development branch). For day-to-day use,
 download a release above.
 
 ### 1. Install Node.js
@@ -246,9 +218,6 @@ to run. Node is a regular desktop installer.
 - **Windows** — open [nodejs.org](https://nodejs.org/) and click the
   blue **"LTS"** download button. Open the `.msi` file from
   Downloads and click through the installer.
-- **Linux** — the easiest path is the official installer at
-  [nodejs.org/en/download](https://nodejs.org/en/download/) — pick
-  your distro and follow the few commands it shows.
 
 You don't need to verify the install — if the next step works, Node
 is installed.
@@ -256,7 +225,7 @@ is installed.
 ### 2. Download the source
 
 1. Open
-   [the CardMirror page on GitHub](https://github.com/ant981228/cardmirror)
+   [this fork's page on GitHub](https://github.com/BlueCheeseburger/cardmirror)
    in your browser.
 2. Click the **green `<> Code` button** near the top of the file list.
 3. Click **"Download ZIP"** at the bottom of the dropdown.
@@ -280,15 +249,12 @@ open one already pointing at the CardMirror folder.
   right-click the folder.
 - **Windows** — open File Explorer in the folder, click the address
   bar, type `cmd`, press Enter.
-- **Linux** — right-click inside the folder and pick *Open Terminal
-  Here* (Nautilus / Dolphin / Thunar all offer it), or open in terminal and
-  `cd` to the filepath.
 
-To make sure you're in the right directory, type `ls` (macOS / Linux)
+To make sure you're in the right directory, type `ls` (macOS)
 or `dir` (Windows) and press Enter. You should see `package.json`,
 `README.md`, `src`, `apps`. If you don't, your terminal is likely one
 folder too high up — verify your current folder with the `pwd` command
-(macOS / Linux / Windows PowerShell) or by typing `echo %cd%` (Windows, non-PowerShell).
+(macOS / Windows PowerShell) or by typing `echo %cd%` (Windows, non-PowerShell).
 
 ### 4. Install dependencies
 

@@ -10,6 +10,65 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.12.0-bcb.2.1 — 2026-09-23
+
+### Added: word-level highlighting in Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `style.css`)
+
+Requested directly. The line diff alone showed an edited line as a whole
+red line and a whole green line; `toDiffRows` now aligns each changed
+region (a run of removes + adds between equal lines) before zipping it:
+
+- **Pairing (`alignRegion`).** Every remove×add pair in the region gets a
+  word-bag Dice similarity (words lowercased, whitespace ignored, counts
+  as a multiset). A small DP picks the in-order set of pairs, each at
+  least `PAIR_SIMILARITY` (0.5), with the greatest total similarity — the
+  same monotone-alignment shape as an LCS, so rows never cross. Paired
+  lines get their own row; the unpaired lines between two pairs zip
+  position-for-position exactly as before, so a region of unrelated lines
+  lays out unchanged. Regions over `MAX_REGION_PAIRS` (10,000 candidate
+  pairs — a wholesale rewrite) skip pairing and zip, which bounds the cost.
+- **Word diff (`wordDiff`, exported).** Each pair is tokenized into words
+  (letters/digits, keeping inner apostrophes like `don't`), single
+  punctuation marks, and whitespace runs, so the tokens rejoin to the exact
+  line. Shared prefix/suffix is trimmed, then a token LCS marks each side's
+  tokens `changed`; past `MAX_WORD_CELLS` (250,000) the differing middle is
+  marked changed as one run instead. Whitespace at the edge of a changed
+  run is unmarked, and a space between two changed words is folded in, so
+  "a decade" reads as one run. Output is `DiffCell.segments`
+  (`{ text, changed }[]`, only on paired cells; `text` is unchanged, so the
+  outline rails' text matching still works).
+- **Rendering.** Changed segments render as `<del class="pmd-doc-diff-word">`
+  on the left and `<ins class="pmd-doc-diff-word">` on the right — semantic
+  for screen readers, and the track-changes convention (struck through vs
+  underlined) debaters know from Word — with a `color-mix` of the theme's
+  error/success color over the line's own tint, so both themes work.
+  Checked visually in light and dark (Playwright against the dev server).
+- **Tests.** `tests/editor/doc-diff.test.ts`: the two positional-zip tests
+  now use genuinely unrelated lines (their old `old A`/`new A` fixtures
+  are similar enough to pair now); new tests cover pairing with segments,
+  pairing across an interleaved unrelated line, the large-region fallback,
+  and `wordDiff` (rejoin exactness, apostrophes, run folding, identical
+  input). `tests/editor/doc-diff-ui.test.ts`: `<del>`/`<ins>` rendering and
+  no word marks on unrelated replaced lines.
+
+### Changed: Linux dropped from the install docs (`README.md`, `MANUAL.md`, `CLAUDE.md`)
+
+Requested directly: don't include Linux versions at all. `README.md`'s
+Linux section documented `.AppImage`/`.pacman`/AUR installs that stopped
+shipping when `ubuntu-latest` left the release matrix. A first pass
+rewrote it as build-from-source instructions (`npm run desktop:install` +
+`npm run desktop:dist`, verified here to produce the AppImage); per the
+request it's now removed outright instead, along with the Linux bullets in
+*Run from source* (Node install, opening a terminal, the `ls`/`pwd` hints)
+and "a platform we don't publish binaries for" from its intro. The Windows-
+and-Linux "quitting applies an update" line is Windows-only, the AUR note is
+gone, and `MANUAL.md` no longer mentions Linux builds. Kept: the manual's
+keyboard notes ("Ctrl on Windows/Linux"), which describe key behavior in a
+browser rather than a Linux build, and `apps/desktop/package.json`'s
+`linux` electron-builder config, which nothing in CI or the release builds.
+"Download the source" now links this fork rather than upstream.
+`CLAUDE.md` records the no-Linux rule for future sessions.
+
 ## 1.12.0-bcb.2 — 2026-09-23
 
 ### Removed: built-in PolicyDebateFlow integration
