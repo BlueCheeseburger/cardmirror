@@ -50,6 +50,8 @@ import {
   type StyleAlignments,
   type StyleAlignment,
   applyNumberingSeparator,
+  LOGOS_IMPORT_CONDENSE,
+  LOGOS_IMPORT_SHRINK,
 } from './settings.js';
 import { CATEGORY_TABS, visibleCategoryTabs, type SettingsTarget } from './settings-categories.js';
 import { generateGroupId, normalizePairingCode } from './pairing/pairing-ids.js';
@@ -1196,6 +1198,18 @@ class SettingsModal {
     } else if (meta.kind === 'defaultHighlightColor') {
       row.appendChild(text);
       row.appendChild(buildHighlightNameEditor('defaultHighlightColor'));
+      return row;
+    } else if (meta.kind === 'logosImportHighlight') {
+      row.appendChild(text);
+      row.appendChild(buildHighlightNameEditor('logosImportHighlight', { allowDefault: true }));
+      return row;
+    } else if (meta.kind === 'logosImportCondense') {
+      row.appendChild(text);
+      row.appendChild(buildCommandChoiceEditor('logosImportCondense', LOGOS_IMPORT_CONDENSE));
+      return row;
+    } else if (meta.kind === 'logosImportShrink') {
+      row.appendChild(text);
+      row.appendChild(buildCommandChoiceEditor('logosImportShrink', LOGOS_IMPORT_SHRINK));
       return row;
     } else if (meta.kind === 'defaultShadingColor') {
       row.appendChild(text);
@@ -5004,7 +5018,10 @@ function buildColorEditor(key: string): HTMLElement {
  *  highlight color): a swatch row of Word's 15 named highlight colors
  *  (highlight marks can only be one of these) plus a label naming the
  *  current pick. Stores the OOXML color name under `key`. */
-function buildHighlightNameEditor(key: 'standardizeHighlightException' | 'defaultHighlightColor'): HTMLElement {
+function buildHighlightNameEditor(
+  key: 'standardizeHighlightException' | 'defaultHighlightColor' | 'logosImportHighlight',
+  opts: { allowDefault?: boolean } = {},
+): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-color-editor';
 
@@ -5018,6 +5035,21 @@ function buildHighlightNameEditor(key: 'standardizeHighlightException' | 'defaul
   const presets = document.createElement('div');
   presets.className = 'pmd-color-editor-presets';
   const swatchButtons: { btn: HTMLButtonElement; name: string }[] = [];
+  // '' = follow the default highlight color (keys that allow it). Sits
+  // beside the label, not in the swatch grid (a fixed 15-column grid).
+  if (opts.allowDefault) {
+    const def = document.createElement('button');
+    def.type = 'button';
+    def.className = 'pmd-color-editor-default';
+    def.textContent = 'Use default';
+    def.title = 'Use your default highlight color';
+    def.addEventListener('click', () => {
+      settings.set(key, '');
+      refresh();
+    });
+    top.appendChild(def);
+    swatchButtons.push({ btn: def, name: '' });
+  }
   for (const c of WORD_HIGHLIGHT_COLORS) {
     const sw = document.createElement('button');
     sw.type = 'button';
@@ -5036,7 +5068,9 @@ function buildHighlightNameEditor(key: 'standardizeHighlightException' | 'defaul
 
   function refresh(): void {
     const current = settings.get(key);
-    label.textContent = highlightColorLabel(current);
+    label.textContent = current
+      ? highlightColorLabel(current)
+      : `Default (${highlightColorLabel(settings.get('defaultHighlightColor'))})`;
     for (const { btn, name } of swatchButtons) {
       btn.classList.toggle('pmd-color-editor-swatch-active', name === current);
     }
@@ -5044,6 +5078,30 @@ function buildHighlightNameEditor(key: 'standardizeHighlightException' | 'defaul
 
   refresh();
   return wrap;
+}
+
+/** Dropdown picking which ribbon command (or none) runs automatically —
+ *  labels come from the commands themselves, so they match the ribbon. */
+function buildCommandChoiceEditor<K extends 'logosImportCondense' | 'logosImportShrink'>(
+  key: K,
+  choices: readonly Settings[K][],
+): HTMLElement {
+  const select = document.createElement('select');
+  select.className = 'pmd-settings-text pmd-command-choice-select';
+  for (const choice of choices) {
+    const opt = document.createElement('option');
+    opt.value = choice;
+    opt.textContent = choice === 'none' ? 'Off' : RIBBON_COMMAND_LABELS[choice as RibbonCommandId];
+    select.appendChild(opt);
+  }
+  const refresh = (): void => {
+    select.value = settings.get(key);
+  };
+  select.addEventListener('change', () => settings.set(key, select.value as Settings[K]));
+  refresh();
+  const unsub = settings.subscribe(refresh);
+  registerRowCleanup(select, () => unsub());
+  return select;
 }
 
 /** Background-color-exception editor: same shape as the free color
