@@ -8,6 +8,15 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **Logos moved from `l` to `g` in Search Everything.** A lowercase `l`
+  is easy to misread as a capital I or the number 1, so Logos is now `g`
+  and a space. `l` is no longer a prefix, so a search starting with
+  "l " searches everything again.
+
 ## 1.12.0-bcb.3 — 2026-09-24
 
 ### Added
@@ -357,7 +366,7 @@ label only for "changed on disk" and "conflicted copy" states.
 
 ### 3. Logos card search
 
-Type `l` and a space in Search Everything to search Logos, a card search
+Type `g` and a space in Search Everything to search Logos, a card search
 engine over the round docs college and high school policy teams
 open-source on opencaselist. Enter inserts the full card — cite,
 underlining and highlighting intact — at your cursor, and right-click

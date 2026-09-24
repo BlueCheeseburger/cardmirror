@@ -999,7 +999,7 @@ you *browse* that whole source.
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
-| **`l`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
+| **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
 
 Searching **version** (or "about this install") shows the running app
 version, and Enter jumps to the About this install section of Settings.
@@ -1014,7 +1014,7 @@ at your cursor (the same insertion the send-to-speech and Quick Card
 buttons use). If your cursor is in the middle of a paragraph, the insertion
 will drop at the nearest valid target. 
 
-**Searching Logos (`l`, fork).** `l` and a space searches
+**Searching Logos (`g`, fork).** `g` and a space searches
 [Logos](https://logos-debate.netlify.app), a card search engine run by
 someone else. It covers cards from the round docs teams open-source on
 opencaselist, for college and high school policy only. It doesn't include
@@ -3127,7 +3127,7 @@ Typing helpers and the behavior of the cutting and condense commands
 
 **Cards from Logos (fork)**
 
-These apply to cards you insert from Logos (`l` in
+These apply to cards you insert from Logos (`g` in
 [Search Everything](#the-search-everything-palette-mod-shift-space)). They
 aren't available in CardMirror Lite.
 

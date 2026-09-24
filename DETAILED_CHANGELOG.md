@@ -10,6 +10,21 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: Logos prefix `l` → `g` (`quick-card-search-ui.ts`, `logos-search.ts`)
+
+Requested directly: a lowercase `l` reads as `I` or `1` in the palette's
+font. `parsePrefix` now takes `g` for Logos (still gated off in Lite) and
+no longer treats `l` as a prefix, so `l warming` is an everything-search
+again rather than a Logos query. The no-prefix hint reads `g Logos` and
+stays alphabetical (`f files · g Logos · q cards`). `g` was free in this
+fork and in upstream. No alias is kept for `l`: it shipped in one release
+(1.12.0-bcb.3) the day before. Tests: the Logos palette tests type `g `,
+plus a new case that `l warming` makes no Logos request. `MANUAL.md`
+(prefix table, the Logos section, Settings → Cards from Logos) and the
+README's top-8 entry say `g`.
+
 ## 1.12.0-bcb.3 — 2026-09-24
 
 
@@ -1589,7 +1604,7 @@ All 8 pre-existing `disk-conflict.test.ts` tests pass unchanged.
 
 ### 3. Logos card search (`logos-search.ts`, `quick-card-search-ui.ts`)
 
-**Introduced in 1.12.0-bcb.3.** An `l ` source in Search Everything that
+**Introduced in 1.12.0-bcb.3** (as `l `; `g ` since the next release). A `g ` source in Search Everything that
 queries Logos's index of opencaselist round-doc cards and inserts the full
 card with its formatting, with optional automatic condense / shrink /
 highlight color on insert. Full notes are in
