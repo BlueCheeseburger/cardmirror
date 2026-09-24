@@ -275,6 +275,11 @@ its builds succeed, with no need to check back in and wait for an
 explicit go-ahead each time. Nobody else is watching this fork, so
 there's no audience risk in publishing promptly. This doesn't relax
 anything else — still verify builds succeeded, still get the asset
-list/links right, still keep only one live release current (delete
-the superseded one) — it just removes the "wait for a human before
-hitting publish" step specifically.
+list/links right, — it just removes the "wait for a human before hitting publish" step
+specifically.
+
+**Never delete older releases (2026-09-24).** This section used to say to
+keep only one live release current and delete the superseded one. The
+user said not to: leave every older `vX.Y.Z-bcb.N` release in place when
+cutting a new one. Don't delete a release unless the user asks for that
+specific one.
