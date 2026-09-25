@@ -10,6 +10,25 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: Settings tab strip scrolls directly (`settings-ui.ts`, `style.css`)
+
+Requested directly. `.pmd-settings-tabs` was `overflow-x: hidden`, so the
+‹ › arrow buttons were the only way to reach tabs past the edge: a
+trackpad swipe or a mouse wheel over the strip did nothing. It's now
+`overflow-x: auto` with the scrollbar hidden (`scrollbar-width: none` +
+`::-webkit-scrollbar { display: none }`), so swipes and shift+wheel scroll
+it natively. A plain mouse wheel only produces vertical deltas, so a
+non-passive `wheel` listener turns a mostly-vertical wheel into
+`scrollBy({ left })` (line-mode deltas × 16px) when the strip overflows,
+and lets everything else through untouched. The arrows and their
+enable/disable state are unchanged; they already follow the `scroll`
+event. Tests: `tests/editor/settings-tabs-scroll.test.ts` (4). Also checked
+in the web build with Playwright at 700px wide: a vertical wheel over the
+strip scrolled it to the end, a horizontal swipe brought it back, and no
+scrollbar appeared.
+
 ## 1.12.0-bcb.4 — 2026-09-25
 
 ### Added: `p` source — open docs and windows (`open-docs.ts`, `quick-card-search-ui.ts`, `multi-pane-shell.ts`, `index.ts`, `main.ts`, `preload.ts`, `electron-host.ts`)
