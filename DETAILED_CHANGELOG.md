@@ -10,6 +10,59 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: Google Docs-style images (`image-resize-nodeview.ts`, `image-drop-plugin.ts`, `image-insert.ts`, `index.ts`, `style.css`)
+
+**Toolbar.** A selected image shows a toolbar under it, built by
+`ImageResizeView` alongside the handles and torn down with them (so
+read mode and read-only views get neither). It has four groups:
+- **Scale:** 25% / 50% / 75% / Original size, all scaled from the
+  picture's decoded size, and highlighted when the image is already that
+  size. The size is cached per `data`, because every re-render makes a
+  fresh `<img>` that reads 0×0 until it decodes. Without the cache the
+  buttons would switch off after each click. Placeholder formats (EMF /
+  WMF / TIFF) have no known size, so these are disabled.
+- **Fit width:** a fixed `TEXT_COLUMN_PX` (624px = 6.5in: Letter less the
+  exporter's 1in margins), never the pane's width, so the size in Word
+  doesn't depend on the window or three-pane layout.
+- **Alt text:** the right-click menu's `editAltText`, now exported.
+- **Replace / Delete:** Replace keeps the width, takes its height from
+  the new picture and clears the alt text. Both re-check that the image
+  is still at its position after the file picker closes.
+
+`stopEvent` claims toolbar events and the toolbar `preventDefault`s
+mousedown, so a click never deselects the image first.
+
+**Proportional handles.** `proportionalResize`: corners and the e / w
+edges follow the horizontal drag, n / s the vertical. The other side
+always follows the shape, and the short side is floored at 16px. The
+edge handles no longer stretch. Handles are `draggable = false`.
+
+**Moving images.** The editor still swallows every native `dragstart`
+(text drag never worked reliably). The carve-out is
+`allowImageDragStart`: a drag that starts on the picture (not a handle
+or the toolbar) in an editable view passes through to ProseMirror's own
+node drag. That drag moves the image, or copies it with Ctrl (Alt on
+macOS). The image is made the whole selection first, so dragging it out
+of a larger text selection moves only the image.
+
+**Dropping files.** `imageDropPlugin.handleDrop` takes image files
+(desktop's capture-phase handler still takes `.cmir` / `.docx` first).
+It decodes them all and inserts them in order through
+`insertImageNodesAt`, which uses `dropPoint` to find the nearest spot
+that accepts inline content and selects the last image. It leaves
+in-editor drags to ProseMirror.
+
+**Fit on insert.** `buildImageNodeFromBlob` shrinks anything wider than
+the column (`fitToColumn`), so paste, Insert Image and drops all fit the
+page like Docs. Smaller images keep their size.
+
+Tests: `tests/editor/image-toolbar-drag.test.ts`. The native drag, file
+drop and toolbar were also checked by hand in Chromium against
+`npm run dev`: a 1400px PNG dropped in landed at 624px, 25% gave 350px,
+and dragging the image moved it into the next paragraph.
+
 ## 1.12.0-bcb.5 — 2026-09-25
 
 ### Added: read times in the outline's right-click menu (`nav-panel.ts`, `index.ts`, `multi-pane-shell.ts`, `style.css`)

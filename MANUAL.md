@@ -714,10 +714,23 @@ color to all of them at once.
   or delete rows and columns and merge or split cells. Tables round-trip
   to Word with their borders and background colors intact.
 - **Insert Image** (Format menu) inserts an image from a file; you can
-  also paste one from the clipboard. Right-click an image to **edit its
-  alt text** (or have AI write it) and to **generate a table from the
-  image** (see [AI features](#13-ai-features)). Alt text round-trips to
-  Word.
+  also paste one from the clipboard or *(fork)* drag image files in from
+  your computer (drop several at once to add them all). An image wider
+  than the page is shrunk to fit it (6.5 inches), like Google Docs.
+  Right-click an image to **edit its alt text** (or have AI write it)
+  and to **generate a table from the image** (see
+  [AI features](#13-ai-features)). Alt text round-trips to Word.
+- *(Fork)* **Click an image** for a toolbar under it, like Google Docs:
+  - **25% / 50% / 75% / Original size**: scale from the picture's own
+    size. The current one is highlighted.
+  - **Fit width**: as wide as the page.
+  - **Alt text**: describe the image for screen readers.
+  - **Replace**: swap in another image at the same width.
+  - **Delete**: remove it.
+- *(Fork)* **Resize** with the handles around a selected image. Every
+  handle keeps the image's shape, so it never stretches.
+- *(Fork)* **Move** an image by dragging it to a new spot. Hold **Ctrl**
+  (**Alt** on macOS) while dropping to copy it instead.
 
 ### Footnotes and endnotes
 
