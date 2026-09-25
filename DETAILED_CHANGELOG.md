@@ -12,6 +12,45 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: plugin updates on the app's update schedule and chip (`plugin-update-check.ts`, `main.ts`, `update-chip.ts`, `preload.ts`)
+
+**When plugins are checked.** `runPluginUpdateCheck` runs from each
+place the app update check runs:
+- `host:trigger-auto-update-check`, which the renderer's launch and
+  daily checks call, gated on `checkForUpdatesOnLaunch` and
+  `updateChecksPausedUntil`, first window only.
+- `host:check-for-updates`, the About button.
+- The Help-menu manual check.
+
+It lists the installed plugins and checks the ones that have a source
+repo and aren't flagged incompatible, one at a time
+(`findPluginUpdates`, using the existing `checkPluginUpdate`). Failures
+stay silent, like a failed automatic app check. Lite skips it.
+
+**The chip.** Main keeps two states: the app's (`updateChip`) and the
+plugins' (pending list plus an `idle` / `updating` / `ready` phase).
+`effectiveChip()` shows the app's if there is one, else the plugins'.
+Every broadcast and the late-window pull both go through it. The
+renderer gains three states:
+- `plugins`: "Plugin update: X v" or "N plugin updates available".
+- `plugins-updating`.
+- `plugins-ready`: "Plugins updated — restart to apply".
+
+**The click** (with no app update on the chip):
+- `plugins`: a native confirm listing each "name: vA → vB", then
+  `applyPluginUpdates`, which runs the Settings row's own two-phase
+  inspect → commit for each plugin. That means the allowlist and
+  version gates apply unchanged. Failures are listed in a warning.
+- `plugins-ready`: sets `relaunchAfterQuit` and calls `app.quit()`, so
+  every window's unsaved-work prompt still runs. The relaunch happens in
+  `will-quit`, which fires only when the quit truly goes through.
+  `host:close-cancelled` clears the flag, so a restart the user backed
+  out of can't fire on a later quit.
+
+Updating or uninstalling a plugin from Settings drops it from the
+pending list. Tests: `tests/desktop/plugin-update-check.test.ts` and the
+new case in `tests/editor/update-chip.test.ts`.
+
 ### Added: Google Docs-style images (`image-resize-nodeview.ts`, `image-drop-plugin.ts`, `image-insert.ts`, `index.ts`, `style.css`)
 
 **Toolbar.** A selected image shows a toolbar under it, built by
