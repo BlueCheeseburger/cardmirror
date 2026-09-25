@@ -374,6 +374,7 @@ import {
   orderWordCountSegments,
   primaryReadSegment,
   remainingReadSegment,
+  canSwitchSpeedMode,
 } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import {
@@ -3047,7 +3048,9 @@ wordCountBtn.addEventListener('click', () => runRibbon('wordCountSelection'));
 // (not gated on hasLaySpeeds()): the bar's own edit-time refresh keeps
 // the `pmd-wc-lay-capable` class current, so CSS alone controls whether
 // the click affordance is visible.
-wordCountText.addEventListener('click', () => toggleLaySpeaking());
+wordCountText.addEventListener('click', () => {
+  if (canSwitchSpeedMode(laySpeakingOn)) toggleLaySpeaking();
+});
 
 /** Push the current `navPaneVisible` setting into a body class so
  *  the CSS rules at the top of style.css can hide/show the nav

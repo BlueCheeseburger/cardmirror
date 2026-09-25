@@ -350,10 +350,10 @@ describe('primaryReadSegment (the whole-document readout)', () => {
   const doc = schema.nodes['doc']!.createChecked(null, [card('Tag one', 'alpha bravo charlie'), card('Tag two', 'delta echo')]);
   const counts = () => countReadAloudSplit(doc);
 
-  it('labels the whole-doc side "Doc:" only while the container segment is on', () => {
-    expect(primaryReadSegment(counts(), { selection: false, selectionLabel: 'Selection' })).toMatch(/^Doc: \d/);
+  it('shows no whole-doc word count, labelling the side "Doc" only while the container segment is on', () => {
+    expect(primaryReadSegment(counts(), { selection: false, selectionLabel: 'Selection' })).toMatch(/^Doc · Reader 1: /);
     settings.set('liveContainerReadTime', false);
-    expect(primaryReadSegment(counts(), { selection: false, selectionLabel: 'Selection' })).toMatch(/^\d/);
+    expect(primaryReadSegment(counts(), { selection: false, selectionLabel: 'Selection' })).toMatch(/^Reader 1: /);
   });
 
   it('turning the whole-doc readout off drops the segment entirely', () => {
@@ -391,7 +391,7 @@ describe('useLay — the per-doc lay-speaking toggle', () => {
     expect(seg).toContain('Amy: ');
   });
 
-  it('useLay true labels every reader "(lay)" and switches to layWpm', () => {
+  it('useLay true switches to layWpm with no "(lay)" label', () => {
     settings.set('readers', [
       { name: 'Amy', wpm: 200, layWpm: 80 },
       { name: 'Ben', wpm: 100 },
@@ -401,18 +401,19 @@ describe('useLay — the per-doc lay-speaking toggle', () => {
       selectionLabel: 'Selection',
       useLay: true,
     })!;
-    expect(seg).toContain('Amy (lay): ');
+    expect(seg).toContain('Amy: ');
+    expect(seg).not.toContain('(lay)');
     // Ben has no layWpm — shows "—", not a silently-stale flow number,
     // so an unconfigured reader can never look like it just didn't move.
-    expect(seg).toContain('Ben (lay): —');
+    expect(seg).toContain('Ben: —');
   });
 
   it('liveContainerSegment and remainingReadSegment also thread useLay', () => {
     settings.set('readers', [{ name: 'Amy', wpm: 200, layWpm: 80 }]);
     settings.set('liveRemainingReadTime', true);
     const state = stateAt(children, 'alpha body');
-    expect(liveContainerSegment(state, true)).toContain('Amy (lay): ');
-    expect(remainingReadSegment(state, true)).toContain('Amy (lay): ');
+    expect(liveContainerSegment(state, true)).toContain('Amy: ');
+    expect(remainingReadSegment(state, true)).toContain('Amy: ');
     settings.set('liveRemainingReadTime', false);
   });
 });
