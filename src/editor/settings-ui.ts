@@ -513,7 +513,9 @@ class SettingsModal {
     // bar, not the nav). The arrows are hidden when the strip
     // fits its container and revealed via ResizeObserver when it
     // overflows; each arrow disables at the end of its scroll
-    // range. No native scrollbar — overflow-x: hidden on the nav.
+    // range. The strip also scrolls directly — trackpad swipes and
+    // shift+wheel natively (overflow-x: auto, scrollbar hidden),
+    // and a plain vertical mouse wheel via the handler below.
     const tabsBar = document.createElement('div');
     tabsBar.className = 'pmd-settings-tabs-bar';
 
@@ -558,6 +560,22 @@ class SettingsModal {
     };
     scrollLeftBtn.addEventListener('click', () => scrollTabsBy(-1));
     scrollRightBtn.addEventListener('click', () => scrollTabsBy(1));
+    // A mouse wheel only scrolls vertically, which the strip can't do,
+    // so turn it sideways. Trackpad swipes (mostly horizontal) and
+    // shift+wheel already scroll natively and pass through untouched,
+    // as does everything when the strip fits and there's nothing to
+    // scroll.
+    tabStrip.addEventListener(
+      'wheel',
+      (e) => {
+        if (tabStrip.scrollWidth <= tabStrip.clientWidth + 1) return;
+        if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+        e.preventDefault();
+        const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; // line → px
+        tabStrip.scrollBy({ left: px, behavior: 'auto' });
+      },
+      { passive: false },
+    );
 
     const updateArrows = (): void => {
       const overflowing = tabStrip.scrollWidth > tabStrip.clientWidth + 1;
