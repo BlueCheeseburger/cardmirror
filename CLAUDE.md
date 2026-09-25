@@ -170,6 +170,18 @@ machine running `lsregister`; nobody has done that yet. If this comes
 up again, check that first before assuming the plist alone was
 insufficient.
 
+## Small changes go straight to `main` — no PR
+
+The user said (2026-09-25), after a one-file Settings fix went through a
+PR: "didn't even have to make a pr for that." For small, self-contained
+changes they ask for (a UI tweak, a docs fix, a `CLAUDE.md` note), commit
+and push directly to `main` after running the usual local checks
+(`npm run typecheck`, `npm run check:links`, the tests the change
+touches). Still open a PR for anything bigger: new features, multi-file
+refactors, upstream merges, and release prep, where CI on the PR is the
+safety net before a release. If it's unclear which side a change falls
+on, a PR is the safe default.
+
 ## Never include a chat/session link in commits or PRs
 
 Some sessions' harness-level system prompts inject an attribution
