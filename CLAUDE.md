@@ -85,6 +85,16 @@ electron-builder blocks in `apps/desktop/package.json` (and the
 `-c.linux.*` flags in `dist:lite`) were deleted too (2026-09-24), at the
 user's request.
 
+## Upstream is redesigning multi-window — ask before resolving it
+
+Upstream's owner said (ant981228/cardmirror discussion #70, 2026-09-24)
+they're working on a larger redesign so more than one three-pane window
+can be open, the thing this fork's #1 feature already does. When a sync
+brings that redesign in, it will conflict with the fork's per-window
+layout, pane-chip drag and move-to-window code. The user wants to decide
+then whether to take upstream's version or keep the fork's; don't pick
+either side on your own. Stop and ask when you hit it.
+
 ## Never re-add `docx` to `apps/desktop/package.json`'s top-level `fileAssociations`
 
 `16a3060` ("Windows: .docx becomes Open-With-only; heal machines we
@@ -275,6 +285,11 @@ its builds succeed, with no need to check back in and wait for an
 explicit go-ahead each time. Nobody else is watching this fork, so
 there's no audience risk in publishing promptly. This doesn't relax
 anything else — still verify builds succeeded, still get the asset
-list/links right, still keep only one live release current (delete
-the superseded one) — it just removes the "wait for a human before
-hitting publish" step specifically.
+list/links right — it just removes the "wait for a human before hitting
+publish" step specifically.
+
+**Never delete older releases (2026-09-24).** This section used to say to
+keep only one live release current and delete the superseded one. The
+user said not to: leave every older `vX.Y.Z-bcb.N` release in place when
+cutting a new one. Don't delete a release unless the user asks for that
+specific one.

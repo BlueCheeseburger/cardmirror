@@ -1,5 +1,5 @@
 /**
- * Logos card search (https://logos-debate.netlify.app) — the `l ` source
+ * Logos card search (https://logos-debate.netlify.app) — the `g ` source
  * in the Search Everything palette.
  *
  * Logos indexes cards cut from the round docs teams open-source on

@@ -980,7 +980,9 @@ A single floating box that searches across everything CardMirror knows
 about — your Quick Cards, the dropzone, every command, every setting, and
 your files — and acts on what you pick. It opens centered over the active
 pane with results listed above the bar; **↑/↓** move the selection,
-**Enter** activates it, and **Esc** closes.
+**Enter** activates it, and **Esc** closes. The bar is the same width in a
+three-pane window as in a one-document window **(fork)**; only a narrow
+window makes it narrower.
 
 You can also open it with the **Search** button in the status bar at the
 bottom of the window **(fork)**.
@@ -999,7 +1001,8 @@ you *browse* that whole source.
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
-| **`l`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
+| **`p`** | **Open docs and windows** — every document open in any pane of any window, plus windows you've named **(fork)** | Switches to it: raises its window and brings the doc forward in its pane |
+| **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
 
 Searching **version** (or "about this install") shows the running app
 version, and Enter jumps to the About this install section of Settings.
@@ -1014,7 +1017,16 @@ at your cursor (the same insertion the send-to-speech and Quick Card
 buttons use). If your cursor is in the middle of a paragraph, the insertion
 will drop at the nearest valid target. 
 
-**Searching Logos (`l`, fork).** `l` and a space searches
+**Switching to an open doc (`p`, fork).** `p` and a space lists every
+document open in CardMirror: every pane of every window, including documents
+stacked behind the one showing in a pane. Type part of a document's name
+(`p 2ac`) and press **Enter** to jump to it. Its window comes to the front,
+the document comes forward in its pane, and the cursor lands in it. Windows
+you've [named](#naming-windows-and-renaming-documents) are listed too, and
+typing a window's name (`p neg`) finds the window and every document in
+it. The web edition lists only the documents in the current tab.
+
+**Searching Logos (`g`, fork).** `g` and a space searches
 [Logos](https://logos-debate.netlify.app), a card search engine run by
 someone else. It covers cards from the round docs teams open-source on
 opencaselist, for college and high school policy only. It doesn't include
@@ -3127,7 +3139,7 @@ Typing helpers and the behavior of the cutting and condense commands
 
 **Cards from Logos (fork)**
 
-These apply to cards you insert from Logos (`l` in
+These apply to cards you insert from Logos (`g` in
 [Search Everything](#the-search-everything-palette-mod-shift-space)). They
 aren't available in CardMirror Lite.
 
