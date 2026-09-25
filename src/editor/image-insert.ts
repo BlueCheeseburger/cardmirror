@@ -9,12 +9,29 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
-import type { Node as PMNode } from 'prosemirror-model';
+import { Fragment, Slice, type Node as PMNode } from 'prosemirror-model';
+import { NodeSelection } from 'prosemirror-state';
+import { dropPoint } from 'prosemirror-transform';
 import { schema } from '../schema/index.js';
 
 /** EMU-per-CSS-pixel constant. 914400 EMU per inch, 96 CSS px per
  *  inch → 9525 EMU per CSS px. Matches the importer / exporter. */
 const EMU_PER_PX = 9525;
+
+/** Width of the exported page's text column in CSS px: a US Letter
+ *  page (8.5in) less the exporter's 1in margins each side = 6.5in at
+ *  96dpi. Fixed rather than read from the pane, so "Fit width" (and the
+ *  fit on insert) gives the same size in Word whatever the window or
+ *  three-pane slot looked like. See `SECT_PR_AND_DOCUMENT_CLOSE` in
+ *  `export/exporter.ts`. */
+export const TEXT_COLUMN_PX = 624;
+
+/** Scale `w`×`h` down (never up) so it fits the text column, keeping
+ *  its proportions — what Google Docs does to a big pasted screenshot. */
+export function fitToColumn(w: number, h: number): { width: number; height: number } {
+  if (w <= TEXT_COLUMN_PX || w <= 0) return { width: w, height: h };
+  return { width: TEXT_COLUMN_PX, height: Math.round((h * TEXT_COLUMN_PX) / w) };
+}
 
 /** Browser-renderable formats we can measure via a transient
  *  `<img>` element. Other types (EMF, TIFF, etc.) round-trip
@@ -54,7 +71,9 @@ export async function buildImageNodeFromBlob(blob: Blob): Promise<PMNode | null>
   let heightEmu = 0;
   if (RENDERABLE.has(contentType)) {
     try {
-      const dims = await measureImage(dataUrl);
+      const natural = await measureImage(dataUrl);
+      // Wider than the page's text column → shrink to fit, like Docs.
+      const dims = fitToColumn(natural.width, natural.height);
       widthEmu = Math.round(dims.width * EMU_PER_PX);
       heightEmu = Math.round(dims.height * EMU_PER_PX);
     } catch {
@@ -104,5 +123,47 @@ function measureImage(dataUrl: string): Promise<{ width: number; height: number 
     img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
     img.onerror = () => reject(new Error('image decode failed'));
     img.src = dataUrl;
+  });
+}
+
+/** Insert `nodes` (images) at or near doc position `pos` — the nearest
+ *  spot that accepts inline content, as a drop would pick. Selects the
+ *  last one so its toolbar shows. False when no nearby spot fits. */
+export function insertImageNodesAt(view: EditorView, pos: number, nodes: PMNode[]): boolean {
+  if (nodes.length === 0) return false;
+  const { doc } = view.state;
+  const clamped = Math.max(0, Math.min(pos, doc.content.size));
+  const slice = new Slice(Fragment.from(nodes), 0, 0);
+  const at = dropPoint(doc, clamped, slice);
+  if (at == null) return false;
+  const $at = doc.resolve(at);
+  if (!$at.parent.inlineContent) return false;
+  const tr = view.state.tr.insert(at, Fragment.from(nodes));
+  let last = at;
+  for (let i = 0; i < nodes.length - 1; i++) last += nodes[i]!.nodeSize;
+  tr.setSelection(NodeSelection.create(tr.doc, last));
+  view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
+/** Open the OS picker for one image file. Resolves with it, or null
+ *  if the picker was dismissed. */
+export function pickImageFile(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.style.display = 'none';
+    picker.addEventListener('change', () => {
+      const file = picker.files?.[0] ?? null;
+      picker.remove();
+      resolve(file);
+    });
+    picker.addEventListener('cancel', () => {
+      picker.remove();
+      resolve(null);
+    });
+    document.body.appendChild(picker);
+    picker.click();
   });
 }

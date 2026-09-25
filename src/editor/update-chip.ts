@@ -23,7 +23,14 @@
 export type UpdateChipState =
   | { state: 'downloading'; version: string; pct: number }
   | { state: 'available'; version: string }
-  | { state: 'ready'; version: string };
+  | { state: 'ready'; version: string }
+  // Plugin updates (fork, 2026-09-25): found by the check that runs
+  // with every app update check. Main shows these only when there's no
+  // app update on the chip. Click → confirm and install them; once
+  // installed, click → restart to load them.
+  | { state: 'plugins'; plugins: { name: string; version: string }[] }
+  | { state: 'plugins-updating'; count: number }
+  | { state: 'plugins-ready'; count: number };
 
 export interface UpdateChipHost {
   getUpdateChipState(): Promise<UpdateChipState | null>;
@@ -55,6 +62,25 @@ export function renderUpdateChip(el: HTMLButtonElement, s: UpdateChipState | nul
   }
   el.removeAttribute('data-state');
   el.style.removeProperty('--pmd-update-pct');
+  if (s.state === 'plugins') {
+    const [first] = s.plugins;
+    el.textContent =
+      s.plugins.length === 1 && first
+        ? `Plugin update: ${first.name} ${first.version}`
+        : `${s.plugins.length} plugin updates available`;
+    el.title = `Update ${s.plugins.map((p) => `${p.name} to ${p.version}`).join(', ')}`;
+    return;
+  }
+  if (s.state === 'plugins-updating') {
+    el.textContent = s.count === 1 ? 'Updating plugin…' : 'Updating plugins…';
+    el.title = 'Downloading the new plugin versions';
+    return;
+  }
+  if (s.state === 'plugins-ready') {
+    el.textContent = `${s.count === 1 ? 'Plugin' : 'Plugins'} updated — restart to apply`;
+    el.title = 'Restart CardMirror to load the updated plugins';
+    return;
+  }
   if (s.state === 'ready') {
     el.textContent = `Update ${s.version} ready — restart to install`;
     el.title = 'Restart CardMirror now to finish installing the update';
