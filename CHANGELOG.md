@@ -14,7 +14,8 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 - **Flow and lay speaking speeds are easier to find and switch.** The readers
   list in Settings is now two sections split by a divider: **Flow speaking**
-  (names, rates and order) and **Lay speaking** (each reader's lay rate), in
+  (names, rates and order) and **Lay speaking** (each reader's lay rate, plus
+  an optional lay rate for tags and cites), in
   place of the per-reader Flow/Lay dropdown. A **Flow / Lay** button just
   before the read times in the bottom bar (and in each three-pane footer)
   shows which speeds the times use and switches them.

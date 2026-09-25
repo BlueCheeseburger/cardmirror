@@ -1351,9 +1351,10 @@ numbers update as you highlight and trim.
 **Lay-speaking times** **(fork)**. A reader can also have a **lay-speaking**
 rate, a slower pace for a lay judge. The readers editor has two parts split
 by a divider: **Flow speaking** above (each reader's name, rates and order)
-and **Lay speaking** below, where you enter each reader's lay rate. It's one
-rate for everything, since lay delivery doesn't split tags from card text.
-Leave a reader's lay rate blank if they don't have one.
+and **Lay speaking** below, where you enter each reader's lay rate, plus an
+optional lay rate for tags and cites (blank means the lay rate covers
+everything, the same as in the flow list). Leave a reader's lay rate blank if
+they don't have one.
 
 To switch, click the **Flow / Lay** button just before the read times in the
 status bar (or in a pane's footer in the three-pane workspace; each pane

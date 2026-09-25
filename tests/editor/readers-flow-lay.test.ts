@@ -34,6 +34,7 @@ import { openSettings, closeSettings } from '../../src/editor/settings-ui.js';
 import { settings } from '../../src/editor/settings.js';
 import { showToast } from '../../src/editor/toast.js';
 import { canSwitchSpeedMode, renderSpeedModeButton } from '../../src/editor/live-read-time.js';
+import { readTimeSeconds } from '../../src/editor/word-count.js';
 
 const settled = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
@@ -139,5 +140,32 @@ describe('Flow / Lay button', () => {
     ]);
     expect(canSwitchSpeedMode(false)).toBe(true);
     expect(showToast).not.toHaveBeenCalled();
+  });
+});
+
+describe('lay tags/cites rate', () => {
+  it('splits lay time between the lay rate and the lay tags/cites rate', () => {
+    const counts = { body: 150, other: 60 };
+    // 150/150 + 60/120 = 1.5 min
+    expect(readTimeSeconds(counts, { wpm: 300, layWpm: 150, layTagWpm: 120 }, true)).toBe(90);
+    // Blank tags/cites rate: lay rate covers everything, 210/150 min.
+    expect(readTimeSeconds(counts, { wpm: 300, layWpm: 150 }, true)).toBeCloseTo(84);
+    // No lay rate: no lay time, even with a lay tags rate.
+    expect(readTimeSeconds(counts, { wpm: 300, layTagWpm: 120 }, true)).toBeNull();
+  });
+
+  it('the lay rows have a tags/cites field that sets and clears layTagWpm', async () => {
+    settings.set('readers', [{ name: 'Amy', wpm: 300, layWpm: 150 }]);
+    openSettings({ category: 'general' });
+    await settled();
+    const input = (): HTMLInputElement =>
+      document.querySelector<HTMLInputElement>('.pmd-reader-lay-row .pmd-reader-laytagwpm')!;
+    expect(input().value).toBe('');
+    input().value = '130';
+    input().dispatchEvent(new Event('change'));
+    expect(settings.get('readers')[0]).toEqual({ name: 'Amy', wpm: 300, layWpm: 150, layTagWpm: 130 });
+    input().value = '';
+    input().dispatchEvent(new Event('change'));
+    expect(settings.get('readers')[0]).toEqual({ name: 'Amy', wpm: 300, layWpm: 150 });
   });
 });

@@ -42,6 +42,8 @@ export interface ReaderRates {
   wpm: number;
   tagWpm?: number;
   layWpm?: number;
+  /** Lay rate for tags/analytics/cites; absent → `layWpm` covers all. */
+  layTagWpm?: number;
 }
 
 /**
@@ -126,10 +128,9 @@ function countWords(s: string): number {
  *  structural read at `tagWpm` when set (blank → everything at `wpm`).
  *  Null when no usable rate exists.
  *
- *  With `useLay` true, this ignores `wpm`/`tagWpm` entirely and uses
- *  `layWpm` instead — a single flat rate over the combined word count,
- *  since lay delivery doesn't split body vs. structural the way flow
- *  reading does. Null when the reader has no usable `layWpm` — callers
+ *  With `useLay` true, this ignores `wpm`/`tagWpm` entirely and uses the
+ *  lay rates instead: `layWpm` for the body and `layTagWpm` for the
+ *  structural read (blank → `layWpm` covers everything). Null when the reader has no usable `layWpm` — callers
  *  must NOT fall back to the flow rate in lay mode, or an unconfigured
  *  reader would silently keep showing their flow time while everyone
  *  else's numbers move, reading as a bug rather than "not set up yet". */
@@ -140,7 +141,12 @@ export function readTimeSeconds(
 ): number | null {
   if (useLay) {
     if (!Number.isFinite(reader.layWpm) || (reader.layWpm as number) <= 0) return null;
-    return ((counts.body + counts.other) / (reader.layWpm as number)) * 60;
+    const lay = reader.layWpm as number;
+    const layOther =
+      reader.layTagWpm != null && Number.isFinite(reader.layTagWpm) && reader.layTagWpm > 0
+        ? reader.layTagWpm
+        : lay;
+    return (counts.body / lay + counts.other / layOther) * 60;
   }
   if (!Number.isFinite(reader.wpm) || reader.wpm <= 0) return null;
   const otherRate =
