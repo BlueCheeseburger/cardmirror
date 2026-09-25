@@ -12,6 +12,29 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: read times in the outline's right-click menu (`nav-panel.ts`, `index.ts`, `multi-pane-shell.ts`, `style.css`)
+
+Right-clicking an outline heading now ends the menu with one line per
+reader (the first two in Settings), e.g. "Alice: 1:04", timing the
+heading plus everything under it. With a multi-selection it's every
+selected heading together. The range is the same one Select / Cut /
+Copy / Delete act on (`headingRanges(contextTargets(entry))`, so a tag
+means its whole card), and the words are counted with the bottom bar's
+read-aloud rules (`countReadAloudSplit`).
+
+The times follow the doc's flow/lay mode. `NavigationPanel` takes a new
+`useLay` option. Single-doc passes `() => laySpeakingOn` and each
+three-pane doc passes `() => record.laySpeaking`, so a pane whose footer
+times are blue shows lay times here too. A reader with no lay rate shows
+"—", as in the bar.
+
+The menu opens with an italic grey "Calculating times" row. The count
+runs a frame later, and the row is then swapped for the times and the
+menu re-fitted on screen. The rows are buttons so they highlight on
+hover like the rest of the menu, but they're `aria-disabled`, have no
+click handler and keep the menu open. With no readers set, the section
+is left out. Tests: `tests/editor/nav-context-read-times.test.ts`.
+
 ### Changed: flow / lay speaking speeds split in Settings; no doc word count in the bar (`settings-ui.ts`, `settings.ts`, `word-count.ts`, `live-read-time.ts`, `index.ts`, `multi-pane-shell.ts`)
 
 The lay-speaking rate used to hide behind a per-reader Flow/Lay dropdown
