@@ -6244,14 +6244,16 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   flex: 1 1 auto;
   min-width: 0;
   gap: 0.25rem;
-  /* Horizontal scroll under JS-arrow control. No native
-     scrollbar — the arrow buttons are the only scroll affordance.
-     `overflow-y: hidden` is explicit because setting just
-     `overflow-x: hidden` would auto-promote `overflow-y: visible`
-     to `auto`, surfacing a vertical scrollbar if any tab button
-     is even 1px taller than the strip's content area. */
-  overflow-x: hidden;
+  /* Horizontally scrollable: a trackpad swipe or shift+wheel moves
+     it natively, a plain mouse wheel is mapped to sideways scrolling
+     in settings-ui.ts, and the arrow buttons still work (fork — it
+     used to be `overflow-x: hidden`, arrows only). The scrollbar
+     itself stays hidden. `overflow-y: hidden` keeps a tab button
+     that's even 1px taller than the strip from surfacing a vertical
+     scrollbar. */
+  overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: none;
   /* The active tab's 2px underline is pulled 1px below the strip's
      content box (`.pmd-settings-tab` margin-bottom: -1px, to overlap the
      bar divider). A scrolled `overflow:hidden` container clips that
@@ -6260,6 +6262,9 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
      padding keeps the underline inside the clip box at any scroll. */
   padding-bottom: 1px;
   scroll-behavior: smooth;
+}
+.pmd-settings-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 /* Arrow buttons revealed when the tab strip overflows. Sized to

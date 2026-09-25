@@ -8,6 +8,15 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **Settings tabs scroll with your trackpad or mouse wheel.** When the tab
+  row is wider than the dialog, a sideways swipe or a turn of the mouse
+  wheel over it now scrolls the tabs, instead of only the ‹ › arrows at
+  its ends.
+
 ## 1.12.0-bcb.4 — 2026-09-25
 
 ### Added
