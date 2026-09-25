@@ -170,6 +170,21 @@ machine running `lsregister`; nobody has done that yet. If this comes
 up again, check that first before assuming the plist alone was
 insufficient.
 
+## Always run `git status` before writing anything in the codebase
+
+The user asked (2026-09-25) that every session run `git status` (and
+check which branch it's on) before making ANY change to the repo:
+editing or creating a file, or a one-line docs or `CLAUDE.md` note.
+Do it every time, not once per session. It catches:
+- being on the wrong branch, such as a feature branch when the change
+  belongs on `main`
+- being behind the remote
+- leftover uncommitted changes that would get mixed into the new
+  commit
+
+If anything's off, sort it out (switch branch, pull, ask about stray
+changes) before writing.
+
 ## Small changes go straight to `main` — no PR
 
 The user said (2026-09-25), after a one-file Settings fix went through a
