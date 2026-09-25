@@ -12,6 +12,13 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 
+- **Flow and lay speaking speeds are easier to find and switch.** The readers
+  list in Settings is now two sections split by a divider: **Flow speaking**
+  (names, rates and order) and **Lay speaking** (each reader's lay rate), in
+  place of the per-reader Flow/Lay dropdown. A **Flow / Lay** button just
+  before the read times in the bottom bar (and in each three-pane footer)
+  shows which speeds the times use and switches them.
+
 - **Settings tabs scroll with your trackpad or mouse wheel.** When the tab
   row is wider than the dialog, a sideways swipe or a turn of the mouse
   wheel over it now scrolls the tabs, instead of only the ‹ › arrows at

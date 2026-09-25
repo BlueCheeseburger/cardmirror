@@ -12,6 +12,35 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: flow / lay speaking speeds split in Settings, with a Flow / Lay button in the bar (`settings-ui.ts`, `live-read-time.ts`, `index.ts`, `multi-pane-shell.ts`, `index.html`, `style.css`)
+
+The lay-speaking rate used to hide behind a per-reader Flow/Lay dropdown
+in the readers editor. Switching modes was an unmarked click on the
+read-time readout itself.
+
+**Settings.** `buildReadersEditor` is now two sections split by an `<hr>`.
+*Flow speaking* is the reader list as before (rank, name, main rate,
+optional tags/cites rate, move, delete) plus "+ Add reader". *Lay
+speaking* has a note and one row per reader, in the same order: rank,
+name (read-only, since the flow list owns naming, order and removal), and
+a lay wpm field where blank means none. The dropdown and its
+reveal-on-select logic are gone; the stored data is unchanged
+(`ReaderConfig.layWpm`).
+
+**Bottom bar.** A new `.pmd-speed-mode` pill sits just before the read
+times: `#speed-mode-btn` in the single-doc bar, and one per three-pane
+footer (`speedModeEl`, placed before the flex-growing `.pmd-pane-wc`).
+`renderSpeedModeButton` (in `live-read-time.ts`) labels it "Flow" or
+"Lay", sets `aria-pressed` and the tooltip, and fills it with the accent
+color in lay mode. It toggles the same per-doc / per-pane session state
+the readout click always did (`laySpeakingOn` / `rec.laySpeaking`), and
+the readout click still works too. `canSwitchSpeedMode` refuses to switch
+to lay when none of the two readers shown in the bar has a lay rate: that
+would turn every time into "—", so it toasts where to add rates instead.
+Switching back to flow is always allowed. The button hides when the bar
+has no timed segments (all live readouts off, or no document).
+
+
 ### Changed: Settings tab strip scrolls directly (`settings-ui.ts`, `style.css`)
 
 Requested directly. `.pmd-settings-tabs` was `overflow-x: hidden`, so the

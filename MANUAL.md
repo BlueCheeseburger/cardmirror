@@ -242,7 +242,7 @@ fork's own additions; upstream CardMirror doesn't have them.
   just a raw word count.
 - **[Lay-speaking read times](#read-time-estimates)** **(fork)** — give
   a reader a second, slower rate for lay judges and flip every readout
-  between flow and lay time with one click.
+  between flow and lay time with the **Flow / Lay** button in the bottom bar.
 - **[Auto-scroll](#auto-scroll)** **(fork)** — a hands-free teleprompter
   that scrolls the document at your actual reading pace, slowing for dense
   highlighted text and speeding through everything else.
@@ -1349,12 +1349,20 @@ Count dialog shows both, e.g. "200 / 260"). The **first two** readers appear liv
 numbers update as you highlight and trim.
 
 **Lay-speaking times** **(fork)**. A reader can also have a **lay-speaking**
-rate, a slower pace for a lay judge. In the readers list, pick **Lay
-speaking** from the dropdown next to the reader's rates and enter it. Then
-**click the read-time readout** in the status bar (or a pane's footer in the
-three-pane workspace) to switch every reader between flow time and lay time.
-A reader without a lay rate shows "—" in lay mode, so you can see who still
-needs one. The readers editor also links to an online reading-speed test.
+rate, a slower pace for a lay judge. The readers editor has two parts split
+by a divider: **Flow speaking** above (each reader's name, rates and order)
+and **Lay speaking** below, where you enter each reader's lay rate. It's one
+rate for everything, since lay delivery doesn't split tags from card text.
+Leave a reader's lay rate blank if they don't have one.
+
+To switch, click the **Flow / Lay** button just before the read times in the
+status bar (or in a pane's footer in the three-pane workspace; each pane
+switches on its own). It shows the current mode and turns accent-colored in
+lay mode. A reader without a lay rate shows "—" in lay mode, so you can see
+who still needs one. If no reader shown in the bar has a lay rate yet, the
+button tells you where to add one instead of switching. Clicking the read
+times themselves still switches too. The readers editor also links to an
+online reading-speed test.
 
 Click the word count (the **Σ** button / Word Count) for the full
 breakdown — that dialog shows the read time for **every** reader on your
@@ -2739,7 +2747,8 @@ headers shown inside each tab.
 **Word counts**
 
 - **Readers for read-time estimates** — each reader is a name and a
-  words-per-minute rate, plus an optional lay-speaking rate **(fork)**.
+  words-per-minute rate, plus an optional lay-speaking rate **(fork)** in
+  the **Lay speaking** section below the divider.
   The first two show live in the status bar; all appear in the Word
   Count dialog (see [Read-time estimates](#read-time-estimates)).
 - **Live word count for the whole document** — on by default. Off drops
