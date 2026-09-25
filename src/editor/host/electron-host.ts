@@ -432,11 +432,19 @@ interface ElectronAPI {
       filename: string | null;
       windowId: number;
       windowTitle: string;
+      windowName?: string | null;
       isSpeech: boolean;
       isOwnWindow: boolean;
       isFocusedWindow: boolean;
     }>
   >;
+  /** Raise the window owning `uid` and bring that doc forward there
+   *  (Search Everything's `p` source). Optional: older shells lack it. */
+  activateDoc?(uid: string): Promise<boolean>;
+  /** Raise a window by id. Optional: older shells lack it. */
+  focusWindow?(windowId: number): Promise<boolean>;
+  /** Main asks this window to bring one of its docs forward. */
+  onActivateDoc?(handler: (uid: string) => void): () => void;
   openPathCheck(path: string): Promise<{ takenByOther: boolean }>;
   openPathRegister(
     path: string,
@@ -1305,12 +1313,19 @@ export class ElectronHost implements Host {
       filename: string | null;
       windowId: number;
       windowTitle: string;
+      windowName?: string | null;
       isSpeech: boolean;
       isOwnWindow: boolean;
       isFocusedWindow: boolean;
     }>
   > {
     return api().listDocs();
+  }
+
+  readonly activateDoc? = api().activateDoc?.bind(api());
+  readonly focusWindow? = api().focusWindow?.bind(api());
+  onActivateDoc(handler: (uid: string) => void): () => void {
+    return api().onActivateDoc?.(handler) ?? (() => {});
   }
 
   /** Cross-window duplicate-open guard. `openPathCheck` is the
