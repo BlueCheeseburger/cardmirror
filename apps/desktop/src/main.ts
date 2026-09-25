@@ -2469,6 +2469,7 @@ ipcMain.handle('host:list-docs', async (event) => {
     filename: string | null;
     windowId: number;
     windowTitle: string;
+    windowName: string | null;
     isSpeech: boolean;
     isOwnWindow: boolean;
     isFocusedWindow: boolean;
@@ -2482,12 +2483,35 @@ ipcMain.handle('host:list-docs', async (event) => {
       filename: info?.filename ?? null,
       windowId,
       windowTitle: win.getTitle(),
+      windowName: windowNames.get(windowId) ?? null,
       isSpeech: speechRegistration?.uid === uid,
       isOwnWindow: windowId === senderId,
       isFocusedWindow: windowId === focusedId,
     });
   }
   return out;
+});
+
+/** Search Everything's `p` source: raise the window that owns `uid`
+ *  and tell its renderer to bring that doc forward (show it in its
+ *  pane and focus it). False when no live window owns the uid. */
+ipcMain.handle('host:activate-doc', async (_event, uid: unknown): Promise<boolean> => {
+  if (typeof uid !== 'string' || !uid) return false;
+  const windowId = docOwners.get(uid);
+  const win = windowId === undefined ? null : BrowserWindow.fromId(windowId);
+  if (!win || win.isDestroyed()) return false;
+  raiseWindowForJump(win);
+  win.webContents.send('host:activate-doc', uid);
+  return true;
+});
+
+/** Search Everything's `p` source, window rows: raise a window by id. */
+ipcMain.handle('host:focus-window', async (_event, windowId: unknown): Promise<boolean> => {
+  if (typeof windowId !== 'number') return false;
+  const win = BrowserWindow.fromId(windowId);
+  if (!win || win.isDestroyed()) return false;
+  raiseWindowForJump(win);
+  return true;
 });
 
 // ─── Dropzone shelf (cross-window scratch space) ───────────────────

@@ -10,6 +10,68 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.12.0-bcb.4 — 2026-09-25
+
+### Added: `p` source — open docs and windows (`open-docs.ts`, `quick-card-search-ui.ts`, `multi-pane-shell.ts`, `index.ts`, `main.ts`, `preload.ts`, `electron-host.ts`)
+
+Requested directly: "p 2ac" + Enter should open the 2AC wherever it is.
+
+- **Listing.** Desktop reuses main's cross-window doc directory
+  (`host:list-docs`, the Select Speech Doc picker's source: every
+  registered uid, filename and owning window), which now also carries the
+  owning window's user-given name (`windowName`, from the existing
+  `windowNames` map). Where there's no desktop host (web, older shells),
+  `open-docs.ts` falls back to a provider `index.ts` registers: the shell's
+  `listShellDocs()` (every slot's whole stack) in three-pane mode, or the
+  single doc. The palette fetches the list once per open, on the first
+  `p ` search ("Loading open docs…"), then filters locally per keystroke.
+- **Matching.** `searchOpenDocsSource` (exported for tests): a doc matches
+  when every query word is in its name (extension dropped, "Untitled" for
+  never-saved) or its window's name; a named window matches on its name
+  and lists its docs as the row's meta. Rank is the first word's position
+  in the row's own name, docs before windows on a tie. Rows are badged
+  OPEN / WIN, and the Enter hint reads "switch to".
+- **Switching.** Own-window docs go straight to the provider;
+  `MultiPaneShell.activateDocByUid` shows the record in its slot (it may
+  be stacked), moves expand mode onto that pane if another pane is
+  expanded (a hidden pane can't take focus), focuses the slot and its
+  view. Other windows' docs go through the new `host:activate-doc`: main
+  raises the owner with `raiseWindowForJump` (the plugin-jump helper that
+  also activates a background app on macOS) and sends `host:activate-doc`
+  to its renderer, which runs the same local path. Window rows use
+  `host:focus-window`. A doc that closed in the meantime toasts "That
+  document is no longer open."
+- **Tests.** `tests/editor/quick-card-search-open-docs.test.ts` (9):
+  matching by doc name, by window name, multi-word, the empty-query list,
+  the hint, Enter on a local doc, the desktop path (host `listDocs` +
+  `activateDoc`), the closed-doc toast, and the width below. Also checked
+  in the web build with Playwright: three docs stacked in one pane,
+  `p 2ac` + Enter brought the stacked 2AC forward with the caret in it.
+  The desktop IPC path is covered by typecheck only; nothing here can run
+  Electron.
+
+### Changed: palette width no longer tied to the pane (`quick-card-search-ui.ts`)
+
+`reposition()` used to clamp the bar to its pane (`min(540, pane − 24)`),
+so a three-pane window got a much narrower bar than a one-document window.
+The width is now `PALETTE_WIDTH` (540) in every layout, narrower only when
+the window itself is (12px margins). It's still centered over the target
+pane, with the center pulled inward when that would push an edge pane's
+bar off screen.
+
+### Changed: Logos prefix `l` → `g` (`quick-card-search-ui.ts`, `logos-search.ts`)
+
+Requested directly: a lowercase `l` reads as `I` or `1` in the palette's
+font. `parsePrefix` now takes `g` for Logos (still gated off in Lite) and
+no longer treats `l` as a prefix, so `l warming` is an everything-search
+again rather than a Logos query. The no-prefix hint reads `g Logos` and
+stays alphabetical (`f files · g Logos · q cards`). `g` was free in this
+fork and in upstream. No alias is kept for `l`: it shipped in one release
+(1.12.0-bcb.3) the day before. Tests: the Logos palette tests type `g `,
+plus a new case that `l warming` makes no Logos request. `MANUAL.md`
+(prefix table, the Logos section, Settings → Cards from Logos) and the
+README's top-8 entry say `g`.
+
 ## 1.12.0-bcb.3 — 2026-09-24
 
 
@@ -1589,7 +1651,7 @@ All 8 pre-existing `disk-conflict.test.ts` tests pass unchanged.
 
 ### 3. Logos card search (`logos-search.ts`, `quick-card-search-ui.ts`)
 
-**Introduced in 1.12.0-bcb.3.** An `l ` source in Search Everything that
+**Introduced in 1.12.0-bcb.3** (as `l `; `g ` since 1.12.0-bcb.4). A `g ` source in Search Everything that
 queries Logos's index of opencaselist round-doc cards and inserts the full
 card with its formatting, with optional automatic condense / shrink /
 highlight color on insert. Full notes are in

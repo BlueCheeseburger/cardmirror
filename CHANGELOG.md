@@ -8,6 +8,28 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.12.0-bcb.4 — 2026-09-25
+
+### Added
+
+- **Jump to any open document from Search Everything.** Type `p` and a
+  space to list every document open in any pane of any window, including
+  ones stacked behind the document a pane is showing. Type part of its name
+  (`p 2ac`) and press Enter: its window comes to the front and the document
+  comes forward with the cursor in it. Windows you've named are listed too,
+  and a window's name (`p neg`) finds that window and everything in it.
+
+### Changed
+
+- **Search Everything is always full width.** In a three-pane window the
+  bar used to shrink to fit the pane you opened it from. It's now the same
+  width as in a one-document window, still centered over that pane where
+  it fits.
+- **Logos moved from `l` to `g` in Search Everything.** A lowercase `l`
+  is easy to misread as a capital I or the number 1, so Logos is now `g`
+  and a space. `l` is no longer a prefix, so a search starting with
+  "l " searches everything again.
+
 ## 1.12.0-bcb.3 — 2026-09-24
 
 ### Added
@@ -357,7 +379,7 @@ label only for "changed on disk" and "conflicted copy" states.
 
 ### 3. Logos card search
 
-Type `l` and a space in Search Everything to search Logos, a card search
+Type `g` and a space in Search Everything to search Logos, a card search
 engine over the round docs college and high school policy teams
 open-source on opencaselist. Enter inserts the full card — cite,
 underlining and highlighting intact — at your cursor, and right-click

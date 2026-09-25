@@ -2081,6 +2081,37 @@ class MultiPaneShell {
     void runSaveAsFlow();
   }
 
+  /** Every doc in every slot, stacked ones included, in slot order —
+   *  Search Everything's `p` source (this window's half of it). */
+  listDocs(): Array<{ uid: string; filename: string | null; pane: 1 | 2 | 3 }> {
+    const out: Array<{ uid: string; filename: string | null; pane: 1 | 2 | 3 }> = [];
+    SLOT_IDS.forEach((id, i) => {
+      for (const rec of this.slots[id].stack) {
+        out.push({ uid: rec.uid, filename: rec.filename || null, pane: (i + 1) as 1 | 2 | 3 });
+      }
+    });
+    return out;
+  }
+
+  /** Bring the doc with `uid` forward: show it in its slot (it may be
+   *  stacked behind another doc), move expand mode onto its pane if a
+   *  different pane is expanded (a pane hidden behind an expanded one
+   *  can't take focus), and focus its editor. False when no slot holds
+   *  that uid. Used by Search Everything's `p` source. */
+  activateDocByUid(uid: string): boolean {
+    for (const id of SLOT_IDS) {
+      const slot = this.slots[id];
+      const rec = slot.stack.find((r) => r.uid === uid);
+      if (!rec) continue;
+      if (this.expandedSlot && this.expandedSlot !== slot) this.setExpandedSlot(slot);
+      slot.showRecord(rec);
+      this.focusSlot(slot);
+      rec.view.focus();
+      return true;
+    }
+    return false;
+  }
+
   /** `flashSaveSuccess`'s (index.ts) multi-pane redirect: a manual Save
    *  always focuses its target pane first (see the chip Save button and
    *  every other Save entry point), so by the time the shared save flow
@@ -4002,6 +4033,18 @@ let shell: MultiPaneShell | null = null;
 export function focusSlotByIndex(idx: 0 | 1 | 2): void {
   if (!shell) return;
   shell.focusSlotByIndex(idx);
+}
+
+/** This window's open docs, per slot (see `MultiPaneShell.listDocs`).
+ *  Empty in single-doc mode. */
+export function listShellDocs(): Array<{ uid: string; filename: string | null; pane: 1 | 2 | 3 }> {
+  return shell?.listDocs() ?? [];
+}
+
+/** Bring a doc forward by uid (see `MultiPaneShell.activateDocByUid`).
+ *  False in single-doc mode or when no slot holds it. */
+export function activateShellDocByUid(uid: string): boolean {
+  return shell?.activateDocByUid(uid) ?? false;
 }
 
 /** Send the focused slot's visible doc to the slot at `idx`

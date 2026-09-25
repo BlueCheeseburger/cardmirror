@@ -22,7 +22,7 @@
 >    shows its own Dropbox/OneDrive/Google Drive/iCloud sync status in its
 >    own footer, instead of one shared pill that left it ambiguous which
 >    pane it was reporting on. (main)
-> 3. **Logos card search** — type `l ` in Search Everything to search
+> 3. **Logos card search** — type `g ` in Search Everything to search
 >    Logos's index of open-source round-doc cards (college and high school
 >    policy) and insert a full card, cite and formatting intact, at your
 >    cursor; it can condense, shrink and recolor each one as it lands. (main)

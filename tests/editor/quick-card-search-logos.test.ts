@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The palette's `l ` (Logos) source: debounced network search with a
+ * The palette's `g ` (Logos) source: debounced network search with a
  * searching state, rows badged LOGOS with the cite as a snippet, the
  * empty/error states, and Enter fetching the full card and inserting it.
  */
@@ -86,10 +86,10 @@ async function flush(): Promise<void> {
   await vi.advanceTimersByTimeAsync(500);
 }
 
-describe('palette Logos source (l prefix)', () => {
+describe('palette Logos source (g prefix)', () => {
   it('shows a prompt for an empty query and never hits the network', async () => {
     openPalette();
-    type('l ');
+    type('g ');
     await flush();
     expect(emptyText()).toMatch(/Type to search Logos/);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -97,8 +97,8 @@ describe('palette Logos source (l prefix)', () => {
 
   it('debounces: shows "Searching Logos…", sends one request for the final query, then renders rows', async () => {
     openPalette();
-    type('l warm');
-    type('l warming');
+    type('g warm');
+    type('g warming');
     expect(emptyText()).toBe('Searching Logos…');
     await flush();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -114,15 +114,22 @@ describe('palette Logos source (l prefix)', () => {
   it('reports a failed search in the results area', async () => {
     fetchMock.mockImplementation(async () => new Response('', { status: 502 }));
     openPalette();
-    type('l warming');
+    type('g warming');
     await flush();
     expect(emptyText()).toMatch(/Couldn't reach Logos.*502/);
+  });
+
+  it('`l` is no longer a Logos prefix (the old letter read as I or 1)', async () => {
+    openPalette();
+    type('l warming');
+    await flush();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('is listed in the no-prefix hint', () => {
     openPalette();
     type('');
-    expect(emptyText()).toContain('l Logos');
+    expect(emptyText()).toContain('g Logos');
   });
 
   it('Enter fetches the full card and inserts it as a card', async () => {
@@ -135,7 +142,7 @@ describe('palette Logos source (l prefix)', () => {
       }),
     });
     openPalette(view);
-    type('l warming');
+    type('g warming');
     await flush();
     document
       .querySelector('.pmd-qcs-input')!
@@ -167,7 +174,7 @@ describe('palette Logos source (l prefix)', () => {
 
   async function insertFirstResult(view: EditorView, runCommand?: (id: AnyCommandId) => void): Promise<void> {
     openPalette(view, runCommand);
-    type('l warming');
+    type('g warming');
     await flush();
     document
       .querySelector('.pmd-qcs-input')!
@@ -244,7 +251,7 @@ describe('palette Logos source (l prefix)', () => {
     settings.set('logosImportHighlight', 'cyan');
     const view = mkView();
     openPalette(view);
-    type('l warming');
+    type('g warming');
     await flush();
     const row = rows()[0]!;
     row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
