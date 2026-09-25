@@ -265,6 +265,7 @@ import { RepairParagraphBar } from './repair-paragraph-ui.js';
 import { tableEditingPlugin, columnResizingPlugin } from './table-plugins.js';
 import { buildPastePlugin } from './paste-plugin.js';
 import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
+import { imageDropPlugin, allowImageDragStart } from './image-drop-plugin.js';
 import { imageContextMenuPlugin } from './image-context-menu-plugin.js';
 import { editorNodeViews } from './image-resize-nodeview.js';
 import { setViewDocPath, getViewDocPath } from './transclusion-doc-path.js';
@@ -6133,6 +6134,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
       onArmedChange: (armed) => updatePlainPasteIndicator(armed),
     }),
     imageContextMenuPlugin,
+    imageDropPlugin,
     linkContextMenuPlugin,
     linkModClickPlugin,
     // Word-style mouse-selection state machine: owns single-,
@@ -6161,11 +6163,14 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     new Plugin({
       props: {
         handleDOMEvents: {
-          dragstart: (_view, event) => {
+          dragstart: (view, event) => {
+            // Images are the one exception (fork): dragging one moves it,
+            // through ProseMirror's own node drag (Ctrl / Alt on macOS copies).
+            if (allowImageDragStart(view, event)) return false;
             // Text drag-and-drop is unconditionally off (it never worked
             // reliably). Live Views aren't natively draggable either — they move
-            // via the pickup-chord / nav-pane drag like cards — so nothing on the
-            // editable surface should start a native drag.
+            // via the pickup-chord / nav-pane drag like cards — so nothing else
+            // on the editable surface should start a native drag.
             event.preventDefault();
             return true;
           },

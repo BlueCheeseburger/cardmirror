@@ -180,10 +180,10 @@ export const nodes: { [name: string]: NodeSpec } = {
    * pixels at 96dpi.
    *
    * Atomic + draggable: ProseMirror treats the image as an indivisible
-   * inline glyph — cursor goes around it, not into it. `draggable` is
-   * currently inert: the editor swallows all `dragstart` events (see
-   * the text-drag-suppression plugin in `editor/index.ts`), so image
-   * drag-and-drop needs a carve-out there before it works.
+   * inline glyph — cursor goes around it, not into it. Dragging one
+   * moves it: the editor swallows every other `dragstart` (the
+   * text-drag-suppression plugin in `editor/index.ts`), with a carve-out
+   * for images (`allowImageDragStart` in `editor/image-drop-plugin.ts`).
    */
   image: {
     inline: true,
