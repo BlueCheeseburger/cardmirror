@@ -242,7 +242,7 @@ fork's own additions; upstream CardMirror doesn't have them.
   just a raw word count.
 - **[Lay-speaking read times](#read-time-estimates)** **(fork)** — give
   a reader a second, slower rate for lay judges and flip every readout
-  between flow and lay time with the **Flow / Lay** button in the bottom bar.
+  between flow and lay time by clicking the read times in the bottom bar.
 - **[Auto-scroll](#auto-scroll)** **(fork)** — a hands-free teleprompter
   that scrolls the document at your actual reading pace, slowing for dense
   highlighted text and speeding through everything else.
@@ -1356,14 +1356,12 @@ optional lay rate for tags and cites (blank means the lay rate covers
 everything, the same as in the flow list). Leave a reader's lay rate blank if
 they don't have one.
 
-To switch, click the **Flow / Lay** button just before the read times in the
-status bar (or in a pane's footer in the three-pane workspace; each pane
-switches on its own). It shows the current mode and turns accent-colored in
-lay mode. A reader without a lay rate shows "—" in lay mode, so you can see
-who still needs one. If no reader shown in the bar has a lay rate yet, the
-button tells you where to add one instead of switching. Clicking the read
-times themselves still switches too. The readers editor also links to an
-online reading-speed test.
+To switch, **click the read times** in the status bar (or in a pane's footer
+in the three-pane workspace; each pane switches on its own). In lay mode the
+times turn blue; that's the only sign. A reader without a lay rate shows "—"
+in lay mode, so you can see who still needs one. If neither reader shown in
+the bar has a lay rate yet, clicking does nothing. The readers editor also
+links to an online reading-speed test.
 
 Click the word count (the **Σ** button / Word Count) for the full
 breakdown — that dialog shows the read time for **every** reader on your
@@ -1373,7 +1371,7 @@ the current selection.
 The bar also shows a second, **enclosing-container** readout — the read
 time of the smallest structure your cursor is inside: the **card**, the
 **analytic**, or the **block section** (a block heading through the next
-equal-or-higher heading): `Doc: 1,234 · Amy: 8:12 | Card: 42 ·
+equal-or-higher heading): `Doc · Amy: 8:12 | Card: 42 ·
 Amy: 0:31`. Select text and the second readout shows the **selection's**
 time instead. On pocket or hat headings (and content outside any card
 or block) it stays quiet — the whole-doc number covers those scales. In
@@ -1402,7 +1400,7 @@ A third readout — **what's left to read** — is available and **off by
 default**: turn on **Settings → General → "Live read time for what is
 left to read"** and the bar appends everything still ahead of your
 cursor, from the cursor to the end of the document, with each reader's
-time for it: `Doc: 1,234 · Amy: 8:12 | Card: 42 · Amy: 0:31 | Left: 806
+time for it: `Doc · Amy: 8:12 | Card: 42 · Amy: 0:31 | Left: 806
 · Amy: 5:20`. Only read-aloud text counts, same as every other readout,
 so trimming highlights lowers it. Select text and it measures from the
 **end** of the selection — a selection reads as "I've been through this

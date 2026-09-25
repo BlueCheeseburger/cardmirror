@@ -374,7 +374,6 @@ import {
   orderWordCountSegments,
   primaryReadSegment,
   remainingReadSegment,
-  renderSpeedModeButton,
   canSwitchSpeedMode,
 } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
@@ -993,7 +992,6 @@ const manageFlashcardsBtn = document.getElementById('manage-flashcards-btn') as 
 const askAiBtn = document.getElementById('ask-ai-btn') as HTMLButtonElement | null;
 const commentsColumnEl = document.getElementById('comments-column') as HTMLElement | null;
 const wordCountText = document.getElementById('word-count-text')!;
-const speedModeBtn = document.getElementById('speed-mode-btn') as HTMLButtonElement | null;
 const cursorColorDisplay = document.getElementById('cursor-color-display') as HTMLElement;
 const cursorColorText = document.getElementById('cursor-color-text')!;
 const plainPasteToggleBtn = document.getElementById('plain-paste-toggle-btn') as HTMLButtonElement | null;
@@ -3050,12 +3048,7 @@ wordCountBtn.addEventListener('click', () => runRibbon('wordCountSelection'));
 // (not gated on hasLaySpeeds()): the bar's own edit-time refresh keeps
 // the `pmd-wc-lay-capable` class current, so CSS alone controls whether
 // the click affordance is visible.
-wordCountText.addEventListener('click', () => toggleLaySpeaking());
-// The explicit Flow / Lay button beside it — same toggle, labeled with the
-// current mode. Won't switch to lay with no lay speeds set (it says where
-// to add them instead). mousedown kept off so the editor keeps focus.
-speedModeBtn?.addEventListener('mousedown', (e) => e.preventDefault());
-speedModeBtn?.addEventListener('click', () => {
+wordCountText.addEventListener('click', () => {
   if (canSwitchSpeedMode(laySpeakingOn)) toggleLaySpeaking();
 });
 
@@ -5484,7 +5477,6 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
   if (multiDocActive) return;
   if (!view) {
     wordCountText.textContent = '—';
-    if (speedModeBtn) speedModeBtn.hidden = true;
     return;
   }
   const sel = view.state.selection;
@@ -5535,11 +5527,6 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
   wordCountText.textContent = segments.join(' | ');
   wordCountText.classList.toggle('pmd-active', laySpeakingOn);
   wordCountText.classList.toggle('pmd-wc-lay-capable', hasLaySpeeds());
-  if (speedModeBtn) {
-    renderSpeedModeButton(speedModeBtn, laySpeakingOn);
-    // Nothing timed in the bar → nothing for the button to switch.
-    speedModeBtn.hidden = segments.length === 0;
-  }
 }
 
 /**

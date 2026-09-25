@@ -2515,8 +2515,8 @@ export const SETTING_METADATA: SettingMeta[] = [
       + 'for tags, analytics, and cites — most people read those faster than highlighted '
       + 'card bodies. Leave the second rate blank and the main rate covers everything. '
       + 'Below the divider, each reader can have a lay speaking rate too, for a lay '
-      + 'audience. The Flow / Lay button in the bottom bar switches the live read times '
-      + 'between the two. The first two readers are displayed live in the bottom bar; all '
+      + 'audience. Click the read times in the bottom bar to switch between the two; '
+      + 'they turn blue in lay mode. The first two readers are displayed live in the bottom bar; all '
       + 'show up in the Word Count Selection dialog.',
     kind: 'readers',
     category: 'general',
