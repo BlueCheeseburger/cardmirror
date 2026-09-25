@@ -2680,9 +2680,19 @@ function buildDisplaySizesEditor(): HTMLElement {
   return wrap;
 }
 
+/** Readers editor, in two parts split by a divider: FLOW speaking (the
+ *  reader list itself — name, main rate, optional tags/cites rate,
+ *  order, delete) and LAY speaking (each reader's optional flat lay
+ *  rate). The bottom bar's Flow/Lay button picks which set the live
+ *  read times use. */
 function buildReadersEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-readers-editor';
+
+  const flowTitle = document.createElement('div');
+  flowTitle.className = 'pmd-readers-section-title';
+  flowTitle.textContent = 'Flow speaking';
+  wrap.appendChild(flowTitle);
 
   const list = document.createElement('div');
   list.className = 'pmd-readers-list';
@@ -2693,6 +2703,27 @@ function buildReadersEditor(): HTMLElement {
   addBtn.className = 'pmd-readers-add';
   addBtn.textContent = '+ Add reader';
   wrap.appendChild(addBtn);
+
+  const divider = document.createElement('hr');
+  divider.className = 'pmd-readers-divider';
+  wrap.appendChild(divider);
+
+  const layTitle = document.createElement('div');
+  layTitle.className = 'pmd-readers-section-title';
+  layTitle.textContent = 'Lay speaking';
+  wrap.appendChild(layTitle);
+
+  const layNote = document.createElement('p');
+  layNote.className = 'pmd-readers-lay-note';
+  layNote.textContent =
+    'Optional: each reader\'s pace for a lay audience, one rate for everything. '
+    + 'Used while the Flow / Lay button in the bottom bar says Lay. '
+    + 'Leave a reader blank and their time shows as "—" in lay mode.';
+  wrap.appendChild(layNote);
+
+  const layList = document.createElement('div');
+  layList.className = 'pmd-readers-list pmd-readers-lay-list';
+  wrap.appendChild(layList);
 
   const speedTestNote = document.createElement('p');
   speedTestNote.className = 'pmd-readers-speed-test';
@@ -2790,82 +2821,6 @@ function buildReadersEditor(): HTMLElement {
       tagWpmLabel.title = tagWpmInput.title;
       row.appendChild(tagWpmLabel);
 
-      // Lay-speaking rate: an orthogonal THIRD speed (flat, no body/tag
-      // split) toggled live from the status-bar readout. Unlike tagWpm
-      // (always visible, blank = unset) this field is hidden until the
-      // dropdown picks "Lay speaking" — the dropdown's own value is
-      // derived from whether layWpm is already set, so it needs no
-      // separate stored state of its own.
-      const layModeSelect = document.createElement('select');
-      layModeSelect.className = 'pmd-reader-lay-mode';
-      layModeSelect.title =
-        'Flow: the main rate above, read live in the status bar. '
-        + 'Lay speaking: an optional slower rate for a lay audience — '
-        + 'click the status-bar readout to switch between them.';
-      const flowOpt = document.createElement('option');
-      flowOpt.value = 'flow';
-      flowOpt.textContent = 'Flow';
-      const layOpt = document.createElement('option');
-      layOpt.value = 'lay';
-      layOpt.textContent = 'Lay speaking';
-      layModeSelect.append(flowOpt, layOpt);
-      layModeSelect.value = reader.layWpm != null ? 'lay' : 'flow';
-      row.appendChild(layModeSelect);
-
-      const layWpmInput = document.createElement('input');
-      layWpmInput.type = 'number';
-      layWpmInput.className = 'pmd-reader-wpm pmd-reader-laywpm';
-      layWpmInput.min = '1';
-      layWpmInput.step = '1';
-      layWpmInput.value = reader.layWpm != null ? String(reader.layWpm) : '';
-      layWpmInput.placeholder = 'e.g. 150';
-      layWpmInput.hidden = reader.layWpm == null;
-      layWpmInput.setAttribute('aria-label', `${reader.name} lay-speaking words per minute`);
-      layWpmInput.addEventListener('change', () => {
-        const trimmed = layWpmInput.value.trim();
-        const clear = trimmed === '';
-        const v = parseInt(trimmed, 10);
-        if (!clear && (!Number.isFinite(v) || v <= 0)) {
-          layWpmInput.value = reader.layWpm != null ? String(reader.layWpm) : '';
-          return;
-        }
-        const next = settings.get('readers').map((r, i) => {
-          if (i !== idx) return r;
-          const { layWpm: _prev, ...rest } = r;
-          return clear ? rest : { ...rest, layWpm: v };
-        });
-        commit(next);
-      });
-      row.appendChild(layWpmInput);
-
-      const layWpmLabel = document.createElement('span');
-      layWpmLabel.className = 'pmd-reader-wpm-label';
-      layWpmLabel.textContent = 'lay wpm';
-      layWpmLabel.hidden = reader.layWpm == null;
-      row.appendChild(layWpmLabel);
-
-      layModeSelect.addEventListener('change', () => {
-        if (layModeSelect.value === 'lay') {
-          // Reveal the field but don't commit yet — an empty layWpm
-          // shouldn't be persisted, so wait for the user to actually
-          // type a value (the change handler above commits it).
-          layWpmInput.hidden = false;
-          layWpmLabel.hidden = false;
-          layWpmInput.focus();
-        } else {
-          layWpmInput.hidden = true;
-          layWpmLabel.hidden = true;
-          if (reader.layWpm != null) {
-            const next = settings.get('readers').map((r, i) => {
-              if (i !== idx) return r;
-              const { layWpm: _prev, ...rest } = r;
-              return rest;
-            });
-            commit(next);
-          }
-        }
-      });
-
       const upBtn = document.createElement('button');
       upBtn.type = 'button';
       upBtn.className = 'pmd-reader-move';
@@ -2907,6 +2862,56 @@ function buildReadersEditor(): HTMLElement {
       row.appendChild(delBtn);
 
       list.appendChild(row);
+    });
+
+    // Lay rows: same readers, same order — the list above owns naming,
+    // ordering and removal; here it's only the optional lay rate.
+    layList.innerHTML = '';
+    readers.forEach((reader, idx) => {
+      const row = document.createElement('div');
+      row.className = 'pmd-reader-row pmd-reader-lay-row';
+
+      const rank = document.createElement('span');
+      rank.className = 'pmd-reader-rank';
+      rank.textContent = idx < 2 ? `#${idx + 1}` : '';
+      row.appendChild(rank);
+
+      const name = document.createElement('span');
+      name.className = 'pmd-reader-lay-name';
+      name.textContent = reader.name;
+      row.appendChild(name);
+
+      const layWpmInput = document.createElement('input');
+      layWpmInput.type = 'number';
+      layWpmInput.className = 'pmd-reader-wpm pmd-reader-laywpm';
+      layWpmInput.min = '1';
+      layWpmInput.step = '1';
+      layWpmInput.value = reader.layWpm != null ? String(reader.layWpm) : '';
+      layWpmInput.placeholder = 'none';
+      layWpmInput.setAttribute('aria-label', `${reader.name} lay-speaking words per minute`);
+      layWpmInput.addEventListener('change', () => {
+        const trimmed = layWpmInput.value.trim();
+        const clear = trimmed === '';
+        const v = parseInt(trimmed, 10);
+        if (!clear && (!Number.isFinite(v) || v <= 0)) {
+          layWpmInput.value = reader.layWpm != null ? String(reader.layWpm) : '';
+          return;
+        }
+        const next = settings.get('readers').map((r, i) => {
+          if (i !== idx) return r;
+          const { layWpm: _prev, ...rest } = r;
+          return clear ? rest : { ...rest, layWpm: v };
+        });
+        commit(next);
+      });
+      row.appendChild(layWpmInput);
+
+      const layWpmLabel = document.createElement('span');
+      layWpmLabel.className = 'pmd-reader-wpm-label';
+      layWpmLabel.textContent = 'wpm';
+      row.appendChild(layWpmLabel);
+
+      layList.appendChild(row);
     });
   }
 

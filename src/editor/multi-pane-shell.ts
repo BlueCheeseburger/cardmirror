@@ -82,6 +82,8 @@ import {
 } from './word-count.js';
 import {
   hasLaySpeeds,
+  renderSpeedModeButton,
+  canSwitchSpeedMode,
   liveContainerSegment,
   orderWordCountSegments,
   primaryReadSegment,
@@ -726,6 +728,8 @@ class Slot {
   private bodyEl: HTMLElement;
   /** Footer word count. */
   private wcEl: HTMLButtonElement;
+  /** This pane's Flow / Lay speed button, beside `wcEl`. */
+  private speedModeEl: HTMLButtonElement;
   /** Footer co-editing indicator — status text + presence dots for THIS slot's
    *  visible doc's session. Hidden when that doc has no live session. */
   private copresenceEl: HTMLElement;
@@ -966,6 +970,21 @@ class Slot {
       rec.laySpeaking = !rec.laySpeaking;
       this.refreshWordCount();
     });
+    // This pane's Flow / Lay button — the same per-pane toggle, labeled
+    // with the current mode (see renderSpeedModeButton).
+    this.speedModeEl = document.createElement('button');
+    this.speedModeEl.type = 'button';
+    this.speedModeEl.className = 'pmd-speed-mode pmd-pane-speed-mode';
+    renderSpeedModeButton(this.speedModeEl, false);
+    this.speedModeEl.addEventListener('mousedown', (e) => e.preventDefault());
+    this.speedModeEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rec = this.visible;
+      if (!rec || !canSwitchSpeedMode(rec.laySpeaking)) return;
+      rec.laySpeaking = !rec.laySpeaking;
+      this.refreshWordCount();
+    });
+    footer.appendChild(this.speedModeEl);
     footer.appendChild(this.wcEl);
     // Per-slot co-editing indicator (this doc's session status + who's here).
     // Empty/hidden until the slot's visible doc joins a session.
@@ -1579,6 +1598,7 @@ class Slot {
     const rec = this.visible;
     if (!rec) {
       this.wcEl.textContent = '—';
+      this.speedModeEl.hidden = true;
       return;
     }
     const sel = rec.view.state.selection;
@@ -1617,6 +1637,9 @@ class Slot {
     this.wcEl.textContent = segments.join(' | ');
     this.wcEl.classList.toggle('pmd-active', rec.laySpeaking);
     this.wcEl.classList.toggle('pmd-wc-lay-capable', hasLaySpeeds());
+    renderSpeedModeButton(this.speedModeEl, rec.laySpeaking);
+    // Nothing timed in the footer → nothing for the button to switch.
+    this.speedModeEl.hidden = segments.length === 0;
   }
 
   /** Open a small dropdown over the chip listing every doc in this

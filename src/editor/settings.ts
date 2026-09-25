@@ -2510,8 +2510,10 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Each reader has a name and a words-per-minute rate, plus an optional second rate '
       + 'for tags, analytics, and cites — most people read those faster than highlighted '
       + 'card bodies. Leave the second rate blank and the main rate covers everything. '
-      + 'The first two readers are displayed live in the bottom bar; all show up in the '
-      + 'Word Count Selection dialog.',
+      + 'Below the divider, each reader can have a lay speaking rate too, for a lay '
+      + 'audience. The Flow / Lay button in the bottom bar switches the live read times '
+      + 'between the two. The first two readers are displayed live in the bottom bar; all '
+      + 'show up in the Word Count Selection dialog.',
     kind: 'readers',
     category: 'general',
     section: 'Word counts',
