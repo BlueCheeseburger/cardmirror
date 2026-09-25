@@ -2716,7 +2716,7 @@ function buildReadersEditor(): HTMLElement {
   const layNote = document.createElement('p');
   layNote.className = 'pmd-readers-lay-note';
   layNote.textContent =
-    'Optional: each reader\'s pace for a lay audience, one rate for everything. '
+    'Optional: each reader\'s pace for a lay audience, with an optional separate rate for tags and cites. '
     + 'Used while the Flow / Lay button in the bottom bar says Lay. '
     + 'Leave a reader blank and their time shows as "—" in lay mode.';
   wrap.appendChild(layNote);
@@ -2910,6 +2910,42 @@ function buildReadersEditor(): HTMLElement {
       layWpmLabel.className = 'pmd-reader-wpm-label';
       layWpmLabel.textContent = 'wpm';
       row.appendChild(layWpmLabel);
+
+      // Optional lay rate for tags, analytics, and cites — mirrors the
+      // flow list's tags/cites field. Blank: the lay rate covers all.
+      const layTagInput = document.createElement('input');
+      layTagInput.type = 'number';
+      layTagInput.className = 'pmd-reader-wpm pmd-reader-laytagwpm';
+      layTagInput.min = '1';
+      layTagInput.step = '1';
+      layTagInput.value = reader.layTagWpm != null ? String(reader.layTagWpm) : '';
+      layTagInput.placeholder = 'same';
+      layTagInput.title =
+        'Optional separate lay rate for tags, analytics, and cites. '
+        + 'Blank: the lay rate covers everything.';
+      layTagInput.setAttribute('aria-label', `${reader.name} lay tags/cites words per minute`);
+      layTagInput.addEventListener('change', () => {
+        const trimmed = layTagInput.value.trim();
+        const clear = trimmed === '';
+        const v = parseInt(trimmed, 10);
+        if (!clear && (!Number.isFinite(v) || v <= 0)) {
+          layTagInput.value = reader.layTagWpm != null ? String(reader.layTagWpm) : '';
+          return;
+        }
+        const next = settings.get('readers').map((r, i) => {
+          if (i !== idx) return r;
+          const { layTagWpm: _prev, ...rest } = r;
+          return clear ? rest : { ...rest, layTagWpm: v };
+        });
+        commit(next);
+      });
+      row.appendChild(layTagInput);
+
+      const layTagLabel = document.createElement('span');
+      layTagLabel.className = 'pmd-reader-wpm-label';
+      layTagLabel.textContent = 'tags/cites wpm';
+      layTagLabel.title = layTagInput.title;
+      row.appendChild(layTagLabel);
 
       layList.appendChild(row);
     });

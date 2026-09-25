@@ -22,8 +22,12 @@ read-time readout itself.
 *Flow speaking* is the reader list as before (rank, name, main rate,
 optional tags/cites rate, move, delete) plus "+ Add reader". *Lay
 speaking* has a note and one row per reader, in the same order: rank,
-name (read-only, since the flow list owns naming, order and removal), and
-a lay wpm field where blank means none. The dropdown and its
+name (read-only, since the flow list owns naming, order and removal), a
+lay wpm field where blank means none, and a new optional lay tags/cites
+field (`ReaderConfig.layTagWpm`, kept by `sanitizeReaders` only when
+usable). `readTimeSeconds` in lay mode now splits like flow: body at
+`layWpm`, tags/analytics/cites at `layTagWpm`, which falls back to
+`layWpm` when blank. With no `layWpm` there's still no lay time at all. The dropdown and its
 reveal-on-select logic are gone; the stored data is unchanged
 (`ReaderConfig.layWpm`).
 
