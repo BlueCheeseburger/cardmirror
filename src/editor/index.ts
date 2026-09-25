@@ -8,6 +8,7 @@
  */
 
 import { EditorState, Plugin, Selection, TextSelection, type Command } from 'prosemirror-state';
+import { setLocalOpenDocsProvider } from './open-docs.js';
 import { serializeRangesForClipboard, serializeNodesForClipboard } from './clipboard-slice.js';
 import { EditorView } from 'prosemirror-view';
 import { keymap } from 'prosemirror-keymap';
@@ -10851,6 +10852,32 @@ installExternalInsertHost({
 // No-ops when the preload bridge is absent (web / old shells).
 installPluginJumpHost({
   findViewForDocId: (docId) => findViewForDocId(docId),
+});
+// Search Everything's `p` source (fork): this window's open docs, and
+// the handler main calls when another window's `p` search picks one of
+// them (main has already raised this window).
+async function activateLocalOpenDoc(uid: string): Promise<boolean> {
+  if (multiDocActive) {
+    const m = await import('./multi-pane-shell.js');
+    return m.activateShellDocByUid(uid);
+  }
+  if (uid !== registeredSingleDocUid) return false;
+  getActiveView()?.focus();
+  return true;
+}
+setLocalOpenDocsProvider({
+  list: async () => {
+    if (multiDocActive) {
+      const m = await import('./multi-pane-shell.js');
+      return m.listShellDocs();
+    }
+    return registeredSingleDocUid ? [{ uid: registeredSingleDocUid, filename: currentDocFilename }] : [];
+  },
+  activate: activateLocalOpenDoc,
+  windowName: () => currentWindowName,
+});
+getElectronHost()?.onActivateDoc?.((uid) => {
+  void activateLocalOpenDoc(uid);
 });
 // External-app consent: mirror the toggle + per-app decisions to main
 // (which enforces them on /insert and /jump), run the first-contact

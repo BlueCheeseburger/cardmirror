@@ -18,6 +18,8 @@
  *            the bar) to search its objects (blocks / tags / cites);
  *            Esc from there returns to the file list with the prior
  *            query restored. Selecting an object inserts it.
+ *   - `p ` → open docs and windows: every doc in any pane of any window,
+ *            plus named windows; Enter switches to it (fork).
  *   - `g ` → search Logos (logos-debate.netlify.app) — cards from the
  *            round docs teams open-source on opencaselist. Network-backed
  *            and debounced; Enter fetches the full card and inserts it.
@@ -83,6 +85,15 @@ import { searchQuickCards } from './quick-cards-match.js';
 import { parseNative } from '../native/index.js';
 import { fromDocx } from '../import/index.js';
 import { ensureHeadingAnchor } from '../anchor-docx.js';
+import {
+  activateOpenDoc,
+  focusOpenWindow,
+  listOpenDocs,
+  windowsOf,
+  type OpenDocEntry,
+  type OpenWindowEntry,
+} from './open-docs.js';
+import { displayFilename } from './platform.js';
 import { isLiteBuild } from './lite.js';
 import { openCardPreview } from './card-preview-modal.js';
 import {
@@ -461,7 +472,9 @@ interface PaletteResult {
     | 'folder'
     | 'file'
     | 'fileobject'
-    | 'logos';
+    | 'logos'
+    | 'opendoc'
+    | 'openwindow';
   name: string;
   /** Right-aligned secondary text: card tags / command keybinding /
    *  the settings tab / the file's subfolder / a cite's owning tag. */
@@ -495,6 +508,10 @@ interface PaletteResult {
   fileRange?: { from: number; to: number };
   /** Logos card id — fetched in full on insert (logos source). */
   logosId?: string;
+  /** The open doc to switch to (opendoc source). */
+  openDoc?: OpenDocEntry;
+  /** The window to raise (openwindow source). */
+  openWindow?: OpenWindowEntry;
   /** Outline depth (1-4) for indentation in the nav-pane-style browse. */
   indentLevel?: number;
   /** Index into `inFile.outline` (outline browse rows only) — the key
@@ -506,7 +523,7 @@ interface PaletteResult {
   collapsed?: boolean;
 }
 
-type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'g' | null;
+type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'g' | 'p' | null;
 
 function activeTagSet(): Set<string> {
   return new Set(settings.get('quickCardActiveTags').map(normalizeTag));
@@ -525,12 +542,12 @@ function parseBrowsePrefix(
   return /^\/c?$/i.test(raw) ? 'pending' : null;
 }
 
-/** Split a leading single-letter prefix (`q `/`d `/`c `/`s `/`f `/`g `) off the query. */
+/** Split a leading single-letter prefix (`q `/`d `/`c `/`s `/`f `/`g `/`p `) off the query. */
 function parsePrefix(raw: string): { prefix: Prefix; query: string } {
   const m = raw.match(/^([a-zA-Z])\s+(.*)$/);
   if (m) {
     const p = m[1]!.toLowerCase();
-    if (p === 'q' || p === 'd' || p === 'c' || p === 's' || p === 'f')
+    if (p === 'q' || p === 'd' || p === 'c' || p === 's' || p === 'f' || p === 'p')
       return { prefix: p, query: m[2]! };
     if (p === 'g' && !isLiteBuild()) return { prefix: p, query: m[2]! };
   }
@@ -594,6 +611,60 @@ const SYNONYM_GROUPS: readonly (readonly string[])[] = [
 
 /** Command source — any ribbon command (everything bindable), matched
  *  on its label, aliases, and synonyms; Enter runs it. */
+/** A doc's name as the palette shows it: the filename without its
+ *  `.cmir` / `.docx` extension, or "Untitled" for a never-saved doc. */
+function openDocLabel(filename: string | null): string {
+  return filename ? displayFilename(filename).replace(/\.(cmir|docx)$/i, '') : 'Untitled';
+}
+
+/** Where a `p` row lives, for the right-aligned meta text. */
+function openWindowLabel(w: { windowName: string | null; isOwnWindow: boolean }): string {
+  if (w.windowName) return w.isOwnWindow ? `“${w.windowName}” (this window)` : `“${w.windowName}”`;
+  return w.isOwnWindow ? 'this window' : 'another window';
+}
+
+/** `p` source: open docs whose name or window name matches every query
+ *  word, plus named windows whose name matches. Rows whose own name
+ *  contains the first word earliest come first; a doc beats a window on
+ *  a tie. Exported for tests. */
+export function searchOpenDocsSource(docs: OpenDocEntry[], query: string): PaletteResult[] {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = (hay: string): boolean => tokens.every((t) => hay.includes(t));
+  const t0 = tokens[0];
+  const rows: Array<{ r: PaletteResult; rank: number; tie: number }> = [];
+  const rankOf = (name: string): number => {
+    if (!t0) return 0;
+    const i = name.toLowerCase().indexOf(t0);
+    return i === -1 ? Infinity : i;
+  };
+  for (const d of docs) {
+    const name = openDocLabel(d.filename);
+    if (!matches(`${name} ${d.windowName ?? ''}`.toLowerCase())) continue;
+    rows.push({
+      r: { source: 'opendoc', name, meta: openWindowLabel(d), matchedName: true, snippet: null, openDoc: d },
+      rank: rankOf(name),
+      tie: 0,
+    });
+  }
+  for (const w of windowsOf(docs)) {
+    if (!w.windowName || !matches(w.windowName.toLowerCase())) continue;
+    rows.push({
+      r: {
+        source: 'openwindow',
+        name: w.windowName,
+        meta: truncate(w.filenames.map(openDocLabel).join(' · ') || 'no docs', 80),
+        matchedName: true,
+        snippet: null,
+        openWindow: w,
+      },
+      rank: rankOf(w.windowName),
+      tie: 1,
+    });
+  }
+  rows.sort((a, b) => a.rank - b.rank || a.tie - b.tie || a.r.name.localeCompare(b.r.name));
+  return rows.map((x) => x.r);
+}
+
 function searchCommandSource(query: string): PaletteResult[] {
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   // Searchable text = label + any aliases, so a query phrased like an
@@ -989,6 +1060,10 @@ function badgeText(r: PaletteResult): string {
       return r.fileObjectKind ? FILE_OBJECT_KIND_BADGES[r.fileObjectKind] : 'OBJ';
     case 'logos':
       return 'LOGOS';
+    case 'opendoc':
+      return 'OPEN';
+    case 'openwindow':
+      return 'WIN';
   }
 }
 
@@ -998,6 +1073,8 @@ function badgeText(r: PaletteResult): string {
 function resultKey(r: PaletteResult): string {
   const id = r.filePath
     ?? r.logosId
+    ?? r.openDoc?.uid
+    ?? (r.openWindow ? `w${r.openWindow.windowId ?? 'local'}` : undefined)
     ?? (r.browseLocation
       ? `${r.browseLocation.root}:${r.browseLocation.relativeDirectory}`
       : r.commandId ?? r.name);
@@ -1026,12 +1103,18 @@ function enterVerb(source: PaletteResult['source']): string {
       return 'open';
     case 'folder':
       return 'enter';
+    case 'opendoc':
+    case 'openwindow':
+      return 'switch to';
     default:
       return 'insert';
   }
 }
 
 const SEARCH_PLACEHOLDER = 'Search…';
+/** The palette's width in px, in every layout (narrower only when the
+ *  window itself is). */
+const PALETTE_WIDTH = 540;
 
 class QuickCardSearchUI {
   private root: HTMLDivElement | null = null;
@@ -1146,6 +1229,10 @@ class QuickCardSearchUI {
   /** Last query answered, with its rows — re-rendering the same query
    *  (the arrival re-runs the search) doesn't refetch. Cleared on close. */
   private logosCache: { query: string; rows: LogosResult[] } | null = null;
+  /** `p` source: the open-docs listing, fetched once per palette open
+   *  (on the first `p ` search) and filtered locally per keystroke. */
+  private openDocsCache: OpenDocEntry[] | null = null;
+  private openDocsLoading = false;
   /** Unsubscribe from main's live `.cmir` index-refresh broadcasts
    *  (Electron only); set on open, cleared on close. */
   private fileIndexUnsub: (() => void) | null = null;
@@ -1231,16 +1318,22 @@ class QuickCardSearchUI {
     });
   }
 
-  /** Center over the target pane and clamp the width to fit it, so the
-   *  bar shrinks elegantly in narrow / multi-pane windows. Re-run on
-   *  resize since panes reflow with the window. */
+  /** Center over the target pane at the full palette width — the same
+   *  width whether the window shows one doc or three panes (fork: the
+   *  bar used to shrink to fit its pane). Only the window can narrow it,
+   *  and the center shifts inward when needed so an edge pane's bar
+   *  stays fully on screen. Re-run on resize since panes reflow. */
   private reposition(): void {
     if (!this.root) return;
     const rect = this.paneEl?.getBoundingClientRect();
-    const available = rect && rect.width > 0 ? rect.width : window.innerWidth;
-    const centerX = rect && rect.width > 0 ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const winW = window.innerWidth;
+    const margin = 12;
+    const width = Math.max(240, Math.min(PALETTE_WIDTH, winW - 2 * margin));
+    const wanted = rect && rect.width > 0 ? rect.left + rect.width / 2 : winW / 2;
+    const half = width / 2;
+    const centerX = Math.min(Math.max(wanted, margin + half), winW - margin - half);
     this.root.style.left = `${Math.round(centerX)}px`;
-    this.root.style.width = `${Math.round(Math.max(240, Math.min(540, available - 24)))}px`;
+    this.root.style.width = `${Math.round(width)}px`;
   }
 
   private onResize = (): void => this.reposition();
@@ -1257,6 +1350,8 @@ class QuickCardSearchUI {
     this.asyncToken++; // invalidate any in-flight query / read
     this.cancelLogos();
     this.logosCache = null;
+    this.openDocsCache = null;
+    this.openDocsLoading = false;
     this.fileQueryKey = null;
     this.fileQueryPending = null;
     this.fileRows = [];
@@ -1440,6 +1535,10 @@ class QuickCardSearchUI {
       this.runLogosSearch(query);
       return;
     }
+    if (prefix === 'p') {
+      this.runOpenDocsSearch(query);
+      return;
+    }
     if (prefix === 'q') {
       this.results = searchQuickCardSource(query);
       this.emptyText = quickCardsStore.list().length
@@ -1481,7 +1580,7 @@ class QuickCardSearchUI {
       this.results = [];
       this.emptyText = `Type to search everything · / browse · c commands${
         dropzoneOn() ? ' · d dropzone' : ''
-      } · f files${isLiteBuild() ? '' : ' · g Logos'} · q cards · s settings`;
+      } · f files${isLiteBuild() ? '' : ' · g Logos'} · p open docs · q cards · s settings`;
     } else {
       // No prefix — search everything. Files (by filename) join the
       // other sources; the ranked rows come from the file-index service
@@ -1506,6 +1605,40 @@ class QuickCardSearchUI {
       return;
     }
     this.finishSearch();
+  }
+
+  /** `p` prefix: open docs (every pane of every window) and named
+   *  windows. The listing is fetched once per palette open, then each
+   *  keystroke filters it locally. */
+  private runOpenDocsSearch(query: string): void {
+    if (!this.openDocsCache) {
+      this.results = [];
+      this.emptyText = 'Loading open docs…';
+      this.finishSearch();
+      if (this.openDocsLoading) return;
+      this.openDocsLoading = true;
+      const token = this.asyncToken;
+      void listOpenDocs().then((docs) => {
+        if (token !== this.asyncToken || !this.root) return;
+        this.openDocsLoading = false;
+        this.openDocsCache = docs;
+        this.runSearch();
+      });
+      return;
+    }
+    this.results = searchOpenDocsSource(this.openDocsCache, query);
+    this.emptyText = this.openDocsCache.length ? 'No matching open docs or windows.' : 'No docs are open.';
+    this.finishSearch();
+  }
+
+  /** Enter on a `p` row: close, then switch to the doc or window. */
+  private async switchToOpenResult(result: PaletteResult): Promise<void> {
+    this.close();
+    if (result.openDoc) {
+      if (!(await activateOpenDoc(result.openDoc))) showToast('That document is no longer open.');
+    } else if (result.openWindow) {
+      if (!(await focusOpenWindow(result.openWindow))) showToast('That window is no longer open.');
+    }
   }
 
   /** Stop any pending/in-flight Logos query. */
@@ -2653,6 +2786,11 @@ class QuickCardSearchUI {
       const target = result.settingsTarget;
       this.close();
       void import('./settings-ui.js').then((m) => m.openSettings(target));
+      return;
+    }
+    // Open doc / window (`p` source): switch to it. atEnd irrelevant.
+    if (result.source === 'opendoc' || result.source === 'openwindow') {
+      void this.switchToOpenResult(result);
       return;
     }
     // File: close the palette, then open the document. atEnd irrelevant.
