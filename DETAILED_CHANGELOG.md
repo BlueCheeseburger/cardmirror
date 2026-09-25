@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.12.0-bcb.5 — 2026-09-25
 
 ### Added: read times in the outline's right-click menu (`nav-panel.ts`, `index.ts`, `multi-pane-shell.ts`, `style.css`)
 
