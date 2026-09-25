@@ -12,7 +12,7 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
-### Changed: flow / lay speaking speeds split in Settings, with a Flow / Lay button in the bar (`settings-ui.ts`, `live-read-time.ts`, `index.ts`, `multi-pane-shell.ts`, `index.html`, `style.css`)
+### Changed: flow / lay speaking speeds split in Settings; no doc word count in the bar (`settings-ui.ts`, `settings.ts`, `word-count.ts`, `live-read-time.ts`, `index.ts`, `multi-pane-shell.ts`)
 
 The lay-speaking rate used to hide behind a per-reader Flow/Lay dropdown
 in the readers editor. Switching modes was an unmarked click on the
@@ -31,19 +31,14 @@ usable). `readTimeSeconds` in lay mode now splits like flow: body at
 reveal-on-select logic are gone; the stored data is unchanged
 (`ReaderConfig.layWpm`).
 
-**Bottom bar.** A new `.pmd-speed-mode` pill sits just before the read
-times: `#speed-mode-btn` in the single-doc bar, and one per three-pane
-footer (`speedModeEl`, placed before the flex-growing `.pmd-pane-wc`).
-`renderSpeedModeButton` (in `live-read-time.ts`) labels it "Flow" or
-"Lay", sets `aria-pressed` and the tooltip, and fills it with the accent
-color in lay mode. It toggles the same per-doc / per-pane session state
-the readout click always did (`laySpeakingOn` / `rec.laySpeaking`), and
-the readout click still works too. `canSwitchSpeedMode` refuses to switch
-to lay when none of the two readers shown in the bar has a lay rate: that
-would turn every time into "—", so it toasts where to add rates instead.
-Switching back to flow is always allowed. The button hides when the bar
-has no timed segments (all live readouts off, or no document).
-
+**Bottom bar.** Switching stays a click on the read times (`#word-count-text`
+/ `.pmd-pane-wc`), now guarded by `canSwitchSpeedMode`, which silently
+refuses to switch to lay when neither reader shown has a lay rate. Lay
+mode's only sign is the readout's accent color: `readerTimePart` no longer
+appends "(lay)". A Flow / Lay button was tried and dropped at the user's
+request. `primaryReadSegment` no longer shows the whole-document word
+count. The doc side is just the reader times, labelled "Doc" only while
+the container segment is on. A selection keeps "Selection: N".
 
 ### Changed: Settings tab strip scrolls directly (`settings-ui.ts`, `style.css`)
 

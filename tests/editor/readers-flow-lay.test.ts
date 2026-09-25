@@ -33,7 +33,7 @@ vi.mock('../../src/editor/host/index.js', () => ({
 import { openSettings, closeSettings } from '../../src/editor/settings-ui.js';
 import { settings } from '../../src/editor/settings.js';
 import { showToast } from '../../src/editor/toast.js';
-import { canSwitchSpeedMode, renderSpeedModeButton } from '../../src/editor/live-read-time.js';
+import { canSwitchSpeedMode } from '../../src/editor/live-read-time.js';
 import { readTimeSeconds } from '../../src/editor/word-count.js';
 
 const settled = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
@@ -108,27 +108,15 @@ describe('readers editor: flow and lay sections', () => {
   });
 });
 
-describe('Flow / Lay button', () => {
-  it('labels the mode and marks lay as pressed', () => {
-    const btn = document.createElement('button');
-    renderSpeedModeButton(btn, false);
-    expect(btn.textContent).toBe('Flow');
-    expect(btn.getAttribute('aria-pressed')).toBe('false');
-    expect(btn.classList.contains('pmd-active')).toBe(false);
-    renderSpeedModeButton(btn, true);
-    expect(btn.textContent).toBe('Lay');
-    expect(btn.getAttribute('aria-pressed')).toBe('true');
-    expect(btn.classList.contains('pmd-active')).toBe(true);
-  });
-
-  it('won’t switch to lay when neither shown reader has a lay rate, and says where to add one', () => {
+describe('switching to lay by clicking the times', () => {
+  it('won’t switch to lay when neither shown reader has a lay rate', () => {
     settings.set('readers', [
       { name: 'Amy', wpm: 300 },
       { name: 'Ben', wpm: 280 },
       { name: 'Cal', wpm: 250, layWpm: 150 }, // third reader isn't shown in the bar
     ]);
     expect(canSwitchSpeedMode(false)).toBe(false);
-    expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Settings → General → Word counts'));
+    expect(showToast).not.toHaveBeenCalled();
     // Switching back to flow is always allowed.
     expect(canSwitchSpeedMode(true)).toBe(true);
   });
@@ -139,7 +127,6 @@ describe('Flow / Lay button', () => {
       { name: 'Ben', wpm: 280, layWpm: 150 },
     ]);
     expect(canSwitchSpeedMode(false)).toBe(true);
-    expect(showToast).not.toHaveBeenCalled();
   });
 });
 

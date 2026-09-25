@@ -56,7 +56,6 @@ import {
   type ReadAloudCounts,
 } from './word-count.js';
 import { TYPE_TO_LEVEL, sectionEndFromHeading } from './headings.js';
-import { showToast } from './toast.js';
 
 export interface EnclosingContainer {
   label: 'Card' | 'Analytic' | 'Block';
@@ -159,27 +158,11 @@ export function hasLaySpeeds(): boolean {
     .some((r) => Number.isFinite(r.layWpm) && (r.layWpm as number) > 0);
 }
 
-/** The bottom bar's Flow / Lay button: shows which speeds the live read
- *  times are using and switches them. One per status bar — the
- *  single-doc bar (index.ts) and each three-pane footer
- *  (multi-pane-shell.ts), each tracking its own doc's mode. */
-export function renderSpeedModeButton(btn: HTMLButtonElement, lay: boolean): void {
-  btn.textContent = lay ? 'Lay' : 'Flow';
-  btn.setAttribute('aria-pressed', lay ? 'true' : 'false');
-  btn.classList.toggle('pmd-active', lay);
-  btn.title = lay
-    ? 'Read times use lay speaking speeds. Click for flow speeds.'
-    : 'Read times use flow speaking speeds. Click for lay speeds.';
-}
-
-/** Whether a Flow / Lay button click may switch modes. Switching TO lay
- *  with no lay speed set for the readers shown in the bar would turn
- *  every time into "—", so that click shows where to add them instead.
- *  Switching back to flow is always allowed. */
+/** Whether clicking the read times may switch flow ↔ lay. Switching TO
+ *  lay with no lay rate on either reader shown would turn every time
+ *  into "—", so that click does nothing; switching back is always fine. */
 export function canSwitchSpeedMode(currentlyLay: boolean): boolean {
-  if (currentlyLay || hasLaySpeeds()) return true;
-  showToast('No lay speaking speeds yet. Add them in Settings → General → Word counts.');
-  return false;
+  return currentlyLay || hasLaySpeeds();
 }
 
 export function primaryReadSegment(
@@ -187,13 +170,15 @@ export function primaryReadSegment(
   opts: { selection: boolean; selectionLabel: 'Selection' | 'Sel'; useLay?: boolean },
 ): string | null {
   if (!opts.selection && !settings.get('liveDocWordCount')) return null;
-  const words = formatNumber(totalWords(counts));
+  // The whole-doc side shows read times only, no word count (user call,
+  // 2026-09-25) — "Doc" stays as a label while the container segment is
+  // on so the two sides read apart. A selection keeps its count.
   const head = opts.selection
-    ? `${opts.selectionLabel}: ${words}`
+    ? `${opts.selectionLabel}: ${formatNumber(totalWords(counts))}`
     : settings.get('liveContainerReadTime')
-      ? `Doc: ${words}`
-      : words;
-  const parts = [head];
+      ? 'Doc'
+      : null;
+  const parts = head ? [head] : [];
   for (const r of settings.get('readers').slice(0, 2)) {
     parts.push(readerTimePart(r, counts, opts.useLay ?? false));
   }
@@ -220,13 +205,11 @@ export function liveContainerSegment(state: EditorState, useLay = false): string
   return formatSegment(label, counts, useLay);
 }
 
-/** One reader's "Name: M:SS" chunk — or "Name (lay): M:SS" (or "—" when
- *  that reader has no lay rate configured) while `useLay` is on. The
- *  "(lay)" suffix is the toggle's only visible state beyond the numbers
- *  themselves, so a click's effect is never silent. */
+/** One reader's "Name: M:SS" chunk — their lay time (or "—" with no lay
+ *  rate) while `useLay` is on. No "(lay)" label: the readout turning the
+ *  accent color is the only sign of lay mode (user call, 2026-09-25). */
 function readerTimePart(r: ReaderConfig, counts: ReadAloudCounts, useLay: boolean): string {
-  const name = useLay ? `${r.name} (lay)` : r.name;
-  return `${name}: ${formatReadTimeFor(counts, r, useLay)}`;
+  return `${r.name}: ${formatReadTimeFor(counts, r, useLay)}`;
 }
 
 /** One segment's text: the labelled word count plus the first two

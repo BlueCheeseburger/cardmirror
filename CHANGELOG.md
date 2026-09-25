@@ -16,9 +16,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   list in Settings is now two sections split by a divider: **Flow speaking**
   (names, rates and order) and **Lay speaking** (each reader's lay rate, plus
   an optional lay rate for tags and cites), in
-  place of the per-reader Flow/Lay dropdown. A **Flow / Lay** button just
-  before the read times in the bottom bar (and in each three-pane footer)
-  shows which speeds the times use and switches them.
+  place of the per-reader Flow/Lay dropdown. Click the read times in the
+  bottom bar to switch; they turn blue in lay mode (the "(lay)" label is gone).
+- **The bottom bar no longer shows the whole document's word count**, only
+  its read times. A selection still shows its word count.
 
 - **Settings tabs scroll with your trackpad or mouse wheel.** When the tab
   row is wider than the dialog, a sideways swipe or a turn of the mouse

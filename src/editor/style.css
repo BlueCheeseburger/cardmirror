@@ -2424,34 +2424,6 @@ body:not(.pmd-multi-doc) #app {
   background: var(--pmd-c-text-secondary);
 }
 
-/* Flow / Lay speaking-speed button, just before the read times in the
-   status bar and in each three-pane footer. Accent-filled in lay mode
-   so the switch is obvious at a glance. */
-.pmd-speed-mode {
-  flex: 0 0 auto;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: 1.3;
-  padding: 0 0.45rem;
-  margin-right: 0.4rem;
-  background: transparent;
-  border: 1px solid var(--pmd-c-border);
-  border-radius: 999px;
-  color: var(--pmd-c-text-secondary);
-}
-.pmd-speed-mode:hover {
-  background: var(--pmd-c-hover);
-}
-.pmd-speed-mode.pmd-active {
-  border-color: var(--pmd-c-accent);
-  background: var(--pmd-c-accent);
-  color: #fff;
-}
-.pmd-speed-mode[hidden] {
-  display: none;
-}
-
 .status-segment {
   display: flex;
 }

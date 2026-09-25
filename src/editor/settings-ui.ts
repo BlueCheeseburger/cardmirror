@@ -2683,8 +2683,7 @@ function buildDisplaySizesEditor(): HTMLElement {
 /** Readers editor, in two parts split by a divider: FLOW speaking (the
  *  reader list itself — name, main rate, optional tags/cites rate,
  *  order, delete) and LAY speaking (each reader's optional flat lay
- *  rate). The bottom bar's Flow/Lay button picks which set the live
- *  read times use. */
+ *  rate). Clicking the bottom bar's read times switches between them. */
 function buildReadersEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-readers-editor';
@@ -2717,7 +2716,7 @@ function buildReadersEditor(): HTMLElement {
   layNote.className = 'pmd-readers-lay-note';
   layNote.textContent =
     'Optional: each reader\'s pace for a lay audience, with an optional separate rate for tags and cites. '
-    + 'Used while the Flow / Lay button in the bottom bar says Lay. '
+    + 'Click the read times in the bottom bar to switch to these (the times turn blue). '
     + 'Leave a reader blank and their time shows as "—" in lay mode.';
   wrap.appendChild(layNote);
 
