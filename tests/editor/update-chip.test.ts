@@ -114,4 +114,24 @@ describe('update chip', () => {
     el.click();
     expect(host.actions).toBe(1);
   });
+
+  it('renders plugin updates (fork)', () => {
+    const el = makeEl();
+    renderUpdateChip(el, { state: 'plugins', plugins: [{ name: 'Ebb', version: '0.3.0' }] });
+    expect(el.hidden).toBe(false);
+    expect(el.textContent).toBe('Plugin update: Ebb 0.3.0');
+    renderUpdateChip(el, {
+      state: 'plugins',
+      plugins: [
+        { name: 'Ebb', version: '0.3.0' },
+        { name: 'Flow', version: '2.0.0' },
+      ],
+    });
+    expect(el.textContent).toBe('2 plugin updates available');
+    expect(el.title).toBe('Update Ebb to 0.3.0, Flow to 2.0.0');
+    renderUpdateChip(el, { state: 'plugins-updating', count: 2 });
+    expect(el.textContent).toBe('Updating plugins…');
+    renderUpdateChip(el, { state: 'plugins-ready', count: 1 });
+    expect(el.textContent).toBe('Plugin updated — restart to apply');
+  });
 });
