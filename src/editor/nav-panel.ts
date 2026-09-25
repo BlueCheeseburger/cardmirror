@@ -20,6 +20,7 @@ import { positionFloatingMenu } from './context-menu-position.js';
 import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
 import { isCutInPlaceDoc, markCutInPlace } from './cut-in-place.js';
 import { showToast } from './toast.js';
+import { countReadAloudSplit, formatReadTimeFor, type ReadAloudCounts } from './word-count.js';
 import { setManualShadowSelection } from './similar-selection-plugin.js';
 import {
   insertSelfRef,
@@ -201,6 +202,10 @@ export class NavigationPanel {
   private root: HTMLElement;
   private view: EditorView | null = null;
   private readonly readOnly: boolean = false;
+  /** Whether this panel's doc shows lay speeds (its status-bar read
+   *  times were clicked into lay mode). The context menu's read times
+   *  follow it. Absent → flow. */
+  private readonly useLay: () => boolean;
   private listEl: HTMLOListElement;
   private emptyEl: HTMLElement;
   private currentDoc: PMNode | null = null;
@@ -341,10 +346,13 @@ export class NavigationPanel {
        *  surface — its view is a read-only preview, not a document
        *  anyone may reorder. */
       readOnly?: boolean;
+      /** Whether this doc's read times are in lay mode (see `useLay`). */
+      useLay?: () => boolean;
     },
   ) {
     this.onClose = opts?.onClose ?? null;
     this.readOnly = opts?.readOnly === true;
+    this.useLay = opts?.useLay ?? (() => false);
     this.root = document.createElement('aside');
     this.root.className = 'pmd-nav-panel';
 
@@ -2203,6 +2211,8 @@ export class NavigationPanel {
       menu.appendChild(btn);
     }
 
+    this.appendReadTimes(menu, entry, x, y);
+
     document.body.appendChild(menu);
     positionFloatingMenu(menu, x, y);
 
@@ -2212,6 +2222,49 @@ export class NavigationPanel {
       window.addEventListener('mousedown', maybeCloseContextMenu, { capture: true });
       window.addEventListener('keydown', maybeCloseContextMenu, { capture: true });
     });
+  }
+
+  /**
+   * The menu's last rows (fork): how long readers 1 and 2 take to read
+   * the right-clicked heading(s) and everything under them, one reader
+   * per line, in the doc's current flow or lay speeds. A "Calculating
+   * times" placeholder shows first and is swapped for the times once the
+   * menu has painted, so a huge pocket never holds the menu back. The
+   * rows highlight on hover but do nothing when clicked.
+   */
+  private appendReadTimes(menu: HTMLElement, entry: HeadingEntry, x: number, y: number): void {
+    const readers = settings.get('readers').slice(0, 2);
+    if (readers.length === 0 || !this.view) return;
+    const sep = document.createElement('div');
+    sep.className = 'pmd-nav-context-separator';
+    menu.appendChild(sep);
+    const placeholder = readTimeRow('Calculating times');
+    placeholder.classList.add('pmd-nav-context-item-pending');
+    menu.appendChild(placeholder);
+
+    const compute = (): void => {
+      const view = this.view;
+      if (!menu.isConnected || !view) return;
+      const doc = view.state.doc;
+      const counts: ReadAloudCounts = { body: 0, other: 0 };
+      for (const r of this.headingRanges(this.contextTargets(entry))) {
+        const c = countReadAloudSplit(doc, r.from, r.to);
+        counts.body += c.body;
+        counts.other += c.other;
+      }
+      const lay = this.useLay();
+      placeholder.replaceWith(
+        ...readers.map((r) => readTimeRow(`${r.name}: ${formatReadTimeFor(counts, r, lay)}`)),
+      );
+      // One row became two: re-fit so the taller menu stays on screen.
+      positionFloatingMenu(menu, x, y);
+    };
+    // Wait for a paint so the placeholder is actually seen.
+    const nextFrame =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (cb: () => void) => setTimeout(cb, 0);
+    nextFrame(() => setTimeout(compute, 0));
   }
 
   /**
@@ -2503,6 +2556,17 @@ interface ContextMenuItemBase {
 }
 interface ContextMenuSeparator { kind: 'separator' }
 type ContextMenuItem = ContextMenuItemBase | ContextMenuSeparator;
+
+/** A read-only context-menu row (the read times): looks and hovers like
+ *  an item, but clicking it does nothing and keeps the menu open. */
+function readTimeRow(text: string): HTMLButtonElement {
+  const row = document.createElement('button');
+  row.type = 'button';
+  row.className = 'pmd-nav-context-item pmd-nav-context-item-info';
+  row.setAttribute('aria-disabled', 'true');
+  row.textContent = text;
+  return row;
+}
 
 let openContextMenuEl: HTMLElement | null = null;
 

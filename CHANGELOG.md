@@ -8,7 +8,14 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.12.0-bcb.5 — 2026-09-25
+
+### Added
+
+- **Right-click a heading in the outline to see its read time.** The menu's
+  last lines show how long readers 1 and 2 take to read that heading and
+  everything under it (or every selected heading together), in flow or lay
+  speeds to match the bottom bar.
 
 ### Changed
 
@@ -20,7 +27,6 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   bottom bar to switch; they turn blue in lay mode (the "(lay)" label is gone).
 - **The bottom bar no longer shows the whole document's word count**, only
   its read times. A selection still shows its word count.
-
 - **Settings tabs scroll with your trackpad or mouse wheel.** When the tab
   row is wider than the dialog, a sideways swipe or a turn of the mouse
   wheel over it now scrolls the tabs, instead of only the ‹ › arrows at

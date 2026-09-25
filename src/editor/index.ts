@@ -5665,7 +5665,7 @@ function refreshAutoScrollBtn(): void {
   autoScrollBtn?.classList.toggle('pmd-active', isAutoScrolling());
 }
 
-const navPanel = new NavigationPanel(navEl);
+const navPanel = new NavigationPanel(navEl, { useLay: () => laySpeakingOn });
 
 /** The single-doc NavigationPanel instance — the mobile shell drives
  *  its destination mode ("Send to…") and hosts it in the drawer. */
