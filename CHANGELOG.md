@@ -10,6 +10,13 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **Right-click a heading in the outline to see its read time.** The menu's
+  last lines show how long readers 1 and 2 take to read that heading and
+  everything under it (or every selected heading together), in flow or lay
+  speeds to match the bottom bar.
+
 ### Changed
 
 - **Flow and lay speaking speeds are easier to find and switch.** The readers

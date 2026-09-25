@@ -4346,6 +4346,7 @@ function buildDocRecord(
   // resolve `owner` lazily at click time, not build time).
   const navPanel = new NavigationPanel(navEl, {
     onClose: () => record.owner.shell.setSlotNavHidden(record.owner, true),
+    useLay: () => record.laySpeaking,
   });
   navPanel.attach(view);
   // Initial caret-heading highlight so a freshly-mounted pane reflects the

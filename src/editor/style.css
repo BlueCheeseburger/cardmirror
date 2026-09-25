@@ -6095,6 +6095,16 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   font-size: 0.85em;
 }
 
+/* Read-time rows at the bottom of the outline's right-click menu:
+   hover like an item, but there's nothing to click. */
+.pmd-nav-context-item-info {
+  cursor: default;
+}
+.pmd-nav-context-item-pending {
+  font-style: italic;
+  color: var(--pmd-c-text-muted);
+}
+
 .pmd-nav-context-item-checked::before {
   content: '\2713 ';
   position: absolute;

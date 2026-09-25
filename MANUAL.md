@@ -356,6 +356,12 @@ mirrors Word's Navigation Pane, but does more:
   linked copy of heading**, which drop a [live view or linked
   copy](#10-live-views-and-linked-copies) of that section at your
   cursor — no picker needed, since the clicked heading *is* the pick.
+  *(Fork)* The bottom of the menu shows how long your first two readers
+  take to read the heading and everything under it, one reader per line
+  (all selected headings together, for a multi-selection). The times use
+  the same rules as the bottom bar, and follow its flow/lay switch: if
+  the bar's times are blue (lay mode), these are lay times too. They read
+  *Calculating times* for a moment on a big section.
 
 ### Card numbering
 
