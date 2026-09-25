@@ -7231,9 +7231,9 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 
 .pmd-reader-row {
-  /* Name + two wpm fields + the lay-speaking dropdown/field + move/
-     delete buttons don't all fit on one line in a narrow settings
-     dialog — wrap rather than clip or force horizontal scroll. */
+  /* Name + two wpm fields + move/delete buttons don't all fit on one
+     line in a narrow settings dialog — wrap rather than clip or force
+     horizontal scroll. */
   flex-wrap: wrap;
   row-gap: 0.3rem;
 }
@@ -7264,15 +7264,32 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   padding: 0.2rem 0.4rem;
 }
 
-.pmd-reader-lay-mode {
-  flex: 0 0 auto;
-  font-family: inherit;
-  font-size: 0.8rem;
-  border: 1px solid var(--pmd-c-border);
-  border-radius: 3px;
-  padding: 0.2rem 0.3rem;
-  background: var(--pmd-c-bg);
-  color: var(--pmd-c-text);
+/* Flow / Lay halves of the readers editor, split by a divider. */
+.pmd-readers-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pmd-c-text-muted);
+  margin: 0 0 0.35rem;
+}
+.pmd-readers-divider {
+  border: none;
+  border-top: 1px solid var(--pmd-c-divider-faint);
+  margin: 0.75rem 0;
+}
+.pmd-readers-lay-note {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-reader-lay-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 

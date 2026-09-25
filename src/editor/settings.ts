@@ -95,6 +95,10 @@ export interface ReaderConfig {
   wpm: number;
   tagWpm?: number;
   layWpm?: number;
+  /** Optional lay rate for tags, analytics, and cites — the lay
+   *  counterpart of `tagWpm`. Absent → `layWpm` covers everything. Only
+   *  used when `layWpm` is set. */
+  layTagWpm?: number;
 }
 
 /** A paired machine you can send cards to. `code` is that machine's
@@ -2510,8 +2514,10 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Each reader has a name and a words-per-minute rate, plus an optional second rate '
       + 'for tags, analytics, and cites — most people read those faster than highlighted '
       + 'card bodies. Leave the second rate blank and the main rate covers everything. '
-      + 'The first two readers are displayed live in the bottom bar; all show up in the '
-      + 'Word Count Selection dialog.',
+      + 'Below the divider, each reader can have a lay speaking rate too, for a lay '
+      + 'audience. Click the read times in the bottom bar to switch between the two; '
+      + 'they turn blue in lay mode. The first two readers are displayed live in the bottom bar; all '
+      + 'show up in the Word Count Selection dialog.',
     kind: 'readers',
     category: 'general',
     section: 'Word counts',
@@ -6011,6 +6017,8 @@ function sanitizeReaders(raw: unknown): ReaderConfig[] {
     // Optional lay-speaking rate: same "keep only a usable value" rule.
     const layWpm = Number((r as ReaderConfig).layWpm);
     if (Number.isFinite(layWpm) && layWpm > 0) reader.layWpm = Math.round(layWpm);
+    const layTagWpm = Number((r as ReaderConfig).layTagWpm);
+    if (Number.isFinite(layTagWpm) && layTagWpm > 0) reader.layTagWpm = Math.round(layTagWpm);
     out.push(reader);
   }
   return out.length > 0 ? out : [...DEFAULTS.readers];

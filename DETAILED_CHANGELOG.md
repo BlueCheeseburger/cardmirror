@@ -12,6 +12,34 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: flow / lay speaking speeds split in Settings; no doc word count in the bar (`settings-ui.ts`, `settings.ts`, `word-count.ts`, `live-read-time.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+The lay-speaking rate used to hide behind a per-reader Flow/Lay dropdown
+in the readers editor. Switching modes was an unmarked click on the
+read-time readout itself.
+
+**Settings.** `buildReadersEditor` is now two sections split by an `<hr>`.
+*Flow speaking* is the reader list as before (rank, name, main rate,
+optional tags/cites rate, move, delete) plus "+ Add reader". *Lay
+speaking* has a note and one row per reader, in the same order: rank,
+name (read-only, since the flow list owns naming, order and removal), a
+lay wpm field where blank means none, and a new optional lay tags/cites
+field (`ReaderConfig.layTagWpm`, kept by `sanitizeReaders` only when
+usable). `readTimeSeconds` in lay mode now splits like flow: body at
+`layWpm`, tags/analytics/cites at `layTagWpm`, which falls back to
+`layWpm` when blank. With no `layWpm` there's still no lay time at all. The dropdown and its
+reveal-on-select logic are gone; the stored data is unchanged
+(`ReaderConfig.layWpm`).
+
+**Bottom bar.** Switching stays a click on the read times (`#word-count-text`
+/ `.pmd-pane-wc`), now guarded by `canSwitchSpeedMode`, which silently
+refuses to switch to lay when neither reader shown has a lay rate. Lay
+mode's only sign is the readout's accent color: `readerTimePart` no longer
+appends "(lay)". A Flow / Lay button was tried and dropped at the user's
+request. `primaryReadSegment` no longer shows the whole-document word
+count. The doc side is just the reader times, labelled "Doc" only while
+the container segment is on. A selection keeps "Selection: N".
+
 ### Changed: Settings tab strip scrolls directly (`settings-ui.ts`, `style.css`)
 
 Requested directly. `.pmd-settings-tabs` was `overflow-x: hidden`, so the

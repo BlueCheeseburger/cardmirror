@@ -82,6 +82,7 @@ import {
 } from './word-count.js';
 import {
   hasLaySpeeds,
+  canSwitchSpeedMode,
   liveContainerSegment,
   orderWordCountSegments,
   primaryReadSegment,
@@ -962,7 +963,7 @@ class Slot {
     this.wcEl.addEventListener('click', (e) => {
       e.stopPropagation();
       const rec = this.visible;
-      if (!rec) return;
+      if (!rec || !canSwitchSpeedMode(rec.laySpeaking)) return;
       rec.laySpeaking = !rec.laySpeaking;
       this.refreshWordCount();
     });
