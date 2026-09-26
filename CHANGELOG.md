@@ -8,6 +8,26 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+
+- **Images work more like Google Docs.** Click one for a toolbar under
+  it: 25% / 50% / 75% / Original size, Fit width, Alt text, Replace and
+  Delete. Drag an image to move it (Ctrl, or Alt on macOS, to copy), and
+  drag image files in from your computer. Big images are shrunk to the
+  page width when they're added.
+- **Plugins check for updates along with the app.** Whenever CardMirror
+  checks itself (at launch, daily, or by hand), it checks your plugins
+  too, under the same setting and tournament pause. Updates show on the
+  status-bar update chip: click to install them, then click again to
+  restart.
+
+### Changed
+
+- **Image resize handles always keep the shape.** The side handles used
+  to stretch the image; now every handle scales it evenly.
+
 ## 1.12.0-bcb.5 — 2026-09-25
 
 ### Added

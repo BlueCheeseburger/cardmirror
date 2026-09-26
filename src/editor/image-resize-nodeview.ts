@@ -21,21 +21,25 @@ import { NodeSelection } from 'prosemirror-state';
 import { settings } from './settings.js';
 import { transclusionNodeViews } from './transclusion-nodeview.js';
 import { selfRefNodeViews } from './self-transclusion-nodeview.js';
+import { TEXT_COLUMN_PX, buildImageNodeFromBlob, pickImageFile } from './image-insert.js';
+import { editAltText } from './image-context-menu-plugin.js';
+import { showToast } from './toast.js';
 
 const EMU_PER_PX = 9525;
 const MIN_PX = 16;
 
 /**
- * Eight Word-style handles: four corners resize proportionally
- * (aspect-locked), four edges resize a single axis (aspect unlocked).
- * For the edge handles to stay WYSIWYG, `renderInner` pins the image's
- * width AND height to the stored EMU dimensions (overriding the
- * schema's responsive `height: auto`), so what you drag is exactly what
- * exports. Handles are created only while the image is selected, so
- * unselected images carry no handle DOM.
+ * Eight handles, all proportional like Google Docs (fork, 2026-09-25):
+ * a corner follows the horizontal drag, a side edge (e / w) the
+ * horizontal and a top or bottom edge (n / s) the vertical, and the
+ * other side always follows the image's shape. There's no stretching.
+ * `renderInner` pins the image's width AND height to the stored EMU
+ * dimensions (overriding the schema's responsive `height: auto`), so
+ * what you drag is exactly what exports. Handles are created only
+ * while the image is selected, so unselected images carry no handle DOM.
  */
 const HANDLE_DIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
-type Dir = (typeof HANDLE_DIRS)[number];
+export type Dir = (typeof HANDLE_DIRS)[number];
 
 /** Accumulated CSS `zoom` up the ancestor chain (editor panes zoom via
  *  the `zoom` property). Lets us convert screen-space pointer deltas
@@ -51,6 +55,45 @@ function zoomFactorOf(el: HTMLElement): number {
   return z > 0 ? z : 1;
 }
 
+/**
+ * The new size for dragging handle `dir` by (`dx`, `dy`) CSS px from a
+ * `startW`×`startH` image, keeping its proportions. Corners and the
+ * e / w edges follow the horizontal drag; n / s follow the vertical.
+ * Handles on the left or top grow the image when dragged outward
+ * (left or up). Never smaller than `MIN_PX` on either side.
+ */
+export function proportionalResize(
+  dir: Dir,
+  startW: number,
+  startH: number,
+  dx: number,
+  dy: number,
+): { width: number; height: number } {
+  const aspect = startW / startH;
+  const west = dir === 'nw' || dir === 'w' || dir === 'sw';
+  let w: number;
+  if (dir === 'n' || dir === 's') {
+    const h = dir === 's' ? startH + dy : startH - dy;
+    w = h * aspect;
+  } else {
+    w = west ? startW - dx : startW + dx;
+  }
+  // Floor whichever side is smaller at MIN_PX.
+  const minW = aspect >= 1 ? MIN_PX * aspect : MIN_PX;
+  w = Math.max(minW, w);
+  return { width: w, height: w / aspect };
+}
+
+/** One toolbar button: its label, tooltip, and whether it's enabled. */
+interface ToolbarButton {
+  label: string;
+  title: string;
+  disabled?: boolean;
+  /** Shown pressed (the image is already this size). */
+  active?: boolean;
+  run: () => void;
+}
+
 class ImageResizeView implements NodeView {
   readonly dom: HTMLElement;
   private inner!: HTMLElement;
@@ -58,6 +101,11 @@ class ImageResizeView implements NodeView {
   private readonly view: EditorView;
   private readonly getPos: () => number | undefined;
   private handles: HTMLElement[] = [];
+  private toolbar: HTMLElement | null = null;
+  /** The picture's own pixel size, cached per `data`: every re-render
+   *  makes a fresh `<img>` that reads 0×0 until it decodes, and the
+   *  toolbar's size buttons shouldn't flicker off after each resize. */
+  private natural: { data: string; width: number; height: number } | null = null;
   private dragging = false;
 
   constructor(node: PMNode, view: EditorView, getPos: () => number | undefined) {
@@ -92,6 +140,31 @@ class ImageResizeView implements NodeView {
     if (this.inner) this.inner.replaceWith(el);
     else this.dom.appendChild(el);
     this.inner = el;
+    if (el instanceof HTMLImageElement) {
+      this.readNatural(el);
+      // Not decoded yet → pick the size up (and refresh the toolbar)
+      // once it is.
+      el.addEventListener(
+        'load',
+        () => {
+          if (this.readNatural(el) && this.toolbar) this.renderToolbar();
+        },
+        { once: true },
+      );
+    }
+  }
+
+  /** Cache `el`'s decoded size for the current `data`. True if known. */
+  private readNatural(el: HTMLImageElement): boolean {
+    if (el.naturalWidth > 0 && el.naturalHeight > 0) {
+      this.natural = {
+        data: String(this.node.attrs['data'] ?? ''),
+        width: el.naturalWidth,
+        height: el.naturalHeight,
+      };
+      return true;
+    }
+    return false;
   }
 
   update(node: PMNode): boolean {
@@ -100,6 +173,9 @@ class ImageResizeView implements NodeView {
     // Skip re-render mid-drag: the live inline styles are authoritative
     // until the drag commits the new EMU dimensions.
     if (!this.dragging) this.renderInner();
+    // A resize or replace keeps the image selected; refresh the
+    // toolbar's pressed size button to match.
+    if (this.toolbar) this.renderToolbar();
     return true;
   }
 
@@ -107,11 +183,13 @@ class ImageResizeView implements NodeView {
     this.dom.classList.add('ProseMirror-selectednode');
     if (settings.get('readMode') || !this.view.editable) return;
     this.addHandles();
+    this.addToolbar();
   }
 
   deselectNode(): void {
     this.dom.classList.remove('ProseMirror-selectednode');
     this.removeHandles();
+    this.removeToolbar();
   }
 
   private addHandles(): void {
@@ -119,6 +197,8 @@ class ImageResizeView implements NodeView {
     for (const dir of HANDLE_DIRS) {
       const h = document.createElement('span');
       h.className = `pmd-image-handle pmd-image-handle-${dir}`;
+      // Grabbing a handle resizes; it must never start a move-drag.
+      h.draggable = false;
       h.addEventListener('pointerdown', (e) => this.startResize(e, dir));
       this.dom.appendChild(h);
       this.handles.push(h);
@@ -130,6 +210,173 @@ class ImageResizeView implements NodeView {
     this.handles = [];
   }
 
+  // ------------------------------------------------------ Toolbar ----
+
+  /** The Google Docs-style bar under a selected image: size presets,
+   *  alt text, replace, delete. */
+  private addToolbar(): void {
+    if (this.toolbar) return;
+    const bar = document.createElement('span');
+    bar.className = 'pmd-image-toolbar';
+    bar.contentEditable = 'false';
+    bar.draggable = false;
+    bar.setAttribute('role', 'toolbar');
+    bar.setAttribute('aria-label', 'Image');
+    // Keep the editor's focus and the image selected through a click.
+    bar.addEventListener('mousedown', (e) => e.preventDefault());
+    this.toolbar = bar;
+    this.renderToolbar();
+    this.dom.appendChild(bar);
+  }
+
+  private removeToolbar(): void {
+    this.toolbar?.remove();
+    this.toolbar = null;
+  }
+
+  private renderToolbar(): void {
+    const bar = this.toolbar;
+    if (!bar) return;
+    bar.replaceChildren();
+    const natural = this.naturalSize();
+    const cur = this.currentSize();
+    const near = (a: number, b: number): boolean => Math.abs(a - b) <= 1;
+    const scale = (pct: number): ToolbarButton => {
+      const w = natural ? Math.round((natural.width * pct) / 100) : 0;
+      return {
+        label: pct === 100 ? 'Original size' : `${pct}%`,
+        title: natural
+          ? `${pct}% of the image's original size (${w} × ${Math.round((natural.height * pct) / 100)} px)`
+          : "This image's original size isn't known",
+        disabled: !natural,
+        active: !!natural && !!cur && near(cur.width, w),
+        run: () => natural && this.setSize(w, (natural.height * pct) / 100),
+      };
+    };
+    const aspect = natural ? natural.width / natural.height : cur ? cur.width / cur.height : 0;
+    const groups: ToolbarButton[][] = [
+      [scale(25), scale(50), scale(75), scale(100)],
+      [
+        {
+          label: 'Fit width',
+          title: 'As wide as the page (6.5 in)',
+          disabled: !aspect,
+          active: !!cur && near(cur.width, TEXT_COLUMN_PX),
+          run: () => aspect && this.setSize(TEXT_COLUMN_PX, TEXT_COLUMN_PX / aspect),
+        },
+      ],
+      [
+        {
+          label: 'Alt text',
+          title: 'Describe the image for screen readers',
+          run: () => this.editAlt(),
+        },
+        {
+          label: 'Replace',
+          title: 'Swap in another image at this width',
+          run: () => void this.replace(),
+        },
+        {
+          label: 'Delete',
+          title: 'Remove the image',
+          run: () => this.remove(),
+        },
+      ],
+    ];
+    groups.forEach((group, i) => {
+      if (i > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'pmd-image-toolbar-sep';
+        bar.appendChild(sep);
+      }
+      for (const b of group) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pmd-image-toolbar-btn';
+        btn.textContent = b.label;
+        btn.title = b.title;
+        btn.draggable = false;
+        if (b.disabled) btn.disabled = true;
+        if (b.active) {
+          btn.classList.add('pmd-active');
+          btn.setAttribute('aria-pressed', 'true');
+        }
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!b.disabled) b.run();
+        });
+        bar.appendChild(btn);
+      }
+    });
+  }
+
+  /** The image's own pixel size, or null for a placeholder format or
+   *  one that hasn't decoded. */
+  private naturalSize(): { width: number; height: number } | null {
+    if (this.inner instanceof HTMLImageElement) this.readNatural(this.inner);
+    const n = this.natural;
+    // A replaced picture's old size doesn't count.
+    if (!n || n.data !== String(this.node.attrs['data'] ?? '')) return null;
+    return { width: n.width, height: n.height };
+  }
+
+  /** The stored display size in CSS px, or null when unset. */
+  private currentSize(): { width: number; height: number } | null {
+    const w = Number(this.node.attrs['widthEmu'] ?? 0);
+    const h = Number(this.node.attrs['heightEmu'] ?? 0);
+    if (w <= 0 || h <= 0) return null;
+    return { width: w / EMU_PER_PX, height: h / EMU_PER_PX };
+  }
+
+  private setSize(wPx: number, hPx: number): void {
+    this.commit(Math.round(wPx), Math.max(1, Math.round(hPx)));
+  }
+
+  private editAlt(): void {
+    const pos = this.getPos();
+    if (pos == null) return;
+    void editAltText(this.view, pos, this.node);
+  }
+
+  private remove(): void {
+    const pos = this.getPos();
+    if (pos == null) return;
+    const live = this.view.state.doc.nodeAt(pos);
+    if (!live || live.type.name !== 'image') return;
+    this.view.dispatch(this.view.state.tr.delete(pos, pos + live.nodeSize));
+    this.view.focus();
+  }
+
+  /** Pick a new image file and put it in this one's place, keeping the
+   *  current width (height follows the new image's shape). Alt text is
+   *  cleared, since it described the old picture. */
+  private async replace(): Promise<void> {
+    const file = await pickImageFile();
+    if (!file) return;
+    const fresh = await buildImageNodeFromBlob(file);
+    if (!fresh) {
+      showToast(`Couldn't read "${file.name}" as an image.`);
+      return;
+    }
+    // The picker is modal-ish; the doc may have moved on meanwhile.
+    const pos = this.getPos();
+    if (pos == null) return;
+    const live = this.view.state.doc.nodeAt(pos);
+    if (!live || live.type.name !== 'image') return;
+    const keepW = Number(live.attrs['widthEmu'] ?? 0);
+    const newW = Number(fresh.attrs['widthEmu'] ?? 0);
+    const newH = Number(fresh.attrs['heightEmu'] ?? 0);
+    const attrs = { ...fresh.attrs };
+    if (keepW > 0 && newW > 0 && newH > 0) {
+      attrs['widthEmu'] = keepW;
+      attrs['heightEmu'] = Math.round((keepW * newH) / newW);
+    }
+    const tr = this.view.state.tr.setNodeMarkup(pos, undefined, { ...live.attrs, ...attrs, alt: '' });
+    tr.setSelection(NodeSelection.create(tr.doc, pos));
+    this.view.dispatch(tr);
+  }
+
   private startResize(e: PointerEvent, dir: Dir): void {
     e.preventDefault();
     e.stopPropagation();
@@ -139,7 +386,6 @@ class ImageResizeView implements NodeView {
     const startW = rect.width / z;
     const startH = rect.height / z;
     if (startW < 1 || startH < 1) return;
-    const aspect = startW / startH;
     const startX = e.clientX;
     const startY = e.clientY;
 
@@ -156,28 +402,13 @@ class ImageResizeView implements NodeView {
 
     let w = startW;
     let h = startH;
-    const west = dir === 'nw' || dir === 'w' || dir === 'sw';
-    const east = dir === 'ne' || dir === 'e' || dir === 'se';
-    const north = dir === 'nw' || dir === 'n' || dir === 'ne';
-    const south = dir === 'sw' || dir === 's' || dir === 'se';
-    const corner = (west || east) && (north || south);
 
     const onMove = (ev: PointerEvent): void => {
       const dx = (ev.clientX - startX) / z;
       const dy = (ev.clientY - startY) / z;
-      if (corner) {
-        // Corner: aspect-locked. Drive width from horizontal motion and
-        // derive height so the image scales without distorting.
-        const nextW = east ? startW + dx : startW - dx;
-        w = Math.max(MIN_PX, nextW);
-        h = w / aspect;
-      } else {
-        // Edge: aspect unlocked — resize only the dragged axis.
-        if (east) w = Math.max(MIN_PX, startW + dx);
-        else if (west) w = Math.max(MIN_PX, startW - dx);
-        if (south) h = Math.max(MIN_PX, startH + dy);
-        else if (north) h = Math.max(MIN_PX, startH - dy);
-      }
+      const next = proportionalResize(dir, startW, startH, dx, dy);
+      w = next.width;
+      h = next.height;
       this.inner.style.width = `${Math.round(w)}px`;
       this.inner.style.height = `${Math.round(h)}px`;
     };
@@ -223,7 +454,10 @@ class ImageResizeView implements NodeView {
    *  image itself still fall through so it selects normally. */
   stopEvent(e: Event): boolean {
     const t = e.target as HTMLElement | null;
-    return !!t?.classList?.contains('pmd-image-handle');
+    if (t?.classList?.contains('pmd-image-handle')) return true;
+    // Toolbar clicks are the toolbar's, not a click into the doc (which
+    // would deselect the image and tear the toolbar down mid-click).
+    return !!(this.toolbar && t && this.toolbar.contains(t));
   }
 
   ignoreMutation(): boolean {
@@ -232,6 +466,7 @@ class ImageResizeView implements NodeView {
 
   destroy(): void {
     this.removeHandles();
+    this.removeToolbar();
   }
 }
 

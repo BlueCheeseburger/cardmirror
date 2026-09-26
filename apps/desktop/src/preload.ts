@@ -40,7 +40,10 @@ interface JournalEntry {
 type UpdateChipStateIpc =
   | { state: 'downloading'; version: string; pct: number }
   | { state: 'available'; version: string }
-  | { state: 'ready'; version: string };
+  | { state: 'ready'; version: string }
+  | { state: 'plugins'; plugins: { name: string; version: string }[] }
+  | { state: 'plugins-updating'; count: number }
+  | { state: 'plugins-ready'; count: number };
 
 interface QuickCardIpc {
   id: string;
