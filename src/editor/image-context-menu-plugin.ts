@@ -149,7 +149,7 @@ function closeImageContextMenu(): void {
 /** Manual alt-text edit: multi-line prompt pre-filled with the current
  *  value, written back to `image.attrs.alt` on submit. No network and
  *  no Anthropic key needed — the AI path is a separate menu item. */
-async function editAltText(
+export async function editAltText(
   view: EditorView,
   imagePos: number,
   imageNode: PMNode,

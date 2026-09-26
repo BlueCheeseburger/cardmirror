@@ -3774,6 +3774,69 @@ img[data-pmd-image].ProseMirror-selectednode,
 .pmd-image-handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
 .pmd-image-handle-w  { top: calc(50% - 8px); left: -3px; cursor: ew-resize; }
 
+/* Google Docs-style toolbar under a selected image (fork; see
+   image-resize-nodeview.ts). Lives inside the image wrapper, so it
+   sets its own font and line-height rather than inheriting the card
+   text's (and the wrapper's `line-height: 0`). */
+.pmd-image-toolbar {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  white-space: nowrap;
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 6px;
+  box-shadow: 0 2px 10px var(--pmd-c-shadow);
+  font-family: var(--pmd-ui-font);
+  font-size: 12px;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.2;
+  color: var(--pmd-c-text);
+  user-select: none;
+  cursor: default;
+}
+.pmd-image-toolbar-btn {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.pmd-image-toolbar-btn:hover:not(:disabled) {
+  background: var(--pmd-c-hover);
+}
+.pmd-image-toolbar-btn.pmd-active {
+  color: var(--pmd-c-accent);
+  background: color-mix(in srgb, var(--pmd-c-accent) 14%, transparent);
+}
+.pmd-image-toolbar-btn:disabled {
+  color: var(--pmd-c-text-muted);
+  cursor: default;
+}
+.pmd-image-toolbar-btn:focus-visible {
+  outline: 2px solid var(--pmd-c-accent);
+  outline-offset: -2px;
+}
+.pmd-image-toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 3px 2px;
+  background: var(--pmd-c-divider);
+}
+
+/* Grab cursor on a selected image: drag it to move it. */
+.pmd-image-wrap.ProseMirror-selectednode > img[data-pmd-image] {
+  cursor: grab;
+}
+
 /* Placeholder span shown in place of unsupported image formats
    (EMF / WMF / TIFF). Visual styling lives here so it can be
    overridden — in particular by the read-mode `display: none` rule. */

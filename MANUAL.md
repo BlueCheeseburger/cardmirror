@@ -714,10 +714,23 @@ color to all of them at once.
   or delete rows and columns and merge or split cells. Tables round-trip
   to Word with their borders and background colors intact.
 - **Insert Image** (Format menu) inserts an image from a file; you can
-  also paste one from the clipboard. Right-click an image to **edit its
-  alt text** (or have AI write it) and to **generate a table from the
-  image** (see [AI features](#13-ai-features)). Alt text round-trips to
-  Word.
+  also paste one from the clipboard or *(fork)* drag image files in from
+  your computer (drop several at once to add them all). An image wider
+  than the page is shrunk to fit it (6.5 inches), like Google Docs.
+  Right-click an image to **edit its alt text** (or have AI write it)
+  and to **generate a table from the image** (see
+  [AI features](#13-ai-features)). Alt text round-trips to Word.
+- *(Fork)* **Click an image** for a toolbar under it, like Google Docs:
+  - **25% / 50% / 75% / Original size**: scale from the picture's own
+    size. The current one is highlighted.
+  - **Fit width**: as wide as the page.
+  - **Alt text**: describe the image for screen readers.
+  - **Replace**: swap in another image at the same width.
+  - **Delete**: remove it.
+- *(Fork)* **Resize** with the handles around a selected image. Every
+  handle keeps the image's shape, so it never stretches.
+- *(Fork)* **Move** an image by dragging it to a new spot. Hold **Ctrl**
+  (**Alt** on macOS) while dropping to copy it instead.
 
 ### Footnotes and endnotes
 
@@ -2645,6 +2658,19 @@ if your install can't be updated in place (for example the app isn't in
 a writable location), the chip opens the releases page instead so you
 can grab the new `.dmg`.
 
+**(fork) Plugins update the same way.** Every time CardMirror checks
+itself for updates (at launch, daily, and when you check by hand), it
+also checks your installed plugins. The same toggle and tournament
+pause cover both. If a plugin has a newer release, the same status-bar
+chip says so ("Plugin update: *name* *version*", or "*N* plugin updates
+available"):
+1. Click the chip and confirm to install the plugin updates.
+2. The chip then reads "Plugins updated — restart to apply". Click it
+   to restart. Any unsaved work is asked about first, as with any quit.
+
+An app update takes the chip first. Plugin updates show once there's
+no app update waiting.
+
 <a id="the-notice-chip"></a>
 ### The notice chip
 
@@ -3431,6 +3457,11 @@ closes. Some plugins include collapsible help sections there too, such
 as how to set them up; click a section's title to expand it. A plugin
 loaded with **Load plugin from file…** also gets a row, marked "loaded
 from file (this session)", so its settings are reachable **(fork)**.
+
+**Updating.** *(Fork)* Plugins are checked for updates along with the
+app, and updates show on the status-bar update chip (see
+[Updates](#updates)). Each row's **Check for updates** button checks
+that one plugin right away.
 
 **Uninstalling.** The Uninstall button removes the plugin, its
 settings, its shortcuts, and any custom ribbon buttons bound to its

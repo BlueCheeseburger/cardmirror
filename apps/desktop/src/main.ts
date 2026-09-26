@@ -90,6 +90,12 @@ import {
   checkPluginUpdate,
 } from './plugin-manager.js';
 import {
+  applyPluginUpdates,
+  describePluginUpdates,
+  findPluginUpdates,
+  type PluginUpdate,
+} from './plugin-update-check.js';
+import {
   grantReadPath,
   grantReadDir,
   setLibraryRoots,
@@ -746,6 +752,7 @@ ipcMain.handle('host:toggle-devtools', (event) => {
  *  of running; the renderer path returns `'dev'` so the UI can
  *  do the same. */
 ipcMain.handle('host:check-for-updates', async () => {
+  void runPluginUpdateCheck();
   if (!app.isPackaged) return { status: 'dev' };
   return new Promise<{ status: 'latest' | 'updating' | 'error'; message?: string }>((resolve) => {
     const offNotAvailable = (): void => {
@@ -779,6 +786,9 @@ ipcMain.handle('host:check-for-updates', async () => {
  *  the same modal the manual flow shows. */
 ipcMain.handle('host:trigger-auto-update-check', async () => {
   runUpdateCheck({ alertOnLatest: false, alertOnError: false, alertOnAvailable: false });
+  // Plugins ride the app's own schedule (launch + daily, same setting
+  // and pause, all decided renderer-side before this call).
+  void runPluginUpdateCheck();
 });
 
 /** Open the OS file manager at the crash-dumps folder. Mirrors
@@ -946,9 +956,12 @@ ipcMain.handle('host:plugin-install-inspect', async (_e, ref: string) =>
 );
 // The relay's browsable plugin directory (allowlist-filtered main-side).
 ipcMain.handle('host:plugin-browse', async () => fetchPluginDirectory());
-ipcMain.handle('host:plugin-install-commit', async (_e, token: string) =>
-  commitPendingInstall(String(token)),
-);
+ipcMain.handle('host:plugin-install-commit', async (_e, token: string) => {
+  const r = await commitPendingInstall(String(token));
+  // Updated from Settings → no longer pending on the update chip.
+  if (r.ok) dropPluginUpdate(r.plugin.id);
+  return r;
+});
 ipcMain.handle('host:plugin-install-discard', async (_e, token: string) => {
   discardPendingInstall(String(token));
 });
@@ -969,7 +982,10 @@ ipcMain.handle('host:plugin-read-file', async (_e, filePath: string) => {
     return { error: (err as Error).message };
   }
 });
-ipcMain.handle('host:plugin-uninstall', async (_e, id: string) => uninstallPlugin(String(id)));
+ipcMain.handle('host:plugin-uninstall', async (_e, id: string) => {
+  await uninstallPlugin(String(id));
+  dropPluginUpdate(String(id));
+});
 ipcMain.handle('host:plugin-check-update', async (_e, id: string, repoRef: string) =>
   checkPluginUpdate(String(id), String(repoRef)),
 );
@@ -2331,6 +2347,8 @@ ipcMain.handle('host:close-self', async (event) => {
 // alive in the dock.
 ipcMain.handle('host:close-cancelled', () => {
   quitInitiated = false;
+  // A restart the user backed out of shouldn't fire on a later quit.
+  relaunchAfterQuit = false;
 });
 
 // ─── Speech-doc registry ──────────────────────────────────────────
@@ -3490,6 +3508,7 @@ function runUpdateCheck(opts: UpdateCheckOpts): void {
  *  for every possible outcome. */
 function runManualUpdateCheck(): void {
   runUpdateCheck({ alertOnLatest: true, alertOnError: true, alertOnAvailable: true });
+  void runPluginUpdateCheck();
 }
 
 // ─── Floating timer pop-out window ───────────────────────────────────
@@ -3724,30 +3743,135 @@ ipcMain.handle('host:timer-popout-exists', () =>
 // surface, and nothing installs until the user clicks it (install-on-quit
 // stays as the fallback for users who never do). macOS (until the swap
 // updater lands) shows an "available" chip that opens the release page.
-type UpdateChipState =
+// Plugin updates (fork) share the chip. An app update always wins it;
+// plugin updates show when there's no app update to show.
+type AppUpdateChip =
   | { state: 'downloading'; version: string; pct: number }
   | { state: 'available'; version: string }
-  | { state: 'ready'; version: string }
+  | { state: 'ready'; version: string };
+type UpdateChipState =
+  | AppUpdateChip
+  | { state: 'plugins'; plugins: { name: string; version: string }[] }
+  | { state: 'plugins-updating'; count: number }
+  | { state: 'plugins-ready'; count: number }
   | null;
-let updateChip: UpdateChipState = null;
-/** The verified update zip electron-updater staged (mac swap path). */
-let macStagedUpdateZip: string | null = null;
+/** The app's own update state. */
+let updateChip: AppUpdateChip | null = null;
+/** Plugin updates found by the last check and not yet installed. */
+let pendingPluginUpdates: PluginUpdate[] = [];
+/** Installing, or installed and waiting on a restart. */
+let pluginUpdatePhase: 'idle' | 'updating' | 'ready' = 'idle';
+let pluginUpdatedCount = 0;
+let pluginCheckInFlight = false;
+/** Set by the plugins-ready chip: relaunch once the quit goes through
+ *  (every window confirmed its unsaved work). Cleared if it doesn't. */
+let relaunchAfterQuit = false;
 
-function setUpdateChip(next: Exclude<UpdateChipState, null>): void {
-  updateChip = next;
+function pluginChip(): UpdateChipState {
+  if (pluginUpdatePhase === 'updating') return { state: 'plugins-updating', count: pluginUpdatedCount };
+  if (pluginUpdatePhase === 'ready') return { state: 'plugins-ready', count: pluginUpdatedCount };
+  if (pendingPluginUpdates.length === 0) return null;
+  return {
+    state: 'plugins',
+    plugins: pendingPluginUpdates.map((u) => ({ name: u.name, version: u.latest })),
+  };
+}
+
+/** What the chip shows: the app update if there is one, else plugins. */
+function effectiveChip(): UpdateChipState {
+  return updateChip ?? pluginChip();
+}
+
+function broadcastChip(): void {
+  const chip = effectiveChip();
   for (const w of BrowserWindow.getAllWindows()) {
-    if (!w.isDestroyed()) w.webContents.send('update:chip', updateChip);
+    if (!w.isDestroyed()) w.webContents.send('update:chip', chip);
   }
 }
 
+/** Check every installed plugin for a newer release and put what's
+ *  found on the chip. Never alerts; failures stay silent. */
+async function runPluginUpdateCheck(): Promise<void> {
+  if (LITE_BUILD) return; // Lite never contacts the network
+  if (pluginCheckInFlight || pluginUpdatePhase !== 'idle') return;
+  pluginCheckInFlight = true;
+  try {
+    pendingPluginUpdates = await findPluginUpdates(await listInstalled(), checkPluginUpdate);
+    broadcastChip();
+  } catch (err) {
+    console.warn('Plugin update check failed:', err);
+  } finally {
+    pluginCheckInFlight = false;
+  }
+}
+
+function dropPluginUpdate(id: string): void {
+  const before = pendingPluginUpdates.length;
+  pendingPluginUpdates = pendingPluginUpdates.filter((u) => u.id !== id);
+  if (pendingPluginUpdates.length !== before) broadcastChip();
+}
+
+/** Plugin chip click. 'plugins' → confirm, then install them all;
+ *  'plugins-ready' → restart to load the new versions. */
+async function pluginChipAction(): Promise<void> {
+  if (pluginUpdatePhase === 'updating') return;
+  if (pluginUpdatePhase === 'ready') {
+    relaunchAfterQuit = true;
+    app.quit();
+    return;
+  }
+  const updates = pendingPluginUpdates;
+  if (updates.length === 0) return;
+  const win = dialogParentWindow();
+  const one = updates.length === 1;
+  const opts: Electron.MessageBoxOptions = {
+    type: 'question',
+    buttons: [one ? 'Update' : 'Update all', 'Not now'],
+    defaultId: 0,
+    cancelId: 1,
+    message: one ? `Update ${updates[0]!.name}?` : `Update ${updates.length} plugins?`,
+    detail: `${describePluginUpdates(updates)}\n\nThe new versions load after a restart.`,
+  };
+  const { response } = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+  if (response !== 0) return;
+  pluginUpdatePhase = 'updating';
+  pluginUpdatedCount = updates.length;
+  broadcastChip();
+  const { updated, failed } = await applyPluginUpdates(updates, inspectFromGithub, commitPendingInstall);
+  const updatedIds = new Set(updated.map((u) => u.id));
+  pendingPluginUpdates = pendingPluginUpdates.filter((u) => !updatedIds.has(u.id));
+  pluginUpdatedCount = updated.length;
+  // Nothing installed → back to offering what's still pending.
+  pluginUpdatePhase = updated.length > 0 ? 'ready' : 'idle';
+  broadcastChip();
+  if (failed.length > 0) {
+    const errOpts: Electron.MessageBoxOptions = {
+      type: 'warning',
+      message: failed.length === 1 ? `Couldn't update ${failed[0]!.update.name}.` : `Couldn't update ${failed.length} plugins.`,
+      detail: failed.map((f) => `${f.update.name}: ${f.error}`).join('\n'),
+    };
+    const parent = dialogParentWindow();
+    void (parent ? dialog.showMessageBox(parent, errOpts) : dialog.showMessageBox(errOpts));
+  }
+}
+/** The verified update zip electron-updater staged (mac swap path). */
+let macStagedUpdateZip: string | null = null;
+
+function setUpdateChip(next: AppUpdateChip): void {
+  updateChip = next;
+  broadcastChip();
+}
+
 /** Late-opened windows pull the current chip state at boot. */
-ipcMain.handle('host:update-chip-state', () => updateChip);
+ipcMain.handle('host:update-chip-state', () => effectiveChip());
 
 /** Chip click: 'ready' (staged) → quit + install now; 'available'
  *  (macOS, not stageable yet) → open the release page; 'downloading'
  *  → nothing to do yet, no-op until it advances to one of those. */
-ipcMain.handle('host:update-chip-action', () => {
-  if (!updateChip || updateChip.state === 'downloading') return;
+ipcMain.handle('host:update-chip-action', async () => {
+  // No app update on the chip → it's showing plugin updates.
+  if (!updateChip) return pluginChipAction();
+  if (updateChip.state === 'downloading') return;
   if (updateChip.state === 'ready') {
     if (process.platform === 'darwin') {
       // Bundle swap (Squirrel can't install into unsigned builds): hand
@@ -4017,6 +4141,9 @@ app.on('will-quit', (event) => {
       });
     return;
   }
+  // The plugins-updated chip asked for a restart and every window has
+  // now confirmed, so this quit really is going through.
+  if (relaunchAfterQuit) app.relaunch();
   void stopFastPasteBridge();
   // Clears only the SESSION half (port/token); the identity file persists
   // so flow-app pickers can still list a closed CardMirror.
