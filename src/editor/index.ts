@@ -283,6 +283,7 @@ import { wordSelectionKeymap } from './word-selection-keymap.js';
 import { morphModePlugin, toggleMorphMode } from './morph-mode.js';
 import { highlightFrequencyPlugin } from './highlight-frequency-plugin.js';
 import { editorDragSurface } from './drag-editor-surface.js';
+import { dragController } from './drag-controller.js';
 import {
   backspaceAtTagStart,
   backspaceAtFirstBodyStart,
@@ -6053,6 +6054,8 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
         // otherwise the highlight flickers to the next heading while you type
         // on the line just above it.
         navPanel.remapPositions(tx.mapping);
+        // A drag in flight follows the edit (a partner's, mid-session).
+        dragController.mapThrough(view, tx.mapping);
         // Headings that ARRIVE via sync (a joined session's initial fill,
         // a partner's additions mid-session) fold to the pane's current
         // depth instead of landing fully expanded. Synchronous, before

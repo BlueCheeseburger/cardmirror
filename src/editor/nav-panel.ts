@@ -473,6 +473,10 @@ export class NavigationPanel {
       if (event === 'begin') {
         const session = dragController.getSession();
         if (session) this.renderDropIndicators(session.items[0]!.level);
+      } else if (event === 'refresh') {
+        // A doc change landed mid-drag: slots carry doc positions, so
+        // rebuild them from the (remapped) rows.
+        this.restoreDragChrome();
       } else if (event === 'end') {
         this.removeDropIndicators();
       } else if (event === 'move') {
@@ -785,6 +789,52 @@ export class NavigationPanel {
   }
 
   private render(doc: PMNode): void {
+    this.renderList(doc);
+    // The rebuild clears the list — drop slots and the dragged rows' grey
+    // included. A rebuild mid-drag is routine in a shared document (every
+    // partner edit), and it left the drag hit-testing detached slots, so
+    // headers could not be dropped anywhere. Put the drag chrome back.
+    if (dragController.isActive()) this.restoreDragChrome();
+  }
+
+  /** Re-render this panel's drop slots and re-grey the rows being dragged
+   *  (no-op for a read-only panel, which is never a drop surface). */
+  private restoreDragChrome(): void {
+    const session = dragController.getSession();
+    if (!session || this.readOnly || !this.unregisterSurface) return;
+    this.renderDropIndicators(session.items[0]!.level);
+    this.markDraggingRows();
+  }
+
+  /** Grey every row the active drag carries: its headings by id, a live
+   *  view's window rows, and every row of a dragged live zone. */
+  private markDraggingRows(): void {
+    const session = dragController.getSession();
+    if (!session || session.view !== this.view) return;
+    const ids = new Set(
+      session.items.map((it) => it.id).filter((id): id is string => id != null),
+    );
+    const doc = session.view.state.doc;
+    const unitStarts = new Set(
+      session.items
+        .filter((it) => {
+          const n = doc.nodeAt(it.from);
+          return !!n && (isTransclusionNode(n) || isSelfRef(n));
+        })
+        .map((it) => it.from),
+    );
+    for (const [li, entry] of this.liEntries) {
+      if (
+        (entry.id != null && ids.has(entry.id)) ||
+        (entry.windowed === true && unitStarts.has(entry.pos)) ||
+        (entry.zonePos != null && unitStarts.has(entry.zonePos))
+      ) {
+        li.classList.add('pmd-nav-item-dragging');
+      }
+    }
+  }
+
+  private renderList(doc: PMNode): void {
     const entries = collectOutlineWithWindows(doc);
 
     // Refresh the `lastSeenIds` set so `applyMaxLevelToNewHeadings`

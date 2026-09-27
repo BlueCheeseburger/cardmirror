@@ -19,6 +19,7 @@
 import type { EditorView } from 'prosemirror-view';
 import { Selection } from 'prosemirror-state';
 import type { EditorState, Transaction } from 'prosemirror-state';
+import type { Mappable } from 'prosemirror-transform';
 import { Fragment, type Node as PMNode, Slice } from 'prosemirror-model';
 import { newHeadingId } from '../schema/ids.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
@@ -88,7 +89,9 @@ export interface DropTarget {
   absorb?: (items: DragItem[]) => Promise<void> | void;
 }
 
-type DragEvent = 'begin' | 'move' | 'end';
+/** `refresh`: the active drag was remapped through a doc change that
+ *  landed mid-drag — surfaces rebuild their drop indicators. */
+type DragEvent = 'begin' | 'move' | 'end' | 'refresh';
 type Listener = (event: DragEvent) => void;
 
 /**
@@ -125,6 +128,9 @@ class DragControllerImpl {
   private copyMode = false;
   private listeners: Set<Listener> = new Set();
   private surfaces: Set<DragSurface> = new Set();
+  /** True while `commit` dispatches the drop — its own transaction must
+   *  not be remapped as if it had landed mid-drag. */
+  private committing = false;
 
   isActive(): boolean {
     return this.session !== null;
@@ -186,6 +192,48 @@ class DragControllerImpl {
    * IDs lands at the drop target.
    */
   commit(opts: { copy?: boolean } = {}): boolean {
+    this.committing = true;
+    try {
+      return this.commitInner(opts);
+    } finally {
+      this.committing = false;
+    }
+  }
+
+  /**
+   * Carry the active drag through a doc change that lands mid-drag. In a
+   * co-editing session a partner's edits arrive continuously, so the
+   * source ranges and the hovered drop position captured at pickup went
+   * stale within moments — the drop cut the wrong range or was refused
+   * outright. Called from every view's dispatch on a doc change. A
+   * dragged unit that no longer exists (a partner deleted it) cancels
+   * the drag rather than moving whatever slid into its old range.
+   */
+  mapThrough(view: EditorView, mapping: Mappable): void {
+    const session = this.session;
+    if (!session || this.committing) return;
+    if (!session.virtual && session.view === view) {
+      const items: DragItem[] = [];
+      for (const it of session.items) {
+        const from = mapping.map(it.from, 1);
+        const to = mapping.map(it.to, -1);
+        if (to <= from) {
+          this.cancel();
+          showToast('Drag cancelled — that section was changed by a partner.');
+          return;
+        }
+        items.push({ ...it, from, to });
+      }
+      this.session = { ...session, items };
+    }
+    const hover = this.hoverTarget;
+    if (hover && hover.view === view && !hover.absorb) {
+      this.hoverTarget = { ...hover, insertPos: mapping.map(hover.insertPos) };
+    }
+    this.notify('refresh');
+  }
+
+  private commitInner(opts: { copy?: boolean }): boolean {
     if (!this.session) return false;
     if (!this.hoverTarget) {
       this.cancel();
