@@ -5,6 +5,55 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed: sending a discontinuous (shadow) selection
+
+Since 3e160efe a scattered nav-pane multi-select becomes the
+discontinuous shadow selection, which parks the caret in the doc-level
+gap before its first range; `resolveSendRange` read only the real
+selection, found no enclosing structure there and returned null, so
+every send command was a silent no-op. `shadowSendRanges` in speech-doc-
+send.ts now reads the shadow ranges the way `getOperatingRanges` does,
+normalizes each (zone-child range inside a live zone, else
+`normalizeSelectionForSend`), merges overlaps and concatenates the
+closed per-range slices in doc order with live views materialized per
+range; a non-empty real selection still wins, and the shadow set is left
+on screen (`takeSendSlice` never removed the source — it only reflects
+the normalized range as the selection). Also makes the manual Ctrl/Cmd
+selection and Select Similar sendable. Tests: send-shadow-
+selection.test.ts. Cora's PR #84.
+
+### Fixed: header drags during a co-editing session
+
+Partner edits rebuild the nav list, which wiped its drop slots mid-drag,
+and the source ranges and hovered insert position captured at pickup
+went stale. `dragController.mapThrough(view, mapping)` — called from
+both the single-doc and the multi-pane dispatch on every doc change —
+remaps the session's items and the hover target and emits a `refresh`
+event; the nav pane and the editor surface rebuild their indicators on
+it, the nav pane also restores slots and dragged-row greying after any
+list rebuild (`restoreDragChrome` / `markDraggingRows`), a dragged unit
+whose range collapses under the mapping cancels the drag with a toast,
+and the drop's own transaction is excluded via a `committing` flag.
+Early-returns when no drag is active. Not yet exercised in a live two-
+peer session. Tests: drag-remap.test.ts. Cora's PR #90.
+
+### Fixed: F2 paste of a cut-in-place card duplicated it
+
+In a shared document a whole-card cut only marks the card; F2 and paste-
+and-condense read text/plain only, so the HTML marker never reached
+`handleCutInPlacePaste` and the paste duplicated the card. The pending
+cut now keeps its text payload; `takePendingCutForPlainPaste` recognizes
+our own cut by that text (line endings normalized), and
+`applyPlainPasteFromText` deletes the marked units in the paste's own
+transaction (delete + insert — a plain paste drops structure, so it
+cannot be the move; this reopens the concurrent-edit window cut-in-place
+avoids, for this path only). Any other text clears the mark and removes
+nothing; pasting into the marked card keeps it; the plugin's apply
+spreads the pending record so the text survives remapping. Tests in cut-
+in-place.test.ts. Cora's PR #91.
+
 ## 1.13.0 — 2026-09-25
 
 ### Added: Read mode: show background color
