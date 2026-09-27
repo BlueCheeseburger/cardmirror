@@ -7184,8 +7184,12 @@ export function formatKeyForDisplay(key: string): string {
   const isMac =
     typeof navigator !== 'undefined' &&
     /mac/i.test(navigator.platform ?? '');
+  // A Mod chord on Tab is Control on macOS, not Command: ⌘Tab is the OS
+  // app switcher and never reaches the app, while Ctrl folds into Mod in
+  // `ribbonKeyStringFor` — so Switch Window's Mod-Tab really is ⌃Tab there.
+  const modGlyph = isMac ? (/(^|-)Tab$/.test(key) ? '⌃' : '⌘') : 'Ctrl+';
   return key
-    .replace(/Mod-/g, isMac ? '⌘' : 'Ctrl+')
+    .replace(/Mod-/g, modGlyph)
     .replace(/Shift-/g, isMac ? '⇧' : 'Shift+')
     .replace(/Alt-/g, isMac ? '⌥' : 'Alt+')
     .replace(/-/g, '+');

@@ -50,6 +50,7 @@ import {
   DEFAULT_RIBBON_KEYS,
   RIBBON_COMMAND_IDS,
   ribbonCommandForKey,
+  formatKeyForDisplay,
 } from '../../src/editor/ribbon-commands.js';
 import { showToast } from '../../src/editor/toast.js';
 
@@ -204,5 +205,27 @@ describe('switchWindow command', () => {
       return (Array.isArray(spec) ? spec : [spec]).includes('Mod-Tab');
     });
     expect(holders).toEqual(['switchWindow']);
+  });
+});
+
+describe('Mod-Tab display', () => {
+  const platform = Object.getOwnPropertyDescriptor(navigator, 'platform');
+  const setPlatform = (p: string): void => {
+    Object.defineProperty(navigator, 'platform', { value: p, configurable: true });
+  };
+  afterEach(() => {
+    if (platform) Object.defineProperty(navigator, 'platform', platform);
+  });
+
+  it('shows Control, not Command, for a Tab chord on macOS (⌘Tab is the OS switcher)', () => {
+    setPlatform('MacIntel');
+    expect(formatKeyForDisplay('Mod-Tab')).toBe('⌃Tab');
+    expect(formatKeyForDisplay('Mod-Shift-Tab')).toBe('⌃⇧Tab');
+    expect(formatKeyForDisplay('Mod-m')).toBe('⌘m');
+  });
+
+  it('is Ctrl+Tab elsewhere', () => {
+    setPlatform('Win32');
+    expect(formatKeyForDisplay('Mod-Tab')).toBe('Ctrl+Tab');
   });
 });

@@ -7,6 +7,18 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **Switch Window (Ctrl+Tab).** In one-window-per-document mode, jump to
+  another CardMirror window by name instead of hunting through the
+  operating system's switcher: Ctrl+Tab opens Search Everything on your
+  other windows, most recently used first, so Ctrl+Tab then Enter goes
+  back to the previous one; Ctrl+Tab again steps down the list, typing
+  narrows it, and a minimized window is restored. The same list is the
+  new `w` prefix in Search Everything. In the three-pane workspace
+  Ctrl+Tab keeps its job of switching documents in the focused slot.
+  Desktop only. Thanks to Brian (@brian-cai)!
+
 ### Fixed
 
 - **Sending a scattered selection works.** Selecting several non-

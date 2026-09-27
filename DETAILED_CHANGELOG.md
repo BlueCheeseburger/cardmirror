@@ -7,6 +7,29 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+### Added: Switch Window (`w ` palette source, Mod-Tab)
+
+Main records window focus order (`browser-window-focus`) and answers
+`host:list-windows` with every document window except the timer, most
+recently focused first, with each window's saved doc names, speech flag,
+minimized flag and an `isOwnWindow` marker; `host:focus-window` restores
+and focuses one. The palette gains a `w ` source (`searchWindowSource`:
+other windows only, every typed word must hit the label or title; Enter
+closes the palette and focuses, toasting if the window has gone) and an
+`initialQuery` open option. The `switchWindow` command (Window/Help
+group, view-less so it works from the home screen) opens the palette on
+`w `, steps the selection when already open on that source, and in the
+three-pane workspace drives the existing slot doc switcher
+(`stepFocusedSlotDocSwitcher`), whose Ctrl-Tab listener was refactored
+to share `stepDocSwitcher`. Default key Mod-Tab — the first default on a
+new command in a while, chosen because the Windows users it serves will
+not visit the keybindings editor; Ctrl folds into Mod in
+`ribbonKeyStringFor`, so Ctrl+Tab works on macOS too. Merge fixup:
+`formatKeyForDisplay` renders a Mod chord on Tab as ⌃ on macOS instead
+of ⌘ (⌘Tab is the OS app switcher and never reaches the app), so the
+keybindings editor and tooltips say ⌃Tab. Tests: switch-window.test.ts.
+Brian's PR #87.
+
 ### Fixed: sending a discontinuous (shadow) selection
 
 Since 3e160efe a scattered nav-pane multi-select becomes the
