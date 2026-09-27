@@ -59,8 +59,31 @@ it, the nav pane also restores slots and dragged-row greying after any
 list rebuild (`restoreDragChrome` / `markDraggingRows`), a dragged unit
 whose range collapses under the mapping cancels the drag with a toast,
 and the drop's own transaction is excluded via a `committing` flag.
-Early-returns when no drag is active. Not yet exercised in a live two-
-peer session. Tests: drag-remap.test.ts. Cora's PR #90.
+Early-returns when no drag is active. Tests: drag-remap.test.ts. Cora's
+PR #90.
+
+Driven against the real binding after the merge (2026-09-27, two peers
+on the Loro sync plugin in one process, tests/collab/drag-during-
+session.test.ts) and position mapping alone did not survive it: a
+partner's structural edit (a new card) arrives as ONE ReplaceStep over
+the whole document, so every dragged range collapsed and the guard
+cancelled falsely; and the binding's minimal diff for a deleted card
+sits one position off the node's own bounds, so the mapped range shrank
+to a single position, the guard stayed quiet, and the drop moved that
+sliver — an empty node at the top of the doc. The controller now
+captures each unit's identity at pickup (node type + head id,
+`unitHeadId`) and after every remap re-resolves it (`resolveUnit`): the
+mapped range is kept only if it still holds exactly that unit, else the
+unit is found by head id wherever it now sits, else the drag cancels. A
+hover slot whose position was inside replaced content
+(`mapResult().deletedAcross`) is dropped; the next pointer move hit-
+tests a fresh one. `commitInner` runs the same check as a last line
+before slicing. The two-peer test covers: typing above, a card inserted
+beside the dragged one, typing inside the dragged card (the edit travels
+with it), the dragged card deleted (cancel, nothing moved), the drop
+slot following an edit, a slot inside replaced content being dropped,
+and the nav pane's indicators and greying surviving a partner-triggered
+rebuild.
 
 ### Fixed: F2 paste of a cut-in-place card duplicated it
 

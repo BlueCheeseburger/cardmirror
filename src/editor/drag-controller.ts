@@ -21,7 +21,7 @@ import { Selection } from 'prosemirror-state';
 import type { EditorState, Transaction } from 'prosemirror-state';
 import type { Mappable } from 'prosemirror-transform';
 import { Fragment, type Node as PMNode, Slice } from 'prosemirror-model';
-import { newHeadingId } from '../schema/ids.js';
+import { newHeadingId, HEADING_TYPE_NAMES } from '../schema/ids.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
 import { READ_MODE_DRAG_META } from './reading-marker.js';
 import { autoScrollUnderPointer } from './drag-autoscroll.js';
@@ -120,6 +120,50 @@ export interface DragSurface {
   highlight(el: HTMLElement | null): void;
 }
 
+/** Head id of the unit starting at `from`: a card / analytic unit carries
+ *  it on its first child, a pocket / hat / block on itself. */
+function unitHeadId(doc: PMNode, from: number): string | null {
+  const node = doc.nodeAt(from);
+  if (!node) return null;
+  const head = HEADING_TYPE_NAMES.has(node.type.name) ? node : node.firstChild;
+  const id = head && HEADING_TYPE_NAMES.has(head.type.name) ? head.attrs['id'] : null;
+  return typeof id === 'string' && id ? id : null;
+}
+
+/** The exact range of the dragged unit in `doc` after a doc change:
+ *  the mapped range when it still holds a node of the pickup's type and
+ *  head id (and nothing else), else the unit found by its head id
+ *  wherever it now sits, else null (the unit is gone). */
+function resolveUnit(
+  doc: PMNode,
+  mapped: { from: number; to: number },
+  anchor: { typeName: string | null; headId: string | null },
+): { from: number; to: number } | null {
+  const at = mapped.to > mapped.from ? doc.nodeAt(mapped.from) : null;
+  if (
+    at &&
+    at.nodeSize === mapped.to - mapped.from &&
+    (anchor.typeName === null || at.type.name === anchor.typeName) &&
+    (anchor.headId === null || unitHeadId(doc, mapped.from) === anchor.headId)
+  ) {
+    return mapped;
+  }
+  if (anchor.headId === null) return null;
+  let found: { from: number; to: number } | null = null;
+  doc.descendants((node, pos) => {
+    if (found) return false;
+    if (
+      (anchor.typeName === null || node.type.name === anchor.typeName) &&
+      unitHeadId(doc, pos) === anchor.headId
+    ) {
+      found = { from: pos, to: pos + node.nodeSize };
+      return false;
+    }
+    return true;
+  });
+  return found;
+}
+
 class DragControllerImpl {
   private session: DragSession | null = null;
   private hoverTarget: DropTarget | null = null;
@@ -131,6 +175,16 @@ class DragControllerImpl {
   /** True while `commit` dispatches the drop — its own transaction must
    *  not be remapped as if it had landed mid-drag. */
   private committing = false;
+  /** What each dragged unit IS, captured at pickup: its node type and
+   *  the id of its head (the tag of a card, the heading itself). Position
+   *  mapping alone cannot carry a drag through the collab binding's
+   *  remote renders — a partner's structural edit arrives as one
+   *  replacement of the whole document (every range collapses → a false
+   *  cancel), and a deletion's diff boundary sits one position off the
+   *  node's own (the range shrinks to one position → the guard misses it
+   *  and the drop moves garbage). After every remap the unit is
+   *  re-resolved by identity instead. */
+  private anchors: Array<{ typeName: string | null; headId: string | null }> = [];
 
   isActive(): boolean {
     return this.session !== null;
@@ -165,6 +219,7 @@ class DragControllerImpl {
     this.session = session;
     this.hoverTarget = null;
     this.copyMode = false;
+    this.captureAnchors(session);
     this.notify('begin');
   }
 
@@ -213,28 +268,64 @@ class DragControllerImpl {
     const session = this.session;
     if (!session || this.committing) return;
     if (!session.virtual && session.view === view) {
+      // Call after `view.updateState`: the units are re-resolved against
+      // the view's CURRENT doc.
+      const doc = view.state.doc;
       const items: DragItem[] = [];
-      for (const it of session.items) {
-        const from = mapping.map(it.from, 1);
-        const to = mapping.map(it.to, -1);
-        if (to <= from) {
+      for (let i = 0; i < session.items.length; i++) {
+        const it = session.items[i]!;
+        const anchor = this.anchors[i] ?? { typeName: null, headId: null };
+        const mapped = { from: mapping.map(it.from, 1), to: mapping.map(it.to, -1) };
+        const range = resolveUnit(doc, mapped, anchor);
+        if (!range) {
           this.cancel();
           showToast('Drag cancelled — that section was changed by a partner.');
           return;
         }
-        items.push({ ...it, from, to });
+        items.push({ ...it, ...range });
       }
-      this.session = { ...session, items };
+      // Re-resolution can reorder units the partner moved around.
+      const order = items.map((it, i) => i).sort((a, b) => items[a]!.from - items[b]!.from);
+      this.session = { ...session, items: order.map((i) => items[i]!) };
+      this.anchors = order.map((i) => this.anchors[i] ?? { typeName: null, headId: null });
     }
     const hover = this.hoverTarget;
     if (hover && hover.view === view && !hover.absorb) {
-      this.hoverTarget = { ...hover, insertPos: mapping.map(hover.insertPos) };
+      const r = mapping.mapResult(hover.insertPos);
+      // A slot that sat inside replaced content no longer means anything;
+      // drop it — the next pointer move hit-tests a fresh one (surfaces
+      // rebuild their indicators on 'refresh').
+      this.hoverTarget = r.deletedAcross ? null : { ...hover, insertPos: r.pos };
     }
     this.notify('refresh');
   }
 
+  /** Snapshot what each unit is, for `mapThrough` to re-resolve by. */
+  private captureAnchors(session: DragSession): void {
+    const doc = session.view.state.doc;
+    this.anchors = session.virtual
+      ? []
+      : session.items.map((it) => {
+          const node = doc.nodeAt(it.from);
+          return { typeName: node?.type.name ?? null, headId: unitHeadId(doc, it.from) ?? it.id };
+        });
+  }
+
   private commitInner(opts: { copy?: boolean }): boolean {
     if (!this.session) return false;
+    // Last check before anything moves: every unit must still be the one
+    // picked up (a remote render that bypassed dispatch, a stale range).
+    if (!this.session.virtual) {
+      const doc = this.session.view.state.doc;
+      const stale = this.session.items.some(
+        (it, i) => !resolveUnit(doc, it, this.anchors[i] ?? { typeName: null, headId: null }),
+      );
+      if (stale) {
+        this.cancel();
+        showToast('Drag cancelled — that section was changed by a partner.');
+        return false;
+      }
+    }
     if (!this.hoverTarget) {
       this.cancel();
       return false;
@@ -368,6 +459,7 @@ class DragControllerImpl {
     this.session = null;
     this.hoverTarget = null;
     this.copyMode = false;
+    this.anchors = [];
     this.notify('end');
   }
 
