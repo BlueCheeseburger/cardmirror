@@ -87,6 +87,9 @@ interface PendingItem {
 export interface PendingCut {
   nonce: string;
   items: PendingItem[];
+  /** The clipboard's text/plain payload — how a plain-text paste (F2),
+   *  which never sees the HTML marker, recognizes this cut. */
+  text?: string;
 }
 export interface CutInPlaceState {
   pending: PendingCut | null;
@@ -202,6 +205,7 @@ export async function markCutInPlace(view: EditorView, ranges: RangePair[]): Pro
   const { html, text } = clipboardPayload(view, ranges, `${key}|${n}`);
   const pending: PendingCut = {
     nonce: n,
+    text,
     items: ranges.map((r) => ({ id: unitHeadId(view.state.doc, r.from), from: r.from, to: r.to })),
   };
   view.dispatch(view.state.tr.setMeta(cutInPlaceKey, { type: 'set', pending } satisfies Meta));
@@ -325,6 +329,35 @@ export function handleCutInPlacePaste(view: EditorView, html: string): boolean {
   return true;
 }
 
+function normalizeCutText(s: string): string {
+  return s.replace(/\r\n?/g, '\n').trim();
+}
+
+/**
+ * Plain-text paste (F2, paste-and-condense) of a pending cut. Those paths
+ * read only text/plain, so the marker never reached
+ * `handleCutInPlacePaste`: the units stayed put and the paste duplicated
+ * them. The cut is recognized by its text payload instead. A plain paste
+ * drops the structure, so it cannot be the move — it is delete + insert,
+ * the ordinary cut-and-paste: returns the unit ranges (current doc) for the
+ * caller to delete in the paste's own transaction, or null to paste
+ * without removing anything. Either way the mark is cleared, as any
+ * paste clears it.
+ */
+export function takePendingCutForPlainPaste(view: EditorView, text: string): RangePair[] | null {
+  const pending = pendingCut(view.state);
+  if (!pending) return null;
+  const ours = pending.text != null && normalizeCutText(text) === normalizeCutText(pending.text);
+  const items = ours ? resolvePending(view.state.doc, pending) : [];
+  clearCutInPlace(view);
+  if (items.length === 0) return null;
+  // Pasting into (or over) a marked unit: deleting the unit would take the
+  // paste with it. Leave the unit; the text lands as typed.
+  const { from, to } = view.state.selection;
+  if (items.some((it) => from < it.to && to > it.from)) return null;
+  return items.map((it) => ({ from: it.from, to: it.to }));
+}
+
 function decorationsFor(doc: PMNode, pending: PendingCut): DecorationSet {
   const decos: Decoration[] = [];
   for (const it of pending.items) {
@@ -381,7 +414,7 @@ export function buildCutInPlacePlugin(): Plugin<CutInPlaceState> {
           }
           // else: a local move (drag) — the mark is done for this unit
         }
-        return items.length ? { pending: { nonce: prev.pending.nonce, items } } : { pending: null };
+        return items.length ? { pending: { ...prev.pending, items } } : { pending: null };
       },
     },
     props: {
