@@ -3661,6 +3661,8 @@ function buildDocRecord(
         // debounced rebuilds so caret-tracking doesn't flicker to the next
         // heading while typing just above it (parity with single-doc, index.ts).
         record.navPanel.remapPositions(tx.mapping);
+        // A drag in flight follows the edit (a partner's, mid-session).
+        dragController.mapThrough(view, tx.mapping);
         // Sync-arrived headings fold to this pane's current depth (the
         // joined-session initial fill used to land fully expanded) —
         // parity with single-doc, and it must run before the debounced

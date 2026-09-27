@@ -136,7 +136,9 @@ export class EditorDragSurface implements DragSurface {
 
     this.unregisterSurface = dragController.registerSurface(this);
     this.unsubscribeDrag = dragController.subscribe((event) => {
-      if (event === 'begin') {
+      if (event === 'begin' || event === 'refresh') {
+        // 'refresh': a doc change landed mid-drag (a partner's edit in
+        // a shared document) — slots carry doc positions, so rebuild.
         // Eager render at drag start, not lazily on first hitTest:
         // lazy rendering leaves cross-pane drop targets (multi-doc
         // mode) without indicators when the pointer enters them. The
