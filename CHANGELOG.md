@@ -200,7 +200,7 @@ Syncs all changes from [v1.12.0](#1120--2026-09-21) and [v1.11.0](#1110--2026-09
 - **Copy All Cards With Matching Cite**, a **stopwatch** mode for the timer, **Reset to Default Colors**, and a **show undertags** option for read mode
 - Fixes to Reading View's last page and to sending several selected headings
 
-## 1.10.0-bcb.4 — 2026-09-18
+## 1.10.0-bcb.5 — 2026-09-18
 
 ### Added
 
@@ -245,7 +245,7 @@ Syncs all changes from [v1.12.0](#1120--2026-09-21) and [v1.11.0](#1110--2026-09
   screen instead of a fresh document.** The new window now opens
   straight into the blank document it was asked for.
 
-## 1.10.0-bcb.3.4 — 2026-09-15
+## 1.10.0-bcb.4 — 2026-09-15
 
 ### Added
 
