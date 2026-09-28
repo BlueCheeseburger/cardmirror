@@ -335,6 +335,10 @@ mirrors Word's Navigation Pane, but does more:
   expansions. Changing depth keeps the section your cursor is in at the
   top of the outline (turn off **Navigation pane follows the cursor**
   in Settings → General to return to the top of the document instead).
+  To change depth from the keyboard, bind the **Navigation Pane: Show
+  Level 1** … **Show Levels 1–4** commands in Settings → Keyboard
+  shortcuts (unbound by default); they act on the focused document's
+  pane, exactly like the buttons.
 - **Multi-select** — Mod-click adds an entry to the selection,
   Shift-click selects a contiguous range.
 - **Reorder** — drag an entry (or a multi-selection) up or down. It
@@ -432,7 +436,7 @@ below say which fallback applies where it matters.
 | **Underline** | F9 / Mod-U | Toggles underline on the selection (press again to remove). With **nothing selected** the two differ: **F9** underlines the word at the cursor; **Mod-U** instead turns on underline for the text you're about to type (like Mod-I for italics). |
 | **Emphasis** | F10 | Applies the Emphasis style (a box, by default). Apply-only; use Clear or Underline to swap it off. |
 | **Highlight** | F11 | Toggles the active highlight color. Press again to remove. |
-| **Clear** | F12 | Strips direct formatting back to plain text (leaves highlighting — toggle that off separately). |
+| **Clear** | F12 | Strips direct formatting back to plain text (leaves highlighting unless **Clear (F12) also removes highlighting** is on in Settings → Editing). |
 | **Bold / Italic** | Mod-B / Mod-I | Standard direct formatting. With nothing selected, toggles it for the text you're about to type; while italic typing is on, the cursor tilts to match. Tags and headings are bold by default, so **Bold inside a tag un-bolds** the selected words (press it again to restore) — and .docx files with un-bolded words in tags now show that correctly. |
 
 Super/subscript and strikethrough live in the **Format** menu (super and
@@ -600,6 +604,15 @@ It honors the same protections as Shrink (omission markers, integrity
 warnings, your custom rules), and regular **Shrink (Mod-8)** and **Regrow
 (Mod-Shift-8)** still work on the result.
 
+### Condense With Warning and Shrink
+
+**Condense With Warning and Shrink** (a command, unbound by default) runs
+Condense With Warning on the selected paragraphs, then Shrink on the result,
+as one step with one undo. It's the fast way to cut the unread middle of a card
+down to a single small paragraph between its pause and resume markers. The
+shrink follows Shrink's settings, so with omission protection on (the default)
+the markers stay full size. Press **Mod-8** again to keep cycling smaller.
+
 ### Citations
 
 - **Cite (F8)** applies the cite character style to the author and date,
@@ -666,6 +679,15 @@ paint, until you pick a color again.
   Supports all 15 Word highlight colors.
 - **Background color (Mod-F11)** — a separate background color that
   can coexist with a highlight; takes any color.
+- **Emphasis + Background Color** (unbound; run it from Search
+  Everything or give it a key in Settings → Keyboard shortcuts) applies
+  Emphasis and the active background color in one step, with one undo.
+  Applying Emphasis on its own removes background color, so pressing
+  Mod-F11 and then F10 loses the background; this command does them in
+  the order that keeps both. Like F10 it always applies (pressing it
+  again doesn't toggle anything off), and with nothing selected it acts
+  on the word at the cursor. With the "no color" background pen active,
+  the text is emphasized and left with no background.
 - **Font color** — applies a text color; the "Automatic" swatch removes
   it.
 
@@ -836,6 +858,12 @@ everywhere:
 - **PageUp / PageDown** — jump by heading, to the previous / next
   structural marker (Pocket, Hat, Block, Tag, Analytic), skipping over
   body text — a quick way to move through a file by its outline.
+- **Go to Next / Previous Pocket, Hat, Block, or Tag** — the same jump,
+  but stopping only at headings of that one level (Next Tag skips
+  Blocks, Analytics, and everything else). The heading lands where a
+  click in the navigation pane would put it, just under the ribbon.
+  These are unbound by default; assign keys in Settings → Keyboard
+  shortcuts or run them from the command bar.
 
 Hold **Shift** with any of these to **extend the selection** instead of
 just moving the cursor, exactly as in Word. So **Shift-Ctrl/Alt-Right**
@@ -1162,8 +1190,25 @@ workspace while another shows a single document.
   active document into a slot.
 - **Expand** a slot to full width with **Mod-Shift-F**, and restore it
   the same way.
+- **Hide Slot** (a command, unbound by default) takes the focused slot out
+  of the layout so the other slots share its width. Its documents stay open.
+  **Reveal All Slots** brings every hidden slot back, and so do **Mod-1/2/3**
+  on that slot, opening or sending a document into it, Arrange Windows, and
+  anything that needs you to see one of its documents (a save prompt, or a
+  file that turns out to be open there already).
+  The last slot showing can't be hidden, and if you close every document
+  in the slots that are showing, the hidden ones come back. Turn on
+  **Settings → General → Workspace → Show a Hide button on each slot**
+  (off by default) for a Hide
+  button in each slot's title bar.
 - When you have more than one document in a slot, jump between them using
   the drop-down in the document's title bar or by using **Ctrl-Tab**.
+- Turn on **Opening a file replaces an untouched Untitled doc**
+  (Settings → General → Workspace; off by default) and opening a file into
+  a slot that's showing a blank **Untitled** document you haven't touched
+  (never typed in, never saved) replaces it instead of stacking on top.
+  Once you've typed anything, even if you delete it again, the Untitled
+  doc stays put.
 - Each slot's footer has its own **+ New** button (blank doc into that
   slot) and **+ Open file** button, so you can build up a workspace slot
   by slot.
@@ -1275,7 +1320,11 @@ entire cite* is on. Undo restores the cards.
   its cite-marked and highlighted words show unless you turn on
   *Read mode: keep entire cite* (Settings → General), which shows the
   whole citation; *Read mode: show undertags* (same place) brings the
-  undertags back, whole. Neither adds to the word count or read time.
+  undertags back, whole; and *Read mode: show background color* (same
+  place) keeps background-colored text visible beside the highlighting —
+  handy after [Lock Highlighting](#colors-highlight-background-and-font-color)
+  when you want the old pass on screen while you read your new one. None
+  of them adds to the word count or read time.
 
 - It **locks the keyboard**, so a stray key or trackpad twitch at the
   podium can't edit your file.
@@ -1529,6 +1578,19 @@ Opening a third document, expanding a slot, or emptying one hands the widths
 back to the normal layout. Desktop only — a browser cannot place its own
 windows, so the command does not appear in the web edition.
 
+New Speech Document normally asks which slot to use. Turn on **Settings →
+General → Workspace → New speech documents open on the speech doc side** (off
+by default) and it skips the question: the new speech doc opens in the slot on
+the side set above (Slot 3 for right, Slot 1 for left), so it's already where
+Arrange Windows would put it.
+
+To have the speech doc marked for you, turn on **Settings → General →
+Workspace → Mark the first document in the speech doc slot as the speech doc**
+(off by default). While no speech doc is marked, the first document you open or
+create in the speech-side slot (Slot 3 for right, Slot 1 for left) gets marked.
+Once a speech doc is marked, nothing changes, and moving a document between
+slots never marks it.
+
 ### Send-to-speech and the dropzone
 
 Assemble a speech document by sending cards into it:
@@ -1552,6 +1614,14 @@ inserting it; **Copy to clipboard** there copies the cards for pasting
 anywhere, and **Close** (or Esc) puts the preview away. A **Read mode**
 button in the preview shows only the marked text, and it stays on for later
 previews until you turn it off.
+
+The dropzone pill and the **Send** and **Receive** pills (if collaboration
+is on) sit together in one row at the bottom-left of the editor, and all
+three open the same way: click one and its list rises above the row, and
+the pill you clicked is outlined in blue. Every list starts at the row's
+left edge and can run as wide as the editor, whichever pill opened it, so
+that outlined pill is what tells you which one you're looking at. The
+shelf's **Clear** button sits at the bottom of its list.
 
 ### Saving a send doc
 
@@ -1649,8 +1719,9 @@ invite; add them to your recipients (and name them) or block them from
 there.
 
 **Receive:** incoming cards land in the **Receive** pill, which flashes
-and shows a "total · N new" badge. Click it to open the inbox; each
-row shows the card's label, who sent it, and when. From a row:
+and shows a "total · N new" badge. Click it to open the inbox above the
+pill row; each row shows the card's label, who sent it, and when. From a
+row:
 
 - **Click** inserts the card at the cursor; **Alt-click** appends it at the
   end of the document; or **drag** it in like any dropzone item. Inserting
@@ -1661,6 +1732,8 @@ row shows the card's label, who sent it, and when. From a row:
   view with a nav pane, so you can see what someone sent before it goes
   anywhere; **Copy to clipboard** there copies the cards for pasting, and
   **Close** (or Esc) dismisses it.
+- **Clear**, at the bottom of the list, removes everything received (a
+  sender can always send again).
 - Inserted cards fold in the nav pane to your current outline depth
   instead of arriving fully expanded.
 - **Mod-P** inserts the most recently received card at the cursor, and
@@ -2204,7 +2277,7 @@ Keyboard shortcuts**. They appear only on Windows.
 
 ## 15. Voice control
 
-> **Experimental — and, as of 1.12.0, commands are still unreliable.** Dictation works
+> **Experimental — and, as of 1.13.0, commands are still unreliable.** Dictation works
 > well. The single-word commands do not yet: the recognizer decodes an open
 > vocabulary, so a one-word utterance often comes back as some other word
 > and nothing fires. Calibration helps only a little. A keyword-spotting pass
@@ -2339,6 +2412,13 @@ file manager onto any CardMirror window — the editor, the navigation pane, or 
 home screen — to open it, exactly like File → Open (including the unsaved-changes
 prompt, and focusing a copy that's already open). Other file types are ignored,
 and dragging cards around inside the editor is unaffected.
+
+**Opening several files at once.** Turn on **Settings → General → Workspace →
+Open several files at once** (off by default, desktop only) and the Open dialog
+takes a multi-selection (Shift-click or Mod-click). In the three-pane workspace you
+pick one slot for the whole batch, and every file lands in that slot's stack,
+so **Ctrl-Tab** cycles through them; a slot's own Open button does the same
+without asking. In one-window-per-document mode each file gets its own window.
 
 **Reopening your last set of documents.** Turn on **Settings → General →
 Workspace → Remember my last workspace** (off by default) and CardMirror
@@ -2502,6 +2582,27 @@ versions.
   **Save As…** (keep both), or cancel. Autosave never overwrites a file
   that changed underneath it; it pauses and tells you to use Save to
   review. **(Desktop only.)**
+- **Drag the file out of the app (desktop).** The CardMirror mark in the
+  bottom-right corner of the status bar stands for the focused document's
+  file: drag it into Slack, Mail, Teams, Finder or Explorer to share the
+  file itself, or click it to show the file in its folder. It's dimmed
+  until the document has been saved, since what travels is the file on
+  disk (save first to include your latest edits). In the three-pane
+  workspace it follows the focused document.
+
+- **Saved Word files carry an invisible CardMirror marker.** A .docx
+  saved here names CardMirror and its version in the file's standard
+  application properties (the same place Word names itself), next to
+  the document id CardMirror already kept there. Nothing shows in the
+  document, and it changes nothing about how the file opens in Word or
+  anywhere else.
+- **Drag the file out of the title bar (macOS desktop).** Once a document
+  has been saved, the window's title bar carries its file icon, as in Word
+  or Pages: hover over the title to reveal it, then drag it into Slack,
+  Mail, Finder, or any other app to share the file itself. The file is
+  whatever is on disk, so save first to include your latest edits.
+  Cmd-click the title to see the folder it lives in. In the multi-doc
+  workspace the icon follows the focused document.
 
 ### Save As
 
@@ -2774,6 +2875,13 @@ headers shown inside each tab.
   and Convert Cards to Read Mode follows it too. Undertag text still does
   not count toward word counts or read-time estimates unless it is
   highlighted.
+- **Read mode: show background color** — when on, read mode shows text
+  with a background color as well as highlighted text, so highlighting
+  you locked to background (Lock Highlighting) — or an opponent's old
+  highlighting — stays visible while you read your own. Off by default.
+  Display-only, and Convert Cards to Read Mode follows it too.
+  Background-colored text still does not count toward word counts or
+  read-time estimates.
 
 **Word counts**
 

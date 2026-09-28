@@ -36,11 +36,12 @@
 
 import { linkUrls } from './autolink.js';
 import { Fragment, type Mark, type MarkType, type Node as PMNode, type ResolvedPos } from 'prosemirror-model';
-import { Selection, TextSelection, type Command, type EditorState, type Transaction } from 'prosemirror-state';
+import { EditorState, Selection, TextSelection, type Command, type Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { toggleMark } from 'prosemirror-commands';
 import { undo as historyUndo, redo as historyRedo } from 'prosemirror-history';
 import { toggleReadingMarkerCommand } from './reading-marker.js';
+import { moveToHeadingOfType } from './word-selection-keymap.js';
 import { convertCardsToReadMode } from './convert-cards-to-read-mode.js';
 import { openFootnoteEditor } from './footnote-popover.js';
 import { flipQuoteDirection } from './flip-quote-direction.js';
@@ -1176,7 +1177,14 @@ function getOperatingRangesForFormatting(
 
 function applyBodyMark(
   markName: 'cite_mark' | 'emphasis_mark',
-  opts: { expandToWordWhenEmpty?: boolean } = {},
+  opts: {
+    expandToWordWhenEmpty?: boolean;
+    /** Also paint background color (`shading`) in this color over the
+     *  same ranges, AFTER the apply-strip — which removes shading, so
+     *  it has to come second. Null (the "No background" pen) leaves
+     *  the ranges with no background. */
+    thenShading?: () => string | null;
+  } = {},
 ): Command {
   return withGapFix((state, dispatch) => {
     const markType = schema.marks[markName];
@@ -1223,6 +1231,11 @@ function applyBodyMark(
       // `APPLY_DIRECT_FORMATTING_STRIP_NAMES` for the rationale.
       stripDirectFormattingOnApply(tr, r.from, r.to);
     }
+    const shadingColor = opts.thenShading?.() ?? null;
+    const shadingType = schema.marks['shading'];
+    if (shadingColor !== null && shadingType) {
+      for (const r of ranges) tr.addMark(r.from, r.to, shadingType.create({ color: shadingColor }));
+    }
     if (op.fromShadow) tr.setMeta(META_OPERATING_ON_SHADOW, true);
     dispatch(tr);
     return true;
@@ -1235,6 +1248,19 @@ export function applyCite(): Command {
 
 export function applyEmphasis(): Command {
   return applyBodyMark('emphasis_mark', { expandToWordWhenEmpty: true });
+}
+
+/**
+ * Emphasis and background color in one step (unbound by default): F10,
+ * then the active background color over the same ranges, in one
+ * transaction — one undo. F10 alone strips background, so pressing
+ * Mod-F11 then F10 lost the background; this does it in the order that
+ * keeps both. Apply-only, like F10: repeating it re-applies rather than
+ * toggling off. The background follows the Mod-F11 pen; with "No
+ * background" active, the text is left without one.
+ */
+export function applyEmphasisAndShading(activeShading: () => string | null): Command {
+  return applyBodyMark('emphasis_mark', { expandToWordWhenEmpty: true, thenShading: activeShading });
 }
 
 /**
@@ -2550,6 +2576,8 @@ export function setFontSize(
 //   - Partial: strip the above plus `underline_direct` AND all named-
 //     style marks — partial is "clear character formatting" in the
 //     Verbatim sense; only highlight/shading are exempted.
+//   - The `clearRemovesHighlighting` setting (off by default) adds
+//     `highlight` to every regime's strip set. Shading is always kept.
 //
 // Paragraph type demotion (full coverage):
 //   - pocket / hat / block → paragraph (setNodeMarkup)
@@ -2616,9 +2644,10 @@ function convertUnderlineDirectToMarkOnTr(
 function cleanFragmentForClearToNormal(
   fragment: Fragment,
   mode: 'cursor' | 'full',
+  extraStrip: readonly string[],
 ): Fragment {
   const stripNames = mode === 'cursor' ? F12_STRIP_DIRECT_NAMES : F12_STRIP_PARTIAL_NAMES;
-  const stripSet = new Set<string>(stripNames);
+  const stripSet = new Set<string>([...stripNames, ...extraStrip]);
   const convertUnderlineDirect = mode === 'cursor';
   const directType = schema.marks['underline_direct'];
   const markType = schema.marks['underline_mark'];
@@ -2655,9 +2684,12 @@ interface ClearToNormalOp {
   partialTo?: number;
 }
 
-export function clearToNormal(): Command {
+/** `removeHighlight` reads the `clearRemovesHighlighting` setting at
+ *  run time; when it's on, `highlight` is stripped along with the rest. */
+export function clearToNormal(removeHighlight: () => boolean = () => false): Command {
   return (state, dispatch) => {
     const sel = state.selection;
+    const extraStrip: readonly string[] = removeHighlight() ? ['highlight'] : [];
     const isEmpty = sel.empty;
 
     // Shadow-selection path: when the PM selection is collapsed and
@@ -2671,7 +2703,7 @@ export function clearToNormal(): Command {
         if (!dispatch) return true;
         const tr = state.tr;
         for (const { from, to } of shadowOp.ranges) {
-          applyClearToNormalPartial(tr, from, to);
+          applyClearToNormalPartial(tr, from, to, extraStrip);
         }
         tr.setMeta(META_OPERATING_ON_SHADOW, true);
         dispatch(tr);
@@ -2714,9 +2746,9 @@ export function clearToNormal(): Command {
     for (let i = ops.length - 1; i >= 0; i--) {
       const op = ops[i]!;
       if (op.mode === 'cursor' || op.mode === 'full') {
-        applyClearToNormalDemote(tr, op);
+        applyClearToNormalDemote(tr, op, extraStrip);
       } else if (op.partialFrom != null && op.partialTo != null) {
-        applyClearToNormalPartial(tr, op.partialFrom, op.partialTo);
+        applyClearToNormalPartial(tr, op.partialFrom, op.partialTo, extraStrip);
       }
     }
 
@@ -2733,13 +2765,19 @@ export function clearToNormal(): Command {
  *      everything the partial-coverage path would, then demote on
  *      top of it. "Both behaviors at once."
  */
-function applyClearToNormalDemote(tr: Transaction, op: ClearToNormalOp): void {
+function applyClearToNormalDemote(
+  tr: Transaction,
+  op: ClearToNormalOp,
+  extraStrip: readonly string[],
+): void {
   const { nodeStart, nodeSize, typeName, depth, mode } = op;
   const contentFrom = nodeStart + 1;
   const contentTo = nodeStart + nodeSize - 1;
   const fragmentMode: 'cursor' | 'full' = mode === 'cursor' ? 'cursor' : 'full';
-  const stripNames =
-    fragmentMode === 'cursor' ? F12_STRIP_DIRECT_NAMES : F12_STRIP_PARTIAL_NAMES;
+  const stripNames = [
+    ...(fragmentMode === 'cursor' ? F12_STRIP_DIRECT_NAMES : F12_STRIP_PARTIAL_NAMES),
+    ...extraStrip,
+  ];
 
   let target: 'paragraph' | 'card_body' | null = null;
   let needDissolve = false;
@@ -2779,6 +2817,7 @@ function applyClearToNormalDemote(tr: Transaction, op: ClearToNormalOp): void {
     const cleanedHead = cleanFragmentForClearToNormal(
       container.firstChild.content,
       fragmentMode,
+      extraStrip,
     );
     const newPara = schema.nodes['paragraph']!.create(null, cleanedHead);
     const lifted: PMNode[] = [newPara];
@@ -2827,8 +2866,13 @@ function applyClearToNormalDemote(tr: Transaction, op: ClearToNormalOp): void {
   }
 }
 
-function applyClearToNormalPartial(tr: Transaction, from: number, to: number): void {
-  stripMarkNamesOnTr(tr, from, to, F12_STRIP_PARTIAL_NAMES);
+function applyClearToNormalPartial(
+  tr: Transaction,
+  from: number,
+  to: number,
+  extraStrip: readonly string[],
+): void {
+  stripMarkNamesOnTr(tr, from, to, [...F12_STRIP_PARTIAL_NAMES, ...extraStrip]);
 }
 
 /** Map a doc-position that falls inside a card / analytic_unit being
@@ -3054,6 +3098,40 @@ export function shrinkText(
   protectionPatterns: () => readonly RegExp[],
 ): Command {
   return sizeCycleCommand(effectivePt, normalPt, restoreOmissions, protectionPatterns, nextShrinkSize);
+}
+
+/** Condense With Warning, then Shrink over the condensed text, in one
+ *  transaction (one undo). Unbound by default. The shrink runs on the
+ *  whole replaced span (pause marker, merged paragraph, resume marker)
+ *  with Shrink's own rules, so the markers stay at Normal size when the
+ *  shrink setting that protects omissions and markers is on. When there
+ *  is nothing left to shrink, the condense still lands on its own. */
+export function condenseAndShrink(condense: Command, shrink: Command): Command {
+  return (state, dispatch) => {
+    let condenseTr: Transaction | null = null;
+    if (!condense(state, (tr) => { condenseTr = tr; })) return false;
+    if (!dispatch) return true;
+    const tr: Transaction = condenseTr!;
+    // Positions inside the replaced range map to its edges, so the
+    // original selection's ends cover everything condense inserted.
+    const { from, to } = state.selection;
+    const spanFrom = tr.mapping.map(from, -1);
+    const spanTo = tr.mapping.map(to, 1);
+    // A bare state over the condensed doc, not `state.apply(tr)`: that
+    // would run plugins' appendTransaction, whose extra steps aren't in
+    // `tr`, and the shrink steps would land at the wrong positions.
+    const afterCondense = EditorState.create({
+      doc: tr.doc,
+      selection: TextSelection.between(tr.doc.resolve(spanFrom), tr.doc.resolve(spanTo)),
+    });
+    shrink(afterCondense, (shrinkTr) => {
+      for (const step of shrinkTr.steps) tr.step(step);
+    });
+    // Leave the caret where Condense With Warning alone would.
+    tr.setSelection(state.selection.map(tr.doc, tr.mapping));
+    dispatch(tr);
+    return true;
+  };
 }
 
 /** Restore shrink-scope text straight to Normal size — the inverse of
@@ -4333,6 +4411,7 @@ export type RibbonCommandId =
   | 'toggleUnderlineTyping'
   | 'toggleReadingMarker'
   | 'applyEmphasis'
+  | 'applyEmphasisAndShading'
   | 'emphasizeAcronym'
   | 'applyHighlight'
   | 'highlightAcronym'
@@ -4342,6 +4421,7 @@ export type RibbonCommandId =
   | 'condenseNoIntegrity'
   | 'condenseNoIntegrityWithPilcrows'
   | 'condenseWithWarning'
+  | 'condenseAndShrink'
   | 'uncondense'
   | 'toggleCase'
   | 'copyPreviousCite'
@@ -4443,6 +4523,16 @@ export type RibbonCommandId =
   // ignored. No default bindings — wire up via Settings → Keyboard shortcuts.
   | 'selectCurrentHeading'
   | 'deleteCurrentHeading'
+  // Jump the caret to the next / previous heading of ONE level —
+  // PageUp / PageDown stop at every heading. No default bindings.
+  | 'nextPocket'
+  | 'prevPocket'
+  | 'nextHat'
+  | 'prevHat'
+  | 'nextBlock'
+  | 'prevBlock'
+  | 'nextTag'
+  | 'prevTag'
   // Auto-numbering skeleton authoring (NUMBERING_PLAN.md §4).
   | 'toggleNumberRole'
   | 'toggleSubRole'
@@ -4475,6 +4565,12 @@ export type RibbonCommandId =
   | 'openFindReplace'
   | 'openFindByProximity'
   | 'toggleNavPane'
+  // Set the navigation pane's depth, same as its 1 · 2 · 3 · 4 buttons.
+  // No default bindings.
+  | 'setNavDepth1'
+  | 'setNavDepth2'
+  | 'setNavDepth3'
+  | 'setNavDepth4'
   // Commands that ship without a default binding — bindable via
   // Settings → Keyboard shortcuts. Each maps to a ribbon button or
   // menu item.
@@ -4525,6 +4621,8 @@ export type RibbonCommandId =
   | 'sendDocToSlot2'
   | 'sendDocToSlot3'
   | 'toggleSlotExpand'
+  | 'hideSlot'
+  | 'revealAllSlots'
   | 'cycleDocNext'
   | 'cycleDocPrev'
   // Smart close — closes the focused slot's visible doc in
@@ -4580,6 +4678,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'toggleUnderlineTyping',
   'toggleReadingMarker',
   'applyEmphasis',
+  'applyEmphasisAndShading',
   'emphasizeAcronym',
   'applyHighlight',
   'highlightAcronym',
@@ -4589,6 +4688,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'condenseNoIntegrity',
   'condenseNoIntegrityWithPilcrows',
   'condenseWithWarning',
+  'condenseAndShrink',
   'uncondense',
   'toggleCase',
   'copyPreviousCite',
@@ -4686,6 +4786,14 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'previewReceived',
   'selectCurrentHeading',
   'deleteCurrentHeading',
+  'nextPocket',
+  'prevPocket',
+  'nextHat',
+  'prevHat',
+  'nextBlock',
+  'prevBlock',
+  'nextTag',
+  'prevTag',
   'toggleNumberRole',
   'toggleSubRole',
   'toggleNumRestart',
@@ -4714,6 +4822,10 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'openFindReplace',
   'openFindByProximity',
   'toggleNavPane',
+  'setNavDepth1',
+  'setNavDepth2',
+  'setNavDepth3',
+  'setNavDepth4',
   // Bindable ribbon actions with no default keys.
   'adjustFontSizeUp',
   'adjustFontSizeDown',
@@ -4744,6 +4856,8 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'sendDocToSlot2',
   'sendDocToSlot3',
   'toggleSlotExpand',
+  'hideSlot',
+  'revealAllSlots',
   'cycleDocNext',
   'cycleDocPrev',
   'closeDocOrWindow',
@@ -4779,6 +4893,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   toggleUnderlineTyping: 'Underline (toggle while typing)',
   toggleReadingMarker: 'Reading-position marker (toggle)',
   applyEmphasis: 'Apply Emphasis Style',
+  applyEmphasisAndShading: 'Emphasis + Background Color',
   emphasizeAcronym: 'Emphasize Acronym',
   applyHighlight: 'Toggle Highlight',
   highlightAcronym: 'Highlight Acronym',
@@ -4788,6 +4903,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   condenseNoIntegrity: 'Condense Without Paragraph Integrity',
   condenseNoIntegrityWithPilcrows: 'Condense Without Paragraph Integrity (With Pilcrows)',
   condenseWithWarning: 'Condense With Warning',
+  condenseAndShrink: 'Condense With Warning and Shrink',
   uncondense: 'Uncondense',
   toggleCase: 'Toggle Case',
   copyPreviousCite: 'Copy Previous Cite',
@@ -4885,6 +5001,14 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   previewReceived: 'Preview Received Card',
   selectCurrentHeading: 'Select Current Heading',
   deleteCurrentHeading: 'Delete Current Heading',
+  nextPocket: 'Go to Next Pocket',
+  prevPocket: 'Go to Previous Pocket',
+  nextHat: 'Go to Next Hat',
+  prevHat: 'Go to Previous Hat',
+  nextBlock: 'Go to Next Block',
+  prevBlock: 'Go to Previous Block',
+  nextTag: 'Go to Next Tag',
+  prevTag: 'Go to Previous Tag',
   toggleNumberRole: 'Number: Toggle Number Role',
   toggleSubRole: 'Number: Toggle Substructure Role',
   toggleNumRestart: 'Number: Toggle Start-Over-Here',
@@ -4913,6 +5037,10 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   openFindReplace: 'Find and Replace',
   openFindByProximity: 'Find Without Category Grouping',
   toggleNavPane: 'Show / Hide Navigation Pane',
+  setNavDepth1: 'Navigation Pane: Show Level 1 (Pockets)',
+  setNavDepth2: 'Navigation Pane: Show Levels 1–2 (Hats)',
+  setNavDepth3: 'Navigation Pane: Show Levels 1–3 (Blocks)',
+  setNavDepth4: 'Navigation Pane: Show Levels 1–4 (Tags)',
   adjustFontSizeUp: 'Increase Font Size by 1pt',
   adjustFontSizeDown: 'Decrease Font Size by 1pt',
   applyFontColor: 'Apply Font Color',
@@ -4942,6 +5070,8 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   sendDocToSlot2: 'Send Doc to Slot 2',
   sendDocToSlot3: 'Send Doc to Slot 3',
   toggleSlotExpand: 'Toggle Slot Expand / Restore',
+  hideSlot: 'Hide Slot',
+  revealAllSlots: 'Reveal All Slots',
   cycleDocNext: 'Next Document in Slot',
   cycleDocPrev: 'Previous Document in Slot',
   closeDocOrWindow: 'Close Doc or Window',
@@ -4992,6 +5122,10 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   // show/hide ⇄ toggle visibility pairs
   toggleCommentsVisible: ['toggle comments', 'comments'],
   toggleNavPane: ['toggle navigation pane', 'toggle nav pane', 'sidebar', 'outline pane'],
+  setNavDepth1: ['nav depth', 'navigation depth', 'outline level', 'level 1', 'pockets'],
+  setNavDepth2: ['nav depth', 'navigation depth', 'outline level', 'level 2', 'hats'],
+  setNavDepth3: ['nav depth', 'navigation depth', 'outline level', 'level 3', 'blocks'],
+  setNavDepth4: ['nav depth', 'navigation depth', 'outline level', 'level 4', 'tags'],
   convertCardsToReadMode: ['zap card', 'zap cards'],
   toggleReadMode: ['show read mode', 'hide read mode', 'invisibility mode'],
   toggleAutoScroll: [
@@ -5017,6 +5151,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   standardizeShadingExcept: ['standardize background except', 'standardize shading except', 'exception shading'],
   regrow: ['unshrink', 'regrow', 'restore text size', 'unshrink card text'],
   smartShrink: ['smart shrink', 'deep shrink'],
+  condenseAndShrink: ['fast condense', 'condense and shrink', 'condense shrink'],
   aiAskAboutSelection: ['question'],
   reformatAllCites: ['reformat all cites', 'reformat cites', 'all cites', 'every cite', 'bulk cite'],
   pasteAsText: ['paste without formatting', 'paste unformatted', 'paste text'],
@@ -5026,6 +5161,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   linkUrls: ['hyperlink urls', 'autolink', 'make links', 'add links', 'linkify'],
   resetDefaultColors: ['default colors', 'reset colors', 'reset swatches', 'reset highlight color', 'reset background color'],
   applyShading: ['shading', 'text highlight color'],
+  applyEmphasisAndShading: ['emphasize and background', 'emphasis and shading', 'emphasis background', 'emphasize shade'],
   insertImage: ['add image', 'insert picture', 'photo'],
   // "Insert …" element commands also answer to "add …" (genuine equivalence —
   // unlike Add Quick Card / Add Comment / Add Note, which CREATE, not insert).
@@ -5101,6 +5237,14 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   timerReset: ['reset timer', 'reset prep'],
   flipQuoteDirection: ['flip quotes', 'curly quotes', 'reverse quote direction', 'smart quote direction', 'fix apostrophe', 'quote direction'],
   deleteCurrentHeading: ['delete card', 'delete heading', 'delete current card'], // "remove …" via the delete/remove synonym group
+  nextPocket: ['jump to next pocket', 'next heading', 'navigate'],
+  prevPocket: ['jump to previous pocket', 'previous heading', 'navigate'],
+  nextHat: ['jump to next hat', 'next heading', 'navigate'],
+  prevHat: ['jump to previous hat', 'previous heading', 'navigate'],
+  nextBlock: ['jump to next block', 'next heading', 'navigate'],
+  prevBlock: ['jump to previous block', 'previous heading', 'navigate'],
+  nextTag: ['jump to next tag', 'next heading', 'navigate'],
+  prevTag: ['jump to previous tag', 'previous heading', 'navigate'],
   copyCardsWithMatchingCite: ['copy matching cite', 'copy same cite', 'copy cards by cite', 'copy all cards with this cite', 'cite cards'],
   toggleNumberRole: ['number', 'numbering', 'numbered card', 'auto number', 'list number'],
   toggleSubRole: ['substructure', 'sub number', 'sub letter', 'numbering', 'sublist', 'letter'],
@@ -5159,6 +5303,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   toggleUnderlineTyping: 'Mod-u',
   toggleReadingMarker: 'Mod-Shift-d',
   applyEmphasis: 'F10',
+  applyEmphasisAndShading: '',
   emphasizeAcronym: 'Alt-F10',
   applyHighlight: 'F11',
   highlightAcronym: 'Alt-F11',
@@ -5168,6 +5313,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   condenseNoIntegrity: 'Alt-F3',
   condenseNoIntegrityWithPilcrows: 'Mod-Alt-F3',
   condenseWithWarning: '',
+  condenseAndShrink: '',
   uncondense: 'Mod-Alt-Shift-F3',
   toggleCase: 'Shift-F3',
   copyPreviousCite: 'Alt-F8',
@@ -5282,6 +5428,15 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   previewReceived: '',
   selectCurrentHeading: 'Alt-a',
   deleteCurrentHeading: '',
+  // No defaults: PageUp / PageDown already jump by any heading.
+  nextPocket: '',
+  prevPocket: '',
+  nextHat: '',
+  prevHat: '',
+  nextBlock: '',
+  prevBlock: '',
+  nextTag: '',
+  prevTag: '',
   toggleNumberRole: 'Mod-Alt-1',
   toggleSubRole: 'Mod-Alt-2',
   toggleNumRestart: 'Mod-Alt-3',
@@ -5336,6 +5491,11 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   // ribbon + nav-pane × + pull-tab; the keybinding is a power-
   // user convenience layer, not a discoverable default.
   toggleNavPane: '',
+  // No defaults — the pane's own 1–4 buttons are the primary UI.
+  setNavDepth1: '',
+  setNavDepth2: '',
+  setNavDepth3: '',
+  setNavDepth4: '',
   // Ribbon actions with no default key — all already reachable via
   // the ribbon, so a default chord would be noise. Bindable in
   // Settings → Keyboard shortcuts.
@@ -5369,6 +5529,9 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   sendDocToSlot2: 'Mod-Shift-2',
   sendDocToSlot3: 'Mod-Shift-3',
   toggleSlotExpand: 'Mod-Shift-f',
+  // Unbound by default — rebindable via Settings → Keyboard shortcuts.
+  hideSlot: '',
+  revealAllSlots: '',
   // Unbound by default — rebindable via Settings → Keyboard shortcuts.
   cycleDocNext: '',
   cycleDocPrev: '',
@@ -5409,6 +5572,9 @@ export interface RibbonContext {
   /** Whether F9's toggle-off direction also strips direct formatting
    *  (Verbatim's "press F9 twice clears formatting"). */
   clearFormattingOnNamedStyleToggleOff: () => boolean;
+  /** Whether F12 (Clear) also strips highlighting. Off by default,
+   *  matching Verbatim, which keeps it. */
+  clearRemovesHighlighting: () => boolean;
   /** Resolves a text run's effective font-size in pt, accounting for
    *  font_size marks, named-style marks, and paragraph defaults — same
    *  resolver the chip / increment-decrement buttons use. Used by
@@ -5601,6 +5767,10 @@ export interface RibbonContext {
    *  (transient), so toggling in one window leaves siblings
    *  untouched. */
   toggleNavPane: () => void;
+  /** Set the focused document's navigation-pane depth, exactly as
+   *  clicking its level button would (transient, per-panel — never
+   *  written to settings). */
+  setNavDepth: (level: 1 | 2 | 3 | 4) => void;
   /** Most-recently-picked font color (hex, no `#`, e.g. `"FF0000"`)
    *  or `null` when the user has chosen "Automatic" / no explicit
    *  color. Read at invocation time by the `applyFontColor` command
@@ -5654,6 +5824,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   headingMode: () => 'respect',
   condenseOnPaste: () => false,
   clearFormattingOnNamedStyleToggleOff: () => true,
+  clearRemovesHighlighting: () => false,
   effectivePtForNode: () => 11,
   normalPt: () => 11,
   shrinkRestoresOmissionsToNormal: () => false,
@@ -5746,6 +5917,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   openFindReplace: () => {},
   openFindByProximity: () => {},
   toggleNavPane: () => {},
+  setNavDepth: () => {},
   lastFontColor: () => null,
   openSettings: () => {},
   minimizeWindow: () => {},
@@ -5816,6 +5988,7 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
     case 'toggleUnderlineTyping': return toggleUnderlineTyping(ctx.clearFormattingOnNamedStyleToggleOff);
     case 'toggleReadingMarker': return toggleReadingMarkerCommand;
     case 'applyEmphasis': return applyEmphasis();
+    case 'applyEmphasisAndShading': return applyEmphasisAndShading(ctx.shadingColor);
     case 'emphasizeAcronym': return emphasizeAcronym();
     case 'applyHighlight': return applyHighlight(ctx.highlightColor);
     case 'highlightAcronym': return highlightAcronym(ctx.highlightColor);
@@ -5842,6 +6015,16 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         condenseMerge({ withPilcrows: true, headingMode: ctx.headingMode() })(state, dispatch);
     case 'condenseWithWarning':
       return condenseWithWarning(ctx.condenseWarningMarkers);
+    case 'condenseAndShrink':
+      return condenseAndShrink(
+        condenseWithWarning(ctx.condenseWarningMarkers),
+        shrinkText(
+          ctx.effectivePtForNode,
+          ctx.normalPt,
+          ctx.shrinkRestoresOmissionsToNormal,
+          ctx.shrinkProtectionPatterns,
+        ),
+      );
     case 'uncondense': return uncondense();
     case 'toggleCase': return toggleCase();
     case 'copyPreviousCite': return copyPreviousCite();
@@ -5850,7 +6033,7 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
     case 'pasteCondensed':
       return pasteCondensed(ctx);
     case 'clearToNormal':
-      return clearToNormal();
+      return clearToNormal(ctx.clearRemovesHighlighting);
     case 'shrink':
       return shrinkText(
         ctx.effectivePtForNode,
@@ -6388,6 +6571,22 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         ctx.previewReceived();
         return true;
       };
+    case 'nextPocket':
+      return moveToHeadingOfType('pocket', 'next');
+    case 'prevPocket':
+      return moveToHeadingOfType('pocket', 'prev');
+    case 'nextHat':
+      return moveToHeadingOfType('hat', 'next');
+    case 'prevHat':
+      return moveToHeadingOfType('hat', 'prev');
+    case 'nextBlock':
+      return moveToHeadingOfType('block', 'next');
+    case 'prevBlock':
+      return moveToHeadingOfType('block', 'prev');
+    case 'nextTag':
+      return moveToHeadingOfType('tag', 'next');
+    case 'prevTag':
+      return moveToHeadingOfType('tag', 'prev');
     case 'selectCurrentHeading':
       return (_state, dispatch) => {
         if (!dispatch) return true;
@@ -6574,6 +6773,17 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         ctx.toggleNavPane();
         return true;
       };
+    case 'setNavDepth1':
+    case 'setNavDepth2':
+    case 'setNavDepth3':
+    case 'setNavDepth4': {
+      const level = Number(id.slice(-1)) as 1 | 2 | 3 | 4;
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.setNavDepth(level);
+        return true;
+      };
+    }
     // ─── No-default-binding commands (keybinding parity for
     //     ribbon-button / menu actions) ──────────────────────────
     case 'adjustFontSizeUp':
@@ -6730,6 +6940,8 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
     case 'sendDocToSlot2':
     case 'sendDocToSlot3':
     case 'toggleSlotExpand':
+    case 'hideSlot':
+    case 'revealAllSlots':
     case 'cycleDocNext':
     case 'cycleDocPrev':
     case 'closeDocOrWindow':

@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.13.0-bcb.1 — 2026-09-28
 
 ### Added: plugin updates on the app's update schedule and chip (`plugin-update-check.ts`, `main.ts`, `update-chip.ts`, `preload.ts`)
 
@@ -101,6 +101,21 @@ Tests: `tests/editor/image-toolbar-drag.test.ts`. The native drag, file
 drop and toolbar were also checked by hand in Chromium against
 `npm run dev`: a 1400px PNG dropped in landed at 624px, 25% gave 350px,
 and dragging the image moved it into the next paragraph.
+
+### From upstream
+
+See [CHANGELOG.md's summary](./CHANGELOG.md) for the highlights, and
+[1.13.0](#1130--2026-09-25) below for upstream's full detailed notes.
+
+Merge notes:
+- `multi-pane-shell.ts`: upstream's `maybeAutoMarkSpeech` was folded
+  into the fork's `newDocIntoSlot`, which every New path goes through.
+  The new-speech-doc and multi-file open paths keep the fork's
+  `'new-window'` guard on `promptForSlot`'s result.
+- `index.ts` `updateWindowTitle`: upstream's file-drag mark and
+  represented-file sync run first, then the fork's window-name title.
+- The Hide button's focused-pane colors also stand down on the amber
+  speech pane, like the fork's other chip buttons.
 
 ## 1.12.0-bcb.5 — 2026-09-25
 
@@ -1936,6 +1951,319 @@ Word-level highlighting of edited lines was added in
 *The sections below are upstream CardMirror's own detailed release notes,
 synced into this fork. For the user-facing short summary of each upstream
 release, see [CHANGELOG.md § Upstream Releases](./CHANGELOG.md#upstream-releases).*
+
+## 1.13.0 — 2026-09-25
+
+### Added: Read mode: show background color
+
+User request 2026-09-24: after Lock Highlighting (or Create Reference)
+turns an earlier pass into background color and the card is
+re-highlighted, read mode hid the locked pass entirely, since it keeps
+only `highlight` (plus `cite_mark` in cites). Setting
+`readModeShowBackground` (General → Editor behavior, under show
+undertags, off by default) adds `shading` to what `isReadKept` accepts,
+for every read-aloud paragraph kind — body, paragraph, undertag and
+cite. Read at decoration time; both shells add it to the diff that
+rebuilds the decoration set on a flip. No stylesheet change: block
+collapse keys off `.pmd-rm-keep`, which the shaded runs now carry, so a
+body paragraph holding only background-colored text shows rather than
+collapsing. Convert Cards to Read Mode, scroll anchoring
+(`nearestReadKeptPos` / `firstReadKeptPos`) and the card preview follow
+through the shared predicate.
+
+Counting: untouched. `readAloudBucket` (word-count.ts) excludes shaded
+text by design and never consults the setting;
+read-mode-show-background.test.ts pins that the count is unchanged with
+the setting on. Not changed: the export-side read-mode transform
+(`transformContainerForReadMode`), which follows neither this nor the
+other read-mode display settings. Cora's PR #71.
+
+### Added: Emphasis + Background Color
+
+User request 2026-09-24: one key for emphasis and background together,
+e.g. for re-highlighting over a pass that was locked to background.
+`applyEmphasisAndShading` (ribbon command, Character styles group,
+unbound) is `applyBodyMark('emphasis_mark')` with a new `thenShading`
+option. After the emphasis apply and its direct-formatting strip, it
+paints `shading` in the Mod-F11 pen's color over the same ranges, in
+the same transaction, so it is one undo. The order matters: the apply
+strip (`APPLY_DIRECT_FORMATTING_STRIP_NAMES`) removes `shading`, so
+Mod-F11 then F10 dropped the background, and a two-command chain would
+have to run in the right order. The command inherits everything else
+from F10: word-at-cursor on an empty selection, shadow-selection
+ranges, the structural-block skip, and the gap bridge (`withGapFix`).
+It always applies, like F10, so pressing it on text that already has
+the background repaints it instead of toggling it off. A null pen
+("No background") leaves the text with no background, since the strip
+already removed it. Tests: emphasis-and-shading.test.ts. Cora's PR #73.
+
+### Added: Navigation pane depth commands
+
+`setNavDepth1`–`4` (View group, no default keys) call
+`NavigationPanel.setMaxLevel`, made public, through the pane-aware
+`activeNavPanelResolver`, so the change is the same transient, per-panel
+one a button click makes (never written to settings; pressing the active
+level re-collapses manual expansions; follows-cursor honoured) and lands
+on the focused document's pane in three-pane mode. Tests in ribbon-
+commands.test.ts. Cora's PR #72.
+
+### Added: Go to Next / Previous Pocket, Hat, Block, Tag
+
+`moveToHeadingOfType(type, dir)` in word-selection-keymap.ts reuses the
+PageUp / PageDown machinery: `collectHeadingPositions` takes an optional
+node-type filter and the commands come from the same `commandPair` (same
+clamping, same scroll-into-view). Previous keeps PageUp's shape — from
+inside a card, that card's own tag first, then the one before. Matching
+is by node type, so Next Tag skips analytics although both sit at
+outline level 4. Headings inside live views and linked copies count as
+stops. New Navigate group in the shortcuts editor. Tests in word-
+selection-keymap.test.ts. Cora's PR #74.
+Fixup from the first pass: the minimal `tr.scrollIntoView()` left the
+heading flush with whichever edge the caret came from; the commands now
+scroll through `scrollToHeadingId` / `preciseScrollIntoView` (the
+nav-pane click path — `commandPair` takes an optional `scroll` hook),
+so the heading lands just under the ribbon. PageUp / PageDown keep the
+minimal scroll. Tests: heading-jump-scroll.test.ts.
+
+### Added: Clear (F12) also removes highlighting
+
+Setting `clearRemovesHighlighting` (Editing → Formatting operations,
+off). `clearToNormal()` takes an optional reader (the
+`clearFormattingOnNamedStyleToggleOff` pattern) and, when it returns
+true, adds `highlight` to the strip set in every regime — cursor, whole-
+paragraph, partial, shadow-selection (Select Similar) and the tag /
+analytic dissolve path. Shading is never stripped. Read at run time, so
+a flip applies at once. Tests: clear-removes-highlighting.test.ts.
+Cora's PR #75.
+
+### Added: Condense With Warning and Shrink
+
+`condenseAndShrink(condense, shrink)` runs Condense With Warning into a
+captured transaction, maps the original selection's ends through it
+(positions inside the replaced range map to its edges, so the span
+covers pause marker, merged paragraph and resume marker), runs
+`shrinkText` on a bare `EditorState` over the condensed doc with that
+span selected, and appends its steps to the same transaction — one
+dispatch, one undo. A bare state rather than `state.apply(tr)`, so
+plugin appendTransaction steps can't shift positions. Shrink's own
+settings apply, including marker protection, which keeps the markers at
+Normal. Refuses wherever Condense With Warning refuses. Alias "fast
+condense" (CardMirrorPlus's name for it). Tests: condense-and-
+shrink.test.ts. Cora's PR #80.
+
+### Added: three-pane — opening a file replaces an untouched Untitled doc
+
+Setting `openReplacesUntitled` (Workspace, off). In `loadOpenedIntoSlot`
+— the one path every three-pane open takes (dialog, slot button,
+palette, drag-drop, OS association, workspace restore) — the slot's
+visible doc gives up its place when `isReplaceableUntitled` holds: never
+saved (`handle` and `format` null), not dirty, not the speech doc, not
+co-edited, and `isUntouchedBlank(state)` (blank-doc.ts): one empty
+paragraph AND `undoDepth === 0`, so typed-then-deleted keeps the doc.
+The file is pushed first and the Untitled record closed with
+`Slot.closeRecord`, by then hidden and clean, so silently. Tests: blank-
+doc-untouched.test.ts. Cora's PR #76.
+
+### Added: three-pane — New Speech Document opens on the speech doc side
+
+Setting `newSpeechDocInSpeechSlot` (Workspace, off):
+`createNewSpeechDocument` skips `promptForSlot` and uses
+`slotPlanForSpeech(arrangeSpeechSide).speechSlot` (slot 3 for right,
+slot 1 for left), stacking on whatever is there. Name prompt, filename
+template, format, Pocket seeding and speech-doc marking are unchanged.
+Cora's PR #78.
+
+### Added: three-pane — mark the first document in the speech doc slot
+
+Setting `autoMarkSpeechSlotDoc` (Workspace, off): `maybeAutoMarkSpeech`
+runs after the push in `loadOpenedIntoSlot` (every open path, workspace
+restore included) and in `createNewDoc`, and marks the record only when
+it landed in the speech-side slot and no speech doc is marked. Moving
+between slots and Arrange Windows use neither path, so they never mark;
+an existing mark is never replaced. With the Untitled-replacement
+setting also on, a blank New in that slot gets marked and so is no
+longer replaceable by a later Open — consistent, and worth knowing.
+Cora's PR #79.
+
+### Added: three-pane — Hide Slot / Reveal All Slots
+
+`Slot.paneHidden` plus one visibility rule, `slotShown(slot)`: in expand
+mode only the expanded slot; otherwise a slot with docs that isn't
+hidden. `applyExpandedState`, `reconcileNavRail`, the layout's `data-
+active` count, the wide-layout scroll check and the focus hand-off on
+empty all use it, so width sharing and the outline rail treat a hidden
+slot like an empty one. `hideSlot` ends expand mode first, refuses the
+last slot showing (toast) and moves focus to a slot still showing. The
+flag clears on Reveal All Slots, on a push into the slot
+(`notifySlotPopulated`), on Arrange Windows (which reveals everything
+first) and when the slot empties; it is not persisted in the workspace
+snapshot. Title-bar Hide button behind `showHideSlotButton` (Workspace,
+off; `minus` icon). Merge fixup: `focusSlot` now clears `paneHidden`
+ahead of its focus-follows-visibility guard, because every surface-
+before-prompt path goes through it (closeRecord / closeAllExcept on a
+dirty doc, the quit prompt, surfaceDuplicateIfOpen, show-in-context) —
+without that, a dirty doc in a hidden slot drew a save prompt for a doc
+you couldn't see, with Save routed to the doc you could.
+`focusSlotByIndex`'s own reveal is folded into it. Second fixup
+(field bug, first three-pane pass): `handleSlotEmptied` reveals every
+hidden slot when the last shown slot empties while hidden slots still
+hold docs — hideSlot guards the last shown slot, but closing docs could
+empty all the shown ones, leaving a blank workspace with nothing
+focused. Cora's PR #81.
+
+### Added: open several files at once
+
+Setting `openMultipleFiles` (Workspace, off, desktop only). A new
+`host:open-files` IPC runs the dialog with `multiSelections`; each pick
+gets the same read grant and empty-on-disk flag as `host:open-file`, and
+an unreadable pick is dropped rather than failing the batch.
+`Host.openFiles?` is implemented by `ElectronHost` (falls back to
+`openFile` on an older preload); `BrowserHost` leaves it out, so the web
+build keeps the single picker. `runOpenFlow` offers multi-select only
+where every pick has somewhere to go (three-pane, or a host that can
+spawn windows). Three-pane: `routeOpenedFilesToSlot` runs the journal
+decode and cross-window guard per file, then `onFilesOpen` shows one
+slot picker for the batch and `loadBatchIntoSlot` loads in dialog order,
+skipping already-open files with a toast and reporting a failed load
+without stopping. A slot's Open button loads the batch into that slot
+with no picker; window mode routes each file through `routeOpenedFile`.
+Merge fixup: a `NativeDamagedError` in the batch is collected and, after
+the rest have loaded, gets the same `offerDamagedSalvage` a single
+damaged file does (now exported from index.ts) instead of a per-file
+toast. Cora's PR #77.
+
+### Added: status-bar mark drags the document's file out
+
+User request 2026-09-25, the cross-platform twin of the macOS title-bar
+proxy icon (PR #82): Windows has no title-bar equivalent, and the
+ribbon's filename chip is hidden by default, so the handle is a
+CardMirror mark after the zoom controls (`#file-drag-mark`,
+file-drag-mark.ts). The folder mark from logo.png, wordmark cropped and
+background flood-filled to transparent, ships as a 48px data URL that
+serves as both the status-bar glyph and the drag icon (Windows refuses
+a drag without one). `installFileDragMark` wires dragstart →
+`ElectronHost.dragFileOut(path, icon)` → preload `send` →
+`host:drag-file-out` → `webContents.startDrag` (which must run in
+response to the renderer's own dragstart, hence `on`/`send` rather than
+`invoke`; main checks the path is absolute and exists). Click →
+`showItemInFolder`. `updateWindowTitle` — the one path every
+doc-identity change already takes — syncs it with the focused doc's
+handle: hidden without a desktop host (web) or on a shell whose preload
+lacks the surface; dimmed and inert (`data-inert`, 0.35 opacity,
+default cursor) when there is no file on disk (untitled, recovered
+draft, home). Tests: file-drag-mark.test.ts.
+
+### Added: title-bar proxy icon (macOS)
+
+Word lets you drag an open document out of its title bar into another
+app, such as a Slack message. CardMirror now does the same on macOS
+through AppKit's represented-file proxy icon
+(`BrowserWindow.setRepresentedFilename`). With it, dragging the icon
+(revealed on title hover since Big Sur) supplies the file URL to the
+drop target, and Cmd-click on the title opens the path menu.
+
+The renderer pushes the focused doc's on-disk path over the new
+`host:set-represented-file` IPC from `updateWindowTitle`, which every
+doc-identity change already goes through (open, Save / Save As, close to
+home, new doc, pane focus, multi-pane mount / detach). `null` (untitled,
+recovered draft, home screen) clears the icon. Pushes are deduped on the
+renderer side because the title path is hot. In the multi-doc workspace
+the title lists every slot, but the icon names the focused doc. Main
+ignores the call off macOS; Electron has no Windows or Linux equivalent.
+The preload method is optional in `ElectronAPI`, so a newer renderer
+against an older shell skips it.
+
+### Added: invisible provenance in .docx exports
+
+User request 2026-09-25 (after asking whether a Word file could say it
+came from CardMirror without any risk to Word or later CardMirror
+users). Exports already carried the `cmirDocId` custom property (since
+0.1.0-alpha.5, Learn's identity key, verified to survive a Word
+round-trip); it says "CardMirror touched this" but not which version
+or whether CardMirror was the last writer. `ExportOptions.generator`
+({ application, version }, supplied by the editor — core stays free of
+the app version and the byte-stable round-trip tests are unaffected)
+now drives `Docx.writeGenerator`: `docProps/app.xml` gets
+`<Application>CardMirror</Application>` and `<AppVersion>` — the
+standard generator fields, shown nowhere in Word's UI and overwritten
+by Word on its own save, so they mean "last written by" — merged into
+an existing app.xml (a Word-authored file re-saved here keeps its Pages
+/ Company / …), with the content-type override and package
+relationship added on first write; plus a `cmirGenerator` custom
+property ("CardMirror 1.13.0") beside `cmirDocId`, which Word preserves.
+`AppVersion` is encoded `NN.NNNN` (`wordAppVersion`: 1.13.0 → 01.1300)
+because Word validates that shape and a free-form string there can
+make it report the file damaged. `writeDocId` / `readDocId` are now
+thin wrappers over generic `writeCustomProperty` / `readCustomProperty`.
+Nothing touches `document.xml`. Tests: round-trip/generator.test.ts.
+
+### Changed: one popup anatomy for the dropzone, Send and Receive pills
+
+User request 2026-09-25. Before: the dropzone morphed in place (its root
+grew into a panel, capped at the editor width by an inline max-width,
+with Clear in the bar — so its rows were squeezed between a fixed-width
+Preview button and the count), the Receive list popped up above the
+pill at a fixed 260–380px (off the window's edge when narrow), and only
+the Send bar showed a blue border on hover / open.
+
+Now every expansion is a `.pmd-pill-popup` (style.css, "Pill popups"):
+absolutely positioned at `left: 0; bottom: 100%` of the TRAY — the pills
+are `position: static` inside `.pmd-pill-tray`, so the tray is every
+popup's containing block and each one starts at the leftmost visible
+pill, whichever pill opened it. `min-width: 100%` spans the pill row;
+`width: min(420px, --pmd-pill-popup-max)` where `positionDropzone`
+(index.ts) now sets that variable on the tray from the editor's rect
+(replacing the dropzone-only inline max-width), so a narrow window
+narrows the popup. The popup floats `--pmd-pill-popup-gap` (8px) above
+the row with a neutral border; the open pill keeps its own shape with
+the accent border, and that alone says which pill is open. (Two earlier
+cuts merged the bar into the popup as a tab, then joined them with a
+translucent bridge; the user wanted the pill distinct and the outline
+alone.) Hover: accent border on all three bars; the Send bar's drag-hot
+ring outranks the open rule (`.pmd-pill-bar.pmd-send-bar-hot`).
+
+Dropzone: the root is now a plain `.pmd-pill`; the list carries
+`pmd-pill-popup`; Clear moved into a `.pmd-dropzone-actions` footer
+rendered only with items; the drag surface's hit test measures the bar
+and, while open, the list separately (an absolute popup no longer sits
+inside the root's rect). Send: the recent-senders flyout anchors on its
+`offsetParent` (the tray, or the pill in the home dock) instead of the
+root. Receive: in the home dock the pill stays `position: relative`, so
+its popup hangs off the pill as before. `pill-scroll-clearance` measures
+the tray, whose height is now just the bar row — an open popup never
+inflates the typing clearance. Icons (user request, same day): the
+bars carried hand-drawn inline SVGs — the dropzone an up-arrow tray and
+Receive a down-arrow tray drawn to different geometry, Send a paper
+plane. They now use the icon set through `setIcon`: `archive` (lidded
+storage box) for the dropzone, `upload` (out-tray) for Send and
+`download` (in-tray) for Receive, the set's matched pair; `.pmd-icon`
+sized to 16px inside the bars. Footer parity: the shelf's Clear is now a
+`.pmd-send-action`-style button (trash icon + label, the same dashed
+full-width footprint as Add contact / Join session — the selector lists
+gained `.pmd-dropzone-actions` / `.pmd-dropzone-clear`), and the
+Receive footer gains its own Clear (`inboxStore.clear()`, no prompt —
+a resend is always possible) beside Join session, each button hidden on
+its own condition and the row hidden only when both are. Fixed on the
+way: `.pmd-dropzone-count { display: inline-block }` beat the UA
+`[hidden]` rule, so the empty shelf showed "0". Both counts are now one
+`.pmd-pill-badge` (Receive's metrics: 0.72rem, 0.45em side padding,
+1.1em min-width, grey base, no `display` of its own so `hidden` falls
+through to the UA rule); the dropzone gave up its blue tint (near
+invisible in dark mode anyway) for the same grey, and Receive's unread
+state recolors on top as before. The unused `.pmd-pill-count` rule is
+gone. Tests: pill-popup-anatomy.test.ts.
+
+### Changed: no browser focus ring
+
+User call 2026-09-25: Chromium's `outline: auto` on keyboard focus
+follows the macOS accent color and showed up on pill bars, nav rows and
+chips after any keyboard activation, carrying no information. A base
+rule `:focus, :focus-visible { outline: none }` (style.css, next to the
+`button` reset) suppresses it everywhere. The app's own focus outlines
+— the "input focus ring" scaffolding on text fields, `.pmd-confirm-btn`,
+`.pmd-home-action`, `.pmd-list-pick-row`, the ribbon color controls and
+font-size input, transclusion glyphs — are more specific and unchanged.
+Pinned in pill-popup-anatomy.test.ts.
 
 ## 1.12.0 — 2026-09-21
 
@@ -3928,8 +4256,6 @@ downloads — the base model is a first-use download too). Release
 builds produce "CardMirror Lite" installers with their own appId for
 side-by-side installs; Lite carries no relay token and never touches
 the auto-update manifests.
-
-
 
 ### Fixed: exported numbering never restarted in Word (startOverride)
 

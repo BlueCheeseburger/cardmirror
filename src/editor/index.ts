@@ -55,6 +55,7 @@ import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-re
 import { openDocMenu } from './doc-menu-ui.js';
 import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
+import { installFileDragMark } from './file-drag-mark.js';
 import { maybeDecryptForOpen, OpenCancelledError, UnsupportedEncryptionError } from './open-encrypted.js';
 import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
 import { buildCutInPlacePlugin, installCutInPlaceContext } from './cut-in-place.js';
@@ -891,7 +892,9 @@ async function runNewSpeechDocumentSingleDoc(): Promise<void> {
   let docBytes: Uint8Array;
   try {
     docBytes =
-      format === 'cmir' ? serializeNative(docNode) : await toDocx(docNode, { defaultFont: settings.get('bodyFont') });
+      format === 'cmir'
+        ? serializeNative(docNode)
+        : await toDocx(docNode, { defaultFont: settings.get('bodyFont'), generator: DOCX_GENERATOR });
   } catch (err) {
     console.error('Speech-doc serialization failed:', err);
     void alertDialog(
@@ -1054,6 +1057,16 @@ function updatePlainPasteIndicator(armed: boolean): void {
 const zoomOutBtn = document.getElementById('zoom-out-btn') as HTMLButtonElement;
 const zoomInBtn = document.getElementById('zoom-in-btn') as HTMLButtonElement;
 const zoomResetBtn = document.getElementById('zoom-reset-btn') as HTMLButtonElement;
+/** Bottom-right CardMirror mark: drag the focused doc's file into other
+ *  apps (desktop). Synced from `updateWindowTitle`, the one path every
+ *  doc-identity change already goes through. */
+const syncFileDragMark = installFileDragMark(
+  document.getElementById('file-drag-mark') as HTMLButtonElement,
+  () => getElectronHost(),
+);
+/** Provenance stamped into every .docx this app writes (app.xml
+ *  Application / AppVersion + the cmirGenerator custom property). */
+const DOCX_GENERATOR = { application: 'CardMirror', version: appVersion } as const;
 const zoomPct = document.getElementById('zoom-pct')!;
 
 // Module-level state. Declared before the settings subscriber registers
@@ -1071,6 +1084,7 @@ let multiDocActive = false;
 /** When the multi-pane shell is active, this delegates file-open
  *  routing to its prompt-for-slot flow. */
 let multiDocOnFileOpen: ((opened: OpenedFile) => Promise<void> | void) | null = null;
+let multiDocOnFilesOpen: ((opened: OpenedFile[]) => Promise<void> | void) | null = null;
 /** When the multi-pane shell is active, "Show in context" routes a
  *  flashcard's source into a slot of this window (rather than a separate
  *  window) and scrolls to the anchor. */
@@ -1265,6 +1279,7 @@ let multiDocOnRecoveredDoc:
  *  mountView paths into per-pane routing. */
 export function enableMultiDocMode(opts: {
   onFileOpen: (opened: OpenedFile) => Promise<void> | void;
+  onFilesOpen?: (opened: OpenedFile[]) => Promise<void> | void;
   showInContext?: (req: ShowInContextRequest) => Promise<void> | void;
   onNewDocDefaultSlot?: () => Promise<void> | void;
   onNewDocWithPicker?: () => Promise<void> | void;
@@ -1353,6 +1368,7 @@ export function enableMultiDocMode(opts: {
 }): void {
   multiDocActive = true;
   multiDocOnFileOpen = opts.onFileOpen;
+  multiDocOnFilesOpen = opts.onFilesOpen ?? null;
   multiDocShowInContext = opts.showInContext ?? null;
   multiDocOnNewDocDefaultSlot = opts.onNewDocDefaultSlot ?? null;
   multiDocNewDocWithPicker = opts.onNewDocWithPicker ?? null;
@@ -1777,6 +1793,7 @@ const ribbonContext: RibbonContext = {
   },
   clearFormattingOnNamedStyleToggleOff: () =>
     settings.get('clearFormattingOnNamedStyleToggleOff'),
+  clearRemovesHighlighting: () => settings.get('clearRemovesHighlighting'),
   effectivePtForNode: (node, parent) => effectivePtForNode(node, parent),
   normalPt: () => settings.get('displaySizes').normal,
   shrinkRestoresOmissionsToNormal: () =>
@@ -2419,6 +2436,7 @@ const ribbonContext: RibbonContext = {
     if (multiDocActive && multiDocToggleAllNav) multiDocToggleAllNav();
     else settings.set('navPaneVisible', !settings.get('navPaneVisible'));
   },
+  setNavDepth: (level) => activeNavPanelResolver()?.setMaxLevel(level),
   // ─── No-default-binding hooks ────────────────────────────────
   // Each routes through the same button's existing click handler
   // (via `.click()`) — the keybinding then follows the exact same
@@ -4209,6 +4227,7 @@ let lastReadModeBorders = settings.get('hideEmphasisBordersInReadMode');
 let lastReadModeParaIntegrity = settings.get('readModeParagraphIntegrity');
 let lastReadModeKeepCite = settings.get('readModeKeepEntireCite');
 let lastReadModeShowUndertags = settings.get('readModeShowUndertags');
+let lastReadModeShowBackground = settings.get('readModeShowBackground');
 let lastMarkUnread = settings.get('markUnreadAfterMarker');
 let lastNumberingDisplay = numberingDisplaySig();
 
@@ -4275,13 +4294,15 @@ settings.subscribe((s) => {
       s.hideEmphasisBordersInReadMode !== lastReadModeBorders ||
       s.readModeParagraphIntegrity !== lastReadModeParaIntegrity ||
       s.readModeKeepEntireCite !== lastReadModeKeepCite ||
-      s.readModeShowUndertags !== lastReadModeShowUndertags)
+      s.readModeShowUndertags !== lastReadModeShowUndertags ||
+      s.readModeShowBackground !== lastReadModeShowBackground)
   ) {
     lastReadMode = s.readMode;
     lastReadModeBorders = s.hideEmphasisBordersInReadMode;
     lastReadModeParaIntegrity = s.readModeParagraphIntegrity;
     lastReadModeKeepCite = s.readModeKeepEntireCite;
     lastReadModeShowUndertags = s.readModeShowUndertags;
+    lastReadModeShowBackground = s.readModeShowBackground;
     // (applyReadMode re-sends the toggle, which rebuilds the plugin's
     // decoration set — how a keep-entire-cite flip reaches the text.)
     applyReadMode(s.readMode);
@@ -4893,6 +4914,8 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<AnyCommandId>([
   'sendDocToSlot2',
   'sendDocToSlot3',
   'toggleSlotExpand',
+  'hideSlot',
+  'revealAllSlots',
   'cycleDocNext',
   'cycleDocPrev',
   'closeDocOrWindow',
@@ -4954,6 +4977,8 @@ function runViewlessRibbon(id: AnyCommandId): void {
     case 'sendDocToSlot2': void runMultiPane('sendDocToSlot', 1); return;
     case 'sendDocToSlot3': void runMultiPane('sendDocToSlot', 2); return;
     case 'toggleSlotExpand': void runMultiPane('toggleSlotExpand', 0); return;
+    case 'hideSlot': void runMultiPane('hideSlot', 0); return;
+    case 'revealAllSlots': void runMultiPane('revealAllSlots', 0); return;
     case 'cycleDocNext': void runMultiPaneCycle(1); return;
     case 'cycleDocPrev': void runMultiPaneCycle(-1); return;
     case 'closeDocOrWindow':
@@ -4984,7 +5009,7 @@ function runRibbonCommandById(id: AnyCommandId): void {
  *  silently. Encapsulated as a helper so the case bodies in
  *  `runViewlessRibbon` above stay tidy. */
 async function runMultiPane(
-  action: 'focusSlot' | 'sendDocToSlot' | 'toggleSlotExpand',
+  action: 'focusSlot' | 'sendDocToSlot' | 'toggleSlotExpand' | 'hideSlot' | 'revealAllSlots',
   slotIdx: 0 | 1 | 2,
 ): Promise<void> {
   const m = await import('./multi-pane-shell.js');
@@ -4997,6 +5022,12 @@ async function runMultiPane(
       return;
     case 'toggleSlotExpand':
       m.toggleFocusedSlotExpand();
+      return;
+    case 'hideSlot':
+      m.hideFocusedSlot();
+      return;
+    case 'revealAllSlots':
+      m.revealAllSlots();
       return;
   }
 }
@@ -7108,16 +7139,61 @@ function saveFiltersForFormat(format: 'cmir' | 'docx'): { name: string; extensio
  *  multi-pane shell (which shows the "send to slot N" picker);
  *  single-doc mode mounts it as the current view. */
 async function runOpenFlow(): Promise<void> {
-  let opened: OpenedFile | null;
+  const host = getHost();
+  // Multi-select (a setting, off by default) only where every pick has
+  // somewhere to go: the three-pane workspace (one slot for the batch)
+  // or window mode (one window each). A web single-doc window can hold
+  // one doc, so it keeps the single picker.
+  const multi =
+    settings.get('openMultipleFiles') && host.openFiles && (multiDocActive || host.canSpawnWindow);
+  let opened: OpenedFile[];
   try {
-    opened = await getHost().openFile({ filters: OPEN_FILE_FILTERS });
+    if (multi) {
+      opened = await host.openFiles!({ filters: OPEN_FILE_FILTERS });
+    } else {
+      const one = await host.openFile({ filters: OPEN_FILE_FILTERS });
+      opened = one ? [one] : [];
+    }
   } catch (err) {
     console.error('Open failed:', err);
     void alertDialog(`Failed to open: ${err instanceof Error ? err.message : err}`);
     return;
   }
-  if (!opened) return;
-  await routeOpenedFile(opened);
+  if (opened.length === 0) return;
+  if (opened.length > 1 && multiDocActive && multiDocOnFilesOpen) {
+    await routeOpenedFilesToSlot(opened);
+    return;
+  }
+  // Single-doc: the first file mounts here if this window is still a
+  // pristine starter; the rest (and the first, otherwise) spawn windows.
+  for (const file of opened) await routeOpenedFile(file);
+}
+
+/** Several files from one Open dialog in the three-pane workspace: run
+ *  the same journal decode and cross-window guard as `routeOpenedFile`
+ *  on each, then hand the survivors to the shell, which asks for one
+ *  slot for the whole batch. */
+async function routeOpenedFilesToSlot(opened: OpenedFile[]): Promise<void> {
+  const files: OpenedFile[] = [];
+  for (const file of opened) {
+    const src = await resolveOpenedFile(file);
+    if (src === 'corrupt') {
+      showToast(`"${file.name}" is corrupt or could not be read.`);
+      continue;
+    }
+    if (src.handle != null && (await isFileOpenInAnotherWindow(src.handle))) {
+      showToast(`"${src.name}" is already open in another window.`);
+      continue;
+    }
+    files.push({ name: src.name, bytes: src.bytes, handle: src.handle });
+  }
+  if (files.length === 0) return;
+  try {
+    await multiDocOnFilesOpen!(files);
+  } catch (err) {
+    console.error('Multi-doc open failed:', err);
+    void alertDialog(`Failed to open: ${err instanceof Error ? err.message : err}`);
+  }
 }
 
 /** Route an already-obtained opened file: cross-window duplicate guard,
@@ -7290,7 +7366,7 @@ function mountOpenedSingleDoc(args: {
  *  file handle so the first save forces Save As and the damaged
  *  original stays byte-intact for forensics; the drop report joins
  *  the local diagnostics log. */
-async function offerDamagedSalvage(name: string, bytes: Uint8Array): Promise<void> {
+export async function offerDamagedSalvage(name: string, bytes: Uint8Array): Promise<void> {
   let salvaged: ReturnType<typeof parseNativeSalvage>;
   try {
     salvaged = parseNativeSalvage(bytes);
@@ -8500,6 +8576,22 @@ function pushSingleDocInfo(): void {
   void electronHost.docInfoUpdate(registeredSingleDocUid, currentDocFilename);
 }
 
+/** Last path pushed to main for the macOS title-bar proxy icon.
+ *  `undefined` = never pushed (fresh renderer, incl. crash reload). */
+let lastRepresentedFile: string | null | undefined;
+
+/** Point the window's title-bar proxy icon at the focused doc's
+ *  on-disk file so it can be dragged into other apps (macOS; main
+ *  no-ops elsewhere). Deduped — this rides the hot title path. */
+function syncRepresentedFile(handle: unknown): void {
+  const electronHost = getElectronHost();
+  if (!electronHost) return;
+  const path = typeof handle === 'string' && handle ? handle : null;
+  if (path === lastRepresentedFile) return;
+  lastRepresentedFile = path;
+  void electronHost.setRepresentedFile(path);
+}
+
 /** Sync the active filename into the OS title bar (`document.title`)
  *  AND the in-app filename chip — the chip is the user-facing source
  *  of truth where the OS title isn't visible (frameless Electron
@@ -8513,6 +8605,8 @@ function updateWindowTitle(): void {
   const focused = activeFile();
   pushSingleDocInfo();
   reportSingleDocWorkspace();
+  syncFileDragMark(focused.handle);
+  syncRepresentedFile(focused.handle);
   if (currentWindowName) {
     document.title = currentWindowName;
   } else if (multiDocActive && multiDocGetAllFilenames) {
@@ -8681,7 +8775,12 @@ async function serializeForSave(
   // Word has no live-window concept: materialize each self_ref window to real
   // cards (resolved from the source, ids re-stamped) before export.
   const docxNode = flattenSelfRefs(exportDocNode, newHeadingId);
-  return toDocx(docxNode, { ...threadsOpt, ...(docId ? { docId } : {}), defaultFont: settings.get('bodyFont') });
+  return toDocx(docxNode, {
+    ...threadsOpt,
+    ...(docId ? { docId } : {}),
+    defaultFont: settings.get('bodyFont'),
+    generator: DOCX_GENERATOR,
+  });
 }
 
 /**
@@ -10804,9 +10903,10 @@ const dropzoneController = new DropzoneController();
 // touch) — structural moves are Move-mode buttons + nav-pane drags.
 if (!BOOT_MOBILE) {
   // All three bottom-left pills share one fixed tray (a flex row) so the
-  // send / receive pills sit to the RIGHT of the dropzone and each pill's
-  // expansion overlays upward without reflowing its neighbors. The tray is
-  // the element `positionDropzone` anchors.
+  // send / receive pills sit to the RIGHT of the dropzone; each pill's
+  // popup rises from the tray's left edge above the whole row (see "Pill
+  // popups" in style.css). The tray is the element `positionDropzone`
+  // anchors.
   const pillTray = document.createElement('div');
   pillTray.className = 'pmd-pill-tray';
   document.body.appendChild(pillTray);
@@ -11066,15 +11166,15 @@ function positionDropzone(): void {
     // the multi-pane footer's band until an unrelated reflow re-ran us.)
     root.style.removeProperty('left');
     root.style.removeProperty('bottom');
-    root.style.removeProperty('max-width');
+    root.style.removeProperty('--pmd-pill-popup-max');
     return;
   }
   root.style.left = `${Math.max(4, Math.round(r.left + 8))}px`;
   root.style.bottom = `${Math.max(4, Math.round(window.innerHeight - r.bottom + 8))}px`;
-  // Cap the expanded shelf so its right edge keeps the same 8px margin
-  // as the left (it's left-anchored, so without this it grows toward
-  // the window edge).
-  root.style.maxWidth = `${Math.max(160, Math.round(r.width - 16))}px`;
+  // Cap every pill popup (they are left-anchored on the tray) so its right
+  // edge keeps the same 8px margin as the left instead of growing toward
+  // the window edge — read by `.pmd-pill-popup` (style.css).
+  root.style.setProperty('--pmd-pill-popup-max', `${Math.max(160, Math.round(r.width - 16))}px`);
   positionRightTray();
   // The scroll runway (so the last content clears the tray) is pure CSS: a
   // `padding-bottom` on the editable, gated on the pill-hidden class. Single-doc
@@ -12051,6 +12151,7 @@ async function reserializeJournalAs(
   return toDocx(exportDoc, {
     ...(parsed.threads.length > 0 ? { threads: parsed.threads } : {}),
     defaultFont: settings.get('bodyFont'),
+    generator: DOCX_GENERATOR,
   });
 }
 
