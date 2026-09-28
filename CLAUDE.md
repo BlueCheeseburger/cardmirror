@@ -170,7 +170,7 @@ machine running `lsregister`; nobody has done that yet. If this comes
 up again, check that first before assuming the plist alone was
 insufficient.
 
-## Always run `git status` before writing anything in the codebase
+## Always run `git status` before writing anything in the codebase, this ONLY applies to local sessions, cloud sessions can ignore this section
 
 The user asked (2026-09-25) that every session run `git status` (and
 check which branch it's on) before making ANY change to the repo:
