@@ -187,6 +187,13 @@ interface ElectronAPI {
     /** Optional so an older main without the stat-0 flag is tolerated. */
     emptyOnDisk?: boolean;
   } | null>;
+  /** Optional so an older preload without multi-select is tolerated. */
+  openFiles?(opts: { filters: FileFilter[] }): Promise<Array<{
+    name: string;
+    bytes: Uint8Array;
+    handle: string;
+    emptyOnDisk?: boolean;
+  }>>;
   /** Verbatim Flow bridge (Windows COM → Excel). Optional so an older
    *  preload tolerates its absence. */
   flowAvailable?(): Promise<FlowAvailable>;
@@ -349,6 +356,9 @@ interface ElectronAPI {
   /** Push the current filename for a uid so the Select-Speech-Doc
    *  modal can show meaningful row labels across every window. */
   docInfoUpdate(uid: string, filename: string | null): Promise<void>;
+  /** macOS title-bar proxy icon (draggable document icon). Optional
+   *  so a renderer against an older packaged shell skips it. */
+  setRepresentedFile?(path: string | null): Promise<void>;
   /** Cross-window dropzone shelf. List returns current items;
    *  add/remove/clear mutate and broadcast via onDropzoneChanged. */
   dropzoneList(): Promise<
@@ -526,6 +536,9 @@ interface ElectronAPI {
   /** Open the OS file manager at the crash-recovery journals folder. */
   openJournalsFolder(): Promise<void>;
   showItemInFolder?(handle: string): Promise<void>;
+  /** Native file drag out of the window (status-bar mark). Sent from the
+   *  renderer's dragstart; optional so an older preload is tolerated. */
+  dragFileOut?(path: string, iconDataUrl: string): void;
   /** Renderer accessibility tree toggle. Default off — works around a known
    *  Chromium AX-serialization crash. Machine-local pref; changing it needs an
    *  app restart (`relaunchApp`). `isAccessibilitySupportActive` reports whether
@@ -757,6 +770,22 @@ export class ElectronHost implements Host {
       handle: result.handle,
       ...(result.emptyOnDisk === true ? { emptyOnDisk: true } : {}),
     };
+  }
+
+  async openFiles(opts: OpenFileOptions = {}): Promise<OpenedFile[]> {
+    const bridge = api();
+    if (!bridge.openFiles) {
+      const one = await this.openFile(opts);
+      return one ? [one] : [];
+    }
+    const results = await bridge.openFiles({ filters: opts.filters ?? [] });
+    // Same Buffer-like normalization as openFile.
+    return results.map((result) => ({
+      name: result.name,
+      bytes: result.bytes instanceof Uint8Array ? result.bytes : new Uint8Array(result.bytes),
+      handle: result.handle,
+      ...(result.emptyOnDisk === true ? { emptyOnDisk: true } : {}),
+    }));
   }
 
   /** Absolute path of a dropped File (drag-to-open). '' when it can't be
@@ -1152,6 +1181,10 @@ export class ElectronHost implements Host {
     await api().docInfoUpdate(uid, filename);
   }
 
+  async setRepresentedFile(path: string | null): Promise<void> {
+    await api().setRepresentedFile?.(path);
+  }
+
   async dropzoneList(): Promise<
     Array<{ id: string; label: string; type: string; sliceJson: unknown; createdAt: number }>
   > {
@@ -1495,6 +1528,14 @@ export class ElectronHost implements Host {
    *  no-ops gracefully on an older preload without the surface. */
   async showItemInFolder(handle: string): Promise<void> {
     await api().showItemInFolder?.(handle);
+  }
+  /** Whether this shell can start a native file drag (preload surface
+   *  present) — the status-bar mark hides itself otherwise. */
+  canDragFileOut(): boolean {
+    return typeof api().dragFileOut === 'function';
+  }
+  dragFileOut(path: string, iconDataUrl: string): void {
+    api().dragFileOut?.(path, iconDataUrl);
   }
   async openJournalsFolder(): Promise<void> {
     await api().openJournalsFolder();

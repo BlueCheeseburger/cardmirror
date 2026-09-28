@@ -46,6 +46,8 @@ export class ReceivePillController {
   private bar!: HTMLDivElement;
   private listEl!: HTMLUListElement;
   private joinSessionEl: HTMLButtonElement | null = null;
+  /** Footer Clear — empties the inbox; shown only while it has items. */
+  private clearEl: HTMLButtonElement | null = null;
   private actionsLi: HTMLLIElement | null = null;
   private badge!: HTMLSpanElement;
   private getFocusedView: () => EditorView | null = () => null;
@@ -82,7 +84,7 @@ export class ReceivePillController {
     this.root.setAttribute('aria-label', 'Received cards');
 
     this.listEl = document.createElement('ul');
-    this.listEl.className = 'pmd-receive-list';
+    this.listEl.className = 'pmd-receive-list pmd-pill-popup';
     this.root.appendChild(this.listEl);
 
     // Footer action inside the popup list: join a session by pasted
@@ -106,6 +108,24 @@ export class ReceivePillController {
       collabSessionJoinPrompt()?.();
     });
     this.actionsLi.appendChild(this.joinSessionEl);
+    // Clear, like the dropzone's: everything received goes, no prompt
+    // (a resend is always possible). Shown only while there are items.
+    this.clearEl = document.createElement('button');
+    this.clearEl.type = 'button';
+    this.clearEl.className = 'pmd-receive-action pmd-receive-clear';
+    this.clearEl.title = 'Remove everything received';
+    const clearIcon = document.createElement('span');
+    clearIcon.className = 'pmd-send-action-icon';
+    setIcon(clearIcon, 'trash');
+    this.clearEl.appendChild(clearIcon);
+    const clearLabel = document.createElement('span');
+    clearLabel.textContent = 'Clear';
+    this.clearEl.appendChild(clearLabel);
+    this.clearEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      void inboxStore.clear();
+    });
+    this.actionsLi.appendChild(this.clearEl);
 
     this.bar = document.createElement('div');
     this.bar.className = 'pmd-pill-bar pmd-receive-bar';
@@ -115,9 +135,8 @@ export class ReceivePillController {
     const icon = document.createElement('span');
     icon.className = 'pmd-pill-icon';
     icon.setAttribute('aria-hidden', 'true');
-    // Inbox / down-into-tray glyph.
-    icon.innerHTML =
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/></svg>';
+    // In-tray (the icon set's `download`), paired with Send's out-tray.
+    setIcon(icon, 'download');
     this.bar.appendChild(icon);
     const labelEl = document.createElement('span');
     labelEl.className = 'pmd-pill-label';
@@ -127,7 +146,7 @@ export class ReceivePillController {
     // One combined badge: "total · N new" (blue) when there are unread
     // cards, fading to just "total" (gray) once everything's been seen.
     this.badge = document.createElement('span');
-    this.badge.className = 'pmd-receive-badge';
+    this.badge.className = 'pmd-pill-badge pmd-receive-badge';
     this.badge.hidden = true;
     this.bar.appendChild(this.badge);
 
@@ -272,7 +291,10 @@ export class ReceivePillController {
       }
     }
     if (this.actionsLi) {
-      this.actionsLi.hidden = !(collabEnabled() && collabSessionJoinPrompt() !== null);
+      const canJoin = collabEnabled() && collabSessionJoinPrompt() !== null;
+      if (this.joinSessionEl) this.joinSessionEl.hidden = !canJoin;
+      if (this.clearEl) this.clearEl.hidden = total === 0;
+      this.actionsLi.hidden = !canJoin && total === 0;
       this.listEl.appendChild(this.actionsLi);
     }
   }

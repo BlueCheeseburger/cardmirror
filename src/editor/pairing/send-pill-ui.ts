@@ -34,6 +34,7 @@ import {
 import { promptForText } from '../text-prompt.js';
 import { normalizePairingCode, looksLikePairingCode } from './pairing-ids.js';
 import { recentSenders } from './inbox-store.js';
+import { setIcon } from '../icons';
 
 interface SendPillMountOptions {
   parent: HTMLElement;
@@ -164,7 +165,7 @@ export class SendPillController {
     this.root.dataset['open'] = 'false';
 
     this.panel = document.createElement('div');
-    this.panel.className = 'pmd-send-panel';
+    this.panel.className = 'pmd-send-panel pmd-pill-popup';
     this.root.appendChild(this.panel);
 
     this.bar = document.createElement('div');
@@ -173,9 +174,8 @@ export class SendPillController {
     const icon = document.createElement('span');
     icon.className = 'pmd-pill-icon';
     icon.setAttribute('aria-hidden', 'true');
-    // Paper-plane glyph.
-    icon.innerHTML =
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>';
+    // Out-tray (the icon set's `upload`), paired with Receive's in-tray.
+    setIcon(icon, 'upload');
     this.bar.appendChild(icon);
     const labelEl = document.createElement('span');
     labelEl.className = 'pmd-pill-label';
@@ -645,12 +645,15 @@ export class SendPillController {
     if (!this.recentSection) return;
     if (visible && this.recentSection.hidden) {
       // Anchor to the panel's live geometry: right edge + a small gap,
-      // bottoms aligned. Root-relative coordinates (both are absolutely
-      // positioned children of the root).
-      const rootRect = this.root.getBoundingClientRect();
+      // bottoms aligned. Coordinates are relative to the flyout's
+      // containing block — the tray (pills are static inside it) or,
+      // in the home dock, the pill root itself.
+      const baseRect = (
+        (this.recentSection.offsetParent as HTMLElement | null) ?? this.root
+      ).getBoundingClientRect();
       const panelRect = this.panel.getBoundingClientRect();
-      this.recentSection.style.left = `${panelRect.right - rootRect.left + 6}px`;
-      this.recentSection.style.bottom = `${rootRect.bottom - panelRect.bottom}px`;
+      this.recentSection.style.left = `${panelRect.right - baseRect.left + 6}px`;
+      this.recentSection.style.bottom = `${baseRect.bottom - panelRect.bottom}px`;
     }
     this.recentSection.hidden = !visible;
   }
