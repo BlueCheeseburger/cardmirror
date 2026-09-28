@@ -303,6 +303,53 @@ AppImage/pacman assets are safe to drop when trimming to mac+Windows —
 the zip+yml trio for the platforms you ARE keeping is load-bearing,
 not cruft.
 
+## Cutting releases: when, and which version number
+
+The user asked (2026-09-28) for one place that says when to cut a
+release and how to number it.
+
+**When.** Only cut a release once a few big changes have shipped to
+`main` since the last one: several user-facing features or meaningful
+changes waiting in `CHANGELOG.md`'s `## Unreleased`, not a single small
+tweak. Don't cut or suggest a release after every merged PR. Let
+`Unreleased` build up. The exceptions:
+- **The user asks for one.** Cut it, even if `Unreleased` is thin.
+- **An upstream sync lands** that the user asked to release.
+- **A hotfix.** The latest release is broken in a way users will hit
+  (a crash, data loss, updates failing). Offer the user a point
+  release; don't wait for a batch.
+
+**Numbering.** Tags are `vX.Y.Z-bcb.N`, and `X.Y.Z` is always the
+upstream version the fork is synced to.
+- **`X.Y.Z-bcb.1`**: the first release after merging upstream `X.Y.Z`
+  (for example `1.13.0-bcb.1` after syncing upstream 1.13.0). Syncing
+  a new upstream version resets the counter to `.1`.
+- **`bcb.N` → `bcb.N+1`**: a normal release, meaning a batch of new
+  features or meaningful changes on the same upstream base.
+- **`bcb.N.M`** (for example `1.10.0-bcb.3.1`): a point release on top
+  of `bcb.N` with only bug fixes or a small, urgent tweak. That covers
+  the hotfix case above, or a follow-up the user asked to ship right
+  away. The next normal release goes back to `bcb.N+1` (after
+  `bcb.3.2` comes `bcb.4`, not `bcb.3.3`, unless it's another hotfix).
+- If a release has any new feature, it's `bcb.N+1`, not a `.M`.
+
+**How.**
+1. Release prep goes through a PR, not straight to `main`:
+   - bump `version` in both `package.json` and
+     `apps/desktop/package.json`;
+   - rename `## Unreleased` to `## X.Y.Z-bcb.N — YYYY-MM-DD` in both
+     changelogs;
+   - add the `### From upstream` sections if it's a sync (see the
+     section above).
+2. Once CI is green, merge.
+3. Run `release.yml` by `workflow_dispatch` on `main` with the `tag`
+   input (`vX.Y.Z-bcb.N`).
+4. When the build finishes, check the release is live (not a draft)
+   with all 8 assets: the `.dmg`, mac `.zip`, `.exe` and their three
+   `.blockmap`s, plus `latest-mac.yml` and `latest.yml` (see the
+   sections below).
+5. Never delete older releases.
+
 ## Standing permission: publish releases live, don't leave them as drafts
 
 The user has given standing permission (2026-09-04) for any session
