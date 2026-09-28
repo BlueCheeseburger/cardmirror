@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.13.0-bcb.1 — 2026-09-28
 
 ### Added
 
@@ -27,6 +27,28 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 - **Image resize handles always keep the shape.** The side handles used
   to stretch the image; now every handle scales it evenly.
+
+### From upstream
+
+Syncs all changes from [v1.13.0](#1130--2026-09-25). Highlights:
+- **Read mode can show background color**, so a highlighting pass you
+  locked to background stays visible while you re-highlight
+- **Emphasis + Background Color** in one command, and an option for
+  **Clear (F12) to remove highlighting** too
+- **Next / Previous Pocket, Hat, Block and Tag** commands, and keyboard
+  commands for the navigation pane's depth
+- **Condense With Warning and Shrink** as one step
+- Three-pane options:
+  - opening a file replaces an untouched Untitled doc
+  - New Speech Document goes straight to the speech side
+  - the first doc in the speech slot becomes the speech doc
+  - **Hide Slot** / **Reveal All Slots**
+- **Open several files at once** (desktop, off by default)
+- **Drag the open file out of the app** from the status-bar mark, or
+  from the title bar on macOS
+- Saved Word files quietly record that CardMirror wrote them
+- The dropzone, Send and Receive pills open the same way, and the
+  browser's focus ring is gone
 
 ## 1.12.0-bcb.5 — 2026-09-25
 
@@ -482,6 +504,126 @@ opened as your working document — the diff is read-only.
 
 *The sections below are upstream CardMirror's own release notes, synced into
 this fork. This fork's own changes are covered above in [Fork Changes](#fork-changes).*
+
+## 1.13.0 — 2026-09-25
+
+### Added
+
+- **Read mode: show background color** (Settings → General → Editor
+  behavior, off by default) keeps background-colored text visible in
+  read mode beside highlighted text, so a highlighting pass you locked
+  to background (Lock Highlighting) stays on screen while you read your
+  re-highlight. Convert Cards to Read Mode follows it. Background-colored
+  text still doesn't count toward word counts or read time. Thanks to
+  Cora (@coralynnkc)!
+
+- **Emphasis + Background Color.** A new command (Search Everything;
+  unbound, so give it a key in Settings → Keyboard shortcuts) applies
+  Emphasis and the active background color in one keystroke and one
+  undo. Emphasis on its own removes background color, so doing them
+  one at a time in the wrong order used to lose the background. Thanks
+  to Cora (@coralynnkc)!
+
+- **Navigation pane depth commands.** Four new commands, *Navigation
+  Pane: Show Level 1* through *Show Levels 1–4*, set the pane's depth
+  from the keyboard exactly as its 1 · 2 · 3 · 4 buttons do. Unbound by
+  default; give them keys in Settings → Keyboard shortcuts. Thanks to
+  Cora (@coralynnkc)!
+
+- **Go to Next / Previous Pocket, Hat, Block and Tag.** Eight new caret
+  commands jump by one heading level only, so Next Tag skips every Block
+  and Analytic on the way (Verbatim's Next / Previous Tag). PageUp /
+  PageDown still stop at every heading. Unbound by default. Thanks to
+  Cora (@coralynnkc)!
+
+- **Clear (F12) also removes highlighting** (Settings → Editing →
+  Formatting operations, off by default). On, F12 strips highlighting
+  along with everything else it clears, in every case; background color
+  is kept either way. Thanks to Cora (@coralynnkc)!
+
+- **Condense With Warning and Shrink.** One command (unbound; also
+  answers to "fast condense" in Search Everything) runs Condense With
+  Warning and then Shrink on the result, as one step with one undo. The
+  pause and resume markers stay full size when Shrink's marker
+  protection is on. Thanks to Cora (@coralynnkc)!
+
+- **Three-pane: opening a file replaces an untouched Untitled doc**
+  (Settings → General → Workspace, off by default). New, then Open into
+  the same slot no longer leaves a blank Untitled stacked under the
+  file. An Untitled you have typed in (even if you deleted it again),
+  the speech doc, and co-edited docs always stay. Thanks to Cora
+  (@coralynnkc)!
+
+- **Three-pane: New Speech Document opens on the speech doc side**
+  (Settings → General → Workspace, off by default) skips the slot
+  question and puts the new speech doc in the slot Arrange Windows uses
+  for it. Thanks to Cora (@coralynnkc)!
+
+- **Three-pane: mark the first document in the speech doc slot as the
+  speech doc** (Settings → General → Workspace, off by default). While
+  nothing is marked, the first document you open or create in the
+  speech-side slot becomes the speech doc, so Send to Speech works on a
+  file you opened rather than created. Thanks to Cora (@coralynnkc)!
+
+- **Three-pane: Hide Slot and Reveal All Slots.** Two new commands
+  (unbound by default) park a slot, documents and all, so the other two
+  share the width, and bring every hidden slot back. A hidden slot also
+  returns when you press Mod-1/2/3 on it, open or send a document into
+  it, run Arrange Windows, or when one of its documents needs you (a
+  save prompt, or a file that is already open there). *Show a Hide
+  button on each slot* (Settings → General → Workspace) adds a title-bar
+  button. Thanks to Cora (@coralynnkc)!
+
+- **Open several files at once** (Settings → General → Workspace, off by
+  default, desktop only). The Open dialog takes a multi-selection. In
+  the three-pane workspace you pick one slot for the whole batch and the
+  files stack there (Ctrl-Tab cycles them); a slot's own Open button
+  loads them into that slot without asking. Otherwise each file opens in
+  its own window. A damaged file in the batch gets the usual repair
+  offer once the rest have opened. Thanks to Cora (@coralynnkc)!
+
+- **Drag the file out of the app.** The CardMirror mark in the
+  bottom-right corner of the status bar is the open document's file:
+  drag it into Slack, Mail, Teams, Finder or Explorer to share the file,
+  or click it to show the file in its folder. It's dimmed until the
+  document has been saved. Desktop only.
+
+- **Drag a document out of the title bar (macOS).** A saved
+  document's file icon now sits in the window's title bar: hover over
+  the title, then drag the icon into Slack, Mail, Finder, or any other
+  app to share the file, as you can with Word. Cmd-click the title to
+  see where the file lives. Thanks to Shreeram (@shreerammodi)!
+
+- **Word files record that CardMirror wrote them**, invisibly. A saved
+  .docx now names CardMirror and its version in the file's standard
+  application properties, alongside the document id it already
+  carried. Nothing appears in the document itself, Word and other
+  editors ignore it, and it never affects how a file opens anywhere.
+
+### Changed
+
+- **The dropzone, Send and Receive pills open the same way.** Click any
+  of the three and its list rises above the pill row, and the pill you
+  clicked is outlined in blue — that is how you tell which one is open.
+  Every list starts at the row's left edge and
+  can run as wide as the editor, so shelf items are no longer squeezed
+  into a thin column and the Receive list no longer runs off the edge of
+  a narrow window. All three pills get the same blue border on hover.
+  The shelf's Clear button now sits at the bottom of its list. The
+  pills' icons now come from the app's own icon set: a storage box for
+  the dropzone, and a matching out-tray and in-tray for Send and
+  Receive (the old dropzone and Receive icons were a mismatched pair of
+  opposite arrows). The Receive list gains a **Clear** button beside
+  Join session, the shelf's Clear is styled like those buttons, and the
+  dropzone's item count is now the same grey badge Receive uses.
+- **No more browser focus ring.** The orange-or-accent-colored ring the
+  browser drew around whatever last took keyboard focus (a pill, a nav
+  row, a chip) is gone everywhere. Text fields still show their own blue
+  outline while active.
+
+### Fixed
+
+- The dropzone pill showed a **0** badge when the shelf was empty.
 
 ## 1.12.0 — 2026-09-21
 
@@ -2839,7 +2981,6 @@ beta — it is what it is because of you.
   after a capitalization to revert it, same as smart quotes and the custom
   dash.
 
-
 ### Changed
 
 - **AI errors are clearer, and momentary failures fix themselves.** When the
@@ -2904,8 +3045,6 @@ beta — it is what it is because of you.
   longer converts the tail of a longer hyphen run (pasted hyphens, ASCII
   dividers) — only a clean sequence fires, matching the `--` trigger's
   existing behavior.
-
-
 
 - **Renamed or moved folders no longer strand your document.** If a file's
   folder is renamed, moved, or deleted while the document is open (for
@@ -4945,7 +5084,6 @@ properly, with a real on-switch, once it's ready. What's in the preview:
   thinking/Clod progress indicator, fixes, flashes, and single undo
   step as on desktop (and a pointer to Settings if no API key is set
   up on the device; the Clod toggle is in mobile Settings too).
-
 
 - **Smart Shrink.** Press **Mod-Alt-8** to shrink a card's connective
   text in one step, with per-paragraph depth: paragraphs containing no

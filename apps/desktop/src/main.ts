@@ -30,7 +30,9 @@ import {
   shell,
   utilityProcess,
   session,
+  nativeImage,
 } from 'electron';
+import { existsSync } from 'node:fs';
 import { autoUpdater } from 'electron-updater';
 import { bundlePathFromExe, launchSwapHelper, macBundleSelfUpdatable } from './mac-swap-update.js';
 import { buildChooserPrompt, readChooserResponse } from './multipane-chooser.js';
@@ -808,6 +810,23 @@ ipcMain.handle('host:show-item-in-folder', (_event, handle: unknown) => {
   shell.showItemInFolder(handle);
 });
 
+/** Native drag of a saved document out of the window — the status-bar
+ *  CardMirror mark (renderer: file-drag-mark.ts), the cross-platform twin
+ *  of the macOS title-bar proxy icon. `startDrag` has to run in response
+ *  to the renderer's own dragstart, hence `on` + `send` rather than
+ *  `handle`. The path is the doc's handle (absolute on desktop); anything
+ *  else, or a file that no longer exists, is ignored. The drag image is
+ *  the mark itself — Windows refuses a drag without a real icon. */
+ipcMain.on('host:drag-file-out', (event, payload: unknown) => {
+  const p = payload as { path?: unknown; iconDataUrl?: unknown } | null;
+  const file = typeof p?.path === 'string' ? p.path : '';
+  if (!file || !path.isAbsolute(file) || !existsSync(file)) return;
+  const icon =
+    typeof p?.iconDataUrl === 'string' ? nativeImage.createFromDataURL(p.iconDataUrl) : nativeImage.createEmpty();
+  if (icon.isEmpty()) return;
+  event.sender.startDrag({ file, icon: icon.resize({ width: 32, height: 32 }) });
+});
+
 ipcMain.handle('host:open-journals-folder', async () => {
   await ensureJournalsDir();
   await shell.openPath(journalsDir());
@@ -912,6 +931,35 @@ ipcMain.handle('host:open-file', async (event, opts: { filters?: FileFilter[] })
     handle: filePath,
     emptyOnDisk: await isEmptyOnDisk(filePath, bytes),
   };
+});
+
+// Multi-select variant of host:open-file: the Open command lets the user
+// pick several documents at once. Each pick gets the same read grant and
+// empty-on-disk flag as the single open; a file that can't be read is
+// dropped rather than failing the whole batch.
+ipcMain.handle('host:open-files', async (event, opts: { filters?: FileFilter[] }) => {
+  const win = ownerWindow(event.sender);
+  const result = await dialog.showOpenDialog(win ?? new BrowserWindow({ show: false }), {
+    properties: ['openFile', 'multiSelections'],
+    filters: opts?.filters?.length ? opts.filters : [],
+  });
+  if (result.canceled || result.filePaths.length === 0) return [];
+  const files = [];
+  for (const filePath of result.filePaths) {
+    grantReadPath(filePath);
+    try {
+      const bytes = await readDocumentBytes(filePath);
+      files.push({
+        name: path.basename(filePath),
+        bytes: new Uint8Array(bytes),
+        handle: filePath,
+        emptyOnDisk: await isEmptyOnDisk(filePath, bytes),
+      });
+    } catch (err) {
+      console.error('Open failed for', filePath, err);
+    }
+  }
+  return files;
 });
 
 // ── Card-cutter local plugin (experimental; NEVER bundled in the
@@ -2472,6 +2520,20 @@ ipcMain.handle(
     });
   },
 );
+
+/** macOS title-bar proxy icon: the renderer pushes the focused doc's
+ *  on-disk path (or null for untitled / no doc). With a represented
+ *  file set, AppKit shows the document icon beside the window title;
+ *  dragging it (or the title, after the hover reveal) drops the file
+ *  into another app — Slack, Mail, Finder — and Cmd-click shows the
+ *  path menu. Empty string clears it. No-op off macOS (Electron has
+ *  no equivalent there). */
+ipcMain.handle('host:set-represented-file', async (event, p: unknown) => {
+  if (process.platform !== 'darwin') return;
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return;
+  win.setRepresentedFilename(typeof p === 'string' && path.isAbsolute(p) ? p : '');
+});
 
 /** List every open doc across every window. The Select Speech Doc
  *  modal calls this to populate its row list. Stale entries

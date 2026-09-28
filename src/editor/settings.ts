@@ -1045,6 +1045,14 @@ export interface Settings {
    *  read time: the counter is mark-based and unhighlighted undertag
    *  text carries no read-aloud mark. */
   readModeShowUndertags: boolean;
+  /** When true, read mode keeps text carrying background color
+   *  (`shading`) visible, alongside highlighted text — so an old
+   *  highlighting pass locked to background (Lock Highlighting,
+   *  Create Reference) still shows while reading a re-highlight.
+   *  Display-only, like keep-entire-cite; Convert Cards to Read Mode
+   *  follows it. Off by default. Never counted toward word counts /
+   *  read time: the counter excludes shaded text by design. */
+  readModeShowBackground: boolean;
   /** Word-style Repeat: when true, Mod-Y with nothing left to redo
    *  re-runs the last editing action at the current selection (the
    *  last burst of typing, a formatting command, Backspace/Delete, a
@@ -1129,12 +1137,22 @@ export interface Settings {
    *  commands). Off by default: nothing is recorded and the section
    *  never renders until it is on. */
   lastWorkspaceEnabled: boolean;
+  /** Desktop: the Open dialog takes a multi-selection (one slot for the
+   *  batch in three-pane, one window each otherwise). Off by default. */
+  openMultipleFiles: boolean;
   /** Arrange Windows: which side of the screen the speech doc takes
    *  (every other window goes to the other side). */
   arrangeSpeechSide: 'left' | 'right';
   /** Arrange Windows: the speech doc's share of the width, in percent
    *  (10–90); the docs side gets the rest. */
   arrangeSpeechPct: number;
+  /** Three-pane: New Speech Document skips the slot picker and opens
+   *  in the slot on the Arrange Windows speech side. Off by default. */
+  newSpeechDocInSpeechSlot: boolean;
+  /** Three-pane: the first document opened (or created with New) in the
+   *  speech-side slot while no speech doc is marked gets marked as the
+   *  speech doc. Off by default. */
+  autoMarkSpeechSlotDoc: boolean;
   /**
    * Per-style font sizes (in points). See DisplaySizes for details.
    * Each field becomes a CSS custom property on `#editor`.
@@ -1395,6 +1413,12 @@ export interface Settings {
    * re-apply direct formatting after).
    */
   clearFormattingOnNamedStyleToggleOff: boolean;
+  /**
+   * F12 (Clear) also removes highlighting. Off by default: Verbatim's
+   * Clear keeps highlighting, so a reader can un-style a card without
+   * losing what's read. Shading is kept either way.
+   */
+  clearRemovesHighlighting: boolean;
   /**
    * The highlight color the "Standardize Highlighting (with
    * Exception)" command leaves untouched. One of Word's 15 named
@@ -1657,6 +1681,13 @@ export interface Settings {
    *  (2 full + edge of 3rd visible). With 1 or 2 active slots the
    *  two modes render identically. */
   multiDocLayoutMode: 'compact' | 'wide';
+  /** Three-pane: opening a file into a slot whose visible doc is an
+   *  untouched Untitled (never saved, never edited) closes that doc
+   *  instead of stacking the file on top of it. Off by default. */
+  openReplacesUntitled: boolean;
+  /** Three-pane: show a Hide button on each slot's title bar. Off by
+   *  default; the Hide Slot / Reveal All Slots commands work either way. */
+  showHideSlotButton: boolean;
   /** Quick Cards: tags currently active in the search-palette filter
    *  (edited by the Tag Picker). Empty = no filter (all cards in
    *  scope); non-empty scopes search to cards with >=1 active tag.
@@ -1950,6 +1981,7 @@ const DEFAULTS: Settings = {
   readModeParagraphIntegrity: false,
   readModeKeepEntireCite: false,
   readModeShowUndertags: false,
+  readModeShowBackground: false,
   repeatWithModY: false,
   markUnreadAfterMarker: false,
   defaultZoomPct: 100,
@@ -1966,8 +1998,11 @@ const DEFAULTS: Settings = {
   wordCountOrder: 'doc-container-remaining',
   wordCountOrderReadMode: 'doc-container-remaining',
   lastWorkspaceEnabled: false,
+  openMultipleFiles: false,
   arrangeSpeechSide: 'right',
   arrangeSpeechPct: 50,
+  newSpeechDocInSpeechSlot: false,
+  autoMarkSpeechSlotDoc: false,
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
   displayParagraphSpacing: { ...DEFAULT_PARAGRAPH_SPACING },
   displayTypography: { ...DEFAULT_DISPLAY_TYPOGRAPHY },
@@ -2013,6 +2048,7 @@ const DEFAULTS: Settings = {
   formattingGapClass: 'both',
   autoBridgeFormattingGaps: true,
   clearFormattingOnNamedStyleToggleOff: true,
+  clearRemovesHighlighting: false,
   standardizeHighlightException: 'yellow',
   standardizeShadingException: 'FFFF00',
   defaultHighlightColor: 'yellow',
@@ -2079,6 +2115,8 @@ const DEFAULTS: Settings = {
   multiDocWorkspace: false,
   mobileLayout: 'auto',
   multiDocLayoutMode: 'compact',
+  openReplacesUntitled: false,
+  showHideSlotButton: false,
   quickCardActiveTags: [],
   cardCutterEnabled: false,
   cardCutterEnginePath: '',
@@ -2350,6 +2388,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['last workspace', 'reopen documents', 'restore session', 'remember open documents'],
   },
   {
+    key: 'openMultipleFiles',
+    label: 'Open several files at once',
+    description:
+      "Off by default. On, the Open dialog lets you pick several files (Shift-click or Mod-click). In the three-pane workspace you choose one slot for the whole batch and they stack there (Ctrl-Tab cycles them); a slot's own Open button loads them into that slot. Otherwise each file opens in its own window. Desktop only.",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    electronOnly: true,
+    aliases: ['open multiple files', 'multi-select open', 'open several documents'],
+  },
+  {
     key: 'arrangeSpeechSide',
     label: 'Arrange Windows: speech doc side',
     description:
@@ -2371,6 +2420,28 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['speech doc width', 'window split', 'arrange ratio'],
   },
   {
+    key: 'newSpeechDocInSpeechSlot',
+    label: 'New speech documents open on the speech doc side',
+    description:
+      'Off by default, so New Speech Document asks which slot to use. On, it skips that question and opens the new speech doc in the slot on the Arrange Windows speech doc side (Slot 3 for right, Slot 1 for left), stacked on whatever is there.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    dependsOn: 'multiDocWorkspace',
+    aliases: ['speech doc slot', 'new speech slot', 'speech side slot'],
+  },
+  {
+    key: 'autoMarkSpeechSlotDoc',
+    label: 'Mark the first document in the speech doc slot as the speech doc',
+    description:
+      "Off by default. On, when no speech doc is marked, the first document you open (or create with New) in the slot on the Arrange Windows speech doc side (Slot 3 for right, Slot 1 for left) is marked as the speech doc. Nothing changes once a speech doc is marked, and moving a doc between slots never marks it.",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    dependsOn: 'multiDocWorkspace',
+    aliases: ['auto mark speech doc', 'mark speech doc automatically', 'speech slot'],
+  },
+  {
     key: 'multiDocLayoutMode',
     label: 'Multi-doc layout',
     description:
@@ -2379,6 +2450,28 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Workspace',
     dependsOn: 'multiDocWorkspace',
+  },
+  {
+    key: 'openReplacesUntitled',
+    label: 'Opening a file replaces an untouched Untitled doc',
+    description:
+      "Off by default. On, opening a file into a slot that's showing a blank Untitled document you haven't typed in or saved closes that document, so the file takes its place instead of stacking on top of it. An Untitled doc you've typed in (even if you deleted it again), the speech doc, and co-edited docs are always kept.",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    dependsOn: 'multiDocWorkspace',
+    aliases: ['replace untitled', 'replace empty document', 'close blank document'],
+  },
+  {
+    key: 'showHideSlotButton',
+    label: 'Show a Hide button on each slot',
+    description:
+      "Off by default. On, each slot's title bar gets a Hide button that takes the slot out of the layout so the other slots share its width; its documents stay open. Reveal All Slots (a command) brings hidden slots back, and so do Mod-1/2/3 or opening a document into the slot. Hide Slot and Reveal All Slots are commands either way (unbound by default).",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    dependsOn: 'multiDocWorkspace',
+    aliases: ['hide slot', 'hide pane', 'reveal slots', 'minimize slot'],
   },
   {
     key: 'navMaxLevel',
@@ -2495,6 +2588,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Editor behavior',
     aliases: ['undertags read mode', 'show undertags', 'read mode undertags'],
+  },
+  {
+    key: 'readModeShowBackground',
+    label: 'Read mode: show background color',
+    description:
+      'When on, read mode shows text with a background color as well as highlighted text — so highlighting you locked to background (Lock Highlighting) or someone else\'s old highlighting stays visible while you read your own. Off by default. Display-only, like keep entire cite; Convert Cards to Read Mode follows it too. Background-colored text still does not count toward word counts or read-time estimates.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Editor behavior',
+    aliases: ['background read mode', 'shading read mode', 'show background', 'show shading', 'read mode background', 'rehighlight read mode'],
   },
   {
     key: 'repeatWithModY',
@@ -3735,6 +3838,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'toggle',
     category: 'editing',
     section: 'Formatting operations',
+  },
+  {
+    key: 'clearRemovesHighlighting',
+    label: 'Clear (F12) also removes highlighting',
+    description:
+      'When on, F12 strips highlighting along with the other formatting it clears. Off by default to match Verbatim, which leaves highlighting in place. Shading is never removed.',
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Formatting operations',
+    aliases: ['clear highlighting', 'remove highlighting', 'f12 highlight'],
   },
   {
     key: 'createReferenceIncludeHeading',
@@ -4995,6 +5108,7 @@ function sanitize(s: Settings): Settings {
     readModeParagraphIntegrity: !!s.readModeParagraphIntegrity,
     readModeKeepEntireCite: !!s.readModeKeepEntireCite,
     readModeShowUndertags: !!s.readModeShowUndertags,
+    readModeShowBackground: !!s.readModeShowBackground,
     repeatWithModY: !!s.repeatWithModY,
     markUnreadAfterMarker: !!s.markUnreadAfterMarker,
     // A legacy persisted `zoomPct` is deliberately ignored — live body
@@ -5012,11 +5126,14 @@ function sanitize(s: Settings): Settings {
     wordCountOrder: isWordCountOrder(s.wordCountOrder) ? s.wordCountOrder : DEFAULT_WORD_COUNT_ORDER,
     wordCountOrderReadMode: isWordCountOrder(s.wordCountOrderReadMode) ? s.wordCountOrderReadMode : DEFAULT_WORD_COUNT_ORDER,
     lastWorkspaceEnabled: s.lastWorkspaceEnabled === true,
+    openMultipleFiles: s.openMultipleFiles === true,
     arrangeSpeechSide: s.arrangeSpeechSide === 'left' ? 'left' : 'right',
     arrangeSpeechPct:
       typeof s.arrangeSpeechPct === 'number' && Number.isFinite(s.arrangeSpeechPct)
         ? Math.min(90, Math.max(10, Math.round(s.arrangeSpeechPct)))
         : 50,
+    newSpeechDocInSpeechSlot: s.newSpeechDocInSpeechSlot === true,
+    autoMarkSpeechSlotDoc: s.autoMarkSpeechSlotDoc === true,
     displaySizes: sanitizeDisplaySizes(s.displaySizes),
     displayParagraphSpacing: sanitizeParagraphSpacing(s.displayParagraphSpacing),
     underlineFollowsFontColor: s.underlineFollowsFontColor === true,
@@ -5132,6 +5249,7 @@ function sanitize(s: Settings): Settings {
       s.clearFormattingOnNamedStyleToggleOff === undefined
         ? DEFAULTS.clearFormattingOnNamedStyleToggleOff
         : !!s.clearFormattingOnNamedStyleToggleOff,
+    clearRemovesHighlighting: s.clearRemovesHighlighting === true,
     standardizeHighlightException: isWordHighlightName(
       String(s.standardizeHighlightException ?? ''),
     )
@@ -5289,6 +5407,7 @@ function sanitize(s: Settings): Settings {
       typeof s.googleTranslateApiKey === 'string' ? s.googleTranslateApiKey.trim() : '',
     prependTranslationMarker: s.prependTranslationMarker === false ? false : true,
     multiDocWorkspace: !!s.multiDocWorkspace,
+    openReplacesUntitled: s.openReplacesUntitled === true,
     mobileLayout:
       s.mobileLayout === 'mobile' || s.mobileLayout === 'desktop'
         ? s.mobileLayout
@@ -5297,6 +5416,7 @@ function sanitize(s: Settings): Settings {
       s.multiDocLayoutMode === 'wide' || s.multiDocLayoutMode === 'compact'
         ? s.multiDocLayoutMode
         : DEFAULTS.multiDocLayoutMode,
+    showHideSlotButton: s.showHideSlotButton === true,
     quickCardActiveTags: Array.isArray(s.quickCardActiveTags)
       ? s.quickCardActiveTags.filter((t): t is string => typeof t === 'string')
       : [],
