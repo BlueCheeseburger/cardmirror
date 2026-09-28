@@ -14773,8 +14773,11 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   padding-top: 4px;
   border-top: 1px solid var(--pmd-c-border-soft);
 }
-/* display:flex would defeat the hidden attribute (collab gate closed). */
-.pmd-receive-actions[hidden] {
+/* display:flex would defeat the hidden attribute (collab gate closed) —
+   on the row, and on its buttons (Clear with nothing received, Join with
+   collab off). */
+.pmd-receive-actions[hidden],
+.pmd-receive-action[hidden] {
   display: none;
 }
 .pmd-send-action,
