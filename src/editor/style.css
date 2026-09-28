@@ -12054,6 +12054,49 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
 }
 .pmd-route-cancel:hover { color: var(--pmd-c-text); }
 
+/* Join session's picker (collab/rejoin-picker.ts): the route dialog with a
+   vertical list of sessions to rejoin, each with an optional Forget ✕. */
+.pmd-rejoin-dialog {
+  width: min(460px, calc(100vw - 32px));
+}
+.pmd-rejoin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+}
+.pmd-rejoin-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.pmd-rejoin-btn {
+  text-align: left;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pmd-rejoin-forget {
+  flex: 0 0 auto;
+  width: 1.9rem;
+  background: transparent;
+  border: 1px solid var(--pmd-c-border-soft);
+  border-radius: 6px;
+  color: var(--pmd-c-text-muted);
+  cursor: pointer;
+}
+.pmd-rejoin-forget:hover { color: var(--pmd-c-text); }
+.pmd-rejoin-empty {
+  font-size: 0.85rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-rejoin-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.pmd-rejoin-footer .pmd-route-cancel { align-self: center; }
+
 /* In the create-flashcard dialog, size the Cancel button to match the manage
    screen's New card / Import / Export buttons (.pmd-learn-manage-new), so it
    reads the same size as the accent Create button it sits beside. */

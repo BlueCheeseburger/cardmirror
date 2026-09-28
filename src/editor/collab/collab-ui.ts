@@ -68,6 +68,7 @@ import {
   saveRecentRoom,
   deleteRecentRoom,
 } from './collab-store.js';
+import { loadRejoinCandidates, pickSessionToJoin } from './rejoin-picker.js';
 import { importRoomKey, decryptBlob } from './collab-crypto.js';
 import { resetSessionCommentIds } from '../comments-plugin.js';
 import { collabEnabled } from './collab-gate.js';
@@ -1030,6 +1031,18 @@ async function startSessionFlowInner(
 
 export async function joinSessionFlow(deps: CollabUiDeps): Promise<void> {
   if (!collabEnabled()) return;
+  // Sessions this user can get back into (saved copies, rooms they left)
+  // come first; the paste prompt is one click away, and the only screen
+  // when there's nothing to list.
+  const candidates = await loadRejoinCandidates(roomLiveInWindow);
+  if (candidates.length > 0) {
+    const pick = await pickSessionToJoin(candidates);
+    if (!pick) return;
+    if (pick.kind === 'rejoin') {
+      await joinSessionWithCode(deps, pick.shareCode, { guestPass: pick.guestPass });
+      return;
+    }
+  }
   const entered = await promptForText({
     message: 'Paste the share code — or the invite link — from your partner',
     placeholder: 'cmshare… or https://cardmirror.app/#join=…',
