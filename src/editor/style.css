@@ -563,6 +563,18 @@ body {
    AND black on dark, breaking dark mode. `inherit` makes each
    button pick up whatever color the surrounding scope resolved
    to (body's `--pmd-c-text`, the ribbon's, the editor's, etc.). */
+/* No browser focus ring anywhere (user call 2026-09-25). Chromium's
+   `outline: auto` on keyboard focus follows the OS accent color and lands
+   on every focusable thing — pill bars, nav rows, chips — where it says
+   nothing the app's own states don't: text fields draw their own accent
+   outline on focus (the "input focus ring" scaffolding below), dialogs arm
+   a default button, the editor is the caret. Those deliberate
+   `:focus-visible` / `:focus` outlines are more specific than this reset
+   and still apply. */
+:focus,
+:focus-visible {
+  outline: none;
+}
 button {
   color: inherit;
 }
@@ -2526,6 +2538,39 @@ body:not(.pmd-multi-doc) #app {
   gap: 0.4rem;
 }
 
+/* Bottom-right CardMirror mark: drag handle for the focused document's
+   file (file-drag-mark.ts sets the image). The same button chrome as
+   the zoom buttons beside it (keep in sync with `.zoom-controls button`),
+   the mark drawn inside at 80%; the grab cursor and the tooltip say what
+   it does. Dimmed like a disabled zoom button while there is no file on
+   disk. */
+#file-drag-mark {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-left: 0.4rem;
+  padding: 0;
+  background: var(--pmd-c-bg);
+  background-position: center;
+  background-size: 80%;
+  background-repeat: no-repeat;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  cursor: grab;
+}
+#file-drag-mark:hover {
+  background-color: var(--pmd-c-hover);
+}
+#file-drag-mark:active {
+  cursor: grabbing;
+}
+#file-drag-mark[data-inert] {
+  opacity: 0.4;
+  cursor: default;
+}
+#file-drag-mark[hidden] {
+  display: none;
+}
 .zoom-controls button {
   font-family: inherit;
   background: var(--pmd-c-bg);
@@ -4436,7 +4481,6 @@ body.pmd-nav-hidden #nav-pane-pull-tab {
 .pmd-home-recents-clear:hover,
 .pmd-dropzone-row-delete:hover,
 .pmd-dropzone-bar:hover,
-.pmd-dropzone-clear:hover,
 .pmd-qc-add-suggestion:hover,
 .pmd-voice-pill:hover,
 .pmd-receive-bar:hover,
@@ -4983,6 +5027,16 @@ html.pmd-undoredo-hidden #undo-redo-stack {
 .pmd-pill-tray > * {
   pointer-events: auto;
 }
+/* Pills sit STATIC inside the tray so every popup's containing block is
+   the tray itself: `left: 0` on a popup is the left edge of the leftmost
+   visible pill, whichever pill opened it — the popups all start in the
+   same place and share the full width. (In the home screen's dock the
+   receive pill keeps `position: relative`, so its popup hangs off the
+   pill.) */
+.pmd-pill-tray > .pmd-pill,
+.pmd-pill-tray > .pmd-dropzone-root {
+  position: static;
+}
 /* Home screen's own dock for the receive pill (the pill node is
    re-parented here while home is visible — collab invites join a NEW
    doc, so they must not require one open). Bottom-centered strip on
@@ -5031,44 +5085,19 @@ html.pmd-pill-tray-active .pmd-pane-pill-anchored .pmd-pane-editor .ProseMirror 
 }
 
 /* ---- Dropzone shelf (cross-window scratch space) ----
-   The visible "pill" is `.pmd-dropzone-bar`. The surrounding
-   root has no chrome of its own when closed — the bar IS the
-   visible element. When open, the root gains its own bg + border
-   to become a panel; the bar stays in place at the panel's
-   bottom edge while the list grows above it. The visual effect
-   is the pill morphing into the bottom of a shelf panel.
+   The visible "pill" is `.pmd-dropzone-bar`; the root has no chrome of
+   its own. Open, the shelf list is a `.pmd-pill-popup` rising from the
+   pill row with the bar as its tab — the same anatomy as the Send and
+   Receive pills (see "Pill popups" below).
    Drag-over: blue accept-state via --pmd-c-drop tokens. */
 .pmd-dropzone-root {
-  /* A flex child of `.pmd-pill-tray` — the tray is the fixed element
-     `positionDropzone` (index.ts) anchors to the editor's bottom-left
-     corner (NOT the nav pane: a nav-bottom pill would sit in the
-     outline's auto-scroll zone). The tray's fallback `bottom` clears
-     the status bar via the same `--status-bar-height` var the bar
-     reads, so a missed positioning pass (a boot where
-     `getBoundingClientRect()` comes back 0×0 and the function
-     early-returns, observed on some Windows machines) can't strand
-     the pill in the status bar's vertical band. */
-  position: relative;
-  right: auto;
-  /* Fallback width cap before `positionDropzone` runs; it then sets an
-     exact inline max-width from the editor's rect so the expanded
-     shelf keeps an equal margin on the right. */
-  max-width: 360px;
-  max-height: 60vh;
+  /* One of the three tray pills (`.pmd-pill` chrome; static inside the
+     tray like the others). The tray's fallback `bottom` clears the status
+     bar via the same `--status-bar-height` var the bar reads, so a missed
+     positioning pass (a boot where `getBoundingClientRect()` comes back
+     0×0, observed on some Windows machines) can't strand the pill in the
+     status bar's vertical band. */
   pointer-events: auto;
-  /* z within the tray, which owns the stacking context (tray z=220,
-     above the status bar's 200). In the spec-correct world the pill
-     and the status bar never overlap, so this only matters if a
-     missed positioning pass lands the pill in the bar's band — then
-     it renders visible and clickable rather than clipped. */
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  /* Left-anchored pill; the bar sizes to content. */
-  align-items: flex-start;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 10px;
   /* No transitions on state changes — the open/closed and
      drop-target morphs read better as instant flips. */
   transition: none;
@@ -5083,17 +5112,11 @@ html.pmd-pill-tray-active .pmd-pane-pill-anchored .pmd-pane-editor .ProseMirror 
 body.pmd-multi-doc .pmd-pill-tray {
   bottom: calc(var(--status-bar-height) + var(--pmd-pane-footer-height) + 0.5rem);
 }
-.pmd-dropzone-root[data-open="true"] {
-  align-items: stretch;
-  background: var(--pmd-c-bg);
-  border-color: var(--pmd-c-border);
-  box-shadow: 0 6px 18px var(--pmd-c-shadow-fade);
-}
 /* Drop-target accept state — applies in both closed and open. Keep
    the element's OPAQUE background (it floats over the editor now, so a
    translucent tint showed the doc through it); signal acceptance with
    the blue border + outline glow only. */
-.pmd-dropzone-root[data-open="true"].pmd-dropzone-root-drop-target {
+.pmd-dropzone-root-drop-target > .pmd-dropzone-list {
   border-color: var(--pmd-c-drop);
   box-shadow: 0 0 0 2px var(--pmd-c-drop-outline);
 }
@@ -5103,19 +5126,8 @@ body.pmd-multi-doc .pmd-pill-tray {
    wide pill). The whole-root background/border animates between
    states; the list shows/hides instantly. */
 .pmd-dropzone-list {
+  /* Geometry and chrome come from .pmd-pill-popup. */
   list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  flex: 0 1 auto;
-  min-height: 0;
-  display: none;
-}
-.pmd-dropzone-root[data-open="true"] .pmd-dropzone-list {
-  display: block;
-  max-height: 320px;
-  padding: 0.25rem;
-  border-bottom: 1px solid var(--pmd-c-divider);
 }
 .pmd-dropzone-empty {
   padding: 0.6rem 0.5rem;
@@ -5223,17 +5235,6 @@ body.pmd-multi-doc .pmd-pill-tray {
   transition: none;
 }
 
-.pmd-dropzone-root[data-open="true"] .pmd-dropzone-bar {
-  align-self: stretch;
-  background: transparent;
-  border-color: transparent;
-  border-radius: 0 0 9px 9px;
-  box-shadow: none;
-  color: var(--pmd-c-text);
-}
-.pmd-dropzone-root[data-open="true"] .pmd-dropzone-bar:hover {
-  background: var(--pmd-c-surface-soft);
-}
 /* Drop-target accept state on the BAR — applies in both closed
    and open modes so the pill turns blue regardless. */
 .pmd-dropzone-root-drop-target .pmd-dropzone-bar {
@@ -5251,38 +5252,22 @@ body.pmd-multi-doc .pmd-pill-tray {
   align-items: center;
   flex: 0 0 auto;
 }
-.pmd-dropzone-count {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 600;
-  background: var(--pmd-c-accent-soft);
-  color: var(--pmd-c-accent);
-  border-radius: 999px;
-  padding: 0 0.4rem;
-  min-width: 1.1rem;
-  text-align: center;
-  line-height: 1.3;
-}
+/* The shelf's item count is the shared `.pmd-pill-badge` (see the pills
+   section) — the same badge as Receive's, grey base included. No `display`
+   of its own, so the `hidden` attribute at zero items works (an author
+   `display` beat the UA rule once and the empty shelf showed "0", field
+   report 2026-09-25). */
 /* Shared scaffolding (flex fill).
    Diverge by pulling a selector out, not by re-copying. */
-.pmd-dropzone-bar-spacer,
 .pmd-qc-manage-row-main,
 .pmd-learn-manage-text,
 .pmd-msettings-reader-row input[type='text'] {
   flex: 1 1 auto;
   min-width: 0;
 }
-.pmd-dropzone-clear {
-  appearance: none;
-  font: inherit;
-  font-size: 0.72rem;
-  background: transparent;
-  border: 1px solid var(--pmd-c-border);
-  border-radius: 4px;
-  padding: 0.1rem 0.4rem;
-  cursor: pointer;
-  color: var(--pmd-c-text-muted);
-}
+/* Shelf popup footer (Clear): the same actions row + action button as
+   the Send / Receive popups — see `.pmd-send-actions` /
+   `.pmd-send-action`. Only rendered while the shelf has items. */
 
 
 .pmd-nav-panel {
@@ -12197,6 +12182,7 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-close,
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-stack,
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-nav,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-hide,
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-expand {
   color: var(--pmd-c-text-on-accent);
 }
@@ -12222,6 +12208,7 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
  * The chip's accent fill is theme-invariant, so its hover glyph is too:
  * the light-mode black, pinned via --pmd-c-on-accent-hover. */
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-nav:hover,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-hide:hover,
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-expand:hover {
   color: var(--pmd-c-on-accent-hover);
 }
@@ -12447,6 +12434,20 @@ body.pmd-pane-dragging * {
   line-height: 1;
 }
 .pmd-pane-chip-expand:hover { color: var(--pmd-c-text-strong); }
+.pmd-pane-chip-hide {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--pmd-c-text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.pmd-pane-chip-hide[hidden] { display: none; }
+.pmd-pane-chip-hide:hover { color: var(--pmd-c-text-strong); }
 .pmd-pane-chip-nav {
   flex: 0 0 auto;
   width: 18px;
@@ -15471,17 +15472,80 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   align-items: center;
   color: var(--pmd-c-text-muted);
 }
+/* The three pills draw icon-set glyphs (archive / upload / download —
+   one pack, so the in-tray and out-tray match). `.pmd-icon` is 1em
+   square; 16px matches the pill text's optical size. */
+.pmd-pill-icon > .pmd-icon,
+.pmd-dropzone-icon > .pmd-icon {
+  font-size: 16px;
+}
 .pmd-pill-label {
   font-weight: 500;
 }
-.pmd-pill-count {
+/* One count badge for the pills: the dropzone's item count and Receive's
+   "total · N new". Grey base; Receive's unread state recolors it below.
+   Deliberately no `display` — `hidden` (dropzone at zero, Receive when
+   empty) must fall through to the UA rule. */
+.pmd-pill-badge {
   min-width: 1.1em;
-  padding: 0 0.3em;
+  padding: 0 0.45em;
   border-radius: 999px;
   background: var(--pmd-c-hover);
   color: var(--pmd-c-text-muted);
   font-size: 0.72rem;
+  font-weight: 600;
   text-align: center;
+  white-space: nowrap;
+  transition: background-color 320ms ease, color 320ms ease;
+}
+
+/* ---- Pill popups: one anatomy for Dropzone / Send / Receive ----
+   Every pill's expansion is a `.pmd-pill-popup`: an overlay rising from
+   the top of the pill row, its left edge on the tray's left (the leftmost
+   visible pill), at least as wide as the row and up to the editor's width
+   (`--pmd-pill-popup-max`, set inline on the tray by positionDropzone —
+   a narrow window narrows the popup instead of pushing it off screen).
+   The popup floats a small gap above the row; the open pill keeps its
+   own shape with the accent "clicked" border, which is how you tell
+   which pill is open now that they all rise from the same place. In the
+   home screen's dock (receive pill only) the popup hangs off the pill
+   itself: same look, pill-relative. */
+.pmd-pill {
+  --pmd-pill-popup-gap: 8px;
+}
+.pmd-pill-popup {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + var(--pmd-pill-popup-gap, 8px));
+  box-sizing: border-box;
+  min-width: 100%;
+  width: min(420px, var(--pmd-pill-popup-max, 380px));
+  max-width: var(--pmd-pill-popup-max, calc(100vw - 16px));
+  max-height: min(340px, 60vh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.25rem;
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px var(--pmd-c-shadow-fade);
+  z-index: 2;
+}
+[data-open="true"] > .pmd-pill-popup {
+  display: block;
+}
+/* Hover: the same accent border on all three bars. */
+.pmd-dropzone-bar:hover,
+.pmd-send-bar:hover,
+.pmd-receive-bar:hover {
+  border-color: var(--pmd-c-accent);
+}
+/* Open: the accent "clicked" outline on the pill only. */
+[data-open="true"] > .pmd-dropzone-bar,
+[data-open="true"] > .pmd-pill-bar {
+  color: var(--pmd-c-text);
+  border-color: var(--pmd-c-accent);
 }
 
 /* Blue arrival flash — the exact accent ring the command bar uses
@@ -15505,32 +15569,13 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 }
 
 /* ---- Send pill ---- */
-.pmd-send-bar-hot,
-.pmd-send-pill[data-open="true"] .pmd-send-bar {
+/* Drag-hot ring (pointer over the pill, not on a row). Outranks the
+   open-state tab rule so the ring still shows on the tab mid-drag. */
+.pmd-pill-bar.pmd-send-bar-hot {
   border-color: var(--pmd-c-drop);
   box-shadow: 0 0 0 2px var(--pmd-c-drop-outline);
 }
-/* Partner / group list — an upward overlay popover so expanding it never
-   reflows the dropzone or receive pill beside it. */
-.pmd-send-panel {
-  display: none;
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 6px);
-  min-width: 200px;
-  max-width: 320px;
-  max-height: 320px;
-  overflow-y: auto;
-  padding: 0.25rem;
-  background: var(--pmd-c-bg);
-  border: 1px solid var(--pmd-c-border);
-  border-radius: 10px;
-  box-shadow: 0 6px 18px var(--pmd-c-shadow-fade);
-  z-index: 2;
-}
-.pmd-send-pill[data-open="true"] .pmd-send-panel {
-  display: block;
-}
+/* Partner / group list: a .pmd-pill-popup (geometry + chrome there). */
 .pmd-send-section {
   padding: 0.3rem 0.4rem 0.15rem;
   font-size: 0.68rem;
@@ -15543,7 +15588,8 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
    the SAME two footprints as drop zones during a drag (send-by-code /
    recent-senders) — the geometry is shared so the modalities agree. */
 .pmd-send-actions,
-.pmd-receive-actions {
+.pmd-receive-actions,
+.pmd-dropzone-actions {
   display: flex;
   gap: 4px;
   margin-top: 4px;
@@ -15555,8 +15601,11 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   display: none;
 }
 .pmd-send-action,
-.pmd-receive-action {
+.pmd-receive-action,
+.pmd-dropzone-clear {
   flex: 1 1 0;
+  appearance: none;
+  font: inherit;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15573,6 +15622,7 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 }
 .pmd-send-action:hover,
 .pmd-receive-action:hover,
+.pmd-dropzone-clear:hover,
 .pmd-send-action.pmd-send-action-hot {
   border-color: var(--pmd-c-accent);
   color: var(--pmd-c-accent);
@@ -15581,6 +15631,10 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 .pmd-send-action-icon {
   display: inline-flex;
   flex-shrink: 0;
+}
+/* Icon-set glyphs in an action button match the inline 15px SVGs. */
+.pmd-send-action-icon > .pmd-icon {
+  font-size: 15px;
 }
 .pmd-send-action-collab-hidden {
   display: none;
@@ -15642,20 +15696,9 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 }
 
 /* ---- Receive pill ---- */
-/* One combined count badge: "total | N new". Blue while there are unread
-   cards, fading to the muted gray once everything's been seen. */
-.pmd-receive-badge {
-  min-width: 1.1em;
-  padding: 0 0.45em;
-  border-radius: 999px;
-  background: var(--pmd-c-hover);
-  color: var(--pmd-c-text-muted);
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-align: center;
-  white-space: nowrap;
-  transition: background-color 320ms ease, color 320ms ease;
-}
+/* One combined count badge (a `.pmd-pill-badge`): "total | N new". Blue
+   while there are unread cards, fading to the muted gray once
+   everything's been seen. */
 /* Hover feedback on the clickable pill. Resting bg is already
    --pmd-c-hover, so hover steps up to the stronger shade. The :not()
    guard keeps the unread badge's accent fill from being grayed on
@@ -15669,25 +15712,8 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
 }
 /* Inbox list — upward overlay popover, same family as the send panel. */
 .pmd-receive-list {
-  display: none;
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 6px);
+  /* Geometry and chrome come from .pmd-pill-popup. */
   list-style: none;
-  margin: 0;
-  padding: 0.25rem;
-  min-width: 260px;
-  max-width: 380px;
-  max-height: 340px;
-  overflow-y: auto;
-  background: var(--pmd-c-bg);
-  border: 1px solid var(--pmd-c-border);
-  border-radius: 10px;
-  box-shadow: 0 6px 18px var(--pmd-c-shadow-fade);
-  z-index: 2;
-}
-.pmd-receive-pill[data-open="true"] .pmd-receive-list {
-  display: block;
 }
 .pmd-receive-empty {
   padding: 0.6rem 0.5rem;

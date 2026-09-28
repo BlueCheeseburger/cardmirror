@@ -175,6 +175,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** Open the OS file manager at the crash-recovery journals folder. */
   openJournalsFolder: () => ipcRenderer.invoke('host:open-journals-folder'),
   showItemInFolder: (handle: string) => ipcRenderer.invoke('host:show-item-in-folder', handle),
+  /** Native file drag out of the window (the status-bar CardMirror
+   *  mark). `send`, not `invoke`: startDrag must run in response to the
+   *  renderer's dragstart, synchronously. */
+  dragFileOut: (path: string, iconDataUrl: string) =>
+    ipcRenderer.send('host:drag-file-out', { path, iconDataUrl }),
 
   /** Minimize this OS window (the `minimizeWindow` ribbon command /
    *  macOS Window-menu Minimize). */
@@ -212,6 +217,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   openFile: (opts: { filters: FileFilter[] }) =>
     ipcRenderer.invoke('host:open-file', opts),
+
+  openFiles: (opts: { filters: FileFilter[] }) =>
+    ipcRenderer.invoke('host:open-files', opts),
 
   /** Read a file at a known path (no picker) for the home screen's
    *  "open recent" flow. Resolves null when the path is gone /
@@ -687,6 +695,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  (save, save-as). Pass `null` for unsaved docs. */
   docInfoUpdate: (uid: string, filename: string | null) =>
     ipcRenderer.invoke('host:doc-info-update', { uid, filename }),
+
+  /** macOS title-bar proxy icon: the focused doc's on-disk path,
+   *  or `null` to clear (untitled doc, home screen). */
+  setRepresentedFile: (path: string | null) =>
+    ipcRenderer.invoke('host:set-represented-file', path),
 
   /** Dropzone shelf — cross-window in-memory scratch space for
    *  dragged content. List returns the current items; add/remove/
