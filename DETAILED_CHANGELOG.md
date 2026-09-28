@@ -554,7 +554,7 @@ Upstream sync through v1.12.0. Ten files conflicted; how each was resolved:
 Upstream's Settings tile (`eca4df97`) is pushed last onto `actionRunners`,
 expecting to be the ninth runner (1 New, 2 New speech, 3 Open, 4 Clean,
 5 Convert, 6 Quick Cards, 7 Review all, 8 Manage flashcards, 9 Settings).
-This fork's always-present Compare runner (`1.10.0-bcb.5`) sits between
+This fork's always-present Compare runner (`1.10.0-bcb.4`) sits between
 Convert and Quick Cards, making Settings the tenth — past the old `1`–`9`
 digit map, so it had no key at all. The digit map now also takes `'0'` →
 index 9, the key after 9 on the number row. With the gated Compress tile
@@ -653,7 +653,7 @@ See [CHANGELOG.md's summary](./CHANGELOG.md) for the highlights, and
 [1.12.0](#1120--2026-09-21) and [1.11.0](#1110--2026-09-19) below for
 upstream's full detailed notes.
 
-## 1.10.0-bcb.5 — 2026-09-18
+## 1.10.0-bcb.4 — 2026-09-18
 
 ### Added: Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `home-screen.ts`, `index.ts`, `style.css`)
 
@@ -1946,11 +1946,11 @@ already had for `.cmir` autosave.
 
 ### 9. Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `home-screen.ts`, `index.ts`, `style.css`)
 
-**Introduced in 1.10.0-bcb.5.** A read-only, side-by-side line diff of
+**Introduced in 1.10.0-bcb.4.** A read-only, side-by-side line diff of
 two `.cmir`/`.docx` files, opened from the home screen's Compare card.
 Full implementation notes (LCS line diff, `MAX_DIFF_CELLS` cap,
 side-by-side row pairing, outline jump) are in
-[1.10.0-bcb.5's entry](#added-compare-documents-doc-diffts-doc-diff-uits-home-screents-indexts-stylecss).
+[1.10.0-bcb.4's entry](#added-compare-documents-doc-diffts-doc-diff-uits-home-screents-indexts-stylecss).
 Word-level highlighting of edited lines was added in
 [1.12.0-bcb.3](#added-word-level-highlighting-in-compare-documents-doc-diffts-doc-diff-uits-stylecss).
 
