@@ -8,6 +8,13 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **The read times at the bottom of the outline's right-click menu no
+  longer highlight on hover**, since there's nothing to click.
+
 ## 1.13.0-bcb.1 — 2026-09-28
 
 ### Added

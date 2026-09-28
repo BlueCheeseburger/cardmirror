@@ -6144,9 +6144,12 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 }
 
 /* Read-time rows at the bottom of the outline's right-click menu:
-   hover like an item, but there's nothing to click. */
+   there's nothing to click, so they don't highlight on hover either. */
 .pmd-nav-context-item-info {
   cursor: default;
+}
+.pmd-nav-context-item-info:hover {
+  background: transparent;
 }
 .pmd-nav-context-item-pending {
   font-style: italic;

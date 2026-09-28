@@ -10,6 +10,16 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: outline menu read times don't highlight on hover (`style.css`)
+
+`.pmd-nav-context-item-info:hover` resets the shared item hover
+background, so the read-time rows (and the "Calculating times"
+placeholder) stay still under the pointer, as they can't be clicked.
+The user's call; the first version highlighted them like every other
+row.
+
 ## 1.13.0-bcb.1 — 2026-09-28
 
 ### Added: plugin updates on the app's update schedule and chip (`plugin-update-check.ts`, `main.ts`, `update-chip.ts`, `preload.ts`)

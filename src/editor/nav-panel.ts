@@ -2231,7 +2231,7 @@ export class NavigationPanel {
    * per line, in the doc's current flow or lay speeds. A "Calculating
    * times" placeholder shows first and is swapped for the times once the
    * menu has painted, so a huge pocket never holds the menu back. The
-   * rows highlight on hover but do nothing when clicked.
+   * rows don't highlight on hover and do nothing when clicked.
    */
   private appendReadTimes(menu: HTMLElement, entry: HeadingEntry, x: number, y: number): void {
     const readers = settings.get('readers').slice(0, 2);
@@ -2558,7 +2558,7 @@ interface ContextMenuItemBase {
 interface ContextMenuSeparator { kind: 'separator' }
 type ContextMenuItem = ContextMenuItemBase | ContextMenuSeparator;
 
-/** A read-only context-menu row (the read times): looks and hovers like
+/** A read-only context-menu row (the read times): looks like
  *  an item, but clicking it does nothing and keeps the menu open. */
 function readTimeRow(text: string): HTMLButtonElement {
   const row = document.createElement('button');
