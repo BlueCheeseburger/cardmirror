@@ -2,7 +2,7 @@
 /**
  * Card preview (field request 2026-09-09): a Dropzone or Receive row's
  * Preview button opens the cards full-size, read-only, with the nav pane,
- * and offers Copy to clipboard / Close — without inserting anything.
+ * and offers Insert at cursor / Close — without inserting anything.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Node as PMNode } from 'prosemirror-model';
@@ -23,7 +23,7 @@ vi.mock('../../src/editor/toast.js', () => ({
   },
 }));
 
-import { openCardPreview, docFromSliceJson, copiedLabel, previewReadModeOn, setPreviewReadMode } from '../../src/editor/card-preview-modal.js';
+import { openCardPreview, docFromSliceJson, previewReadModeOn, setPreviewReadMode } from '../../src/editor/card-preview-modal.js';
 import { isAnyOverlayOpen } from '../../src/editor/overlay-stack.js';
 import { DropzoneController } from '../../src/editor/dropzone-ui.js';
 import { dropzoneStore } from '../../src/editor/dropzone-store.js';
@@ -66,15 +66,10 @@ describe('docFromSliceJson', () => {
     expect(() => doc.check()).not.toThrow();
     expect(doc.textContent).toContain('alpha body');
   });
-  it('copiedLabel counts cards', () => {
-    expect(copiedLabel(0)).toBe('Copied to the clipboard');
-    expect(copiedLabel(1)).toBe('Copied 1 card to the clipboard');
-    expect(copiedLabel(3)).toBe('Copied 3 cards to the clipboard');
-  });
 });
 
 describe('openCardPreview', () => {
-  it('shows the cards read-only with the nav pane, and Close removes everything', () => {
+  it('shows the cards read-only without a nav pane, and Close removes everything', () => {
     expect(openCardPreview({ title: 'Alpha tag', sliceJson: sliceJson(card('Alpha tag', 'alpha body'), card('Beta tag', 'beta body')) })).toBe(true);
     const d = dialog()!;
     expect(d).toBeTruthy();
@@ -84,8 +79,7 @@ describe('openCardPreview', () => {
     expect(pm.textContent).toContain('alpha body');
     expect(pm.textContent).toContain('beta body');
     expect(pm.getAttribute('contenteditable')).toBe('false');
-    expect(d.querySelector('.pmd-nav-panel'), 'the real nav pane is mounted beside the cards').toBeTruthy();
-    expect(d.querySelector('.pmd-nav-panel')!.textContent).toContain('Beta tag');
+    expect(d.querySelector('.pmd-nav-panel')).toBeNull();
     (d.querySelector('.pmd-card-preview-close') as HTMLButtonElement).click();
     expect(dialog()).toBeNull();
     expect(isAnyOverlayOpen()).toBe(false);
@@ -106,29 +100,22 @@ describe('openCardPreview', () => {
     expect(dialog()!.querySelector('.pmd-card-preview-subtitle')!.textContent).toBe('Cora · 2 min ago');
   });
 
-  it('Copy to clipboard writes the cards as HTML + text, toasts the count, and closes', async () => {
-    openCardPreview({ title: 'Alpha tag', sliceJson: sliceJson(card('Alpha tag', 'alpha body'), card('Beta tag', 'beta body')) });
-    (dialog()!.querySelector('.pmd-card-preview-copy') as HTMLButtonElement).click();
-    await flush();
-    expect(writeClipboardHtml).toHaveBeenCalledTimes(1);
-    const [html, text] = writeClipboardHtml.mock.calls[0]! as [string, string];
-    expect(html).toContain('alpha body');
-    expect(html).toContain('Beta tag');
-    expect(text).toContain('alpha body');
-    expect(toasts).toEqual(['Copied 2 cards to the clipboard']);
-    expect(dialog()).toBeNull();
-    expect(isAnyOverlayOpen()).toBe(false);
+  it('has no Copy button and no outline pane', () => {
+    openCardPreview({ title: 'Alpha tag', sliceJson: sliceJson(card('Alpha tag', 'alpha body')) });
+    expect(dialog()!.querySelector('.pmd-card-preview-copy')).toBeNull();
+    expect(dialog()!.querySelector('.pmd-recover-preview-nav')).toBeNull();
+    expect(dialog()!.querySelector('.pmd-card-preview-insert')).toBeNull(); // no opener insert
   });
 
-  it('a busy clipboard toasts and keeps the preview open', async () => {
-    writeClipboardHtml.mockImplementation(async () => false);
-    openCardPreview({ title: 'Alpha tag', sliceJson: sliceJson(card('Alpha tag', 'alpha body')) });
-    const copy = dialog()!.querySelector('.pmd-card-preview-copy') as HTMLButtonElement;
-    copy.click();
-    await flush();
-    expect(toasts).toEqual(['busy']);
-    expect(dialog()).not.toBeNull();
-    expect(copy.disabled).toBe(false); // can retry
+  it('Insert at cursor closes the preview, then runs the opener\'s insert', () => {
+    const onInsert = vi.fn(() => expect(dialog()).toBeNull());
+    openCardPreview({ title: 'Alpha tag', sliceJson: sliceJson(card('Alpha tag', 'alpha body')), onInsert });
+    const btn = dialog()!.querySelector('.pmd-card-preview-insert') as HTMLButtonElement;
+    expect(btn.textContent).toBe('Insert at cursor');
+    btn.click();
+    expect(onInsert).toHaveBeenCalledTimes(1);
+    expect(dialog()).toBeNull();
+    expect(isAnyOverlayOpen()).toBe(false);
   });
 
   it('Escape closes it and does not reach the document', () => {

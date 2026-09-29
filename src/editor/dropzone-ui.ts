@@ -262,8 +262,8 @@ export class DropzoneController {
     label.title = item.label;
     row.appendChild(label);
 
-    // Look before you insert: a full-size read-only preview with Copy.
-    row.appendChild(previewRowButton(() => openCardPreview({ title: item.label, sliceJson: item.sliceJson })));
+    // Look before you insert: a full-size read-only preview with Insert at cursor.
+    row.appendChild(previewRowButton(() => openCardPreview({ title: item.label, sliceJson: item.sliceJson, onInsert: () => this.insertItem(item, false) })));
 
     const del = document.createElement('button');
     del.type = 'button';

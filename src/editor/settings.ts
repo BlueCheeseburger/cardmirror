@@ -2054,7 +2054,7 @@ const DEFAULTS: Settings = {
   defaultHighlightColor: 'yellow',
   defaultShadingColor: 'C0C0C0',
   logosImportCondense: 'none',
-  logosImportShrink: 'none',
+  logosImportShrink: 'shrink',
   logosImportHighlight: '',
   forReferenceUseGray50: false,
   createReferenceIncludeHeading: true,
@@ -4077,7 +4077,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'logosImportShrink',
     label: 'Shrink cards from Logos',
     description:
-      'Run Shrink Card Text or Smart Shrink on a card as soon as you insert it from Logos, after any condense. Off by default.',
+      'Run Shrink Card Text or Smart Shrink on a card as soon as you insert it from Logos, after any condense. The card preview shows the shrunk card too. On by default (Shrink Card Text).',
     kind: 'logosImportShrink',
     category: 'editing',
     section: 'Cards from Logos',

@@ -4,21 +4,19 @@
  * 2026-09-09: the only way to see what a row held was to put it in a
  * document). The dialog takes most of the screen and mounts the same
  * preview Recover Previous Version uses — a real ProseMirror view under
- * the document stylesheet with the real nav pane beside it — plus two
- * actions: Copy (the cards go to the clipboard exactly as a copy from a
- * document would, through the shared clipboard path) and Close.
+ * the document stylesheet (no outline pane — a preview is one card or a
+ * few) — plus Read mode, Insert at cursor (when the opener supplies an
+ * insert) and Close.
  */
-import { Transform } from 'prosemirror-transform';
-import type { Node as PMNode, Slice } from 'prosemirror-model';
+import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 import { schema } from '../schema/index.js';
 import { checkedSliceFromJSON } from '../schema/slice-check.js';
 import { mountVersionPreview as mountDocPreview } from './version-history.js';
 import { popOverlay, pushOverlay } from './overlay-stack.js';
 import { armDialogFocus, captureFocusForDialog, installModalKeys } from './text-prompt.js';
-import { serializeRangesForClipboard } from './clipboard-slice.js';
-import { writeClipboardHtml, CLIPBOARD_BUSY_MESSAGE } from './clipboard-write.js';
 import { showToast } from './toast.js';
+import { docFromSlice } from './logos-search.js';
 import { settings } from './settings.js';
 import { readModePlugin, PMD_READ_MODE_TOGGLE } from './read-mode-plugin.js';
 
@@ -29,6 +27,10 @@ export interface CardPreviewOptions {
   subtitle?: string;
   /** `Slice.toJSON()` payload, as the shelf and the inbox store it. */
   sliceJson: unknown;
+  /** Inserts the previewed cards into the focused document at the caret.
+   *  Runs after the dialog closes. Without it the dialog has no insert
+   *  button. */
+  onInsert?: () => void;
 }
 
 export const CARD_PREVIEW_UNREADABLE_MESSAGE = 'This card could not be previewed.';
@@ -54,32 +56,10 @@ export function setPreviewReadMode(on: boolean): void {
   }
 }
 
-/** The document a stored slice previews as: the slice fitted into an
- *  otherwise empty document (an open-edged slice — a copy that started
- *  mid-card — is closed by the fitter, the way an insert closes it). */
-export function docFromSlice(slice: Slice): PMNode {
-  const empty = schema.nodes['doc']!.createAndFill()!;
-  const tr = new Transform(empty);
-  tr.replace(0, empty.content.size, slice);
-  return tr.doc;
-}
+export { docFromSlice };
 
 export function docFromSliceJson(sliceJson: unknown): PMNode {
   return docFromSlice(checkedSliceFromJSON(sliceJson));
-}
-
-function countCards(doc: PMNode): number {
-  let n = 0;
-  doc.descendants((node) => {
-    if (node.type.name === 'card') n++;
-    return node.type.name !== 'card';
-  });
-  return n;
-}
-
-export function copiedLabel(cards: number): string {
-  if (cards === 0) return 'Copied to the clipboard';
-  return `Copied ${cards} card${cards === 1 ? '' : 's'} to the clipboard`;
 }
 
 /**
@@ -151,7 +131,7 @@ export function openCardPreview(opts: CardPreviewOptions): boolean {
   pane.className = 'pmd-recover-preview-pane pmd-card-preview-pane';
   body.appendChild(pane);
   dialog.appendChild(body);
-  previewView = mountDocPreview(pane, doc, { plugins: [readModePlugin] });
+  previewView = mountDocPreview(pane, doc, { plugins: [readModePlugin], hideNav: true });
   // Read mode is what the panes do: the read-mode plugin's decorations
   // hide the unmarked text (toggled through its transaction meta) and
   // the host classes carry the CSS half, so the preview shows exactly
@@ -181,36 +161,22 @@ export function openCardPreview(opts: CardPreviewOptions): boolean {
     applyReadMode(on);
   });
   applyReadMode(previewReadModeOn());
-  const copyBtn = document.createElement('button');
-  copyBtn.type = 'button';
-  copyBtn.className = 'pmd-bulk-btn pmd-card-preview-copy';
-  copyBtn.textContent = 'Copy to clipboard';
-  copyBtn.title = 'Copy these cards; paste them wherever you like';
-  copyBtn.addEventListener('click', () => {
-    if (!previewView || copyBtn.disabled) return;
-    copyBtn.disabled = true;
-    // The shared clipboard path — the same payload a copy from a document
-    // produces (and the same comment-thread serialization).
-    const { html, text } = serializeRangesForClipboard(previewView, [
-      { from: 0, to: previewView.state.doc.content.size },
-    ]);
-    void writeClipboardHtml(html, text).then((ok) => {
-      if (closed) return;
-      if (!ok) {
-        copyBtn.disabled = false;
-        showToast(CLIPBOARD_BUSY_MESSAGE);
-        return;
-      }
-      showToast(copiedLabel(countCards(doc)));
-      close();
-    });
+  const onInsert = opts.onInsert;
+  const insertBtn = document.createElement('button');
+  insertBtn.type = 'button';
+  insertBtn.className = 'pmd-bulk-btn pmd-card-preview-insert';
+  insertBtn.textContent = 'Insert at cursor';
+  insertBtn.title = 'Insert these cards into the document at the cursor';
+  insertBtn.addEventListener('click', () => {
+    close();
+    onInsert?.();
   });
   const doneBtn = document.createElement('button');
   doneBtn.type = 'button';
   doneBtn.className = 'pmd-bulk-btn pmd-bulk-btn-primary pmd-card-preview-close';
   doneBtn.textContent = 'Close';
   doneBtn.addEventListener('click', close);
-  actions.append(readBtn, copyBtn, doneBtn);
+  actions.append(readBtn, ...(onInsert ? [insertBtn] : []), doneBtn);
   dialog.appendChild(actions);
 
   // Escape closes; every other key aimed at the dialog's own surfaces (the
