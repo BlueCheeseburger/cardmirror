@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.13.0-bcb.2 — 2026-09-29
 
 ### Changed: outline menu read times don't highlight on hover (`style.css`)
 
@@ -19,6 +19,29 @@ background, so the read-time rows (and the "Calculating times"
 placeholder) stay still under the pointer, as they can't be clicked.
 The user's call; the first version highlighted them like every other
 row.
+
+### Changed: card preview inserts instead of copying (`card-preview-modal.ts`)
+
+`openCardPreview` takes an optional `onInsert`; when given, an "Insert at
+cursor" button (`.pmd-card-preview-insert`) closes the dialog and calls
+it. The Copy button, `copiedLabel` and the clipboard imports are gone.
+`mountVersionPreview` gained `hideNav` so the preview skips the outline
+pane (Recover Previous Version still shows it). Openers: the shelf and
+receive rows call their own `insertItem(item, false)`; the Logos preview
+calls `insertLogosCard` (so the Cards-from-Logos condense/shrink settings
+still apply); `previewMostRecentReceived` takes a view getter.
+
+### Changed: Logos shrink on by default, in the preview too; Aff/Neg pill
+
+`logosImportShrink` now defaults to `'shrink'` (existing explicit choices
+are kept). `previewLogosCard` runs the same condense/shrink commands on
+the card in a scratch `EditorState` (`logosPreviewSlice`, via the new
+`runCommandOnState` palette option wired to `runRibbonCommandOnState` in
+`index.ts`; `firstCardBodyRange` picks the body to select).
+`docFromSlice` moved to `logos-search.ts` (re-exported from the preview
+module). Result rows carry `logosSide`; the badge reads AFF/NEG
+(`.pmd-qcs-badge-aff` / `-neg`, low-saturation `color-mix` tints), and
+falls back to LOGOS when the round doc didn't record a side.
 
 ## 1.13.0-bcb.1 — 2026-09-28
 

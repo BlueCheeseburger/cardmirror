@@ -27,8 +27,9 @@ import { Slice } from 'prosemirror-model';
 function openPalette(
   view: EditorView | null = null,
   runCommand: (id: AnyCommandId) => void = () => {},
+  runCommandOnState?: (id: AnyCommandId, state: EditorState) => EditorState | null,
 ): void {
-  quickCardSearchUI.open({ view, paneEl: null, runCommand, openFilePath: () => {} });
+  quickCardSearchUI.open({ view, paneEl: null, runCommand, runCommandOnState, openFilePath: () => {} });
 }
 
 function type(q: string): void {
@@ -105,7 +106,10 @@ describe('palette Logos source (g prefix)', () => {
     expect(String(fetchMock.mock.calls[0]![0])).toContain('search=warming');
     const r = rows();
     expect(r).toHaveLength(1);
-    expect(r[0]!.textContent).toContain('LOGOS');
+    // The pill says which side ran the card (this fixture's is Neg), not "LOGOS".
+    const badge = r[0]!.querySelector('.pmd-qcs-row-badge')!;
+    expect(badge.textContent).toBe('NEG');
+    expect(badge.classList.contains('pmd-qcs-badge-neg')).toBe(true);
     expect(r[0]!.textContent).toContain('Warming causes extinction');
     expect(r[0]!.textContent).toContain('HS 24 · Lowell · Neg');
     expect(r[0]!.querySelector('.pmd-qcs-row-snippet')?.textContent).toContain('Mann 24');
@@ -245,6 +249,32 @@ describe('palette Logos source (g prefix)', () => {
     await insertFirstResult(view, runCommand);
     expect(runCommand).not.toHaveBeenCalled();
     view.destroy();
+  });
+
+  it('shrinks Logos cards by default', async () => {
+    localStorage.clear(); // earlier tests persisted their own values
+    vi.resetModules();
+    const fresh = await import('../../src/editor/settings.js');
+    expect(fresh.settings.get('logosImportShrink')).toBe('shrink');
+  });
+
+  it('the preview runs the import condense/shrink on the card, like the insert does', async () => {
+    settings.set('logosImportShrink', 'shrink');
+    const seen: string[] = [];
+    const runOnState = vi.fn((id: AnyCommandId, state: EditorState) => {
+      seen.push(id);
+      // The card body must be selected, as the real commands need.
+      expect(state.selection.empty).toBe(false);
+      return state.apply(state.tr.insertText('SHRUNK', state.selection.from));
+    });
+    openPalette(mkView(), () => {}, runOnState);
+    type('g warming');
+    await flush();
+    rows()[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(seen).toEqual(['shrink']);
+    const opts = vi.mocked(openCardPreview).mock.calls[0]![0];
+    expect(Slice.fromJSON(schema, opts.sliceJson as never).content.firstChild!.textContent).toContain('SHRUNK');
   });
 
   it('right-click previews the full card without inserting it, and keeps the palette open', async () => {

@@ -11018,6 +11018,16 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   border: 1px solid var(--pmd-c-border-soft);
   align-self: center;
 }
+.pmd-qcs-row-badge.pmd-qcs-badge-aff {
+  color: color-mix(in srgb, #3b82f6 70%, var(--pmd-c-text));
+  border-color: color-mix(in srgb, #3b82f6 40%, transparent);
+  background: color-mix(in srgb, #3b82f6 12%, transparent);
+}
+.pmd-qcs-row-badge.pmd-qcs-badge-neg {
+  color: color-mix(in srgb, #ef5b4b 70%, var(--pmd-c-text));
+  border-color: color-mix(in srgb, #ef5b4b 40%, transparent);
+  background: color-mix(in srgb, #ef5b4b 12%, transparent);
+}
 .pmd-qcs-badge-dropzone {
   color: var(--pmd-c-drop);
   border-color: var(--pmd-c-drop);

@@ -339,10 +339,17 @@ export class ReceivePillController {
     main.appendChild(meta);
     row.appendChild(main);
 
-    // Look before you insert: a full-size read-only preview with Copy.
+    // Look before you insert: a full-size read-only preview with Insert at cursor.
     const subtitle = meta.textContent;
     row.appendChild(
-      previewRowButton(() => openCardPreview({ title: item.label, subtitle, sliceJson: item.sliceJson })),
+      previewRowButton(() =>
+        openCardPreview({
+          title: item.label,
+          subtitle,
+          sliceJson: item.sliceJson,
+          onInsert: () => this.insertItem(item, false),
+        }),
+      ),
     );
 
     const del = document.createElement('button');
@@ -570,7 +577,7 @@ export function relTime(ts: number): string {
  *  empty or the payload cannot be rebuilt (the preview toasts for the
  *  latter itself). Works with the home screen up: nothing is written. */
 export const NOTHING_RECEIVED_MESSAGE = 'Nothing received yet.';
-export function previewMostRecentReceived(): boolean {
+export function previewMostRecentReceived(insertInto?: () => EditorView | null): boolean {
   const item = inboxStore.list().at(-1);
   if (!item) {
     showToast(NOTHING_RECEIVED_MESSAGE);
@@ -580,5 +587,12 @@ export function previewMostRecentReceived(): boolean {
     title: item.label,
     subtitle: `${resolveSender(item)} · ${relTime(item.receivedAt)}`,
     sliceJson: item.sliceJson,
+    onInsert: insertInto
+      ? () => {
+          const view = insertInto();
+          if (view) insertReceivedItem(view, item, false);
+          else showToast(RECEIVE_NEEDS_DOC_MESSAGE);
+        }
+      : undefined,
   });
 }

@@ -231,7 +231,7 @@ export function formatDelta(d: SnapshotDelta): string {
  * Returns the view — caller owns destroy() (the nav panel is torn
  * down with it via the returned view's destroy hook).
  */
-export function mountVersionPreview(pane: HTMLElement, doc: PMNode, opts: { plugins?: Plugin[] } = {}): EditorView {
+export function mountVersionPreview(pane: HTMLElement, doc: PMNode, opts: { plugins?: Plugin[]; hideNav?: boolean } = {}): EditorView {
   pane.innerHTML = '';
   const wrap = document.createElement('div');
   wrap.className = 'pmd-recover-preview-wrap';
@@ -242,7 +242,8 @@ export function mountVersionPreview(pane: HTMLElement, doc: PMNode, opts: { plug
   const mountHost = document.createElement('div');
   mountHost.className = 'pmd-pane-editor pmd-recover-preview-editor';
   scrollHost.appendChild(mountHost);
-  wrap.append(navHost, scrollHost);
+  if (opts.hideNav) wrap.append(scrollHost);
+  else wrap.append(navHost, scrollHost);
   pane.appendChild(wrap);
   const view = new EditorView(mountHost, {
     state: EditorState.create({ doc, plugins: opts.plugins ?? [] }),
@@ -256,13 +257,13 @@ export function mountVersionPreview(pane: HTMLElement, doc: PMNode, opts: { plug
       view.updateState(view.state.apply(tr));
     },
   });
-  const nav = new NavigationPanel(navHost, { readOnly: true, onClose: () => {} });
-  nav.attach(view);
+  const nav = opts.hideNav ? null : new NavigationPanel(navHost, { readOnly: true, onClose: () => {} });
+  nav?.attach(view);
   // Tear the panel down with the view (both dialogs only ever call
   // view.destroy()).
   const baseDestroy = view.destroy.bind(view);
   view.destroy = () => {
-    nav.destroy();
+    nav?.destroy();
     baseDestroy();
   };
   return view;

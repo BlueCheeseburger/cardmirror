@@ -42,6 +42,7 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
+import { EditorState, TextSelection } from 'prosemirror-state';
 import { flattenSelfRefsInSlice } from './self-transclusion.js';
 import { Slice, type Node as PMNode } from 'prosemirror-model';
 import { undo, redo } from 'prosemirror-history';
@@ -103,6 +104,8 @@ import {
   restoreCaretFromEnd,
   searchLogos,
   selectInsertedCardBody,
+  firstCardBodyRange,
+  docFromSlice,
   type LogosResult,
 } from './logos-search.js';
 import {
@@ -445,6 +448,11 @@ export interface QuickCardSearchOptions {
   paneEl: HTMLElement | null;
   /** Trigger a ribbon command by id (the palette's command source). */
   runCommand: (id: AnyCommandId) => void;
+  /** Run a ribbon command against a scratch state instead of the live
+   *  editor; the result state, or null when the command didn't apply.
+   *  Lets the Logos preview show the card as it will insert (condensed /
+   *  shrunk). Without it the preview shows the raw card. */
+  runCommandOnState?: (id: AnyCommandId, state: EditorState) => EditorState | null;
   /** Open a `.cmir` file by absolute path (the file source's Enter). */
   openFilePath: (path: string, name: string) => void;
   /** When true, selecting a header inside a file inserts a live zone
@@ -508,6 +516,8 @@ interface PaletteResult {
   fileRange?: { from: number; to: number };
   /** Logos card id — fetched in full on insert (logos source). */
   logosId?: string;
+  /** Logos side: 'A' (aff) or 'N' (neg), when the round doc recorded it. */
+  logosSide?: 'A' | 'N';
   /** The open doc to switch to (opendoc source). */
   openDoc?: OpenDocEntry;
   /** The window to raise (openwindow source). */
@@ -1033,6 +1043,7 @@ function logosResult(r: LogosResult): PaletteResult {
     matchedName: false,
     snippet: r.cite.trim() ? truncate(r.cite.trim(), 160) : null,
     logosId: r.id,
+    logosSide: r.side === 'A' || r.side === 'N' ? r.side : undefined,
   };
 }
 
@@ -1059,7 +1070,8 @@ function badgeText(r: PaletteResult): string {
     case 'fileobject':
       return r.fileObjectKind ? FILE_OBJECT_KIND_BADGES[r.fileObjectKind] : 'OBJ';
     case 'logos':
-      return 'LOGOS';
+      // Which side ran the card; LOGOS only when the round doc didn't say.
+      return r.logosSide === 'A' ? 'AFF' : r.logosSide === 'N' ? 'NEG' : 'LOGOS';
     case 'opendoc':
       return 'OPEN';
     case 'openwindow':
@@ -1128,6 +1140,7 @@ class QuickCardSearchUI {
   private view: EditorView | null = null;
   private paneEl: HTMLElement | null = null;
   private runCommand: (id: AnyCommandId) => void = () => {};
+  private runCommandOnState: ((id: AnyCommandId, state: EditorState) => EditorState | null) | null = null;
   private openFilePath: (path: string, name: string) => void = () => {};
   private transcludeMode = false;
   private docPath: string | null = null;
@@ -1246,6 +1259,7 @@ class QuickCardSearchUI {
     this.view = opts.view;
     this.paneEl = opts.paneEl;
     this.runCommand = opts.runCommand;
+    this.runCommandOnState = opts.runCommandOnState ?? null;
     this.openFilePath = opts.openFilePath;
     this.rePickTarget = opts.rePickTarget ?? null;
     this.transcludeMode = (opts.transcludeMode ?? false) || this.rePickTarget != null;
@@ -1717,9 +1731,9 @@ class QuickCardSearchUI {
   }
 
   /** Right-click on a Logos row: fetch the full card and show it in the
-   *  shared card preview (read-only, Copy / Close). Built exactly as an
+   *  shared card preview (read-only, Insert at cursor / Close). Built exactly as an
    *  insert would build it, so the preview matches what Enter inserts
-   *  (before any automatic condense/shrink). */
+   *  (with the automatic condense/shrink applied). */
   private async previewLogosCard(result: PaletteResult): Promise<void> {
     const token = this.asyncToken;
     let slice: Slice;
@@ -1735,7 +1749,19 @@ class QuickCardSearchUI {
     }
     // Palette closed (or reopened) while the card loaded: drop it.
     if (!this.root || token !== this.asyncToken) return;
-    openCardPreview({ title: result.name, subtitle: result.meta, sliceJson: slice.toJSON() });
+    openCardPreview({
+      title: result.name,
+      subtitle: result.meta,
+      sliceJson: this.logosPreviewSlice(slice).toJSON(),
+      onInsert: () => {
+        const view = this.view;
+        if (!view || !view.editable) {
+          showToast('No editable document to insert into.');
+          return;
+        }
+        void this.insertLogosCard(result, view, false);
+      },
+    });
   }
 
   /** Settings → Editing → Cards from Logos: run the chosen condense, then
@@ -1744,10 +1770,35 @@ class QuickCardSearchUI {
    *  and each is its own undo step). The caret goes back to the line
    *  after the card; both commands only edit the card, which sits before
    *  that line, so its distance from the end of the doc doesn't move. */
-  private runLogosImportCommands(view: EditorView): void {
-    const ids = [settings.get('logosImportCondense'), settings.get('logosImportShrink')].filter(
+  private logosImportCommandIds() {
+    return [settings.get('logosImportCondense'), settings.get('logosImportShrink')].filter(
       (id): id is Exclude<typeof id, 'none'> => id !== 'none',
     );
+  }
+
+  /** The Logos card as it will insert: the same condense / shrink the
+   *  insert runs, applied to the card in a scratch document. Falls back to
+   *  the raw card if a command can't run there. */
+  private logosPreviewSlice(slice: Slice): Slice {
+    const run = this.runCommandOnState;
+    const ids = this.logosImportCommandIds();
+    if (!run || ids.length === 0) return slice;
+    try {
+      let state = EditorState.create({ doc: docFromSlice(slice) });
+      for (const id of ids) {
+        const range = firstCardBodyRange(state.doc);
+        if (!range) break;
+        state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, range.from, range.to)));
+        state = run(id, state) ?? state;
+      }
+      return new Slice(state.doc.content, 0, 0);
+    } catch {
+      return slice;
+    }
+  }
+
+  private runLogosImportCommands(view: EditorView): void {
+    const ids = this.logosImportCommandIds();
     if (ids.length === 0) return;
     const fromEnd = view.state.doc.content.size - view.state.selection.from;
     for (const id of ids) {
@@ -2606,6 +2657,7 @@ class QuickCardSearchUI {
       }
       const badge = document.createElement('span');
       badge.className = `pmd-qcs-row-badge pmd-qcs-badge-${r.source}`;
+      if (r.logosSide) badge.classList.add(r.logosSide === 'A' ? 'pmd-qcs-badge-aff' : 'pmd-qcs-badge-neg');
       badge.textContent = badgeText(r);
       top.appendChild(badge);
       const name = document.createElement('span');

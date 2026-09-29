@@ -8,12 +8,22 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.13.0-bcb.2 — 2026-09-29
 
 ### Changed
 
 - **The read times at the bottom of the outline's right-click menu no
   longer highlight on hover**, since there's nothing to click.
+- **Card preview: "Insert at cursor" replaces "Copy to clipboard", and the
+  outline pane is gone.** The preview (Dropzone shelf, received cards, and
+  Logos results in Search Everything) now shows just the card, with Read
+  mode, Insert at cursor and Close.
+- **Logos cards shrink automatically, and the preview shows them shrunk.**
+  "Shrink cards from Logos" (Settings → Editing → Cards from Logos) is now
+  on by default, using Shrink Card Text. The right-click preview applies
+  the same condense/shrink, so it matches what Insert at cursor gives you.
+- **Logos results show Aff or Neg instead of "LOGOS"** in a subtle blue
+  (Aff) or red (Neg) pill.
 
 ## 1.13.0-bcb.1 — 2026-09-28
 
