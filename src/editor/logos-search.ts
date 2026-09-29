@@ -18,6 +18,7 @@
  */
 import { Fragment, Slice, type Mark, type Node as PMNode } from 'prosemirror-model';
 import { Selection, TextSelection } from 'prosemirror-state';
+import { Transform } from 'prosemirror-transform';
 import type { EditorView } from 'prosemirror-view';
 import { schema, newHeadingId } from '../schema/index.js';
 
@@ -177,6 +178,38 @@ export function selectInsertedCardBody(view: EditorView): boolean {
   if (from < 0) return false;
   view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, from, to)));
   return true;
+}
+
+/** The document a stored slice previews as: the slice fitted into an
+ *  otherwise empty document (an open-edged slice — a copy that started
+ *  mid-card — is closed by the fitter, the way an insert closes it). */
+export function docFromSlice(slice: Slice): PMNode {
+  const empty = schema.nodes['doc']!.createAndFill()!;
+  const tr = new Transform(empty);
+  tr.replace(0, empty.content.size, slice);
+  return tr.doc;
+}
+
+/** The span of the first card's body paragraphs in `doc` (first body's
+ *  start to last body's end), or null when it has none. Lets condense and
+ *  shrink run on a Logos card held in a scratch document. */
+export function firstCardBodyRange(doc: PMNode): { from: number; to: number } | null {
+  let from = -1;
+  let to = -1;
+  let seenCard = false;
+  doc.descendants((node, pos) => {
+    if (seenCard) return false;
+    if (node.type.name !== 'card') return true;
+    seenCard = true;
+    node.forEach((child, offset) => {
+      if (child.type.name !== 'card_body') return;
+      const start = pos + 1 + offset;
+      if (from < 0) from = start + 1;
+      to = start + child.nodeSize - 1;
+    });
+    return false;
+  });
+  return from < 0 ? null : { from, to };
 }
 
 /** Put the caret `fromEnd` positions before the end of the document —

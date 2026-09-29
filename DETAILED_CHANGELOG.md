@@ -31,6 +31,18 @@ receive rows call their own `insertItem(item, false)`; the Logos preview
 calls `insertLogosCard` (so the Cards-from-Logos condense/shrink settings
 still apply); `previewMostRecentReceived` takes a view getter.
 
+### Changed: Logos shrink on by default, in the preview too; Aff/Neg pill
+
+`logosImportShrink` now defaults to `'shrink'` (existing explicit choices
+are kept). `previewLogosCard` runs the same condense/shrink commands on
+the card in a scratch `EditorState` (`logosPreviewSlice`, via the new
+`runCommandOnState` palette option wired to `runRibbonCommandOnState` in
+`index.ts`; `firstCardBodyRange` picks the body to select).
+`docFromSlice` moved to `logos-search.ts` (re-exported from the preview
+module). Result rows carry `logosSide`; the badge reads AFF/NEG
+(`.pmd-qcs-badge-aff` / `-neg`, low-saturation `color-mix` tints), and
+falls back to LOGOS when the round doc didn't record a side.
+
 ## 1.13.0-bcb.1 — 2026-09-28
 
 ### Added: plugin updates on the app's update schedule and chip (`plugin-update-check.ts`, `main.ts`, `update-chip.ts`, `preload.ts`)

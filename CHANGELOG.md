@@ -18,6 +18,12 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   outline pane is gone.** The preview (Dropzone shelf, received cards, and
   Logos results in Search Everything) now shows just the card, with Read
   mode, Insert at cursor and Close.
+- **Logos cards shrink automatically, and the preview shows them shrunk.**
+  "Shrink cards from Logos" (Settings → Editing → Cards from Logos) is now
+  on by default, using Shrink Card Text. The right-click preview applies
+  the same condense/shrink, so it matches what Insert at cursor gives you.
+- **Logos results show Aff or Neg instead of "LOGOS"** in a subtle blue
+  (Aff) or red (Neg) pill.
 
 ## 1.13.0-bcb.1 — 2026-09-28
 

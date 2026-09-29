@@ -8,8 +8,7 @@
  * few) — plus Read mode, Insert at cursor (when the opener supplies an
  * insert) and Close.
  */
-import { Transform } from 'prosemirror-transform';
-import type { Node as PMNode, Slice } from 'prosemirror-model';
+import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 import { schema } from '../schema/index.js';
 import { checkedSliceFromJSON } from '../schema/slice-check.js';
@@ -17,6 +16,7 @@ import { mountVersionPreview as mountDocPreview } from './version-history.js';
 import { popOverlay, pushOverlay } from './overlay-stack.js';
 import { armDialogFocus, captureFocusForDialog, installModalKeys } from './text-prompt.js';
 import { showToast } from './toast.js';
+import { docFromSlice } from './logos-search.js';
 import { settings } from './settings.js';
 import { readModePlugin, PMD_READ_MODE_TOGGLE } from './read-mode-plugin.js';
 
@@ -56,15 +56,7 @@ export function setPreviewReadMode(on: boolean): void {
   }
 }
 
-/** The document a stored slice previews as: the slice fitted into an
- *  otherwise empty document (an open-edged slice — a copy that started
- *  mid-card — is closed by the fitter, the way an insert closes it). */
-export function docFromSlice(slice: Slice): PMNode {
-  const empty = schema.nodes['doc']!.createAndFill()!;
-  const tr = new Transform(empty);
-  tr.replace(0, empty.content.size, slice);
-  return tr.doc;
-}
+export { docFromSlice };
 
 export function docFromSliceJson(sliceJson: unknown): PMNode {
   return docFromSlice(checkedSliceFromJSON(sliceJson));

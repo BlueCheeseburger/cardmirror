@@ -2370,6 +2370,7 @@ const ribbonContext: RibbonContext = {
       view,
       paneEl,
       runCommand: runRibbonCommandById,
+      runCommandOnState: runRibbonCommandOnState,
       openFilePath: openFileByPath,
       // Enables per-header Mod+Enter "transclude" while browsing a file normally.
       docPath: view ? getViewDocPath(view) : null,
@@ -4997,6 +4998,14 @@ function runViewlessRibbon(id: AnyCommandId): void {
  *  view-less commands run regardless of focus; the rest go through
  *  `runRibbon` (which no-ops when there's no active view). Used by the
  *  search palette's command source. */
+function runRibbonCommandOnState(id: AnyCommandId, state: EditorState): EditorState | null {
+  let next: EditorState | null = null;
+  getRibbonCommand(id, ribbonContext)(state, (tr) => {
+    next = state.apply(tr);
+  });
+  return next;
+}
+
 function runRibbonCommandById(id: AnyCommandId): void {
   if (VIEWLESS_RIBBON_COMMANDS.has(id)) {
     runViewlessRibbon(id);
