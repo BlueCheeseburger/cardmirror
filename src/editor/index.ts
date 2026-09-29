@@ -2331,7 +2331,7 @@ const ribbonContext: RibbonContext = {
   // Look without inserting: no destination document is involved, so
   // this one works with the home screen up too.
   previewReceived: () => {
-    previewMostRecentReceived();
+    previewMostRecentReceived(() => (homeScreen.isVisible() ? null : view));
   },
   // Source-only operations on the focused view — no cross-doc
   // destination, so unlike send-to-* they need no multi-doc routing

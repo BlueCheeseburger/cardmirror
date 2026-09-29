@@ -14,6 +14,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 - **The read times at the bottom of the outline's right-click menu no
   longer highlight on hover**, since there's nothing to click.
+- **Card preview: "Insert at cursor" replaces "Copy to clipboard", and the
+  outline pane is gone.** The preview (Dropzone shelf, received cards, and
+  Logos results in Search Everything) now shows just the card, with Read
+  mode, Insert at cursor and Close.
 
 ## 1.13.0-bcb.1 — 2026-09-28
 

@@ -1717,7 +1717,7 @@ class QuickCardSearchUI {
   }
 
   /** Right-click on a Logos row: fetch the full card and show it in the
-   *  shared card preview (read-only, Copy / Close). Built exactly as an
+   *  shared card preview (read-only, Insert at cursor / Close). Built exactly as an
    *  insert would build it, so the preview matches what Enter inserts
    *  (before any automatic condense/shrink). */
   private async previewLogosCard(result: PaletteResult): Promise<void> {
@@ -1735,7 +1735,19 @@ class QuickCardSearchUI {
     }
     // Palette closed (or reopened) while the card loaded: drop it.
     if (!this.root || token !== this.asyncToken) return;
-    openCardPreview({ title: result.name, subtitle: result.meta, sliceJson: slice.toJSON() });
+    openCardPreview({
+      title: result.name,
+      subtitle: result.meta,
+      sliceJson: slice.toJSON(),
+      onInsert: () => {
+        const view = this.view;
+        if (!view || !view.editable) {
+          showToast('No editable document to insert into.');
+          return;
+        }
+        void this.insertLogosCard(result, view, false);
+      },
+    });
   }
 
   /** Settings → Editing → Cards from Logos: run the chosen condense, then

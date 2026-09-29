@@ -20,6 +20,17 @@ placeholder) stay still under the pointer, as they can't be clicked.
 The user's call; the first version highlighted them like every other
 row.
 
+### Changed: card preview inserts instead of copying (`card-preview-modal.ts`)
+
+`openCardPreview` takes an optional `onInsert`; when given, an "Insert at
+cursor" button (`.pmd-card-preview-insert`) closes the dialog and calls
+it. The Copy button, `copiedLabel` and the clipboard imports are gone.
+`mountVersionPreview` gained `hideNav` so the preview skips the outline
+pane (Recover Previous Version still shows it). Openers: the shelf and
+receive rows call their own `insertItem(item, false)`; the Logos preview
+calls `insertLogosCard` (so the Cards-from-Logos condense/shrink settings
+still apply); `previewMostRecentReceived` takes a view getter.
+
 ## 1.13.0-bcb.1 — 2026-09-28
 
 ### Added: plugin updates on the app's update schedule and chip (`plugin-update-check.ts`, `main.ts`, `update-chip.ts`, `preload.ts`)
