@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.13.0-bcb.2 — 2026-09-29
 
 ### Changed: outline menu read times don't highlight on hover (`style.css`)
 
