@@ -89,6 +89,8 @@ describe('logosResultMeta', () => {
     expect(logosResultMeta({ id: '1', tag: 't', cite: 'c', division: 'ndtceda', year: '23', side: 'A' }))
       .toBe('College 23 · Aff');
     expect(logosResultMeta({ id: '1', tag: 't', cite: 'c' })).toBe('');
+    expect(logosResultMeta({ id: '1', tag: 't', cite: 'c', division: 'hspolicy', year: '24', school: 'Lowell', side: 'N' }, false))
+      .toBe('HS 24 · Lowell');
   });
 });
 

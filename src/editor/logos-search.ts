@@ -72,10 +72,12 @@ export async function fetchLogosCard(id: string): Promise<LogosCard> {
   return card;
 }
 
-/** Short right-aligned label for a result row: "HS 24 · Lowell · Neg". */
-export function logosResultMeta(r: LogosResult): string {
+/** Short right-aligned label for a result row: "HS 24 · Lowell". The side
+ *  is left off the row (its pill says Aff/Neg); the preview's subtitle
+ *  keeps it: "HS 24 · Lowell · Neg". */
+export function logosResultMeta(r: LogosResult, withSide = true): string {
   const div = r.division === 'ndtceda' ? 'College' : r.division === 'hspolicy' ? 'HS' : '';
-  const side = r.side === 'A' ? 'Aff' : r.side === 'N' ? 'Neg' : '';
+  const side = !withSide ? '' : r.side === 'A' ? 'Aff' : r.side === 'N' ? 'Neg' : '';
   return [[div, r.year].filter(Boolean).join(' '), r.school, side].filter(Boolean).join(' · ');
 }
 
