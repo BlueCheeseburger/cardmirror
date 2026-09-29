@@ -30,6 +30,15 @@ of ⌘ (⌘Tab is the OS app switcher and never reaches the app), so the
 keybindings editor and tooltips say ⌃Tab. Tests: switch-window.test.ts.
 Brian's PR #87.
 
+### Changed: find scope toggle always opens off
+
+`FindReplaceBar.open` used to set the ⌖ "search within selection only"
+toggle to on whenever the bar opened over a non-empty selection. Now it
+always opens off, including a re-open while the bar is already up (for
+example, Ctrl-F then Ctrl-H). The selection is still captured at open
+(`capturedScope`), so Alt-L or the ⌖ button scopes to it exactly as
+before. Tests: find-bar-scope-default.test.ts.
+
 ### Fixed: sending a discontinuous (shadow) selection
 
 Since 3e160efe a scattered nav-pane multi-select becomes the

@@ -478,21 +478,19 @@ export class FindReplaceBar {
     // value across open/close, so when the setting is off we must
     // actively clear the lingering query, otherwise the bar behaves as
     // if "remember last query" were always on. Selection-seeding is
-    // intentionally NOT done — a user opening Ctrl-F with text selected
-    // typically wants to scope the search to that selection (see the
-    // scope toggle below), not pre-fill the find input with it.
+    // intentionally NOT done — a selection at open is kept as the
+    // optional search scope (the Alt-L toggle below), not pre-filled
+    // into the find input.
     if (wasClosed) {
       this.findInput.value = settings.get('findRememberLastQuery')
         ? settings.get('findLastQuery')
         : '';
     }
 
-    // Auto-enable the scope toggle whenever the user opened the
-    // bar over a non-empty selection. The scope band decoration
-    // doubles as the "we still know what you selected" visual,
-    // which matters because focusing the find input clears the
-    // browser's selection highlight on the editor.
-    this.scopeCheckbox.checked = scopeCandidate !== null;
+    // The scope toggle always opens OFF, even over a selection: Ctrl-F
+    // searches the whole document by default. The selection captured
+    // above stays available, so Alt-L (or the ⌖ button) scopes to it.
+    this.scopeCheckbox.checked = false;
 
     this.findInput.focus();
     this.findInput.select();

@@ -19,6 +19,14 @@ see `DETAILED_CHANGELOG.md`.
   Ctrl+Tab keeps its job of switching documents in the focused slot.
   Desktop only. Thanks to Brian (@brian-cai)!
 
+### Changed
+
+- **Find searches the whole document by default.** Opening the find bar
+  (Ctrl/Cmd+F) with text selected no longer switches on "Search within
+  selection only". Find now always starts across the whole document.
+  Press Alt+L, or click the ⌖ button, to limit it to the text you had
+  selected. Thanks to Brian (@brian-cai)!
+
 ### Fixed
 
 - **Sending a scattered selection works.** Selecting several non-
