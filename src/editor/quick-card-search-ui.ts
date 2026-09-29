@@ -516,6 +516,8 @@ interface PaletteResult {
   fileRange?: { from: number; to: number };
   /** Logos card id — fetched in full on insert (logos source). */
   logosId?: string;
+  /** Logos meta including the side, for the preview's subtitle. */
+  previewMeta?: string;
   /** Logos side: 'A' (aff) or 'N' (neg), when the round doc recorded it. */
   logosSide?: 'A' | 'N';
   /** The open doc to switch to (opendoc source). */
@@ -1037,7 +1039,8 @@ function logosResult(r: LogosResult): PaletteResult {
   return {
     source: 'logos',
     name: r.tag.trim() || r.cite.trim(),
-    meta: logosResultMeta(r),
+    meta: logosResultMeta(r, false),
+    previewMeta: logosResultMeta(r),
     // false so the row shows its snippet line — the cite, trimmed, which
     // is what tells two same-tagged cards apart.
     matchedName: false,
@@ -1751,7 +1754,7 @@ class QuickCardSearchUI {
     if (!this.root || token !== this.asyncToken) return;
     openCardPreview({
       title: result.name,
-      subtitle: result.meta,
+      subtitle: result.previewMeta ?? result.meta,
       sliceJson: this.logosPreviewSlice(slice).toJSON(),
       onInsert: () => {
         const view = this.view;
