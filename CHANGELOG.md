@@ -8,6 +8,13 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **Logos result rows no longer repeat Aff/Neg on the right.** The pill
+  carries the side; the preview's subtitle still shows it.
+
 ## 1.13.0-bcb.2 — 2026-09-29
 
 ### Changed

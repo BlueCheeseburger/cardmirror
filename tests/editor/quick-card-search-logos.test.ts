@@ -111,7 +111,8 @@ describe('palette Logos source (g prefix)', () => {
     expect(badge.textContent).toBe('NEG');
     expect(badge.classList.contains('pmd-qcs-badge-neg')).toBe(true);
     expect(r[0]!.textContent).toContain('Warming causes extinction');
-    expect(r[0]!.textContent).toContain('HS 24 · Lowell · Neg');
+    expect(r[0]!.textContent).toContain('HS 24 · Lowell');
+    expect(r[0]!.textContent).not.toContain('· Neg'); // the pill carries the side
     expect(r[0]!.querySelector('.pmd-qcs-row-snippet')?.textContent).toContain('Mann 24');
   });
 
