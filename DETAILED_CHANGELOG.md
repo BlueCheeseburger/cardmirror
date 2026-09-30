@@ -10,7 +10,19 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.13.0-bcb.3 — 2026-09-30
+
+### From upstream
+
+Syncs upstream `main` past v1.13.0 (its own Unreleased entries are further
+down: Switch Window, scattered-selection send, header drag during a session,
+F2 paste after a cut). Merge notes: upstream's `w ` Switch Window source and
+this fork's `p` open-docs-and-windows source are both kept (`Prefix` and
+`PaletteResult.source` carry both; `host:focus-window` stays the fork's
+handler, which raises via `raiseWindowForJump`; `host:list-windows` and the
+focus-order tracking are upstream's). `openSearchPalette` passes the fork's
+`runCommandOnState`. `formatKeyForDisplay` keeps the fork's `~` case and
+upstream's Mod-Tab → ⌃Tab on macOS.
 
 ### Added: documents follow the file when someone else saves it (`disk-auto-apply.ts`, `disk-conflict.ts`)
 
@@ -2113,6 +2125,101 @@ Word-level highlighting of edited lines was added in
 *The sections below are upstream CardMirror's own detailed release notes,
 synced into this fork. For the user-facing short summary of each upstream
 release, see [CHANGELOG.md § Upstream Releases](./CHANGELOG.md#upstream-releases).*
+
+## Unreleased
+
+### Added: Switch Window (`w ` palette source, Mod-Tab)
+
+Main records window focus order (`browser-window-focus`) and answers
+`host:list-windows` with every document window except the timer, most
+recently focused first, with each window's saved doc names, speech flag,
+minimized flag and an `isOwnWindow` marker; `host:focus-window` restores
+and focuses one. The palette gains a `w ` source (`searchWindowSource`:
+other windows only, every typed word must hit the label or title; Enter
+closes the palette and focuses, toasting if the window has gone) and an
+`initialQuery` open option. The `switchWindow` command (Window/Help
+group, view-less so it works from the home screen) opens the palette on
+`w `, steps the selection when already open on that source, and in the
+three-pane workspace drives the existing slot doc switcher
+(`stepFocusedSlotDocSwitcher`), whose Ctrl-Tab listener was refactored
+to share `stepDocSwitcher`. Default key Mod-Tab — the first default on a
+new command in a while, chosen because the Windows users it serves will
+not visit the keybindings editor; Ctrl folds into Mod in
+`ribbonKeyStringFor`, so Ctrl+Tab works on macOS too. Merge fixup:
+`formatKeyForDisplay` renders a Mod chord on Tab as ⌃ on macOS instead
+of ⌘ (⌘Tab is the OS app switcher and never reaches the app), so the
+keybindings editor and tooltips say ⌃Tab. Tests: switch-window.test.ts.
+Brian's PR #87.
+
+### Fixed: sending a discontinuous (shadow) selection
+
+Since 3e160efe a scattered nav-pane multi-select becomes the
+discontinuous shadow selection, which parks the caret in the doc-level
+gap before its first range; `resolveSendRange` read only the real
+selection, found no enclosing structure there and returned null, so
+every send command was a silent no-op. `shadowSendRanges` in speech-doc-
+send.ts now reads the shadow ranges the way `getOperatingRanges` does,
+normalizes each (zone-child range inside a live zone, else
+`normalizeSelectionForSend`), merges overlaps and concatenates the
+closed per-range slices in doc order with live views materialized per
+range; a non-empty real selection still wins, and the shadow set is left
+on screen (`takeSendSlice` never removed the source — it only reflects
+the normalized range as the selection). Also makes the manual Ctrl/Cmd
+selection and Select Similar sendable. Tests: send-shadow-
+selection.test.ts. Cora's PR #84.
+
+### Fixed: header drags during a co-editing session
+
+Partner edits rebuild the nav list, which wiped its drop slots mid-drag,
+and the source ranges and hovered insert position captured at pickup
+went stale. `dragController.mapThrough(view, mapping)` — called from
+both the single-doc and the multi-pane dispatch on every doc change —
+remaps the session's items and the hover target and emits a `refresh`
+event; the nav pane and the editor surface rebuild their indicators on
+it, the nav pane also restores slots and dragged-row greying after any
+list rebuild (`restoreDragChrome` / `markDraggingRows`), a dragged unit
+whose range collapses under the mapping cancels the drag with a toast,
+and the drop's own transaction is excluded via a `committing` flag.
+Early-returns when no drag is active. Tests: drag-remap.test.ts. Cora's
+PR #90.
+
+Driven against the real binding after the merge (2026-09-27, two peers
+on the Loro sync plugin in one process, tests/collab/drag-during-
+session.test.ts) and position mapping alone did not survive it: a
+partner's structural edit (a new card) arrives as ONE ReplaceStep over
+the whole document, so every dragged range collapsed and the guard
+cancelled falsely; and the binding's minimal diff for a deleted card
+sits one position off the node's own bounds, so the mapped range shrank
+to a single position, the guard stayed quiet, and the drop moved that
+sliver — an empty node at the top of the doc. The controller now
+captures each unit's identity at pickup (node type + head id,
+`unitHeadId`) and after every remap re-resolves it (`resolveUnit`): the
+mapped range is kept only if it still holds exactly that unit, else the
+unit is found by head id wherever it now sits, else the drag cancels. A
+hover slot whose position was inside replaced content
+(`mapResult().deletedAcross`) is dropped; the next pointer move hit-
+tests a fresh one. `commitInner` runs the same check as a last line
+before slicing. The two-peer test covers: typing above, a card inserted
+beside the dragged one, typing inside the dragged card (the edit travels
+with it), the dragged card deleted (cancel, nothing moved), the drop
+slot following an edit, a slot inside replaced content being dropped,
+and the nav pane's indicators and greying surviving a partner-triggered
+rebuild.
+
+### Fixed: F2 paste of a cut-in-place card duplicated it
+
+In a shared document a whole-card cut only marks the card; F2 and paste-
+and-condense read text/plain only, so the HTML marker never reached
+`handleCutInPlacePaste` and the paste duplicated the card. The pending
+cut now keeps its text payload; `takePendingCutForPlainPaste` recognizes
+our own cut by that text (line endings normalized), and
+`applyPlainPasteFromText` deletes the marked units in the paste's own
+transaction (delete + insert — a plain paste drops structure, so it
+cannot be the move; this reopens the concurrent-edit window cut-in-place
+avoids, for this path only). Any other text clears the mark and removes
+nothing; pasting into the marked card keeps it; the plugin's apply
+spreads the pending record so the text survives remapping. Tests in cut-
+in-place.test.ts. Cora's PR #91.
 
 ## 1.13.0 — 2026-09-25
 
