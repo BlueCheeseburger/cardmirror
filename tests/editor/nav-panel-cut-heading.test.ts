@@ -22,10 +22,7 @@ vi.mock('../../src/editor/clipboard-write.js', () => ({
 }));
 
 import { NavigationPanel } from '../../src/editor/nav-panel.js';
-import {
-  buildSimilarSelectionPlugin,
-  getSimilarSelectionState,
-} from '../../src/editor/similar-selection-plugin.js';
+import { buildSimilarSelectionPlugin } from '../../src/editor/similar-selection-plugin.js';
 
 function card(tag: string, body: string): PMNode {
   return schema.nodes['card']!.createChecked(null, [
@@ -192,52 +189,6 @@ describe('nav-pane context ops on a multi-selection', () => {
     expect(html).toContain('Beta tag');
     expect(view.state.doc.textContent).toContain('Alpha tag');
     expect(view.state.doc.textContent).toContain('Beta tag');
-  });
-});
-
-describe('nav-pane Select on a multi-selection', () => {
-  const select = (nav: NavigationPanel, entry: unknown): void => {
-    (
-      nav as unknown as { selectHeadingAndContents: (e: unknown) => void }
-    ).selectHeadingAndContents(entry);
-  };
-
-  it('a scattered set becomes the discontinuous shadow selection — nothing in between', () => {
-    const { view, nav } = setup(
-      card('Alpha tag', 'alpha body'),
-      card('Beta tag', 'beta body'),
-      card('Gamma tag', 'gamma body'),
-    );
-    multiSelect(nav, 'Alpha tag', 'Gamma tag');
-    select(nav, entryFor(nav, 'Alpha tag'));
-
-    const shadow = getSimilarSelectionState(view.state);
-    expect(shadow.matches).toHaveLength(2);
-    expect(shadow.style).toBe('selection');
-    // The two ranges cover exactly Alpha's and Gamma's subtrees.
-    const texts = shadow.matches.map((r) =>
-      view.state.doc.textBetween(r.from, r.to, ' ', ' '),
-    );
-    expect(texts[0]).toContain('alpha body');
-    expect(texts[1]).toContain('gamma body');
-    expect(texts.join(' ')).not.toContain('beta');
-  });
-
-  it('an adjacent run merges into one plain native selection', () => {
-    const { view, nav } = setup(
-      card('Alpha tag', 'alpha body'),
-      card('Beta tag', 'beta body'),
-      card('Gamma tag', 'gamma body'),
-    );
-    multiSelect(nav, 'Alpha tag', 'Beta tag');
-    select(nav, entryFor(nav, 'Alpha tag'));
-
-    expect(getSimilarSelectionState(view.state).matches).toHaveLength(0);
-    const sel = view.state.selection;
-    const covered = view.state.doc.textBetween(sel.from, sel.to, ' ', ' ');
-    expect(covered).toContain('alpha body');
-    expect(covered).toContain('beta body');
-    expect(covered).not.toContain('gamma');
   });
 });
 

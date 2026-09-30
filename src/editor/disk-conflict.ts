@@ -30,6 +30,7 @@
 import { promptForRouteChoice } from './text-prompt.js';
 import { settings } from './settings.js';
 import type { CloudProvider } from './host/types.js';
+import type { AutoApplyOutcome } from './disk-auto-apply.js';
 
 export type DiskBadgeState = 'local' | 'synced' | 'changed' | 'kept-copy';
 export type ClaimResult = 'fresh' | 'journaled' | 'changed' | 'unknown';
@@ -84,6 +85,74 @@ export function noteDiskChanged(handle: string, at: number = Date.now()): void {
   if (!prev || prev.state === 'changed') return;
   byHandle.set(handle, { ...prev, state: 'changed', changedAt: at });
   notifyDiskStateChanged();
+  scheduleAutoApply(handle);
+}
+
+// ── Auto-apply (clean documents follow the file) ────────────────────
+// When the changed document has no unsaved edits, the owning layout's
+// handler patches the file's contents in (disk-auto-apply.ts) instead of
+// leaving the pill for the user to click. The handler answers `deferred`
+// while read mode / the timer is up; those handles are retried on a slow
+// timer until they clear. Anything it `skipped` keeps the amber pill.
+
+/** Wait for a sync client to finish writing before reading the file. */
+export const AUTO_APPLY_SETTLE_MS = 1500;
+const AUTO_APPLY_RETRY_MS = 5000;
+
+let autoApplyHandler: ((handle: string) => Promise<AutoApplyOutcome>) | null = null;
+const autoApplyBusy = new Set<string>();
+const autoApplyDeferred = new Set<string>();
+let autoApplyRetryTimer: number | null = null;
+
+/** The layout (single-doc or three-pane) that owns the open documents
+ *  registers how to apply a change to one of them. */
+export function setAutoApplyHandler(fn: ((handle: string) => Promise<AutoApplyOutcome>) | null): void {
+  autoApplyHandler = fn;
+}
+
+function scheduleAutoApply(handle: string, delayMs: number = AUTO_APPLY_SETTLE_MS): void {
+  if (!settings.get('autoApplyDiskChanges') || !autoApplyHandler) return;
+  if (autoApplyBusy.has(handle)) return;
+  autoApplyBusy.add(handle);
+  window.setTimeout(() => {
+    void runAutoApply(handle).finally(() => autoApplyBusy.delete(handle));
+  }, delayMs);
+}
+
+async function runAutoApply(handle: string): Promise<void> {
+  const handler = autoApplyHandler;
+  if (!handler || byHandle.get(handle)?.state !== 'changed') {
+    autoApplyDeferred.delete(handle);
+    return;
+  }
+  let outcome: AutoApplyOutcome;
+  try {
+    outcome = await handler(handle);
+  } catch (err) {
+    console.warn('Auto-apply failed:', err);
+    outcome = 'skipped';
+  }
+  if (outcome === 'deferred') {
+    autoApplyDeferred.add(handle);
+    startAutoApplyRetry();
+    return;
+  }
+  autoApplyDeferred.delete(handle);
+  if (outcome === 'applied' || outcome === 'unchanged') noteReloaded(handle);
+}
+
+function startAutoApplyRetry(): void {
+  if (autoApplyRetryTimer !== null) return;
+  autoApplyRetryTimer = window.setInterval(() => {
+    for (const h of [...autoApplyDeferred]) {
+      if (byHandle.get(h)?.state !== 'changed') autoApplyDeferred.delete(h);
+      else scheduleAutoApply(h, 0);
+    }
+    if (autoApplyDeferred.size === 0 && autoApplyRetryTimer !== null) {
+      window.clearInterval(autoApplyRetryTimer);
+      autoApplyRetryTimer = null;
+    }
+  }, AUTO_APPLY_RETRY_MS);
 }
 
 /** An in-place save main ACCEPTED: the disk matched the baseline (or
@@ -411,6 +480,11 @@ export function __resetDiskConflictForTests(): void {
   badgeDeps = null;
   document.documentElement.classList.remove('pmd-disk-pill-active');
   paneRefreshListeners.clear();
+  autoApplyHandler = null;
+  autoApplyBusy.clear();
+  autoApplyDeferred.clear();
+  if (autoApplyRetryTimer !== null) window.clearInterval(autoApplyRetryTimer);
+  autoApplyRetryTimer = null;
 }
 
 // ── Per-pane badge (multi-pane mode) ──────────────────────────────

@@ -13,7 +13,8 @@
 import type { EditorView } from 'prosemirror-view';
 import { serializeRangesForClipboard } from './clipboard-slice.js';
 import { type Node as PMNode } from 'prosemirror-model';
-import { NodeSelection, TextSelection } from 'prosemirror-state';
+import { EditorState, NodeSelection, TextSelection } from 'prosemirror-state';
+import type { Transaction } from 'prosemirror-state';
 import { type Mappable } from 'prosemirror-transform';
 import { settings, SETTINGS_DEFAULTS } from './settings.js';
 import { positionFloatingMenu } from './context-menu-position.js';
@@ -21,7 +22,7 @@ import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js
 import { isCutInPlaceDoc, markCutInPlace } from './cut-in-place.js';
 import { showToast } from './toast.js';
 import { countReadAloudSplit, formatReadTimeFor, type ReadAloudCounts } from './word-count.js';
-import { setManualShadowSelection } from './similar-selection-plugin.js';
+import { cardHighlightAction, rehighlightRanges, unhighlightRanges } from './card-highlight-toggle.js';
 import {
   insertSelfRef,
   insertInDocCopy,
@@ -2145,12 +2146,15 @@ export class NavigationPanel {
     // menu acts on ALL selected rows; on any other row → just that one.
     const n = this.contextTargets(entry).length;
     const what = n > 1 ? `${n} headings` : 'heading';
+    const targets = this.contextTargets(entry);
+    // Cards and analytic units read as "card"; a Pocket / Hat / Block as
+    // "everything under" it — the same scope the other rows act on.
+    const cardsOnly = targets.every((t) => this.computeHeadingRange(t)?.useNodeSelection === true);
+    const scope = cardsOnly ? (n > 1 ? `${n} cards` : 'card') : `everything under ${what}`;
+    const highlight = this.view
+      ? cardHighlightAction(this.view.state, this.headingRanges(targets))
+      : null;
     const items: ContextMenuItem[] = [
-      {
-        kind: 'item',
-        label: `Select ${what} and contents`,
-        action: () => this.selectHeadingAndContents(entry),
-      },
       {
         kind: 'item',
         label: `Cut ${what} and contents`,
@@ -2166,6 +2170,24 @@ export class NavigationPanel {
         label: `Delete ${what} and contents`,
         action: () => this.deleteHeadingAndContents(entry),
       },
+      { kind: 'separator' },
+      {
+        kind: 'item',
+        label: `Shrink ${scope}`,
+        action: () => this.shrinkHeadingContents(entry),
+      },
+      // One row, two states: Unhighlight while anything under the heading is
+      // highlighted, Rehighlight (while the unhighlight is still undoable)
+      // once it isn't. Hidden when there's nothing to do either way.
+      ...(highlight
+        ? ([
+            {
+              kind: 'item',
+              label: `${highlight === 'rehighlight' ? 'Rehighlight' : 'Unhighlight'} ${scope}`,
+              action: () => this.toggleHeadingHighlight(entry),
+            },
+          ] as ContextMenuItem[])
+        : []),
       // Creators — deliberately NOT multi-select aware: a live view or
       // linked copy mirrors ONE section, so these always act on the
       // clicked row alone, whatever the selection is.
@@ -2368,44 +2390,46 @@ export class NavigationPanel {
     insertInDocCopy(this.view, entry.id);
   }
 
-  private selectHeadingAndContents(entry: HeadingEntry): void {
-    if (!this.view) return;
-    const targets = this.contextTargets(entry);
-    if (targets.length > 1) {
-      const ranges = this.headingRanges(targets);
-      const first = ranges[0];
-      if (!first) return;
-      if (ranges.length === 1) {
-        // A shift-click run merges into one contiguous span (adjacent
-        // subtrees abut) — a plain native selection is exact.
-        const tr = this.view.state.tr;
-        tr.setSelection(TextSelection.create(this.view.state.doc, first.from, first.to));
-        tr.scrollIntoView();
-        this.view.dispatch(tr);
-        this.view.focus();
-        return;
+  /** Shrink the text under the heading(s) — the same Shrink the Card menu
+   *  and Mod-8 run, over each heading's whole range, all in ONE
+   *  transaction (one undo step). Runs on a scratch state per range so the
+   *  editor's own selection and scroll don't move; Shrink only edits marks,
+   *  so the ranges stay valid from one to the next. */
+  private shrinkHeadingContents(entry: HeadingEntry): void {
+    const view = this.view;
+    const run = navCommandRunner;
+    if (!view || !run) return;
+    const ranges = this.headingRanges(this.contextTargets(entry));
+    const tr = view.state.tr;
+    try {
+      for (const r of ranges) {
+        const scratch = EditorState.create({
+          doc: tr.doc,
+          selection: TextSelection.between(tr.doc.resolve(r.from), tr.doc.resolve(r.to)),
+        });
+        const cmdTr = run('shrink', scratch);
+        if (cmdTr) for (const step of cmdTr.steps) tr.step(step);
       }
-      // Scattered ⌘-click set → the app's discontinuous shadow selection
-      // (same machinery as the manual Ctrl/Cmd selection and Select
-      // Similar): each subtree selected exactly, nothing in between.
-      // Format commands, copy, etc. consume it via getOperatingRanges.
-      setManualShadowSelection(this.view, ranges);
-      this.view.dispatch(this.view.state.tr.scrollIntoView());
-      this.view.focus();
+    } catch (err) {
+      // A step that doesn't apply: change nothing rather than half of it.
+      console.warn('[cardmirror] Shrink from the outline failed:', err);
       return;
     }
-    const range = this.computeHeadingRange(entry);
-    if (!range) return;
-    const doc = this.view.state.doc;
-    const tr = this.view.state.tr;
-    tr.setSelection(
-      range.useNodeSelection
-        ? NodeSelection.create(doc, range.from)
-        : TextSelection.create(doc, range.from, range.to),
-    );
-    tr.scrollIntoView();
-    this.view.dispatch(tr);
-    this.view.focus();
+    if (tr.docChanged) view.dispatch(tr);
+  }
+
+  /** Unhighlight everything under the heading(s), or — when nothing is
+   *  highlighted but the last unhighlight is still in the undo history —
+   *  put the highlighting back (card-highlight-toggle.ts). */
+  private toggleHeadingHighlight(entry: HeadingEntry): void {
+    const view = this.view;
+    if (!view) return;
+    const ranges = this.headingRanges(this.contextTargets(entry));
+    const cmd =
+      cardHighlightAction(view.state, ranges) === 'rehighlight'
+        ? rehighlightRanges(ranges)
+        : unhighlightRanges(ranges);
+    cmd(view.state, view.dispatch.bind(view));
   }
 
   /** Delete the heading subtree(s) — all targets in ONE transaction
@@ -2548,6 +2572,15 @@ export class NavigationPanel {
 }
 
 // ---------------------------------------------- Context menu plumbing
+
+/** Runs a ribbon command on a scratch state and hands back its transaction
+ *  (null when it doesn't apply). Registered by index.ts, which owns the
+ *  ribbon's settings-bound command context. */
+type NavCommandRunner = (id: 'shrink', state: EditorState) => Transaction | null;
+let navCommandRunner: NavCommandRunner | null = null;
+export function setNavCommandRunner(runner: NavCommandRunner): void {
+  navCommandRunner = runner;
+}
 
 interface ContextMenuItemBase {
   kind: 'item';

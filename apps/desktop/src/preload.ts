@@ -142,11 +142,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     message?: string;
   }>,
 
-  /** Trigger a silent at-launch update check. Same network call
-   *  as `checkForUpdates`, but the main process suppresses the
-   *  "you're on the latest" and "couldn't check" dialogs — only
-   *  the "Update available" modal fires. No-op in dev builds. */
-  triggerAutoUpdateCheck: () => ipcRenderer.invoke('host:trigger-auto-update-check'),
+  /** Trigger a silent automatic update check. Same network call as
+   *  `checkForUpdates`, but every dialog is suppressed; an update found
+   *  goes to the status-bar chip. With `onlyIfDue`, main skips the call
+   *  unless enough time has passed since the last automatic check.
+   *  No-op in dev builds. */
+  triggerAutoUpdateCheck: (opts?: { onlyIfDue?: boolean }) =>
+    ipcRenderer.invoke('host:trigger-auto-update-check', opts),
   getUpdateChipState: () => ipcRenderer.invoke('host:update-chip-state'),
   updateChipAction: () => ipcRenderer.invoke('host:update-chip-action'),
   onUpdateChip(handler: (payload: UpdateChipStateIpc | null) => void): () => void {

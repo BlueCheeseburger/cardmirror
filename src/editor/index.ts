@@ -7,7 +7,7 @@
  * multi-pane / mobile shells install to take over per-pane state.
  */
 
-import { EditorState, Plugin, Selection, TextSelection, type Command } from 'prosemirror-state';
+import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from 'prosemirror-state';
 import { setLocalOpenDocsProvider } from './open-docs.js';
 import { serializeRangesForClipboard, serializeNodesForClipboard } from './clipboard-slice.js';
 import { EditorView } from 'prosemirror-view';
@@ -23,7 +23,7 @@ import { fromDocxFull, toDocx, serializeNative, serializeNativeAsync, parseNativ
 import { transformForExport, countMarkedCards } from '../export/transform-for-export.js';
 import type { Thread, Comment } from './comments-plugin.js';
 import type { LocalComment } from './learn-store.js';
-import { NavigationPanel } from './nav-panel.js';
+import { NavigationPanel, setNavCommandRunner } from './nav-panel.js';
 import { initUpdateChip } from './update-chip.js';
 import { mountTimerUI } from './timer-ui.js';
 import { initTimerAudio } from './timer-audio.js';
@@ -181,6 +181,7 @@ import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.
 import { resolveRenameFilename, installInlineRename, isInlineRenaming } from './doc-rename.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { viewportSpellcheckPlugin } from './viewport-spellcheck.js';
+import { autoApplyDiskChange, DISK_SYNC_META, type AutoApplyOutcome } from './disk-auto-apply.js';
 import { commentsPlugin, commentsKey, loadThreads, getCommentsState, gcOrphanThreads, newCommentId, setCommentIdSessionResolver } from './comments-plugin.js';
 import { commentClipboardPlugin } from './comment-clipboard.js';
 import { commentGuardPlugin } from './comment-guard.js';
@@ -284,6 +285,7 @@ import { isRightClickContextMenu } from './context-menu-gate.js';
 import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
+import { cardHighlightPlugin, cardHighlightAction, cardRangesForSelection } from './card-highlight-toggle.js';
 import { readerViewPlugin, applyReaderViewToTarget } from './reader-view.js';
 import { headingIdGuardPlugin } from './heading-id-guard.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
@@ -323,6 +325,7 @@ import {
   noteSavedInPlace,
   noteKeptCopy,
   noteReloaded,
+  setAutoApplyHandler,
   noteDocReleased,
   conflictedCopyUserName,
 } from './disk-conflict.js';
@@ -376,6 +379,7 @@ import {
   orderWordCountSegments,
   primaryReadSegment,
   remainingReadSegment,
+  watchScrollForRemaining,
   canSwitchSpeedMode,
 } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
@@ -2985,6 +2989,15 @@ if (strikethroughBtn) {
   strikethroughBtn.addEventListener('click', () => runRibbon('toggleStrikethrough'));
 }
 
+/** The Card menu's Unhighlight / Rehighlight row, decided when the menu opens. */
+function cardHighlightMenuItem(): { label: string; commandId: 'unhighlightCard' | 'rehighlightCard'; run: () => void } {
+  const state = view?.state;
+  const action = state ? cardHighlightAction(state, cardRangesForSelection(state)) : null;
+  return action === 'rehighlight'
+    ? { label: 'Rehighlight Card', commandId: 'rehighlightCard', run: () => runRibbon('rehighlightCard') }
+    : { label: 'Unhighlight Card', commandId: 'unhighlightCard', run: () => runRibbon('unhighlightCard') };
+}
+
 const cardMenuBtn = document.getElementById('card-menu-btn') as HTMLButtonElement | null;
 if (cardMenuBtn) {
   cardMenuBtn.addEventListener('mousedown', (e) => e.preventDefault());
@@ -3039,6 +3052,9 @@ if (cardMenuBtn) {
             commandId: 'lockHighlighting',
             run: () => runRibbon('lockHighlighting'),
           },
+          // One slot, two states: after Unhighlight Card the same row reads
+          // Rehighlight Card for as long as the unhighlight is undoable.
+          cardHighlightMenuItem(),
           {
             label: 'Highlight to Background',
             commandId: 'highlightToShading',
@@ -5006,6 +5022,17 @@ function runRibbonCommandOnState(id: AnyCommandId, state: EditorState): EditorSt
   return next;
 }
 
+/** The transaction a ribbon command would dispatch on `state`, or null. The
+ *  nav pane's context menu runs Shrink through it over a heading's range. */
+function ribbonCommandTransaction(id: AnyCommandId, state: EditorState): Transaction | null {
+  let out: Transaction | null = null;
+  getRibbonCommand(id, ribbonContext)(state, (tr) => {
+    out = tr;
+  });
+  return out;
+}
+setNavCommandRunner(ribbonCommandTransaction);
+
 function runRibbonCommandById(id: AnyCommandId): void {
   if (VIEWLESS_RIBBON_COMMANDS.has(id)) {
     runViewlessRibbon(id);
@@ -5563,12 +5590,16 @@ function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
   const segments = orderWordCountSegments(order, {
     doc: primary,
     container: liveContainerSegment(view.state, laySpeakingOn),
-    remaining: remainingReadSegment(view.state, laySpeakingOn),
+    remaining: remainingReadSegment(view.state, laySpeakingOn, view),
   });
   wordCountText.textContent = segments.join(' | ');
   wordCountText.classList.toggle('pmd-active', laySpeakingOn);
   wordCountText.classList.toggle('pmd-wc-lay-capable', hasLaySpeeds());
 }
+
+// "Left" counts from where the document is scrolled to, not the caret, so a
+// scroll refreshes it (only while that segment is on; throttled).
+watchScrollForRemaining(appEl, () => refreshWordCount({ selectionOnly: true }));
 
 /**
  * Single-doc read-mode application. Read mode is conceptually
@@ -6194,6 +6225,9 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // transaction lock + relayout hook (see reader-view.ts).
     readerViewPlugin,
     highlightFrequencyPlugin,
+    // Remembers what Unhighlight Card removed so Rehighlight Card can put it
+    // back while the unhighlight is still undoable (card-highlight-toggle.ts).
+    cardHighlightPlugin(),
     // Swallow the browser's `dragstart` on the editor's content-
     // editable so the user can't initiate a text-move drag from a
     // selection. (Text drag-and-drop never worked reliably, so it's
@@ -6433,10 +6467,14 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
         if (!isBenchmarkActive()) {
           currentDoc = next.doc;
           markNonPristineStarter();
-          markCurrentDocDirty();
-          // Re-arm the autosave debounce. No-ops when the setting
-          // is off, so the call is cheap to fire unconditionally.
-          notifyEditForAutosave();
+          // A patch from the file on disk (disk-auto-apply.ts) IS the saved
+          // state: not an edit, so no dirty flag and no autosave write-back.
+          if (!tx.getMeta(DISK_SYNC_META)) {
+            markCurrentDocDirty();
+            // Re-arm the autosave debounce. No-ops when the setting
+            // is off, so the call is cheap to fire unconditionally.
+            notifyEditForAutosave();
+          }
         }
         // The cached whole-doc word count is now stale. Null it so a
         // selection collapse before the debounced recount re-walks the
@@ -6484,18 +6522,16 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
       // it when a range is involved on either side (plain cursor moves
       // can't change a selection count); `liveContainerReadTime` needs
       // every selection change, cursor moves included — the enclosing
-      // container follows the caret, and so does `liveRemainingReadTime`'s
-      // "what's left" boundary. All three reuse the cached whole-doc
-      // count (no doc walk); the container count is itself cached per
-      // container and the remaining count reads a per-doc suffix table,
-      // so an empty→empty move costs an ancestor walk plus at most one
-      // top-level child.
+      // container follows the caret. (`liveRemainingReadTime` counts from
+      // the scroll position, so a caret move needs no refresh for it: a
+      // scroll it causes refreshes through `watchScrollForRemaining`.)
+      // Both reuse the cached whole-doc count (no doc walk); the container
+      // count is itself cached per container.
       else if (
         !prevState.selection.eq(next.selection) &&
         ((settings.get('liveSelectionWordCount') &&
           (!prevState.selection.empty || !next.selection.empty)) ||
-          settings.get('liveContainerReadTime') ||
-          settings.get('liveRemainingReadTime'))
+          settings.get('liveContainerReadTime'))
       ) {
         refreshWordCount({ selectionOnly: true });
       }
@@ -9602,6 +9638,32 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
   }
 }
 
+/** Three-pane layout's half of the auto-apply handler (see below). */
+let multiDocAutoApply: ((handle: string) => Promise<AutoApplyOutcome>) | null = null;
+export function setMultiDocAutoApply(fn: ((handle: string) => Promise<AutoApplyOutcome>) | null): void {
+  multiDocAutoApply = fn;
+}
+/** Registered with the disk-conflict tracker: a clean document follows the
+ *  file when another device saves it. See disk-auto-apply.ts. */
+function autoApplyForHandle(handle: string): Promise<AutoApplyOutcome> {
+  if (multiDocActive) return multiDocAutoApply ? multiDocAutoApply(handle) : Promise.resolve('skipped');
+  if (!view || handle !== currentDocHandle) return Promise.resolve('skipped');
+  const target = view;
+  return autoApplyDiskChange(handle, {
+    view: target,
+    isCurrent: () => view === target && currentDocHandle === handle,
+    isDirty: () => currentDocDirty,
+    isSuppressed: () => readModeStateForActive() || getTimerStateNow().poppedOut,
+    inSession: () => collabCopresenceFor(activeDocIdentity().sessionUid) != null,
+    hasLiveLinks: () => {
+      const { views, copies } = activeSaveDocLiveLinkCounts();
+      return views + copies > 0;
+    },
+    markClean: markCurrentDocClean,
+    claimBaseline: () => registerDocPath(handle),
+  });
+}
+
 let diskBadgeInstalled = false;
 /** Create the cloud pill (bottom-right tray, the mirror of the Send /
  *  Receive tray) and wire main's disk-changed pushes. Idempotent. Waits
@@ -9625,6 +9687,7 @@ function ensureDiskBadge(): void {
     overwrite: () => saveActiveForcingDisk(),
     openOriginal: (original) => openFileByPath(original, original.split(/[\\/]/u).pop() ?? original),
   });
+  setAutoApplyHandler(autoApplyForHandle);
   getElectronHost()?.onDiskChanged(({ path }) => noteDiskChanged(path));
   subscribeTimer(() => refreshDiskBadge());
 }
@@ -11245,6 +11308,68 @@ void loadLearnStore();
 // Drag-and-drop file opening works in both single-doc and multi-pane modes.
 installDragToOpen();
 
+/** How often a window in the foreground asks main whether an automatic
+ *  update check is due. Main enforces the real gap (15 minutes), so this
+ *  only bounds how late a check can run once it becomes due. */
+const UPDATE_TICK_MS = 60 * 1000;
+
+/** Automatic update checks, desktop only, started once per window in
+ *  BOTH layouts (the three-pane boot used to run none at all):
+ *  - the first window of a session checks at launch;
+ *  - every window, while it has focus, asks main to check once a minute
+ *    and again whenever it regains focus (a laptop that slept through
+ *    its timers). Main runs a check only when the last one is old enough.
+ *  The setting and the tournament pause are re-read on every call, so
+ *  turning checks off or pausing them stops the next one. Everything is
+ *  silent unless an update is found (the status-bar chip owns it). */
+function startUpdateChecks(): void {
+  const electron = getElectronHost();
+  if (!electron) return;
+  const allowed = (): boolean =>
+    settings.get('checkForUpdatesOnLaunch') &&
+    settings.get('updateChecksPausedUntil') <= Date.now(); // tournament pause
+  const tick = (): void => {
+    if (!document.hasFocus() || !allowed()) return;
+    electron.triggerAutoUpdateCheck({ onlyIfDue: true }).catch((err) => {
+      console.warn('Foreground update check failed:', err);
+    });
+  };
+  // Boot is busy; let the editor come up before the first network call.
+  window.setTimeout(() => {
+    void (async () => {
+      let isFirst = false;
+      try {
+        isFirst = await electron.isFirstWindow();
+      } catch {
+        // Not knowing leaves the launch check to the foreground tick.
+      }
+      // Update checks became opt-OUT (2026-07-27): flip an older install's
+      // stored `false` default exactly once, with a one-time notice pointing
+      // at the toggle. First window only — every window holds its own copy
+      // of the setting, so running it in each would toast in each. Runs
+      // before the launch check so the flipped setting takes effect now.
+      if (isFirst) {
+        migrateAutoUpdateOptOut(() => {
+          showToast(
+            'CardMirror now checks for updates automatically. You can turn this off — or pause it for a tournament — in Settings → General → About this install.',
+          );
+        });
+      }
+      if (isFirst && allowed()) {
+        try {
+          await electron.triggerAutoUpdateCheck();
+        } catch (err) {
+          // Silent — the user didn't ask for feedback.
+          console.warn('Auto-launch update check failed:', err);
+        }
+      }
+    })();
+  }, 4000);
+  window.setInterval(tick, UPDATE_TICK_MS);
+  window.addEventListener('focus', tick);
+}
+startUpdateChecks();
+
 // Web only: disable the reload keyboard shortcut (Mod+R / F5), matching the
 // desktop build (which removes the reload accelerator in the main process). An
 // accidental reload would discard the in-memory session. Programmatic reloads
@@ -11471,60 +11596,12 @@ async function initSingleDocBoot(): Promise<void> {
     await runStartupRecovery();
   }
   if (isFirst) {
-    const electron = getElectronHost();
     // "Distinguish background color from highlighting" became ON by
     // default (2026-09-21): flip an older install's stored `false` once.
     migrateDistinguishShadingDefault();
-    // Update checks became opt-OUT (2026-07-27): flip an older
-    // install's stored `false` default exactly once, with a one-time
-    // notice pointing at the toggle. Runs before the launch check so
-    // the flipped setting takes effect this very boot.
-    if (electron) {
-      migrateAutoUpdateOptOut(() => {
-        showToast(
-          'CardMirror now checks for updates automatically. You can turn this off — or pause it for a tournament — in Settings → General → About this install.',
-        );
-      });
-    }
-    // At-launch update check, gated on the same first-window rule
-    // as the recovery UI — we don't want every spawned window in
-    // a session to re-check or to re-pop "Update available" if the
-    // user dismissed it on the first window. The main-process IPC
-    // handler is a no-op in dev (non-packaged) builds, so the gate
-    // here is renderer-side defense in depth.
-    if (
-      electron &&
-      settings.get('checkForUpdatesOnLaunch') &&
-      settings.get('updateChecksPausedUntil') <= Date.now() // tournament pause
-    ) {
-      try {
-        await electron.triggerAutoUpdateCheck();
-      } catch (err) {
-        // Auto-launch check failures stay silent — the user didn't
-        // ask for feedback. Manual checks have their own error path.
-        console.warn('Auto-launch update check failed:', err);
-      }
-    }
-    // Plus a DAILY background check (also silent unless an update is
-    // found), so an app left running for days still notices updates.
-    // Re-reads the setting each tick, so turning "Check for updates
-    // automatically" off stops it; first window only, like above.
-    if (electron) {
-      window.setInterval(
-        () => {
-          if (
-            settings.get('checkForUpdatesOnLaunch') &&
-            settings.get('updateChecksPausedUntil') <= Date.now() // tournament pause
-          ) {
-            void electron.triggerAutoUpdateCheck().catch((err) => {
-              console.warn('Daily update check failed:', err);
-            });
-          }
-        },
-        24 * 60 * 60 * 1000,
-      );
-    }
   }
+  // Automatic update checks start from `startUpdateChecks` (module level),
+  // which covers both layouts and every window.
 }
 
 /** A window spawned to accept a collaboration invite: mount a fresh pristine

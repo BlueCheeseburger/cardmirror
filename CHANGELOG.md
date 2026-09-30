@@ -10,10 +10,47 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **Shrink and Unhighlight from the outline.** Right-click a heading in the
+  outline pane to shrink everything under it, or to unhighlight it. On a
+  card the rows read "Shrink card" and "Unhighlight card"; on a Pocket, Hat
+  or Block they cover everything under the heading. After an unhighlight
+  the same row reads "Rehighlight" and puts the highlighting back, for as
+  long as the unhighlight is still in the undo history (close the document
+  and it's gone). Both follow a multi-selection and are one undo step.
+- **Unhighlight Card / Rehighlight Card in the Card menu.** The same
+  toggle for the card at your cursor, also in the command bar.
+- **A document follows the file when someone else saves it.** If a file in
+  a synced folder (Dropbox, OneDrive, Google Drive, iCloud) is saved by
+  another device or program and you have no unsaved edits, the new version
+  appears in your window on its own. Your cursor, scroll position and undo
+  history stay put. It waits while read mode or the timer pop-out is on.
+  If you do have unsaved edits you still get the "Changed on disk" pill.
+  On by default (Settings → General → Show changes saved by someone else);
+  desktop only.
+
 ### Changed
 
+- **Updates are checked every 15 minutes while CardMirror is in the
+  foreground**, and again the moment you switch back to it, instead of
+  once a day. Plugins are checked hourly. The launch check, the "Check for
+  updates automatically" switch and the tournament pause work as before.
+- **"Left" read time follows the scroll.** The time-left readout now counts
+  from the line at the top of the window, not from your cursor, and updates
+  as you scroll.
+- **The outline menu no longer has "Select heading and contents".**
 - **Logos result rows no longer repeat Aff/Neg on the right.** The pill
   carries the side; the preview's subtitle still shows it.
+
+### Fixed
+
+- **Three-pane windows never checked for updates at all.** Only the
+  single-document layout ran the launch check. Every window now does.
+- **macOS turning `---` into an em dash no longer pulls in the next line.**
+  When the line below was a Pocket, the replacement folded its text into
+  the line you were typing and restyled it. The replacement now stops at
+  the end of your line.
 
 ## 1.13.0-bcb.2 — 2026-09-29
 

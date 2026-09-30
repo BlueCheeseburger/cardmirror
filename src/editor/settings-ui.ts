@@ -2028,10 +2028,10 @@ function buildInstallInfoSection(): HTMLElement {
   if (electronHost && !isLiteBuild()) {
     // "Check for updates automatically" toggle — kept next to the
     // manual Check-for-updates button since both govern updates.
-    // When enabled, the app checks at launch AND once a day, staying
-    // silent unless an update is found. Only the first window of a
-    // session runs the checks; spawned windows skip them. The
-    // triggers live in `index.ts`'s boot path.
+    // When enabled, the app checks at launch AND about every 15 minutes
+    // while a window has focus, staying silent unless an update is
+    // found. The triggers live in `index.ts` (`startUpdateChecks`);
+    // main throttles them.
     const launchRow = document.createElement('label');
     launchRow.className = 'pmd-install-info-launch-toggle';
     const launchInput = document.createElement('input');

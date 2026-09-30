@@ -97,6 +97,7 @@ import {
   findPluginUpdates,
   type PluginUpdate,
 } from './plugin-update-check.js';
+import { planAutoCheck, type AutoCheckClock } from './auto-check-schedule.js';
 import {
   grantReadPath,
   grantReadDir,
@@ -778,19 +779,30 @@ ipcMain.handle('host:check-for-updates', async () => {
   });
 });
 
-/** At-launch silent update check. Called by the renderer at boot
- *  iff `settings.checkForUpdatesOnLaunch` is enabled AND this is
- *  the first window of the app session (mirrors the recovery-UI
- *  gating — only the first window of a session offers the
- *  prompt). No-op in dev. Routes through the same `runUpdateCheck`
- *  as the manual path but with the "latest" and "error" dialogs
- *  suppressed; only "Update available" fires a dialog, which is
- *  the same modal the manual flow shows. */
-ipcMain.handle('host:trigger-auto-update-check', async () => {
-  runUpdateCheck({ alertOnLatest: false, alertOnError: false, alertOnAvailable: false });
-  // Plugins ride the app's own schedule (launch + daily, same setting
-  // and pause, all decided renderer-side before this call).
-  void runPluginUpdateCheck();
+let autoCheckClock: AutoCheckClock = { app: 0, plugins: 0 };
+
+/** Silent automatic update check. The renderer calls it at boot (the
+ *  first window only) and, with `{ onlyIfDue: true }`, from a
+ *  foreground tick and on window focus (every window) — `planAutoCheck`
+ *  decides what is due (auto-check-schedule.ts). The setting and the
+ *  tournament pause are decided renderer-side before each call. No-op
+ *  in dev. Routes through the same `runUpdateCheck` as the manual path
+ *  but with every dialog suppressed; an update found goes to the
+ *  status-bar chip. */
+ipcMain.handle('host:trigger-auto-update-check', async (_event, opts?: { onlyIfDue?: boolean }) => {
+  const previousClock = autoCheckClock;
+  const plan = planAutoCheck(Date.now(), autoCheckClock, {
+    onlyIfDue: opts?.onlyIfDue === true,
+    updatePending: updateChip !== null,
+  });
+  autoCheckClock = plan.clock;
+  if (plan.app && !runUpdateCheck({ alertOnLatest: false, alertOnError: false, alertOnAvailable: false })) {
+    // It didn't start (one is already in flight, or this is a dev build):
+    // don't spend the 15 minutes.
+    autoCheckClock = { ...autoCheckClock, app: previousClock.app };
+  }
+  // Plugins ride the app's own schedule (same setting and pause).
+  if (plan.plugins) void runPluginUpdateCheck();
 });
 
 /** Open the OS file manager at the crash-dumps folder. Mirrors
@@ -3494,8 +3506,8 @@ interface UpdateCheckOpts {
  *  gated by `opts`. In dev (`!app.isPackaged`) shows an info
  *  dialog only for the manual path (`opts.alertOnLatest`); the
  *  auto-launch path is a complete no-op in dev. */
-function runUpdateCheck(opts: UpdateCheckOpts): void {
-  if (LITE_BUILD) return; // Lite never contacts the update host
+function runUpdateCheck(opts: UpdateCheckOpts): boolean {
+  if (LITE_BUILD) return false; // Lite never contacts the update host
   if (!app.isPackaged) {
     if (opts.alertOnLatest) {
       const win = dialogParentWindow();
@@ -3506,9 +3518,9 @@ function runUpdateCheck(opts: UpdateCheckOpts): void {
         });
       }
     }
-    return;
+    return false;
   }
-  if (updateCheckInFlight) return;
+  if (updateCheckInFlight) return false;
   updateCheckInFlight = true;
 
   // Mutual cleanup: whichever event fires first wins; the others
@@ -3564,6 +3576,7 @@ function runUpdateCheck(opts: UpdateCheckOpts): void {
   autoUpdater.checkForUpdates().catch((err: unknown) => {
     onError(err instanceof Error ? err : new Error(String(err)));
   });
+  return true;
 }
 
 /** Manual Help → Check for Updates click handler. Shows feedback
