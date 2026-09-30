@@ -862,6 +862,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('host:activate-doc', listener);
   },
 
+  /** Every document window, most recently focused first (the Switch
+   *  Window palette). `docNames` are the window's saved docs' filenames. */
+  listWindows: () =>
+    ipcRenderer.invoke('host:list-windows') as Promise<
+      Array<{
+        windowId: number;
+        title: string;
+        docNames: string[];
+        isSpeech: boolean;
+        isOwnWindow: boolean;
+        isMinimized: boolean;
+      }>
+    >,
+
   /** Subscribe to speech-state broadcasts. The handler receives the
    *  current `{ uid }` (uid is null when no speech doc is flagged). */
   onSpeechChanged(handler: (state: { uid: string | null }) => void): () => void {
