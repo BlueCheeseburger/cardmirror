@@ -13,7 +13,8 @@
  *    to select the tag, type — the cite folds into the tag. The
  *    plugin trims the replace range back to the end of the previous
  *    textblock. Selections that genuinely reach INTO the next block's
- *    text keep the standard merging behavior.
+ *    text keep the standard merging behavior. The same trim covers
+ *    replacements the OS makes on its own (`trimNativeReplacement`).
  *
  * 2. A selection whose tail ends inside a container's required HEAD
  *    block (a card's tag, an analytic unit's head) is the one range
@@ -34,6 +35,7 @@ import { Plugin, Selection, TextSelection } from 'prosemirror-state';
 import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import { Fragment } from 'prosemirror-model';
 import type { Node as PMNode } from 'prosemirror-model';
+import type { EditorView } from 'prosemirror-view';
 
 /** The Ctrl-Shift-Down trim: when the selection's tail sits at offset
  *  0 of a textblock it doesn't start in, the replace range pulls back
@@ -52,6 +54,65 @@ function trimmedTail(state: EditorState, from: number, to: number): number | nul
   const trimmedTo = prev.to;
   if (trimmedTo <= from || trimmedTo >= to) return null;
   return trimmedTo;
+}
+
+/** The text a native insert would put in the document, or null when it
+ *  carries none. `insertReplacementText` on a contenteditable delivers it
+ *  in `dataTransfer` (`data` is null); `insertText` uses `data`. */
+function nativeInsertText(event: InputEvent): string | null {
+  if (typeof event.data === 'string' && event.data.length > 0) return event.data;
+  const text = event.dataTransfer?.getData('text/plain');
+  return text ? text : null;
+}
+
+/** The document range a native insert is about to replace: the event's
+ *  first target range when the browser gives one, else the selection. */
+function nativeReplaceRange(view: EditorView, event: InputEvent): { from: number; to: number } | null {
+  try {
+    const target = event.getTargetRanges?.()[0];
+    if (target) {
+      const from = view.posAtDOM(target.startContainer, target.startOffset);
+      const to = view.posAtDOM(target.endContainer, target.endOffset);
+      return { from: Math.min(from, to), to: Math.max(from, to) };
+    }
+  } catch {
+    /* a range outside the editor — fall back to the selection */
+  }
+  const { from, to } = view.state.selection;
+  return { from, to };
+}
+
+/** A replacement the OS or browser makes on its own — macOS's "---" →
+ *  em dash substitution, autocorrect, the emoji picker, dictation — has
+ *  no keypress for `handleTextInput` to see, and the browser applies it
+ *  to the DOM before ProseMirror hears about it. When the range it means
+ *  to replace ends at the start of the next textblock (the tail shape
+ *  `trimmedTail` handles for typing), the browser's edit deletes the
+ *  block boundary and folds the next block's text — a Pocket, say — into
+ *  the line being typed, restyling it. So the same trim runs here, on
+ *  `beforeinput` (before the DOM is touched): cancel the native edit and
+ *  replace only up to the end of the previous textblock. Returns whether
+ *  it took over. */
+export function trimNativeReplacement(view: EditorView, event: InputEvent): boolean {
+  if (!event.cancelable || event.isComposing) return false;
+  if (event.inputType !== 'insertReplacementText' && event.inputType !== 'insertText') return false;
+  const text = nativeInsertText(event);
+  if (text === null || /[\r\n]/.test(text)) return false;
+  const range = nativeReplaceRange(view, event);
+  if (!range || range.from >= range.to) return false;
+  const effTo = trimmedTail(view.state, range.from, range.to);
+  if (effTo === null) return false;
+  let tr: Transaction;
+  try {
+    tr = view.state.tr.insertText(text, range.from, effTo);
+  } catch {
+    return false; // leave it to the browser rather than swallow the edit
+  }
+  event.preventDefault();
+  tr.setSelection(TextSelection.create(tr.doc, range.from + text.length));
+  tr.setMeta('uiEvent', 'input');
+  view.dispatch(tr.scrollIntoView());
+  return true;
 }
 
 /** Delete `from..to` with merge-up semantics for the head-tail shape
@@ -180,6 +241,11 @@ export function prepareSelectionForReplace(view: {
 
 export const typeOverBoundaryPlugin: Plugin = new Plugin({
   props: {
+    handleDOMEvents: {
+      beforeinput(view, event): boolean {
+        return trimNativeReplacement(view, event as InputEvent);
+      },
+    },
     handleTextInput(view, from, to, text): boolean {
       if (from >= to) return false;
       const { state } = view;

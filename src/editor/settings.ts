@@ -652,9 +652,10 @@ export interface Settings {
   /** Whether to check for updates automatically (desktop only).
    *  ON by default since 2026-07-27 (opt-OUT — was opt-in; the fleet
    *  wasn't converging and old builds dominated relay traffic). The
-   *  first window of an app session triggers a silent check at boot
-   *  plus a silent daily recheck; anything found surfaces the update
-   *  chip. Turn off here or pause for a week via the tournament
+   *  first window of an app session triggers a silent check at boot;
+   *  every window then asks for another about every 15 minutes while it
+   *  has focus (`startUpdateChecks` in index.ts, throttled in main);
+   *  anything found surfaces the update chip. Turn off here or pause for a week via the tournament
    *  button (`updateChecksPausedUntil`). Because `persist()` snapshots
    *  EVERY key, older installs have the old `false` default baked
    *  into their stored blob — `migrateAutoUpdateOptOut` flips those
@@ -663,7 +664,7 @@ export interface Settings {
    *  regardless. No effect on the web edition (no update mechanism). */
   checkForUpdatesOnLaunch: boolean;
   /** Tournament mode: epoch ms until which the AUTOMATIC update checks
-   *  (launch + daily) are paused; 0 = not paused. Set by the "Pause
+   *  (launch + foreground) are paused; 0 = not paused. Set by the "Pause
    *  update checks for 1 week" button next to the auto-check toggle.
    *  Manual checks (Help menu / About section button) are unaffected —
    *  a deliberate "check now" should always work. */
@@ -2674,11 +2675,11 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'liveRemainingReadTime',
     label: 'Live read time for what is left to read',
     description:
-      "Off by default. Appends one more segment to the bottom bar's word count: everything still ahead of your cursor — the read-aloud words from the cursor to the end of the document, with each reader's time for them.",
+      "Off by default. Appends one more segment to the bottom bar's word count: everything still ahead of where you are scrolled to — the read-aloud words from the line at the top of the window to the end of the document, with each reader's time for them. It follows the scroll, not the cursor.",
     kind: 'toggle',
     category: 'general',
     section: 'Word counts',
-    aliases: ['time left', 'remaining read time', 'words left', 'unread words'],
+    aliases: ['time left', 'remaining read time', 'words left', 'unread words', 'speaking time left', 'scroll position'],
   },
   {
     key: 'wordCountOrder',

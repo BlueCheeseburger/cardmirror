@@ -18,9 +18,13 @@
  * readout already is the selection and the segment is dropped.
  *
  * The remaining segment answers "how much is left to read?" — the
- * read-aloud words from the cursor to the end of the doc, same
- * predicate, same per-reader times. Off by default: it's a speech-prep
- * readout, not something every user wants in the bar.
+ * read-aloud words from where the document is SCROLLED to (the line at
+ * the top edge of what's on screen) to the end of the doc, same
+ * predicate, same per-reader times. It follows the scroll, not the
+ * cursor: a speaker reads from the top of the screen, and the caret is
+ * usually wherever they last clicked or typed. With no scroller to
+ * measure (a hidden pane) it falls back to the cursor. Off by default:
+ * it's a speech-prep readout, not something every user wants in the bar.
  *
  * Shared by the single-pane status bar and the three-pane pane footers
  * so the two readouts cannot diverge. Both segments are built to keep
@@ -30,15 +34,15 @@
  *     moves WITHIN a container reuse it, so per-keypress cost is an
  *     ancestor walk, and crossing into a different container costs one
  *     O(container) count — never O(doc).
- *   - The remaining count would be O(doc − cursor) if counted
- *     directly, i.e. O(doc) on every arrow key near the top of a brief.
- *     Instead a SUFFIX-SUM TABLE over the doc's top-level children is
- *     built once per doc — one O(doc) pass, the same cost the whole-doc
- *     readout already pays per doc change — holding, for each child
- *     index `i`, the read-aloud counts of children `i..end`. A cursor
- *     move then costs `$pos.index(0)` (O(depth)) plus one partial count
- *     of just the child the cursor sits in (O(that child)), added to
- *     the table's suffix total for the next child on. Never O(doc).
+ *   - The remaining count would be O(doc − position) if counted
+ *     directly, i.e. O(doc) on every arrow key or scroll tick near the
+ *     top of a brief. Instead a SUFFIX-SUM TABLE over the doc's top-level
+ *     children is built once per doc — one O(doc) pass, the same cost the
+ *     whole-doc readout already pays per doc change — holding, for each
+ *     child index `i`, the read-aloud counts of children `i..end`. A new
+ *     position then costs `$pos.index(0)` (O(depth)) plus one partial
+ *     count of just the child it sits in (O(that child)), added to the
+ *     table's suffix total for the next child on. Never O(doc).
  *
  * Both caches are one slot keyed on the doc NODE identity, so a stale
  * entry cannot survive a doc change: any transaction that changes the
@@ -47,6 +51,8 @@
 
 import type { EditorState } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
+import type { EditorView } from 'prosemirror-view';
+import { nearestScroller } from './precise-scroll.js';
 import { settings, type ReaderConfig } from './settings.js';
 import {
   countReadAloudSplit,
@@ -292,14 +298,59 @@ function countRemaining(doc: PMNode, pos: number): ReadAloudCounts {
   return { body: partial.body + rest.body, other: partial.other + rest.other };
 }
 
+/** The document position at the top edge of what's scrolled into view in
+ *  `view`'s scroller: the line a speaker is reading from. Null when it
+ *  can't be measured (no scroller, a hidden or zero-size pane, a layout
+ *  without hit-testing). */
+export function scrollAnchorPos(view: EditorView): number | null {
+  const scroller = nearestScroller(view.dom);
+  if (!scroller) return null;
+  const s = scroller.getBoundingClientRect();
+  const e = view.dom.getBoundingClientRect();
+  if (s.height === 0 || e.width === 0) return null;
+  // Just under the top edge of the visible part of the document — the
+  // editor's own top when it starts inside the window (scrolled to the
+  // very top, or a short doc), the window's top edge otherwise — and in
+  // the middle of the text column.
+  const top = Math.max(s.top, e.top) + 6;
+  const left = Math.min(Math.max(e.left + e.width / 2, s.left + 1), s.right - 1);
+  try {
+    return view.posAtCoords({ left, top })?.pos ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Call `refresh` (at most every 100 ms, trailing) while `scroller`
+ *  scrolls and the remaining-time segment is on. Returns a disposer. */
+export function watchScrollForRemaining(scroller: HTMLElement, refresh: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const onScroll = (): void => {
+    if (timer !== null || !settings.get('liveRemainingReadTime')) return;
+    timer = setTimeout(() => {
+      timer = null;
+      refresh();
+    }, 100);
+  };
+  scroller.addEventListener('scroll', onScroll, { passive: true });
+  return () => {
+    scroller.removeEventListener('scroll', onScroll);
+    if (timer !== null) clearTimeout(timer);
+  };
+}
+
 /** The readout tail for what's still unread ("Left: 1,204 · Amy: 6:31 ·
  *  Ben: 5:44"), or null when the feature is off. Callers join it after
- *  the container segment with " | ". */
-export function remainingReadSegment(state: EditorState, useLay = false): string | null {
+ *  the container segment with " | ". Counted from where `view` is
+ *  scrolled to; without a view, or when that can't be measured, from the
+ *  end of the selection (the furthest point the user has accounted for,
+ *  which for a bare cursor is the cursor). */
+export function remainingReadSegment(
+  state: EditorState,
+  useLay = false,
+  view: EditorView | null = null,
+): string | null {
   if (!settings.get('liveRemainingReadTime')) return null;
-  // Measured from `selection.to`, not `from`: the end of a selection is
-  // the furthest point the user has accounted for, so a selection reads
-  // as "I've gone through this much" and what's left starts after it.
-  // With a bare cursor the two coincide.
-  return formatSegment('Left', countRemaining(state.doc, state.selection.to), useLay);
+  const from = (view ? scrollAnchorPos(view) : null) ?? state.selection.to;
+  return formatSegment('Left', countRemaining(state.doc, Math.min(from, state.doc.content.size)), useLay);
 }

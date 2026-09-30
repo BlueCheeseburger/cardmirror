@@ -503,13 +503,15 @@ interface ElectronAPI {
     status: 'latest' | 'updating' | 'error' | 'dev';
     message?: string;
   }>;
-  /** Trigger a silent at-launch update check. Same network call as
+  /** Trigger a silent automatic update check. Same network call as
    *  `checkForUpdates`, but the main process suppresses the
    *  "you're on the latest" / "couldn't check" dialogs that the
-   *  manual path shows — only the "Update available" dialog
-   *  fires. No-op in dev (non-packaged) builds. Called from the
-   *  renderer at boot iff `checkForUpdatesOnLaunch` is enabled. */
-  triggerAutoUpdateCheck(): Promise<void>;
+   *  manual path shows; an update found goes to the status-bar chip.
+   *  With `onlyIfDue`, main skips the call unless enough time has
+   *  passed since the last automatic check (the renderer's foreground
+   *  tick uses this). No-op in dev (non-packaged) builds. Called from
+   *  the renderer iff `checkForUpdatesOnLaunch` is enabled. */
+  triggerAutoUpdateCheck(opts?: { onlyIfDue?: boolean }): Promise<void>;
   /** Update chip (install-on-confirm): current staged/available update
    *  state (null = none), a subscription for changes, and the chip's
    *  click action (ready → restart-install; available → release page).
@@ -1482,8 +1484,8 @@ export class ElectronHost implements Host {
     return api().checkForUpdates();
   }
 
-  async triggerAutoUpdateCheck(): Promise<void> {
-    await api().triggerAutoUpdateCheck();
+  async triggerAutoUpdateCheck(opts?: { onlyIfDue?: boolean }): Promise<void> {
+    await api().triggerAutoUpdateCheck(opts);
   }
 
   async getUpdateChipState(): Promise<UpdateChipState | null> {

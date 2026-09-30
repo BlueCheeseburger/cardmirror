@@ -88,6 +88,7 @@ import {
   orderWordCountSegments,
   primaryReadSegment,
   remainingReadSegment,
+  watchScrollForRemaining,
 } from './live-read-time.js';
 import { openWordCount } from './word-count-ui.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
@@ -955,6 +956,9 @@ class Slot {
     this.bodyEl = document.createElement('div');
     this.bodyEl.className = 'pmd-pane-body';
     this.paneEl.appendChild(this.bodyEl);
+    // "Left" counts from where this pane is scrolled to, so scrolling
+    // refreshes the readout (only while that segment is on).
+    watchScrollForRemaining(this.bodyEl, () => this.refreshWordCount());
 
     // Footer (word-count button + word count + open file button).
     const footer = document.createElement('div');
@@ -1643,7 +1647,7 @@ class Slot {
     const segments = orderWordCountSegments(order, {
       doc: primary,
       container: liveContainerSegment(rec.view.state, rec.laySpeaking),
-      remaining: remainingReadSegment(rec.view.state, rec.laySpeaking),
+      remaining: remainingReadSegment(rec.view.state, rec.laySpeaking, rec.view),
     });
     this.wcEl.textContent = segments.join(' | ');
     this.wcEl.classList.toggle('pmd-active', rec.laySpeaking);

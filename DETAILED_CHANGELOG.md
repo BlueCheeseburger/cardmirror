@@ -10,6 +10,122 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: documents follow the file when someone else saves it (`disk-auto-apply.ts`, `disk-conflict.ts`)
+
+When the change poller reports a file changed and the open document has
+no unsaved edits, the new contents are patched in instead of raising the
+amber "Changed on disk" pill (`noteDiskChanged` → `scheduleAutoApply`,
+1.5 s settle so a sync client finishes writing). Only the differing span
+is replaced (`patchViewToDoc`: `findDiffStart` / `findDiffEnd`, full
+replace as the fallback), as a non-history transaction carrying
+`DISK_SYNC_META`, which both dispatchers (`index.ts`,
+`multi-pane-shell.ts`) skip for dirty, edit generation, autosave and the
+journal — writing identical bytes back would only make the other
+person's window see a change. Guards, re-checked after the async read:
+unsaved edits, co-editing session, live views / linked copies, mid-
+composition typing → `skipped` (pill stays); read mode or the timer
+pop-out → `deferred`, retried every 5 s. `autoApplyDiskChanges` (default
+on) gates it. Tier 2 (merging unsaved edits) is not built.
+
+### Added: Shrink and Unhighlight/Rehighlight on the outline menu (`nav-panel.ts`, `card-highlight-toggle.ts`, `index.ts`)
+
+`openContextMenu` loses "Select heading and contents" (the method and its
+tests go too) and gains a Shrink row and one Unhighlight/Rehighlight row,
+both over `headingRanges(contextTargets(entry))`, so a multi-selection
+acts on every target in one transaction. Labels: "card" when every target
+is a card / analytic unit (`computeHeadingRange(...).useNodeSelection`),
+else "everything under heading". Shrink runs the ribbon's own `shrink`
+command per range on a scratch `EditorState` and copies its steps into one
+transaction (mark-only, so ranges stay valid); `index.ts` registers the
+runner with `setNavCommandRunner(ribbonCommandTransaction)` because the
+command's context (effective sizes, protections) lives there.
+
+`card-highlight-toggle.ts` holds the highlight side. Unhighlight removes
+`highlight` marks in the ranges and stashes the removed runs (with their
+mark, so colors survive) in a `PluginKey`-keyed plugin field
+(`cardHighlightPlugin`, in `buildEditorPlugins`; the key keeps the field
+across `reconfigure`). The field maps scope and spans through later
+transactions and drops collapsed ones. Rehighlight re-adds only the
+stashed spans, clipped to the requested ranges, only on text with no
+highlight now, then subtracts them from the stash. `cardHighlightAction`
+picks what a menu shows: Unhighlight while anything in scope is
+highlighted, Rehighlight when nothing is but a live stash covers it,
+otherwise no row.
+
+"Only while the unhighlight is in the undo history": each stash records
+`undoDepth` after its unhighlight (set by `appendTransaction` on the final
+state, so plugin order doesn't matter). `appendTransaction` also watches
+the depth after every transaction and kills a stash for good the moment
+`undoDepth` drops below it — undo, or the history being replaced by a
+collaboration session's own undo. Killing rather than re-checking at query
+time matters: a fresh edit after an undo pushes the depth back up and would
+otherwise revive a stash whose unhighlight is no longer in the history.
+Nothing persists with the document. Redo after an undo does not revive it
+(the undo already restored the highlighting).
+
+The Card-menu row (`cardHighlightMenuItem`, `index.ts`) and two bindable
+commands (`unhighlightCard`, `rehighlightCard`, in the Highlight tools
+group, unbound by default) use `cardRangesForSelection`: the card or
+analytic unit at the cursor, or each one a selection touches. The old
+`rehighlight` alias on Lock Highlighting moved to Rehighlight Card.
+
+### Changed: "Left" read time counts from the scroll position (`live-read-time.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+`remainingReadSegment(state, useLay, view)` starts from `scrollAnchorPos`:
+`view.posAtCoords` at the middle of the text column, 6 px under the top of
+the visible part of the document (the editor's own top when it starts
+inside the window). Falls back to `selection.to` with no view, no scroller
+(`nearestScroller`), a zero-size pane or a missed hit test. `refreshWordCount`
+in both layouts is retriggered by `watchScrollForRemaining` (100 ms
+trailing throttle, only while `liveRemainingReadTime` is on) on `#app`
+(single-doc) and each slot's `.pmd-pane-body`. The suffix-sum table is
+unchanged, so a scroll tick costs one hit test plus a partial count of one
+top-level child. Checked in headless Chromium: Left went 28 → 5 → 0 words
+scrolling down with the cursor parked at the top.
+
+### Changed: update checks run on a foreground clock (`index.ts`, `main.ts`, `preload.ts`, `electron-host.ts`)
+
+`startUpdateChecks` (module level in `index.ts`) replaces the boot-time
+block in `initSingleDocBoot`. It waits 4 s, runs the opt-out migration and
+(first window only) the launch check, then every window asks
+`triggerAutoUpdateCheck({ onlyIfDue: true })` once a minute and on `focus`,
+but only while `document.hasFocus()`. Main enforces the gap:
+`AUTO_UPDATE_CHECK_GAP_MS` (15 min) for the app, `AUTO_PLUGIN_CHECK_GAP_MS`
+(1 h) for plugins, and no check at all while `updateChip` is set (a second
+`update-available` would restart the download chip). The launch call
+without `onlyIfDue` always runs and starts both clocks. The setting and
+the tournament pause are re-read on every tick renderer-side.
+
+### Fixed: three-pane windows ran no update check (`index.ts`)
+
+The launch check and the 24 h interval lived inside `initSingleDocBoot`,
+which the three-pane boot branch never calls, so a three-pane window
+never checked for updates. `startUpdateChecks` is now started from both
+branches.
+
+### Fixed: a system text replacement could fold the next line into the current one (`type-over-boundary.ts`)
+
+Reported: with a Pocket directly under a Block line, macOS's "---" → em
+dash substitution pulled the Pocket's text up into the Block line, which
+took the Block style. `typeOverBoundaryPlugin` already trims a replacement
+whose tail sits at the start of the next textblock (the Ctrl-Shift-Down
+shape, `trimmedTail`), but only in `handleTextInput` — and a native
+replacement never reaches it: the browser applies it to the DOM (deleting
+the boundary and merging the blocks) before ProseMirror sees a change.
+`trimNativeReplacement` runs the same trim on `beforeinput`
+(`insertReplacementText` and `insertText`, cancelable, not composing, text
+without a line break): it maps the event's first target range with
+`posAtDOM` (falling back to the selection), and when the range ends at the
+start of a later textblock it cancels the native edit and replaces only up
+to the end of the previous one, keeping the marks and putting the caret
+after the new text. A range that reaches into the next block's text, a
+collapsed cursor, composition and other input types are left to the
+browser. **Not verified on a Mac:** the cause is inferred from the symptom
+and the range shape; select-and-`insertText` in headless Chromium does not
+reproduce it, so the tests drive synthetic `beforeinput` events.
+
 ## 1.13.0-bcb.2 — 2026-09-29
 
 ### Changed: outline menu read times don't highlight on hover (`style.css`)

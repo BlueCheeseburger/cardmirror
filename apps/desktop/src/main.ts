@@ -97,6 +97,7 @@ import {
   findPluginUpdates,
   type PluginUpdate,
 } from './plugin-update-check.js';
+import { planAutoCheck, type AutoCheckClock } from './auto-check-schedule.js';
 import {
   grantReadPath,
   grantReadDir,
@@ -778,19 +779,27 @@ ipcMain.handle('host:check-for-updates', async () => {
   });
 });
 
-/** At-launch silent update check. Called by the renderer at boot
- *  iff `settings.checkForUpdatesOnLaunch` is enabled AND this is
- *  the first window of the app session (mirrors the recovery-UI
- *  gating — only the first window of a session offers the
- *  prompt). No-op in dev. Routes through the same `runUpdateCheck`
- *  as the manual path but with the "latest" and "error" dialogs
- *  suppressed; only "Update available" fires a dialog, which is
- *  the same modal the manual flow shows. */
-ipcMain.handle('host:trigger-auto-update-check', async () => {
-  runUpdateCheck({ alertOnLatest: false, alertOnError: false, alertOnAvailable: false });
-  // Plugins ride the app's own schedule (launch + daily, same setting
-  // and pause, all decided renderer-side before this call).
-  void runPluginUpdateCheck();
+let autoCheckClock: AutoCheckClock = { app: 0, plugins: 0 };
+
+/** Silent automatic update check. The renderer calls it at boot (the
+ *  first window only) and, with `{ onlyIfDue: true }`, from a
+ *  foreground tick and on window focus (every window) — `planAutoCheck`
+ *  decides what is due (auto-check-schedule.ts). The setting and the
+ *  tournament pause are decided renderer-side before each call. No-op
+ *  in dev. Routes through the same `runUpdateCheck` as the manual path
+ *  but with every dialog suppressed; an update found goes to the
+ *  status-bar chip. */
+ipcMain.handle('host:trigger-auto-update-check', async (_event, opts?: { onlyIfDue?: boolean }) => {
+  const plan = planAutoCheck(Date.now(), autoCheckClock, {
+    onlyIfDue: opts?.onlyIfDue === true,
+    updatePending: updateChip !== null,
+  });
+  autoCheckClock = plan.clock;
+  if (plan.app) {
+    runUpdateCheck({ alertOnLatest: false, alertOnError: false, alertOnAvailable: false });
+  }
+  // Plugins ride the app's own schedule (same setting and pause).
+  if (plan.plugins) void runPluginUpdateCheck();
 });
 
 /** Open the OS file manager at the crash-dumps folder. Mirrors

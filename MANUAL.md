@@ -345,9 +345,9 @@ mirrors Word's Navigation Pane, but does more:
   carries the whole heading and its contents and drops it wherever the
   structure allows. Hold **Ctrl** (or **Alt** on macOS) while dragging to
   **copy** instead of move.
-- **Right-click menu** — right-click an entry for **Select / Cut /
-  Copy / Delete**, each acting on the heading *and everything under
-  it*, plus quick access to the level filter. **Cut** copies the
+- **Right-click menu** — right-click an entry for **Cut / Copy /
+  Delete**, each acting on the heading *and everything under it*, plus
+  quick access to the level filter. **Cut** copies the
   section to the clipboard and removes it in one step, ready to paste
   elsewhere (Ctrl-Z restores; the removal only happens once the copy
   has safely landed on the clipboard). Delete and Cut are both
@@ -360,6 +360,15 @@ mirrors Word's Navigation Pane, but does more:
   linked copy of heading**, which drop a [live view or linked
   copy](#10-live-views-and-linked-copies) of that section at your
   cursor — no picker needed, since the clicked heading *is* the pick.
+  **(Fork)** Two more rows act on everything under the heading: **Shrink**
+  runs the same Shrink as the Card menu (Mod-8) over it, and
+  **Unhighlight** strips the highlighting from it. On a card they read
+  *Shrink card* / *Unhighlight card*; on a Pocket, Hat or Block, *…everything
+  under heading*. Once you've unhighlighted, the same row reads
+  **Rehighlight** and puts the highlighting back — for as long as the
+  unhighlight is still in the undo history (close and reopen the document,
+  or undo it, and it's gone). Both are one undo step and follow a
+  multi-selection like Cut and Copy do.
   *(Fork)* The bottom of the menu shows how long your first two readers
   take to read the heading and everything under it, one reader per line
   (all selected headings together, for a multi-selection). The times use
@@ -641,6 +650,15 @@ the markers stay full size. Press **Mod-8** again to keep cycling smaller.
   it shrinks), choose what highlights become (grey background, a
   background in the same color, kept, or removed), and the Gray-50% body
   text option.
+- **(Fork) Unhighlight Card / Rehighlight Card** — in the Card menu
+  (Highlighting) and the command bar. Unhighlight strips every highlight
+  from the card your cursor is in (or from each card a selection touches)
+  in one undo step. Afterwards the same Card-menu row reads **Rehighlight
+  Card**, which puts each highlight back in its original color, even after
+  you've typed elsewhere in the card, and never overwrites a highlight
+  you've made since. It only works while the unhighlight is still in the
+  undo history: undo it, or close and reopen the document, and there is
+  nothing to restore. Background colors are left alone.
 - **Lock Highlighting** converts highlighting to a light-gray background
   color in place, freeing the highlight layer so you can re-highlight from
   scratch. With nothing selected it locks the whole card your cursor is in;
@@ -1466,15 +1484,15 @@ order. In the three-pane workspace each pane follows its own read mode.
 
 A third readout — **what's left to read** — is available and **off by
 default**: turn on **Settings → General → "Live read time for what is
-left to read"** and the bar appends everything still ahead of your
-cursor, from the cursor to the end of the document, with each reader's
-time for it: `Doc · Amy: 8:12 | Card: 42 · Amy: 0:31 | Left: 806
+left to read"** and the bar appends everything still ahead of where
+you are **scrolled to** — from the line at the top of the window to the
+end of the document — with each reader's time for it: `Doc · Amy: 8:12 | Card: 42 · Amy: 0:31 | Left: 806
 · Amy: 5:20`. Only read-aloud text counts, same as every other readout,
-so trimming highlights lowers it. Select text and it measures from the
-**end** of the selection — a selection reads as "I've been through this
-much". It's cheap on large files too: CardMirror keeps a running total
-per section of the document, so moving the cursor only re-counts the
-card or paragraph it lands in.
+so trimming highlights lowers it. It follows the scroll, not the cursor
+(a speaker reads from the top of the screen, and the caret is wherever
+you last clicked), and updates as you scroll. It's cheap on large files
+too: CardMirror keeps a running total per section of the document, so a
+new position only re-counts the card or paragraph it lands in.
 
 By default the primary readout always reflects the **whole document**.
 Turn on **Settings → General → "Live selection word count"** to have the
@@ -2741,8 +2759,9 @@ instead.
 ### Updates
 
 **(Desktop only.)** CardMirror checks for updates automatically — silently
-at launch and once a day — and only speaks up when a new version is
-actually ready. **(fork)** Updates come from this fork's releases, not the
+at launch, then about every 15 minutes while the app is in the foreground
+and whenever you switch back to it — and only speaks up when a new
+version is actually ready. **(fork)** Updates come from this fork's releases, not the
 upstream project's. You can turn this off with the **Check for updates
 automatically** toggle in Settings → General → About this install;
 **Help → Check for Updates…** always works either way.
@@ -2767,8 +2786,9 @@ a writable location), the chip opens the releases page instead so you
 can grab the new `.dmg`.
 
 **(fork) Plugins update the same way.** Every time CardMirror checks
-itself for updates (at launch, daily, and when you check by hand), it
-also checks your installed plugins. The same toggle and tournament
+itself for updates (at launch, then hourly while the app is in the
+foreground, and when you check by hand), it also checks your installed
+plugins. The same toggle and tournament
 pause cover both. If a plugin has a newer release, the same status-bar
 chip says so ("Plugin update: *name* *version*", or "*N* plugin updates
 available"):
