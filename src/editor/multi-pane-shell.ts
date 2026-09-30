@@ -42,6 +42,7 @@ import { EditorView } from 'prosemirror-view';
 import { setViewDocPath } from './transclusion-doc-path.js';
 import { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
+import { autoApplyDiskChange, DISK_SYNC_META, type AutoApplyOutcome } from './disk-auto-apply.js';
 import { fromDocxFull, parseNative, serializeNativeAsync, toDocx, NativeDamagedError, NATIVE_FILE_EXTENSION } from '../index.js';
 import { isSelfRef, flattenSelfRefs } from './self-transclusion.js';
 import { isTransclusionNode } from './transclusion.js';
@@ -87,6 +88,7 @@ import {
   orderWordCountSegments,
   primaryReadSegment,
   remainingReadSegment,
+  watchScrollForRemaining,
 } from './live-read-time.js';
 import { openWordCount } from './word-count-ui.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
@@ -143,6 +145,7 @@ import {
   registerDocPath,
   releaseDocPath,
   setMultiDocReloadFromDisk,
+  setMultiDocAutoApply,
   reportAutosaveFailure,
   reportAutosaveSuccess,
   flashSavedGlyph,
@@ -953,6 +956,9 @@ class Slot {
     this.bodyEl = document.createElement('div');
     this.bodyEl.className = 'pmd-pane-body';
     this.paneEl.appendChild(this.bodyEl);
+    // "Left" counts from where this pane is scrolled to, so scrolling
+    // refreshes the readout (only while that segment is on).
+    watchScrollForRemaining(this.bodyEl, () => this.refreshWordCount());
 
     // Footer (word-count button + word count + open file button).
     const footer = document.createElement('div');
@@ -1641,7 +1647,7 @@ class Slot {
     const segments = orderWordCountSegments(order, {
       doc: primary,
       container: liveContainerSegment(rec.view.state, rec.laySpeaking),
-      remaining: remainingReadSegment(rec.view.state, rec.laySpeaking),
+      remaining: remainingReadSegment(rec.view.state, rec.laySpeaking, rec.view),
     });
     this.wcEl.textContent = segments.join(' | ');
     this.wcEl.classList.toggle('pmd-active', rec.laySpeaking);
@@ -3280,6 +3286,27 @@ class MultiPaneShell {
     noteReloaded(file.handle);
   }
 
+  /** A clean document follows the file when another device saves it (see
+   *  disk-auto-apply.ts). Works on any record, visible or stacked behind. */
+  async autoApplyDiskChange(handle: string): Promise<AutoApplyOutcome> {
+    const found = this.findRecordByHandle(handle);
+    if (!found) return 'skipped';
+    const rec = found.record;
+    return autoApplyDiskChange(handle, {
+      view: rec.view,
+      isCurrent: () => this.findRecordByHandle(handle)?.record === rec,
+      isDirty: () => rec.dirty,
+      isSuppressed: () => rec.readMode || getTimerState().poppedOut,
+      inSession: () => collabCopresenceFor(rec.uid) != null,
+      hasLiveLinks: () => docLiveLinkCount(rec.view.state.doc) > 0,
+      markClean: () => {
+        rec.dirty = false;
+        rec.editGen++;
+      },
+      claimBaseline: () => registerDocPath(handle),
+    });
+  }
+
   /** Pill action "Keep mine as a copy" for the pane holding `handle` —
    *  same "commands route via the focused doc" pattern
    *  `promptSaveAllForQuit` already uses: surface the record, focus its
@@ -4435,7 +4462,8 @@ function buildDocRecord(
       // prompt about.
       // Suppressed while the benchmark drives temporary edits (reverted from a
       // snapshot — must never reach disk or mark the record dirty).
-      if (tx.docChanged && !isBenchmarkActive()) {
+      if (tx.docChanged && !isBenchmarkActive() && !tx.getMeta(DISK_SYNC_META)) {
+        // (A patch from the file on disk is the saved state, not an edit.)
         record.dirty = true;
         record.editGen++;
         scheduleAutosaveForRecord(record);
@@ -4499,17 +4527,16 @@ function buildDocRecord(
       // mirroring single-pane. `liveSelectionWordCount` needs it only
       // when a range is involved on either side; `liveContainerReadTime`
       // needs every selection change, cursor moves included — the
-      // enclosing container follows the caret, as does the boundary
-      // `liveRemainingReadTime` counts forward from. Cheap either way:
-      // the whole-doc count is cached per doc, the container count per
-      // container, and the remaining count comes off a per-doc suffix
-      // table plus one top-level child.
+      // enclosing container follows the caret. (`liveRemainingReadTime`
+      // counts from the pane's scroll position, so a caret move needs no
+      // refresh for it — see `watchScrollForRemaining`.) Cheap: the
+      // whole-doc count is cached per doc and the container count per
+      // container.
       else if (
         !prevState.selection.eq(next.selection) &&
         ((settings.get('liveSelectionWordCount') &&
           (!prevState.selection.empty || !next.selection.empty)) ||
-          settings.get('liveContainerReadTime') ||
-          settings.get('liveRemainingReadTime'))
+          settings.get('liveContainerReadTime'))
       ) {
         record.owner.refreshWordCount();
       }
@@ -4676,6 +4703,7 @@ export function mountMultiPaneShell(): void {
   if (shell) return;
   shell = new MultiPaneShell();
   setMultiDocReloadFromDisk((handle) => shell!.reloadFromDisk(handle));
+  setMultiDocAutoApply((handle) => shell!.autoApplyDiskChange(handle));
   enableMultiDocMode({
     onFileOpen: (file) => shell!.onFileOpen(file),
     onFilesOpen: (files) => shell!.onFilesOpen(files),

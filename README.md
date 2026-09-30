@@ -140,7 +140,8 @@ current, or announces an available update and downloads it in the
 background.
 
 CardMirror also checks for updates automatically — silently at launch
-and once a day, speaking up only when a new version is actually ready.
+and about every 15 minutes while it's in the foreground, speaking up only
+when a new version is actually ready.
 Turn this off (or pause it for a week — handy at a tournament) in
 Settings → General → "About this install" → **Check for updates
 automatically**.

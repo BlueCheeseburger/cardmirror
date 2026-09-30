@@ -65,6 +65,7 @@ import {
 } from './condense.js';
 import { applyPlainPasteFromText, togglePlainPaste } from './paste-plugin.js';
 import { lockHighlighting } from './create-reference.js';
+import { unhighlightCard, rehighlightCard } from './card-highlight-toggle.js';
 import { showToast } from './toast.js';
 import { surfaceError } from './error-surface.js';
 import { TYPE_TO_LEVEL, TYPE_LABEL } from './headings.js';
@@ -4433,6 +4434,8 @@ export type RibbonCommandId =
   | 'regrow'
   | 'createReference'
   | 'lockHighlighting'
+  | 'unhighlightCard'
+  | 'rehighlightCard'
   | 'extractUndertag'
   | 'highlightToShading'
   | 'shadingToHighlight'
@@ -4700,6 +4703,8 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'regrow',
   'createReference',
   'lockHighlighting',
+  'unhighlightCard',
+  'rehighlightCard',
   'extractUndertag',
   'highlightToShading',
   'shadingToHighlight',
@@ -4915,6 +4920,8 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   regrow: 'Restore Card Text Size',
   createReference: 'Create Reference',
   lockHighlighting: 'Lock Highlighting',
+  unhighlightCard: 'Unhighlight Card',
+  rehighlightCard: 'Rehighlight Card',
   extractUndertag: 'Extract Undertag',
   highlightToShading: 'Highlight to Background',
   shadingToHighlight: 'Background to Highlight',
@@ -5146,7 +5153,9 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   markActiveAsSpeech: ['toggle speech doc', 'set speech document'],
   // vague / Word-flavored labels
   clearToNormal: ['clear formatting', 'remove formatting', 'clear to normal'],
-  lockHighlighting: ['lock highlights', 'grey highlights', 'gray highlights', 'rehighlight'],
+  lockHighlighting: ['lock highlights', 'grey highlights', 'gray highlights'],
+  unhighlightCard: ['remove highlighting', 'clear highlights', 'remove highlights from card', 'unhighlight'],
+  rehighlightCard: ['restore highlighting', 'bring back highlights', 'undo unhighlight', 'rehighlight'],
   standardizeHighlightExcept: ['standardize except', 'standardize highlighting except', 'exception highlight'],
   standardizeShadingExcept: ['standardize background except', 'standardize shading except', 'exception shading'],
   regrow: ['unshrink', 'regrow', 'restore text size', 'unshrink card text'],
@@ -5327,6 +5336,8 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   // the keybinding editor; no default key.
   createReference: '',
   lockHighlighting: '',
+  unhighlightCard: '',
+  rehighlightCard: '',
   extractUndertag: '',
   highlightToShading: '',
   shadingToHighlight: '',
@@ -6067,6 +6078,10 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return extractUndertag(ctx.extractUndertagInQuotes);
     case 'lockHighlighting':
       return lockHighlighting();
+    case 'unhighlightCard':
+      return unhighlightCard();
+    case 'rehighlightCard':
+      return rehighlightCard();
     case 'highlightToShading':
       return highlightToShading();
     case 'shadingToHighlight':

@@ -149,6 +149,8 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'highlightToShading',
       'shadingToHighlight',
       'lockHighlighting',
+      'unhighlightCard',
+      'rehighlightCard',
       'togglePaintbrushHighlight',
       'togglePaintbrushShading',
     ],
