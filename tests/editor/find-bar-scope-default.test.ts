@@ -109,6 +109,14 @@ describe('find bar: search-within-selection default', () => {
   });
 });
 
+describe('find bar: selection edges', () => {
+  it('a selection running into the next paragraph still pre-fills', () => {
+    const view = makeView([1, 10]); // "foo one" + the break into paragraph 2
+    new FindReplaceBar(() => view).open(OPEN);
+    expect(input().value).toBe('foo one');
+  });
+});
+
 describe('find bar: "Select heading and contents" opens scoped', () => {
   it('scopes to the heading selection without pre-filling', () => {
     const view = makeView([1, 13]);

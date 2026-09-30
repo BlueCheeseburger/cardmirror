@@ -47,7 +47,9 @@ The rule now depends on where the selection came from:
   nothing to scope.
 - **Any other highlight** is the query. If it is at most one line (no
   paragraph break, not blank, at most `SELECTION_SEED_MAX` = 200
-  characters), it pre-fills the input on every open, including a re-open
+  characters, after trimming paragraph breaks at the edges, which a drag
+  to the end of a line or a triple-click picks up), it pre-fills the input
+  on every open, including a re-open
   while the bar is up, and takes precedence over the "remember last
   query" seed. The toggle opens off. A bigger manual selection pre-fills
   nothing and still opens unscoped.

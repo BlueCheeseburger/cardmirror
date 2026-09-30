@@ -494,8 +494,12 @@ export class FindReplaceBar {
     // with the setting off we must actively clear the lingering query. A
     // re-open while already open (Ctrl-F → Ctrl-H) keeps what's typed.
     const regionSelection = !!view && scopeCandidate !== null && isHeadingContentSelection(view);
+    // Trim paragraph breaks at the edges: a drag to the end of a line (or
+    // a triple-click) often runs into the start of the next paragraph.
     const selText = scopeCandidate && !regionSelection
-      ? view!.state.doc.textBetween(scopeCandidate.from, scopeCandidate.to, '\n')
+      ? view!.state.doc
+          .textBetween(scopeCandidate.from, scopeCandidate.to, '\n')
+          .replace(/^\n+|\n+$/g, '')
       : '';
     if (selText.trim() && !selText.includes('\n') && selText.length <= SELECTION_SEED_MAX) {
       this.findInput.value = selText;
