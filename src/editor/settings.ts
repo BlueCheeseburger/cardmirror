@@ -1017,6 +1017,9 @@ export interface Settings {
    *  editor/index.ts), since Word can't represent those and autosave
    *  can't pop the interactive confirmation a manual save would. */
   autosaveEnabled: boolean;
+  /** A document with no unsaved edits follows the file when another
+   *  device or program saves it (desktop, files in synced folders). */
+  autoApplyDiskChanges: boolean;
   /** Whether read mode is currently active (dims non-read-aloud content,
    *  blocks editing). Transient — per-window, never persisted (see
    *  `TRANSIENT_SETTING_KEYS`). */
@@ -1976,6 +1979,7 @@ const DEFAULTS: Settings = {
   // .cmir format. We let the user opt in via the ribbon toggle
   // rather than silently saving in the background.
   autosaveEnabled: false,
+  autoApplyDiskChanges: true,
   readMode: false,
   hideEmphasisBordersInReadMode: false,
   readModeParagraphIntegrity: false,
@@ -2367,6 +2371,17 @@ export interface SettingMeta {
 }
 
 export const SETTING_METADATA: SettingMeta[] = [
+  {
+    key: 'autoApplyDiskChanges',
+    label: 'Show changes saved by someone else',
+    description:
+      'On by default. When another device or program saves a file you have open (say, a teammate in a shared Dropbox folder) and you have no unsaved edits, the new version appears in your window on its own. Your cursor, scroll position and undo history stay put. It waits while read mode or the timer pop-out is on. If you do have unsaved edits, you still get the amber "Changed on disk" pill to decide. Desktop only.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    electronOnly: true,
+    aliases: ['auto reload', 'reload changed file', 'shared file', 'file changed on disk', 'sync', 'dropbox', 'live update'],
+  },
   {
     key: 'multiDocWorkspace',
     label: 'Three-pane workspace',
@@ -5103,6 +5118,7 @@ function sanitize(s: Settings): Settings {
     voiceModelEngine: 'parakeet',
     voiceProfiles: sanitizeVoiceProfiles(s.voiceProfiles),
     autosaveEnabled: !!s.autosaveEnabled,
+    autoApplyDiskChanges: s.autoApplyDiskChanges !== false,
     readMode: !!s.readMode,
     hideEmphasisBordersInReadMode: !!s.hideEmphasisBordersInReadMode,
     readModeParagraphIntegrity: !!s.readModeParagraphIntegrity,

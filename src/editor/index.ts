@@ -181,6 +181,7 @@ import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.
 import { resolveRenameFilename, installInlineRename, isInlineRenaming } from './doc-rename.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { viewportSpellcheckPlugin } from './viewport-spellcheck.js';
+import { autoApplyDiskChange, DISK_SYNC_META, type AutoApplyOutcome } from './disk-auto-apply.js';
 import { commentsPlugin, commentsKey, loadThreads, getCommentsState, gcOrphanThreads, newCommentId, setCommentIdSessionResolver } from './comments-plugin.js';
 import { commentClipboardPlugin } from './comment-clipboard.js';
 import { commentGuardPlugin } from './comment-guard.js';
@@ -323,6 +324,7 @@ import {
   noteSavedInPlace,
   noteKeptCopy,
   noteReloaded,
+  setAutoApplyHandler,
   noteDocReleased,
   conflictedCopyUserName,
 } from './disk-conflict.js';
@@ -6433,10 +6435,14 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
         if (!isBenchmarkActive()) {
           currentDoc = next.doc;
           markNonPristineStarter();
-          markCurrentDocDirty();
-          // Re-arm the autosave debounce. No-ops when the setting
-          // is off, so the call is cheap to fire unconditionally.
-          notifyEditForAutosave();
+          // A patch from the file on disk (disk-auto-apply.ts) IS the saved
+          // state: not an edit, so no dirty flag and no autosave write-back.
+          if (!tx.getMeta(DISK_SYNC_META)) {
+            markCurrentDocDirty();
+            // Re-arm the autosave debounce. No-ops when the setting
+            // is off, so the call is cheap to fire unconditionally.
+            notifyEditForAutosave();
+          }
         }
         // The cached whole-doc word count is now stale. Null it so a
         // selection collapse before the debounced recount re-walks the
@@ -9602,6 +9608,31 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
   }
 }
 
+/** Three-pane layout's half of the auto-apply handler (see below). */
+let multiDocAutoApply: ((handle: string) => Promise<AutoApplyOutcome>) | null = null;
+export function setMultiDocAutoApply(fn: ((handle: string) => Promise<AutoApplyOutcome>) | null): void {
+  multiDocAutoApply = fn;
+}
+/** Registered with the disk-conflict tracker: a clean document follows the
+ *  file when another device saves it. See disk-auto-apply.ts. */
+function autoApplyForHandle(handle: string): Promise<AutoApplyOutcome> {
+  if (multiDocActive) return multiDocAutoApply ? multiDocAutoApply(handle) : Promise.resolve('skipped');
+  if (!view || handle !== currentDocHandle) return Promise.resolve('skipped');
+  return autoApplyDiskChange(handle, {
+    view,
+    format: currentDocFormat,
+    isDirty: () => currentDocDirty,
+    isSuppressed: () => readModeStateForActive() || getTimerStateNow().poppedOut,
+    inSession: () => collabCopresenceFor(activeDocIdentity().sessionUid) != null,
+    hasLiveLinks: () => {
+      const { views, copies } = activeSaveDocLiveLinkCounts();
+      return views + copies > 0;
+    },
+    markClean: markCurrentDocClean,
+    claimBaseline: () => registerDocPath(handle),
+  });
+}
+
 let diskBadgeInstalled = false;
 /** Create the cloud pill (bottom-right tray, the mirror of the Send /
  *  Receive tray) and wire main's disk-changed pushes. Idempotent. Waits
@@ -9625,6 +9656,7 @@ function ensureDiskBadge(): void {
     overwrite: () => saveActiveForcingDisk(),
     openOriginal: (original) => openFileByPath(original, original.split(/[\\/]/u).pop() ?? original),
   });
+  setAutoApplyHandler(autoApplyForHandle);
   getElectronHost()?.onDiskChanged(({ path }) => noteDiskChanged(path));
   subscribeTimer(() => refreshDiskBadge());
 }

@@ -42,6 +42,7 @@ import { EditorView } from 'prosemirror-view';
 import { setViewDocPath } from './transclusion-doc-path.js';
 import { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
+import { autoApplyDiskChange, DISK_SYNC_META, type AutoApplyOutcome } from './disk-auto-apply.js';
 import { fromDocxFull, parseNative, serializeNativeAsync, toDocx, NativeDamagedError, NATIVE_FILE_EXTENSION } from '../index.js';
 import { isSelfRef, flattenSelfRefs } from './self-transclusion.js';
 import { isTransclusionNode } from './transclusion.js';
@@ -143,6 +144,7 @@ import {
   registerDocPath,
   releaseDocPath,
   setMultiDocReloadFromDisk,
+  setMultiDocAutoApply,
   reportAutosaveFailure,
   reportAutosaveSuccess,
   flashSavedGlyph,
@@ -3280,6 +3282,27 @@ class MultiPaneShell {
     noteReloaded(file.handle);
   }
 
+  /** A clean document follows the file when another device saves it (see
+   *  disk-auto-apply.ts). Works on any record, visible or stacked behind. */
+  async autoApplyDiskChange(handle: string): Promise<AutoApplyOutcome> {
+    const found = this.findRecordByHandle(handle);
+    if (!found) return 'skipped';
+    const rec = found.record;
+    return autoApplyDiskChange(handle, {
+      view: rec.view,
+      format: rec.format,
+      isDirty: () => rec.dirty,
+      isSuppressed: () => rec.readMode || getTimerState().poppedOut,
+      inSession: () => collabCopresenceFor(rec.uid) != null,
+      hasLiveLinks: () => docLiveLinkCount(rec.view.state.doc) > 0,
+      markClean: () => {
+        rec.dirty = false;
+        rec.editGen++;
+      },
+      claimBaseline: () => registerDocPath(handle),
+    });
+  }
+
   /** Pill action "Keep mine as a copy" for the pane holding `handle` —
    *  same "commands route via the focused doc" pattern
    *  `promptSaveAllForQuit` already uses: surface the record, focus its
@@ -4435,7 +4458,8 @@ function buildDocRecord(
       // prompt about.
       // Suppressed while the benchmark drives temporary edits (reverted from a
       // snapshot — must never reach disk or mark the record dirty).
-      if (tx.docChanged && !isBenchmarkActive()) {
+      if (tx.docChanged && !isBenchmarkActive() && !tx.getMeta(DISK_SYNC_META)) {
+        // (A patch from the file on disk is the saved state, not an edit.)
         record.dirty = true;
         record.editGen++;
         scheduleAutosaveForRecord(record);
@@ -4676,6 +4700,7 @@ export function mountMultiPaneShell(): void {
   if (shell) return;
   shell = new MultiPaneShell();
   setMultiDocReloadFromDisk((handle) => shell!.reloadFromDisk(handle));
+  setMultiDocAutoApply((handle) => shell!.autoApplyDiskChange(handle));
   enableMultiDocMode({
     onFileOpen: (file) => shell!.onFileOpen(file),
     onFilesOpen: (files) => shell!.onFilesOpen(files),

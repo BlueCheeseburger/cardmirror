@@ -10,6 +10,17 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **A document follows the file when someone else saves it.** If a file in
+  a synced folder (Dropbox, OneDrive, Google Drive, iCloud) is saved by
+  another device or program and you have no unsaved edits, the new version
+  appears in your window on its own. Your cursor, scroll position and undo
+  history stay put. It waits while read mode or the timer pop-out is on.
+  If you do have unsaved edits you still get the "Changed on disk" pill.
+  On by default (Settings → General → Show changes saved by someone else);
+  desktop only.
+
 ### Changed
 
 - **Logos result rows no longer repeat Aff/Neg on the right.** The pill

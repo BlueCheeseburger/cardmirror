@@ -2577,11 +2577,18 @@ versions.
   location. The Save As dialog opens as close to the old location as still
   exists, so the file's new home is usually a click away.
 - **If the file changes on disk while it's open** — edited on another
-  device, by another program, or replaced by a sync service — Save asks
-  before replacing it: **Overwrite** (keep this window's version),
-  **Save As…** (keep both), or cancel. Autosave never overwrites a file
-  that changed underneath it; it pauses and tells you to use Save to
-  review. **(Desktop only.)**
+  device, by another program, or replaced by a sync service — **and you
+  have no unsaved edits, the new version simply appears** **(fork)**.
+  Your cursor, scroll position and undo history stay where they are, and
+  nothing is written back. It waits while read mode or the timer pop-out
+  is on, and never touches a document in a co-editing session or one
+  holding live views or linked copies. Turn it off with **Settings →
+  General → Show changes saved by someone else**. If you *do* have
+  unsaved edits, Save asks before replacing the file: **Overwrite** (keep
+  this window's version), **Save As…** (keep both), or cancel. Autosave
+  never overwrites a file that changed underneath it; it pauses and tells
+  you to use Save to review, and the amber **Changed on disk** pill offers
+  the same choices. **(Desktop only.)**
 - **Drag the file out of the app (desktop).** The CardMirror mark in the
   bottom-right corner of the status bar stands for the focused document's
   file: drag it into Slack, Mail, Teams, Finder or Explorer to share the
