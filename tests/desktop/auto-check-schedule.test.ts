@@ -57,10 +57,12 @@ describe('planAutoCheck', () => {
     expect(runs).toBe(1);
   });
 
-  it('runs nothing while an update is already found, and leaves the clocks alone', () => {
+  it('skips the app check while an update is already found, but still checks plugins', () => {
     const clock = { app: T - 10 * AUTO_PLUGIN_CHECK_GAP_MS, plugins: T - 10 * AUTO_PLUGIN_CHECK_GAP_MS };
     const plan = planAutoCheck(T, clock, { onlyIfDue: true, updatePending: true });
-    expect(plan).toEqual({ app: false, plugins: false, clock });
+    expect(plan.app).toBe(false);
+    expect(plan.plugins).toBe(true);
+    expect(plan.clock).toEqual({ app: clock.app, plugins: T });
   });
 
   it('a machine that slept through many gaps checks once on wake, not once per missed gap', () => {

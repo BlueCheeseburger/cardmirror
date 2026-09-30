@@ -34,7 +34,9 @@ export type AutoApplyOutcome =
 
 export interface AutoApplyTarget {
   view: EditorView;
-  format: 'cmir' | 'docx' | null;
+  /** The view still belongs to the file at the handle being applied (it
+   *  may have been Saved As, or closed, while the file was being read). */
+  isCurrent: () => boolean;
   isDirty: () => boolean;
   /** Read mode or the timer pop-out is up — never change the doc mid-speech. */
   isSuppressed: () => boolean;
@@ -51,6 +53,20 @@ export interface AutoApplyTarget {
 export interface DiskDoc {
   doc: PMNode;
   threads: Thread[] | undefined;
+  /** The raw bytes this was parsed from (before decryption). */
+  bytes: Uint8Array;
+}
+
+/** Whether the file at `handle` still holds exactly `bytes`. */
+async function fileUnchangedSince(handle: string, bytes: Uint8Array): Promise<boolean> {
+  try {
+    const again = await getElectronHost()?.readFileAtPath(handle);
+    if (!again || again.bytes.length !== bytes.length) return false;
+    for (let i = 0; i < bytes.length; i++) if (again.bytes[i] !== bytes[i]) return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Read and parse the file at `handle`, or null when it can't be read. */
@@ -60,12 +76,18 @@ export async function readDiskDoc(handle: string): Promise<DiskDoc | null> {
   const file = await electron.readFileAtPath(handle);
   if (!file) return null;
   const bytes = await maybeDecryptForOpen(file.bytes, file.name);
-  if (file.format === 'docx') {
+  // Sniff the bytes, like every other open path: `format` is the SAVE
+  // format, not a parser hint (a docx zip starts with "PK", native never).
+  if (bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b) {
     const result = await fromDocxFull(bytes);
-    return { doc: result.doc, threads: result.threads };
+    return { doc: result.doc, threads: result.threads, bytes: file.bytes };
   }
   const parsed = parseNative(bytes);
-  return { doc: parsed.doc, threads: parsed.threads.length > 0 ? parsed.threads : undefined };
+  return {
+    doc: parsed.doc,
+    threads: parsed.threads.length > 0 ? parsed.threads : undefined,
+    bytes: file.bytes,
+  };
 }
 
 /** Replace only the span of `view`'s document that differs from `next`
@@ -96,7 +118,7 @@ export function patchViewToDoc(view: EditorView, next: PMNode): boolean {
 /** Try to bring the open document up to date with the file at `handle`. */
 export async function autoApplyDiskChange(handle: string, target: AutoApplyTarget): Promise<AutoApplyOutcome> {
   const { view } = target;
-  if (view.isDestroyed) return 'skipped';
+  if (view.isDestroyed || !target.isCurrent()) return 'skipped';
   if (target.isDirty() || target.inSession() || target.hasLiveLinks() || view.composing) return 'skipped';
   if (target.isSuppressed()) return 'deferred';
 
@@ -110,11 +132,19 @@ export async function autoApplyDiskChange(handle: string, target: AutoApplyTarge
   if (!disk) return 'skipped';
 
   // The read was async: re-check everything that could have changed.
-  if (view.isDestroyed || target.isDirty() || target.inSession() || target.hasLiveLinks() || view.composing) {
+  if (
+    view.isDestroyed ||
+    !target.isCurrent() ||
+    target.isDirty() ||
+    target.inSession() ||
+    target.hasLiveLinks() ||
+    view.composing
+  ) {
     return 'skipped';
   }
   if (target.isSuppressed()) return 'deferred';
 
+  const before = view.state.doc;
   let changed = false;
   try {
     changed = patchViewToDoc(view, disk.doc);
@@ -123,6 +153,16 @@ export async function autoApplyDiskChange(handle: string, target: AutoApplyTarge
     console.warn('Auto-apply: patching the document failed:', err);
     return 'skipped';
   }
+  // A dispatcher or plugin may have vetoed the transaction (an AI lease, a
+  // guard's filterTransaction): the document is then unchanged, and
+  // claiming the file as the baseline would let the next save overwrite
+  // what the other person wrote.
+  if (changed && view.state.doc === before) return 'skipped';
+
+  // The file may have been written again while it was being read and
+  // parsed; that later save raised no event of its own (the state is
+  // already "changed"). Claiming the baseline now would adopt it unread.
+  if (!(await fileUnchangedSince(handle, disk.bytes))) return 'skipped';
   target.markClean();
   await target.claimBaseline();
   return changed ? 'applied' : 'unchanged';

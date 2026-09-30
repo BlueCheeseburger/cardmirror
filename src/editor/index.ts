@@ -6522,18 +6522,16 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
       // it when a range is involved on either side (plain cursor moves
       // can't change a selection count); `liveContainerReadTime` needs
       // every selection change, cursor moves included — the enclosing
-      // container follows the caret, and so does `liveRemainingReadTime`'s
-      // "what's left" boundary. All three reuse the cached whole-doc
-      // count (no doc walk); the container count is itself cached per
-      // container and the remaining count reads a per-doc suffix table,
-      // so an empty→empty move costs an ancestor walk plus at most one
-      // top-level child.
+      // container follows the caret. (`liveRemainingReadTime` counts from
+      // the scroll position, so a caret move needs no refresh for it: a
+      // scroll it causes refreshes through `watchScrollForRemaining`.)
+      // Both reuse the cached whole-doc count (no doc walk); the container
+      // count is itself cached per container.
       else if (
         !prevState.selection.eq(next.selection) &&
         ((settings.get('liveSelectionWordCount') &&
           (!prevState.selection.empty || !next.selection.empty)) ||
-          settings.get('liveContainerReadTime') ||
-          settings.get('liveRemainingReadTime'))
+          settings.get('liveContainerReadTime'))
       ) {
         refreshWordCount({ selectionOnly: true });
       }
@@ -9650,9 +9648,10 @@ export function setMultiDocAutoApply(fn: ((handle: string) => Promise<AutoApplyO
 function autoApplyForHandle(handle: string): Promise<AutoApplyOutcome> {
   if (multiDocActive) return multiDocAutoApply ? multiDocAutoApply(handle) : Promise.resolve('skipped');
   if (!view || handle !== currentDocHandle) return Promise.resolve('skipped');
+  const target = view;
   return autoApplyDiskChange(handle, {
-    view,
-    format: currentDocFormat,
+    view: target,
+    isCurrent: () => view === target && currentDocHandle === handle,
     isDirty: () => currentDocDirty,
     isSuppressed: () => readModeStateForActive() || getTimerStateNow().poppedOut,
     inSession: () => collabCopresenceFor(activeDocIdentity().sessionUid) != null,
@@ -11337,21 +11336,24 @@ function startUpdateChecks(): void {
   };
   // Boot is busy; let the editor come up before the first network call.
   window.setTimeout(() => {
-    // Update checks became opt-OUT (2026-07-27): flip an older install's
-    // stored `false` default exactly once, with a one-time notice pointing
-    // at the toggle. Runs before the launch check so the flipped setting
-    // takes effect this very boot.
-    migrateAutoUpdateOptOut(() => {
-      showToast(
-        'CardMirror now checks for updates automatically. You can turn this off — or pause it for a tournament — in Settings → General → About this install.',
-      );
-    });
     void (async () => {
       let isFirst = false;
       try {
         isFirst = await electron.isFirstWindow();
       } catch {
         // Not knowing leaves the launch check to the foreground tick.
+      }
+      // Update checks became opt-OUT (2026-07-27): flip an older install's
+      // stored `false` default exactly once, with a one-time notice pointing
+      // at the toggle. First window only — every window holds its own copy
+      // of the setting, so running it in each would toast in each. Runs
+      // before the launch check so the flipped setting takes effect now.
+      if (isFirst) {
+        migrateAutoUpdateOptOut(() => {
+          showToast(
+            'CardMirror now checks for updates automatically. You can turn this off — or pause it for a tournament — in Settings → General → About this install.',
+          );
+        });
       }
       if (isFirst && allowed()) {
         try {

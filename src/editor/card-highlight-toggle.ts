@@ -37,9 +37,7 @@ interface StashSpan extends DocRange {
 
 interface Stash {
   id: number;
-  /** Where the unhighlight applied (mapped through later edits). */
-  scope: DocRange[];
-  /** The highlights it removed (mapped the same way). */
+  /** The highlights it removed, mapped through later edits. */
   spans: StashSpan[];
   /** `undoDepth` right after the unhighlight; null until the plugin has
    *  seen the settled state. */
@@ -52,7 +50,7 @@ interface StashState {
 }
 
 interface StashMeta {
-  add?: { scope: DocRange[]; spans: StashSpan[] };
+  add?: { spans: StashSpan[] };
   depth?: { ids: number[]; value: number };
   /** Stashes whose unhighlight has left the undo history. */
   kill?: number[];
@@ -101,7 +99,6 @@ export function cardHighlightPlugin(): Plugin<StashState> {
           stashes = stashes
             .map((s) => ({
               ...s,
-              scope: s.scope.map((r) => mapRange(r, tr)).filter((r): r is DocRange => r !== null),
               spans: s.spans
                 .map((sp) => {
                   const r = mapRange(sp, tr);
@@ -128,7 +125,7 @@ export function cardHighlightPlugin(): Plugin<StashState> {
         if (meta?.add && meta.add.spans.length > 0) {
           // Positions here are already in the new document's coordinates
           // (mark steps never move anything), so they aren't mapped.
-          stashes = [...stashes, { id: nextId, scope: meta.add.scope, spans: meta.add.spans, depth: null }];
+          stashes = [...stashes, { id: nextId, spans: meta.add.spans, depth: null }];
           nextId += 1;
           if (stashes.length > MAX_STASHES) stashes = stashes.slice(stashes.length - MAX_STASHES);
         }
@@ -241,7 +238,7 @@ export function unhighlightRanges(ranges: readonly DocRange[]): Command {
     const highlight = schema.marks['highlight']!;
     const tr = state.tr;
     for (const r of scope) tr.removeMark(r.from, r.to, highlight);
-    const meta: StashMeta = { add: { scope, spans: runs } };
+    const meta: StashMeta = { add: { spans: runs } };
     tr.setMeta(cardHighlightKey, meta);
     dispatch(tr);
     return true;

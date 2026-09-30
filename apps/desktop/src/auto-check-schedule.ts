@@ -32,10 +32,11 @@ export interface AutoCheckPlan {
  * - `onlyIfDue: false` (the launch check): always runs both, and starts
  *   both clocks.
  * - `onlyIfDue: true` (the foreground tick and focus events): each check
- *   runs only once its gap has passed since it last ran, and none of them
- *   runs while an app update is already found (`updatePending`, the
+ *   runs only once its gap has passed since it last ran, and the APP check
+ *   doesn't run while an app update is already found (`updatePending`, the
  *   status-bar chip is downloading or ready) — a second `update-available`
- *   would restart the chip's download.
+ *   would restart the chip's download. Plugins are unaffected: their check
+ *   never touches the app's download.
  */
 export function planAutoCheck(
   now: number,
@@ -43,8 +44,7 @@ export function planAutoCheck(
   opts: { onlyIfDue: boolean; updatePending: boolean },
 ): AutoCheckPlan {
   if (!opts.onlyIfDue) return { app: true, plugins: true, clock: { app: now, plugins: now } };
-  if (opts.updatePending) return { app: false, plugins: false, clock };
-  const app = now - clock.app >= AUTO_UPDATE_CHECK_GAP_MS;
+  const app = !opts.updatePending && now - clock.app >= AUTO_UPDATE_CHECK_GAP_MS;
   const plugins = now - clock.plugins >= AUTO_PLUGIN_CHECK_GAP_MS;
   return {
     app,

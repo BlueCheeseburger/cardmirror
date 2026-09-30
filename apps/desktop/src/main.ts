@@ -790,13 +790,16 @@ let autoCheckClock: AutoCheckClock = { app: 0, plugins: 0 };
  *  but with every dialog suppressed; an update found goes to the
  *  status-bar chip. */
 ipcMain.handle('host:trigger-auto-update-check', async (_event, opts?: { onlyIfDue?: boolean }) => {
+  const previousClock = autoCheckClock;
   const plan = planAutoCheck(Date.now(), autoCheckClock, {
     onlyIfDue: opts?.onlyIfDue === true,
     updatePending: updateChip !== null,
   });
   autoCheckClock = plan.clock;
-  if (plan.app) {
-    runUpdateCheck({ alertOnLatest: false, alertOnError: false, alertOnAvailable: false });
+  if (plan.app && !runUpdateCheck({ alertOnLatest: false, alertOnError: false, alertOnAvailable: false })) {
+    // It didn't start (one is already in flight, or this is a dev build):
+    // don't spend the 15 minutes.
+    autoCheckClock = { ...autoCheckClock, app: previousClock.app };
   }
   // Plugins ride the app's own schedule (same setting and pause).
   if (plan.plugins) void runPluginUpdateCheck();
@@ -3503,8 +3506,8 @@ interface UpdateCheckOpts {
  *  gated by `opts`. In dev (`!app.isPackaged`) shows an info
  *  dialog only for the manual path (`opts.alertOnLatest`); the
  *  auto-launch path is a complete no-op in dev. */
-function runUpdateCheck(opts: UpdateCheckOpts): void {
-  if (LITE_BUILD) return; // Lite never contacts the update host
+function runUpdateCheck(opts: UpdateCheckOpts): boolean {
+  if (LITE_BUILD) return false; // Lite never contacts the update host
   if (!app.isPackaged) {
     if (opts.alertOnLatest) {
       const win = dialogParentWindow();
@@ -3515,9 +3518,9 @@ function runUpdateCheck(opts: UpdateCheckOpts): void {
         });
       }
     }
-    return;
+    return false;
   }
-  if (updateCheckInFlight) return;
+  if (updateCheckInFlight) return false;
   updateCheckInFlight = true;
 
   // Mutual cleanup: whichever event fires first wins; the others
@@ -3573,6 +3576,7 @@ function runUpdateCheck(opts: UpdateCheckOpts): void {
   autoUpdater.checkForUpdates().catch((err: unknown) => {
     onError(err instanceof Error ? err : new Error(String(err)));
   });
+  return true;
 }
 
 /** Manual Help → Check for Updates click handler. Shows feedback

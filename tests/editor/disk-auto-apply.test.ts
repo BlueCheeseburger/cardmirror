@@ -5,20 +5,25 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Node as PMNode } from 'prosemirror-model';
-import { EditorState, TextSelection } from 'prosemirror-state';
+import { EditorState, Plugin, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { history, undo } from 'prosemirror-history';
 import { schema, newHeadingId } from '../../src/schema/index.js';
 import { serializeNativeAsync } from '../../src/index.js';
 
 let diskBytes: Uint8Array | null = null;
+/** Runs after each read of the file, so a test can rewrite it mid-apply. */
+let afterRead: (() => void) | null = null;
 vi.mock('../../src/editor/host/index.js', async (importOriginal) => {
   const mod = await importOriginal<typeof import('../../src/editor/host/index.js')>();
   return {
     ...mod,
     getElectronHost: () => ({
-      readFileAtPath: async (handle: string) =>
-        diskBytes ? { bytes: diskBytes, name: 'Aff.cmir', handle, format: 'cmir' as const } : null,
+      readFileAtPath: async (handle: string) => {
+        const out = diskBytes ? { bytes: diskBytes, name: 'Aff.cmir', handle, format: 'cmir' as const } : null;
+        afterRead?.();
+        return out;
+      },
     }),
   };
 });
@@ -68,7 +73,7 @@ const c2b = card('Two', 'second body, edited by them');
 function target(view: EditorView, over: Partial<AutoApplyTarget> = {}): AutoApplyTarget & { cleaned: number; claimed: number } {
   const t = {
     view,
-    format: 'cmir' as const,
+    isCurrent: () => true,
     isDirty: () => false,
     isSuppressed: () => false,
     inSession: () => false,
@@ -92,6 +97,7 @@ async function writeDisk(doc: PMNode): Promise<void> {
 
 beforeEach(() => {
   diskBytes = null;
+  afterRead = null;
   __resetDiskConflictForTests();
 });
 afterEach(() => {
@@ -174,6 +180,48 @@ describe('autoApplyDiskChange', () => {
     expect(view.state.doc.textContent).not.toContain('edited by them');
     suppressed = false;
     expect(await autoApplyDiskChange(H, t)).toBe('applied');
+  });
+
+  it('leaves the pill when the transaction is vetoed, without claiming the baseline', async () => {
+    const view: EditorView = new EditorView(document.body.appendChild(document.createElement('div')), {
+      state: EditorState.create({
+        doc: docOf(c1, c2),
+        plugins: [history(), new Plugin({ filterTransaction: (tr) => !tr.getMeta(DISK_SYNC_META) })],
+      }),
+    });
+    await writeDisk(docOf(c1, c2b));
+    const t = target(view);
+    expect(await autoApplyDiskChange(H, t)).toBe('skipped');
+    expect(view.state.doc.textContent).not.toContain('edited by them');
+    expect(t.cleaned).toBe(0);
+    expect(t.claimed).toBe(0);
+  });
+
+  it('leaves the pill when the file is written again while it is being applied', async () => {
+    const { view } = mount(docOf(c1, c2));
+    await writeDisk(docOf(c1, c2b));
+    const v2 = await serializeNativeAsync(docOf(c1, card('Two', 'a second save')), { docId: 'doc-1' });
+    let reads = 0;
+    afterRead = () => {
+      reads++;
+      if (reads === 1) diskBytes = v2; // the other side saves again after our first read
+    };
+    const t = target(view);
+    expect(await autoApplyDiskChange(H, t)).toBe('skipped');
+    expect(t.claimed).toBe(0);
+  });
+
+  it('skips when the view no longer belongs to the file after the read', async () => {
+    const { view } = mount(docOf(c1, c2));
+    await writeDisk(docOf(c1, c2b));
+    let current = true;
+    afterRead = () => {
+      current = false; // Save As while the read was in flight
+    };
+    const t = target(view, { isCurrent: () => current });
+    expect(await autoApplyDiskChange(H, t)).toBe('skipped');
+    expect(view.state.doc.textContent).not.toContain('edited by them');
+    expect(t.claimed).toBe(0);
   });
 
   it('skips when the user starts editing while the file is being read', async () => {

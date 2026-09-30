@@ -2401,13 +2401,19 @@ export class NavigationPanel {
     if (!view || !run) return;
     const ranges = this.headingRanges(this.contextTargets(entry));
     const tr = view.state.tr;
-    for (const r of ranges) {
-      const scratch = EditorState.create({
-        doc: tr.doc,
-        selection: TextSelection.between(tr.doc.resolve(r.from), tr.doc.resolve(r.to)),
-      });
-      const cmdTr = run('shrink', scratch);
-      if (cmdTr) for (const step of cmdTr.steps) tr.step(step);
+    try {
+      for (const r of ranges) {
+        const scratch = EditorState.create({
+          doc: tr.doc,
+          selection: TextSelection.between(tr.doc.resolve(r.from), tr.doc.resolve(r.to)),
+        });
+        const cmdTr = run('shrink', scratch);
+        if (cmdTr) for (const step of cmdTr.steps) tr.step(step);
+      }
+    } catch (err) {
+      // A step that doesn't apply: change nothing rather than half of it.
+      console.warn('[cardmirror] Shrink from the outline failed:', err);
+      return;
     }
     if (tr.docChanged) view.dispatch(tr);
   }

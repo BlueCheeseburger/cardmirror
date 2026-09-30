@@ -3294,7 +3294,7 @@ class MultiPaneShell {
     const rec = found.record;
     return autoApplyDiskChange(handle, {
       view: rec.view,
-      format: rec.format,
+      isCurrent: () => this.findRecordByHandle(handle)?.record === rec,
       isDirty: () => rec.dirty,
       isSuppressed: () => rec.readMode || getTimerState().poppedOut,
       inSession: () => collabCopresenceFor(rec.uid) != null,
@@ -4527,17 +4527,16 @@ function buildDocRecord(
       // mirroring single-pane. `liveSelectionWordCount` needs it only
       // when a range is involved on either side; `liveContainerReadTime`
       // needs every selection change, cursor moves included — the
-      // enclosing container follows the caret, as does the boundary
-      // `liveRemainingReadTime` counts forward from. Cheap either way:
-      // the whole-doc count is cached per doc, the container count per
-      // container, and the remaining count comes off a per-doc suffix
-      // table plus one top-level child.
+      // enclosing container follows the caret. (`liveRemainingReadTime`
+      // counts from the pane's scroll position, so a caret move needs no
+      // refresh for it — see `watchScrollForRemaining`.) Cheap: the
+      // whole-doc count is cached per doc and the container count per
+      // container.
       else if (
         !prevState.selection.eq(next.selection) &&
         ((settings.get('liveSelectionWordCount') &&
           (!prevState.selection.empty || !next.selection.empty)) ||
-          settings.get('liveContainerReadTime') ||
-          settings.get('liveRemainingReadTime'))
+          settings.get('liveContainerReadTime'))
       ) {
         record.owner.refreshWordCount();
       }

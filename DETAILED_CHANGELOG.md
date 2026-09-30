@@ -29,6 +29,15 @@ composition typing → `skipped` (pill stays); read mode or the timer
 pop-out → `deferred`, retried every 5 s. `autoApplyDiskChanges` (default
 on) gates it. Tier 2 (merging unsaved edits) is not built.
 
+Hardening from review: after the async read the target must still own the
+handle (`isCurrent`, so a Save As mid-read can't patch one file's content
+into another's document); a vetoed dispatch (AI lease, a plugin's
+`filterTransaction`) returns `skipped` instead of claiming the baseline;
+the file is re-read just before the baseline is claimed and compared byte
+for byte, so a second save that landed during the parse isn't adopted
+unread (that save raised no event of its own); and the parser is picked
+by sniffing the bytes, like every other open path.
+
 ### Added: Shrink and Unhighlight/Rehighlight on the outline menu (`nav-panel.ts`, `card-highlight-toggle.ts`, `index.ts`)
 
 `openContextMenu` loses "Select heading and contents" (the method and its
@@ -97,6 +106,10 @@ but only while `document.hasFocus()`. Main enforces the gap:
 `update-available` would restart the download chip). The launch call
 without `onlyIfDue` always runs and starts both clocks. The setting and
 the tournament pause are re-read on every tick renderer-side.
+The migration toast runs in the first window only (each window holds its
+own copy of the setting). Only the app check is skipped while an update is
+pending; plugins still run, and a check that didn't actually start
+(`runUpdateCheck` returns false) doesn't spend its 15 minutes.
 
 ### Fixed: three-pane windows ran no update check (`index.ts`)
 
