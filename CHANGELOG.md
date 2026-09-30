@@ -19,6 +19,12 @@ see `DETAILED_CHANGELOG.md`.
   Ctrl+Tab keeps its job of switching documents in the focused slot.
   Desktop only. Thanks to Brian (@brian-cai)!
 
+- **Update from the home screen.** When an update is ready (or
+  available), the home screen now shows the same update button as the
+  status bar, under the CardMirror title, so you can install it without
+  opening a document first. Desktop only. Thanks to AK (@UnderAK) for
+  the suggestion and Brian (@brian-cai)!
+
 ### Fixed
 
 - **Sending a scattered selection works.** Selecting several non-
