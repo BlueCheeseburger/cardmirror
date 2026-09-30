@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.13.0-bcb.3 — 2026-09-30
 
 ### Added
 
@@ -51,6 +51,18 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   When the line below was a Pocket, the replacement folded its text into
   the line you were typing and restyled it. The replacement now stops at
   the end of your line.
+
+### From upstream
+
+Syncs upstream's changes since [v1.13.0](#1130--2026-09-25), which upstream
+hasn't released yet (see its Unreleased section further down):
+- **Switch Window (Ctrl+Tab)**: jump to another CardMirror window by name;
+  it's the new `w` prefix in Search Everything. It sits next to this fork's
+  `p` source, which lists open docs and windows.
+- **Sending a scattered selection works**: every selected piece travels
+- **Dragging headers works during a co-editing session**
+- **Paste as text (F2) after cutting a card in a shared document** no
+  longer duplicates it
 
 ## 1.13.0-bcb.2 — 2026-09-29
 
@@ -565,6 +577,40 @@ opened as your working document — the diff is read-only.
 
 *The sections below are upstream CardMirror's own release notes, synced into
 this fork. This fork's own changes are covered above in [Fork Changes](#fork-changes).*
+
+## Unreleased
+
+### Added
+
+- **Switch Window (Ctrl+Tab).** In one-window-per-document mode, jump to
+  another CardMirror window by name instead of hunting through the
+  operating system's switcher: Ctrl+Tab opens Search Everything on your
+  other windows, most recently used first, so Ctrl+Tab then Enter goes
+  back to the previous one; Ctrl+Tab again steps down the list, typing
+  narrows it, and a minimized window is restored. The same list is the
+  new `w` prefix in Search Everything. In the three-pane workspace
+  Ctrl+Tab keeps its job of switching documents in the focused slot.
+  Desktop only. Thanks to Brian (@brian-cai)!
+
+### Fixed
+
+- **Sending a scattered selection works.** Selecting several non-
+  adjacent headings in the navigation pane and then sending (Send to
+  Speech, the dropzone, a starred recipient) used to do nothing. Every
+  selected piece now travels, in document order, and the selection stays
+  on screen. Thanks to Cora (@coralynnkc)!
+
+- **Dragging headers during a co-editing session.** While a session was
+  live, a partner's edits wiped the drop targets mid-drag and the drop
+  landed on stale positions or not at all. The drag now follows every
+  edit as it arrives; if a partner deletes the very section you are
+  dragging, the drag cancels with a note instead of moving whatever took
+  its place. Thanks to Cora (@coralynnkc)!
+
+- **Paste as text (F2) after cutting a card in a shared document no
+  longer duplicates it.** The cut card is removed when its text is
+  pasted, as with an ordinary cut and paste. Other text still pastes
+  without removing anything. Thanks to Cora (@coralynnkc)!
 
 ## 1.13.0 — 2026-09-25
 

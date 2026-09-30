@@ -21,6 +21,14 @@ import {
   CUT_MARKER_ATTR,
   CUT_PENDING_CLASS,
 } from '../../src/editor/cut-in-place.js';
+import { applyPlainPasteFromText } from '../../src/editor/paste-plugin.js';
+
+const plainCtx = {
+  condenseOnPaste: () => false,
+  paragraphIntegrity: () => false,
+  usePilcrows: () => false,
+  headingMode: () => 'respect' as const,
+};
 
 function card(tag: string, body: string): PMNode {
   return schema.nodes['card']!.createChecked(null, [
@@ -291,5 +299,38 @@ describe('cut in place', () => {
     reachable = false;
     expect(handleCutInPlacePaste(b, written!.html)).toBe(false);
     expect(heads(a.state.doc)).toEqual(['One']);
+  });
+
+  it('F2 (plain paste) of our own cut removes the marked card instead of duplicating it', async () => {
+    const v = mk('A', card('One', 'one'), card('Two', 'two'), card('Three', 'three'));
+    selectCard(v, 'Two');
+    fireCut(v);
+    await flush();
+    caretInBody(v, 'Three');
+    applyPlainPasteFromText(v, written!.text.replace(/\n/g, '\r\n'), plainCtx);
+    expect(heads(v.state.doc)).toEqual(['One', 'Three']);
+    expect(v.state.doc.textContent).toContain('two');
+    expect(pendingCut(v.state)).toBeNull();
+  });
+
+  it('F2 of other text clears the mark and removes nothing', async () => {
+    const v = mk('A', card('One', 'one'), card('Two', 'two'));
+    selectCard(v, 'Two');
+    fireCut(v);
+    await flush();
+    caretInBody(v, 'One');
+    applyPlainPasteFromText(v, 'something else', plainCtx);
+    expect(heads(v.state.doc)).toEqual(['One', 'Two']);
+    expect(pendingCut(v.state)).toBeNull();
+  });
+
+  it('F2 into the marked card itself keeps the card', async () => {
+    const v = mk('A', card('One', 'one'), card('Two', 'two'));
+    selectCard(v, 'Two');
+    fireCut(v);
+    await flush();
+    caretInBody(v, 'Two');
+    applyPlainPasteFromText(v, written!.text, plainCtx);
+    expect(heads(v.state.doc)).toEqual(['One', 'Two']);
   });
 });

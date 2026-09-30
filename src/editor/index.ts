@@ -297,6 +297,7 @@ import { wordSelectionKeymap } from './word-selection-keymap.js';
 import { morphModePlugin, toggleMorphMode } from './morph-mode.js';
 import { highlightFrequencyPlugin } from './highlight-frequency-plugin.js';
 import { editorDragSurface } from './drag-editor-surface.js';
+import { dragController } from './drag-controller.js';
 import {
   backspaceAtTagStart,
   backspaceAtFirstBodyStart,
@@ -2365,21 +2366,7 @@ const ribbonContext: RibbonContext = {
   manageQuickCards: () => {
     void quickCardsManageUI.open();
   },
-  openQuickCardSearch: () => {
-    // Centre over the focused pane (multi-pane) or the editor element
-    // (single-doc); opens browse-only when there's no active view.
-    const paneEl =
-      (view?.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
-    quickCardSearchUI.open({
-      view,
-      paneEl,
-      runCommand: runRibbonCommandById,
-      runCommandOnState: runRibbonCommandOnState,
-      openFilePath: openFileByPath,
-      // Enables per-header Mod+Enter "transclude" while browsing a file normally.
-      docPath: view ? getViewDocPath(view) : null,
-    });
-  },
+  openQuickCardSearch: () => openSearchPalette(),
   insertLiveZone: () => {
     // Same picker, in transclude mode: pick a file, drill to a header, insert a
     // live zone. Needs the current doc's path to build a portable source ref.
@@ -2452,6 +2439,27 @@ const ribbonContext: RibbonContext = {
   openSettings: () => settingsBtn.click(),
   minimizeWindow: () => {
     void getElectronHost()?.minimizeWindow();
+  },
+  switchWindow: () => {
+    // Three-pane workspace: one window, so the "windows" are the focused
+    // slot's docs — drive its Ctrl-Tab switcher (held Ctrl commits).
+    if (multiDocActive) {
+      void import('./multi-pane-shell.js').then((m) => m.stepFocusedSlotDocSwitcher(1));
+      return;
+    }
+    // Already open on the window list (focus outside the bar): step on.
+    if (quickCardSearchUI.isInWindowMode()) {
+      quickCardSearchUI.moveSelection(1);
+      return;
+    }
+    if (!getElectronHost()) {
+      showToast('Switching windows requires the desktop edition.');
+      return;
+    }
+    // Open on another source → reopen on the window list (a plain open
+    // while open would just toggle the bar closed).
+    if (quickCardSearchUI.isOpen()) quickCardSearchUI.close();
+    openSearchPalette('w ');
   },
   openJournalsFolder: () => {
     void getElectronHost()?.openJournalsFolder();
@@ -4936,6 +4944,9 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<AnyCommandId>([
   'cycleDocNext',
   'cycleDocPrev',
   'closeDocOrWindow',
+  // Opens the palette on the window list (or the slot doc switcher) —
+  // works from the home screen, and from inside the open palette.
+  'switchWindow',
   // Voice toggle flips a session, not a doc — works with no pane focused.
   'toggleVoice',
   'calibrateVoice',
@@ -4997,6 +5008,7 @@ function runViewlessRibbon(id: AnyCommandId): void {
     case 'hideSlot': void runMultiPane('hideSlot', 0); return;
     case 'revealAllSlots': void runMultiPane('revealAllSlots', 0); return;
     case 'cycleDocNext': void runMultiPaneCycle(1); return;
+    case 'switchWindow': ribbonContext.switchWindow(); return;
     case 'cycleDocPrev': void runMultiPaneCycle(-1); return;
     case 'closeDocOrWindow':
       void (async () => {
@@ -5066,6 +5078,24 @@ async function runMultiPane(
       m.revealAllSlots();
       return;
   }
+}
+
+/** Open Search Everything over the focused pane (multi-pane) or the editor
+ *  element (single-doc); browse-only when there's no active view.
+ *  `initialQuery` opens it with a prefix already typed (`w ` = Switch Window). */
+function openSearchPalette(initialQuery?: string): void {
+  const paneEl =
+    (view?.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
+  quickCardSearchUI.open({
+    view,
+    paneEl,
+    runCommand: runRibbonCommandById,
+    runCommandOnState: runRibbonCommandOnState,
+    openFilePath: openFileByPath,
+    // Enables per-header Mod+Enter "transclude" while browsing a file normally.
+    docPath: view ? getViewDocPath(view) : null,
+    initialQuery,
+  });
 }
 
 /** Cycle the focused slot's visible doc forward (+1) / back (-1). Bound by the
@@ -6509,6 +6539,8 @@ function mountView(doc: PMNode, threads: Thread[] = []): void {
         // otherwise the highlight flickers to the next heading while you type
         // on the line just above it.
         navPanel.remapPositions(tx.mapping);
+        // A drag in flight follows the edit (a partner's, mid-session).
+        dragController.mapThrough(view, tx.mapping);
         // Headings that ARRIVE via sync (a joined session's initial fill,
         // a partner's additions mid-session) fold to the pane's current
         // depth instead of landing fully expanded. Synchronous, before

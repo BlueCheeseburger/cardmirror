@@ -2597,6 +2597,41 @@ ipcMain.handle('host:activate-doc', async (_event, uid: unknown): Promise<boolea
   return true;
 });
 
+// ─── Switch Window ─────────────────────────────────────────────────
+// The `switchWindow` command's `w ` palette source lists every
+// document window, most recently focused first (Alt+Tab order), so
+// opening it and pressing Enter goes back to the previous window.
+// Focus order is recorded here because only main sees every window's
+// focus changes; closed windows drop out when listed.
+const windowFocusOrder: number[] = []; // window ids, most recent first
+
+app.on('browser-window-focus', (_event, win) => {
+  const i = windowFocusOrder.indexOf(win.id);
+  if (i !== -1) windowFocusOrder.splice(i, 1);
+  windowFocusOrder.unshift(win.id);
+});
+
+ipcMain.handle('host:list-windows', async (event) => {
+  const senderId = BrowserWindow.fromWebContents(event.sender)?.id ?? -1;
+  const rank = (id: number): number => {
+    const i = windowFocusOrder.indexOf(id);
+    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  return BrowserWindow.getAllWindows()
+    .filter((w) => !w.isDestroyed() && !isTimerWindow(w))
+    .sort((a, b) => rank(a.id) - rank(b.id))
+    .map((w) => ({
+      windowId: w.id,
+      title: w.getTitle(),
+      docNames: [...(windowDocs.get(w.id) ?? [])]
+        .map((uid) => docInfo.get(uid)?.filename ?? null)
+        .filter((n): n is string => !!n),
+      isSpeech: speechRegistration?.windowId === w.id,
+      isOwnWindow: w.id === senderId,
+      isMinimized: w.isMinimized(),
+    }));
+});
+
 /** Search Everything's `p` source, window rows: raise a window by id. */
 ipcMain.handle('host:focus-window', async (_event, windowId: unknown): Promise<boolean> => {
   if (typeof windowId !== 'number') return false;

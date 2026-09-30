@@ -123,6 +123,19 @@ export interface PairingInboxItemIpc {
 }
 
 /** Verbatim Flow bridge result shapes (mirrors verbatim-flow.ps1). */
+/** One document window in the Switch Window list (`host:list-windows`). */
+export interface WindowListEntry {
+  windowId: number;
+  /** OS title — `${filename} — CardMirror`, or `CardMirror` when untitled. */
+  title: string;
+  /** Filenames of the window's saved docs (untitled docs are omitted). */
+  docNames: string[];
+  isSpeech: boolean;
+  /** The window asking — listed so the palette can mark or skip it. */
+  isOwnWindow: boolean;
+  isMinimized: boolean;
+}
+
 export interface FlowAvailable {
   available: boolean;
   workbook?: string;
@@ -224,6 +237,8 @@ interface ElectronAPI {
   pluginLoadFile?(filePath: string): Promise<{ ok: boolean; error?: string }>;
   getPathForFile(file: File): string;
   minimizeWindow?(): Promise<void>;
+  listWindows?(): Promise<WindowListEntry[]>;
+  focusWindow?(windowId: number): Promise<boolean>;
   syncLibraryRoots?(roots: string[]): Promise<void>;
   grantLegacyRecents?(paths: string[]): Promise<boolean>;
   readFileAtPath(filePath: string): Promise<{
@@ -451,8 +466,6 @@ interface ElectronAPI {
   /** Raise the window owning `uid` and bring that doc forward there
    *  (Search Everything's `p` source). Optional: older shells lack it. */
   activateDoc?(uid: string): Promise<boolean>;
-  /** Raise a window by id. Optional: older shells lack it. */
-  focusWindow?(windowId: number): Promise<boolean>;
   /** Main asks this window to bring one of its docs forward. */
   onActivateDoc?(handler: (uid: string) => void): () => void;
   openPathCheck(path: string): Promise<{ takenByOther: boolean }>;
@@ -807,6 +820,18 @@ export class ElectronHost implements Host {
   /** Minimize this OS window. No-ops gracefully on an older preload. */
   async minimizeWindow(): Promise<void> {
     await api().minimizeWindow?.();
+  }
+
+  /** Every document window, most recently focused first. Empty on an
+   *  older preload. */
+  async listWindows(): Promise<WindowListEntry[]> {
+    return (await api().listWindows?.()) ?? [];
+  }
+
+  /** Bring a window to the front; false when it's gone (or on an older
+   *  preload). */
+  async focusWindow(windowId: number): Promise<boolean> {
+    return (await api().focusWindow?.(windowId)) ?? false;
   }
 
   /** Read-scope plumbing — no-ops gracefully on an older preload. */
@@ -1358,7 +1383,6 @@ export class ElectronHost implements Host {
   }
 
   readonly activateDoc? = api().activateDoc?.bind(api());
-  readonly focusWindow? = api().focusWindow?.bind(api());
   onActivateDoc(handler: (uid: string) => void): () => void {
     return api().onActivateDoc?.(handler) ?? (() => {});
   }
