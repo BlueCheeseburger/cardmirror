@@ -80,6 +80,9 @@ function buildSnippet(
   return { before, hit, after };
 }
 
+/** Longest selection that pre-fills the find input on open. */
+const SELECTION_SEED_MAX = 200;
+
 export class FindReplaceBar {
   private root: HTMLElement;
   private findInput: HTMLInputElement;
@@ -472,16 +475,22 @@ export class FindReplaceBar {
     }
     this.capturedScope = scopeCandidate;
 
-    // Seed the input on a fresh open: with the remembered last query
-    // when that setting is on, otherwise empty. Set it unconditionally
-    // (not only when currently empty) — the bar keeps the DOM input's
-    // value across open/close, so when the setting is off we must
-    // actively clear the lingering query, otherwise the bar behaves as
-    // if "remember last query" were always on. Selection-seeding is
-    // intentionally NOT done — a selection at open is kept as the
-    // optional search scope (the Alt-L toggle below), not pre-filled
-    // into the find input.
-    if (wasClosed) {
+    // Seed the input. A selection of up to one line (no paragraph
+    // break, at most SELECTION_SEED_MAX chars) pre-fills it on EVERY
+    // open, including a re-open while the bar is up, the way find works
+    // in most editors. Otherwise, only on a fresh open, it gets the
+    // remembered last query when that setting is on, or empty. Set it
+    // unconditionally then (not only when currently empty): the bar
+    // keeps the DOM input's value across open/close, so with the setting
+    // off we must actively clear the lingering query. A longer or
+    // multi-paragraph selection isn't a plausible query; it stays
+    // available as the optional search scope (the Alt-L toggle below).
+    const selText = scopeCandidate
+      ? view!.state.doc.textBetween(scopeCandidate.from, scopeCandidate.to, '\n')
+      : '';
+    if (selText.trim() && !selText.includes('\n') && selText.length <= SELECTION_SEED_MAX) {
+      this.findInput.value = selText;
+    } else if (wasClosed) {
       this.findInput.value = settings.get('findRememberLastQuery')
         ? settings.get('findLastQuery')
         : '';

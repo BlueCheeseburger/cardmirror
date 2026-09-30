@@ -30,14 +30,27 @@ of ⌘ (⌘Tab is the OS app switcher and never reaches the app), so the
 keybindings editor and tooltips say ⌃Tab. Tests: switch-window.test.ts.
 Brian's PR #87.
 
-### Changed: find scope toggle always opens off
+### Changed: find pre-fills the selection; scope toggle opens off
 
-`FindReplaceBar.open` used to set the ⌖ "search within selection only"
-toggle to on whenever the bar opened over a non-empty selection. Now it
-always opens off, including a re-open while the bar is already up (for
-example, Ctrl-F then Ctrl-H). The selection is still captured at open
-(`capturedScope`), so Alt-L or the ⌖ button scopes to it exactly as
-before. Tests: find-bar-scope-default.test.ts.
+`FindReplaceBar.open` used to turn the ⌖ "search within selection only"
+toggle on whenever the bar opened over a non-empty selection, and it
+deliberately never seeded the input from the selection. Both are now
+reversed:
+
+- The toggle always opens off.
+- A selection of up to one line (no paragraph break, at most
+  `SELECTION_SEED_MAX` = 200 characters, not blank) pre-fills the input on
+  every open, including a re-open while the bar is already up. That is
+  what find does in Word, VS Code and browsers, and what a debater
+  highlighting a card's author or a term expects. It takes precedence over
+  the "remember last query" seed.
+- With no selection, or an unusable one, the old seeding applies (the
+  remembered query or empty, on a fresh open only).
+- The selection is still captured as `capturedScope`, so Alt-L or the ⌖
+  button scopes to it as before. This matters mainly for multi-paragraph
+  selections, which don't pre-fill.
+
+Tests: find-bar-scope-default.test.ts.
 
 ### Fixed: sending a discontinuous (shadow) selection
 

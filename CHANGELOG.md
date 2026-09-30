@@ -21,11 +21,15 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Changed
 
-- **Find searches the whole document by default.** Opening the find bar
-  (Ctrl/Cmd+F) with text selected no longer switches on "Search within
-  selection only". Find now always starts across the whole document.
-  Press Alt+L, or click the ⌖ button, to limit it to the text you had
-  selected. Thanks to Brian (@brian-cai)!
+- **Find starts with your highlighted text.** Highlight a word or phrase
+  and press Ctrl/Cmd+F: the find bar opens with that text already in the
+  search box and finds it across the whole document. Before, it switched
+  on "Search within selection only" and left the box empty. Highlighting
+  something else and pressing Ctrl/Cmd+F again, with the bar still open,
+  swaps in the new text. A selection that spans paragraphs, or is longer
+  than 200 characters, doesn't fill the box. To limit find to the text
+  you had selected, press Alt+L or click the ⌖ button. Thanks to Brian
+  (@brian-cai)!
 
 ### Fixed
 
