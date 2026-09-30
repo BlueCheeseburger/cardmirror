@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 //
-// Opening the find bar over a selection pre-fills the input with the
+// Opening the find bar over a highlight pre-fills the input with the
 // selected text (one line, up to 200 chars) and searches the whole
-// document: "Search within selection only" (the ⌖ toggle / Alt-L) always
-// starts OFF. The selection is still remembered, so Alt-L scopes to it.
+// document: "Search within selection only" (the ⌖ toggle / Alt-L) starts
+// OFF, and Alt-L scopes to the selection. The one exception: a selection
+// made by the nav pane's "Select heading and contents" opens scoped to it.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
@@ -11,6 +12,10 @@ import { schema } from '../../src/schema/index.js';
 import { FindReplaceBar } from '../../src/editor/find-replace-ui.js';
 import { findReplacePlugin, findReplaceKey } from '../../src/editor/find-replace-plugin.js';
 import { settings } from '../../src/editor/settings.js';
+import {
+  markHeadingContentSelection,
+  isHeadingContentSelection,
+} from '../../src/editor/heading-content-selection.js';
 
 function makeView(sel: [number, number] = [1, 8]): EditorView {
   const doc = schema.nodes['doc']!.create(null, [
@@ -101,5 +106,39 @@ describe('find bar: search-within-selection default', () => {
     const view = makeView([3, 3]);
     new FindReplaceBar(() => view).open(OPEN);
     expect(input().value).toBe('');
+  });
+});
+
+describe('find bar: "Select heading and contents" opens scoped', () => {
+  it('scopes to the heading selection without pre-filling', () => {
+    const view = makeView([1, 13]);
+    markHeadingContentSelection(view);
+    new FindReplaceBar(() => view).open(OPEN);
+    expect(toggle().checked).toBe(true);
+    expect(scope(view)).toEqual({ from: 1, to: 13 });
+    expect(input().value).toBe('');
+  });
+
+  it('scopes even a one-line heading selection (no pre-fill)', () => {
+    const view = makeView([1, 8]);
+    markHeadingContentSelection(view);
+    new FindReplaceBar(() => view).open(OPEN);
+    expect(toggle().checked).toBe(true);
+    expect(input().value).toBe('');
+  });
+
+  it('the mark expires on a selection change or an edit', () => {
+    const view = makeView([1, 8]);
+    markHeadingContentSelection(view);
+    expect(isHeadingContentSelection(view)).toBe(true);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 4)));
+    expect(isHeadingContentSelection(view)).toBe(false);
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 8)));
+    markHeadingContentSelection(view);
+    view.dispatch(view.state.tr.insertText('!', 12));
+    expect(isHeadingContentSelection(view)).toBe(false);
+    new FindReplaceBar(() => view).open(OPEN);
+    expect(toggle().checked).toBe(false);
   });
 });

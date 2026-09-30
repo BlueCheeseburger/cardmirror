@@ -30,27 +30,33 @@ of ⌘ (⌘Tab is the OS app switcher and never reaches the app), so the
 keybindings editor and tooltips say ⌃Tab. Tests: switch-window.test.ts.
 Brian's PR #87.
 
-### Changed: find pre-fills the selection; scope toggle opens off
+### Changed: find pre-fills the highlight; only a nav heading selection scopes
 
 `FindReplaceBar.open` used to turn the ⌖ "search within selection only"
-toggle on whenever the bar opened over a non-empty selection, and it
-deliberately never seeded the input from the selection. Both are now
-reversed:
+toggle on for any non-empty selection and never seeded the input from it
+(eb289b9b, reversing the MVP's Word-style seeding "per user feedback").
+The rule now depends on where the selection came from:
 
-- The toggle always opens off.
-- A selection of up to one line (no paragraph break, at most
-  `SELECTION_SEED_MAX` = 200 characters, not blank) pre-fills the input on
-  every open, including a re-open while the bar is already up. That is
-  what find does in Word, VS Code and browsers, and what a debater
-  highlighting a card's author or a term expects. It takes precedence over
-  the "remember last query" seed.
-- With no selection, or an unusable one, the old seeding applies (the
-  remembered query or empty, on a fresh open only).
-- The selection is still captured as `capturedScope`, so Alt-L or the ⌖
-  button scopes to it as before. This matters mainly for multi-paragraph
-  selections, which don't pre-fill.
+- **A selection made by the nav pane's "Select heading and contents"**
+  opens scoped, as before. `selectHeadingAndContents` calls
+  `markHeadingContentSelection(view)` (new heading-content-selection.ts)
+  for its single-range cases. `isHeadingContentSelection` matches only
+  while the selection's from/to AND the doc object are unchanged, so any
+  edit or selection change expires the mark. The scattered multi-heading
+  case produces a shadow selection with a collapsed caret, so there is
+  nothing to scope.
+- **Any other highlight** is the query. If it is at most one line (no
+  paragraph break, not blank, at most `SELECTION_SEED_MAX` = 200
+  characters), it pre-fills the input on every open, including a re-open
+  while the bar is up, and takes precedence over the "remember last
+  query" seed. The toggle opens off. A bigger manual selection pre-fills
+  nothing and still opens unscoped.
 
-Tests: find-bar-scope-default.test.ts.
+In both cases the selection is captured as `capturedScope`, so Alt-L or
+the ⌖ button toggles the scope. Size-based hybrids were considered and
+rejected, because no length threshold separates "a query" from "a region".
+Tests: find-bar-scope-default.test.ts,
+nav-select-heading-then-find.test.ts.
 
 ### Fixed: sending a discontinuous (shadow) selection
 

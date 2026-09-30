@@ -20,6 +20,7 @@ import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js
 import { isCutInPlaceDoc, markCutInPlace } from './cut-in-place.js';
 import { showToast } from './toast.js';
 import { setManualShadowSelection } from './similar-selection-plugin.js';
+import { markHeadingContentSelection } from './heading-content-selection.js';
 import {
   insertSelfRef,
   insertInDocCopy,
@@ -2384,6 +2385,7 @@ export class NavigationPanel {
         tr.setSelection(TextSelection.create(this.view.state.doc, first.from, first.to));
         tr.scrollIntoView();
         this.view.dispatch(tr);
+        markHeadingContentSelection(this.view);
         this.view.focus();
         return;
       }
@@ -2407,6 +2409,7 @@ export class NavigationPanel {
     );
     tr.scrollIntoView();
     this.view.dispatch(tr);
+    markHeadingContentSelection(this.view);
     this.view.focus();
   }
 
