@@ -53,6 +53,7 @@ import { schema, newHeadingId } from '../schema/index.js';
 import { prepareSelectionForReplace } from './type-over-boundary.js';
 import { settings } from './settings.js';
 import { freshHeadingIds } from './drag-controller.js';
+import { takePendingCutForPlainPaste } from './cut-in-place.js';
 import { condenseBranchC, condenseMerge } from './condense.js';
 import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
 import { fragmentHasZone, flattenZonesInSlice, enclosingZonePos } from './transclusion.js';
@@ -333,6 +334,9 @@ export function applyPlainPasteFromText(
   },
 ): void {
   if (!text) return;
+  // A pending cut in a shared document (cut-in-place.ts) is removed by
+  // this paste — read before the selection is, since it may clear a mark.
+  const cutRanges = takePendingCutForPlainPaste(view, text);
   // Same normalization as the armed-paste handler, for the Electron
   // F2 / menu path.
   const normalized = normalizeClipboardTextForPaste(
@@ -350,10 +354,16 @@ export function applyPlainPasteFromText(
   // through the lift+re-absorb instead of landing at the end of
   // the pasted content. Same template as the rich-paste path
   // (handlePaste below).
-  const pasteFrom = view.state.selection.from;
+  const selFrom = view.state.selection.from;
   let tr = tryPasteAsCardBodies(view.state, slice);
   if (!tr) tr = view.state.tr.replaceSelection(slice);
   tr.setStoredMarks([]);
+  if (cutRanges) {
+    for (const r of [...cutRanges].sort((a, b) => b.from - a.from)) {
+      tr.delete(tr.mapping.map(r.from, 1), tr.mapping.map(r.to, -1));
+    }
+  }
+  const pasteFrom = tr.mapping.map(selFrom, -1);
   view.dispatch(tr.scrollIntoView());
   if (ctx.condenseOnPaste()) condensePastedRange(view, pasteFrom, ctx);
 }

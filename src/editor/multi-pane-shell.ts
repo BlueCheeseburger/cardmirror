@@ -2496,16 +2496,26 @@ class MultiPaneShell {
     if (e.key !== 'Tab') return;
     const hasMod = e.ctrlKey || e.metaKey;
     if (!hasMod) return;
+    if (this.stepDocSwitcher(e.shiftKey ? -1 : 1)) e.preventDefault();
+  };
+
+  /** Open the focused slot's doc switcher, or advance it when already
+   *  open. False (nothing done) outside a focused slot holding 2+ docs.
+   *  Shared by the Ctrl-Tab listener above and the `switchWindow`
+   *  command, which in this workspace means "switch doc in the slot" —
+   *  the command's default Mod-Tab claims the keydown before the
+   *  listener sees it, so the command has to land here too. Releasing
+   *  Ctrl still commits via `onDocCycleKeyUp`. */
+  stepDocSwitcher(direction: 1 | -1): boolean {
     const slot = this.focusedSlot;
-    if (!slot || slot.stack.length < 2) return;
-    e.preventDefault();
-    const direction = e.shiftKey ? -1 : 1;
+    if (!slot || slot.stack.length < 2) return false;
     if (this.docSwitcher.isOpen()) {
       this.docSwitcher.advance(direction);
     } else {
       this.docSwitcher.open(slot, direction);
     }
-  };
+    return true;
+  }
 
   /** Companion to `onDocCycleKey` — when Ctrl (or Meta) is released
    *  while the doc-switcher overlay is open, commit the highlighted
@@ -4330,6 +4340,12 @@ export function cycleFocusedSlotDoc(direction: 1 | -1): void {
   shell.cycleFocusedSlotDoc(direction);
 }
 
+/** Open / advance the focused slot's Ctrl-Tab doc switcher. No-op (false)
+ *  when the shell isn't active. Used by the `switchWindow` command. */
+export function stepFocusedSlotDocSwitcher(direction: 1 | -1): boolean {
+  return shell?.stepDocSwitcher(direction) ?? false;
+}
+
 /** If the multi-pane shell is active AND the focused slot has a
  *  visible doc, close that doc (prompting for unsaved changes if
  *  needed). Returns true if it consumed the gesture, false if it
@@ -4493,6 +4509,8 @@ function buildDocRecord(
         // debounced rebuilds so caret-tracking doesn't flicker to the next
         // heading while typing just above it (parity with single-doc, index.ts).
         record.navPanel.remapPositions(tx.mapping);
+        // A drag in flight follows the edit (a partner's, mid-session).
+        dragController.mapThrough(view, tx.mapping);
         // Sync-arrived headings fold to this pane's current depth (the
         // joined-session initial fill used to land fully expanded) —
         // parity with single-doc, and it must run before the debounced
