@@ -4586,10 +4586,6 @@ export type RibbonCommandId =
   // Minimize item routes through this same command so its accelerator
   // follows user rebinds (Mod-m default restores the stock Cmd+M).
   | 'minimizeWindow'
-  // Jump to another CardMirror window by typing its name (the `w `
-  // palette source). In the three-pane workspace, the focused slot's
-  // doc switcher instead — there the "windows" are the slot's docs.
-  | 'switchWindow'
   | 'openJournalsFolder'
   // Arm/disarm Morph mode (the Sensel control-surface interpreter).
   // No default key — bind via Settings, or run from the command bar.
@@ -4843,7 +4839,6 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'applyFontColor',
   'openSettings',
   'minimizeWindow',
-  'switchWindow',
   'openJournalsFolder',
   'toggleMorphMode',
   'recoverPreviousVersion',
@@ -5061,7 +5056,6 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   applyFontColor: 'Apply Font Color',
   openSettings: 'Open Settings',
   minimizeWindow: 'Minimize Window',
-  switchWindow: 'Switch Window',
   openJournalsFolder: 'Open Crash-Recovery Journals Folder',
   toggleMorphMode: 'Toggle Morph Mode',
   recoverPreviousVersion: 'Recover Previous Version',
@@ -5119,7 +5113,6 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   redo: ['ctrl-y', 'cmd-y', 'ctrl-shift-z', 'do again'],
   sendToRecipient: ['send to contact', 'send card to', 'pick recipient', 'send to group'],
   minimizeWindow: ['minimize', 'hide window', 'window menu'],
-  switchWindow: ['alt tab', 'go to window', 'jump to window', 'other window', 'window switcher', 'next window'],
   openJournalsFolder: ['crash', 'recovery', 'journal', 'restore', 'lost work', 'autosave folder'],
   toggleMorphMode: ['morph', 'sensel', 'control surface', 'jog wheel', 'overlay'],
   recoverPreviousVersion: ['history', 'version', 'restore', 'rollback', 'vandalism', 'session history'],
@@ -5531,10 +5524,6 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   openSettings: '',
   // Stock macOS chord; also works on Win/Linux. Rebindable like all.
   minimizeWindow: 'Mod-m',
-  // Ctrl+Tab (Cmd+Tab is the OS app switcher on macOS, but Ctrl+Tab still
-  // folds to Mod-Tab there). The three-pane workspace's own Ctrl+Tab doc
-  // switcher is what the command does in that mode, so they don't clash.
-  switchWindow: 'Mod-Tab',
   openJournalsFolder: '',
   toggleMorphMode: '',
   recoverPreviousVersion: '',
@@ -5815,9 +5804,6 @@ export interface RibbonContext {
   openSettings: () => void;
   /** Minimize this OS window (desktop only; no-op elsewhere). */
   minimizeWindow: () => void;
-  /** Open the Switch Window palette, or step it on when already open
-   *  (desktop only; the slot doc switcher in the three-pane workspace). */
-  switchWindow: () => void;
   /** Open the crash-recovery journals folder (desktop only; no-op elsewhere). */
   openJournalsFolder: () => void;
   /** Arm/disarm Morph mode (Sensel control-surface interpreter). */
@@ -5957,7 +5943,6 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   lastFontColor: () => null,
   openSettings: () => {},
   minimizeWindow: () => {},
-  switchWindow: () => {},
   openJournalsFolder: () => {},
   toggleMorphMode: () => {},
   recoverPreviousVersion: () => {},
@@ -6992,9 +6977,6 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
     case 'cycleDocNext':
     case 'cycleDocPrev':
     case 'closeDocOrWindow':
-    // View-less: dispatched by index.ts's global key handler (see
-    // VIEWLESS_RIBBON_COMMANDS), so it works from the home screen too.
-    case 'switchWindow':
       return () => false;
   }
 }

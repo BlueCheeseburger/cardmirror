@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.13.0-bcb.4 — 2026-10-01
 
 ### Added
 
@@ -21,6 +21,11 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Removed
 
+- **Switch Window and the `w` source in Search Everything** (taken in from
+  upstream in 1.13.0-bcb.3). The `p` source already jumps to any open
+  document or window by name. Ctrl+Tab goes back to doing nothing outside
+  the three-pane workspace, where it still cycles the focused slot's
+  documents.
 - **The "reset zoom to 100%" button** in the status bar. The zoom readout
   keeps its − and + buttons; the Reset Zoom command is still available.
 
