@@ -9937,12 +9937,14 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   margin-bottom: 0.1rem;
 }
 
-/* One-click preset saves (As-Is / Send Doc / Read Doc). Three equal
-   columns, each a primary (blue) button with its description as a
-   caption below. Sits between the format section and custom save. */
+/* One-click preset saves (As-Is / Send Doc / Read Doc / Marked Doc).
+   Equal columns, each a primary (blue) button with its description as
+   a caption below: three at the dialog's full width, dropping to two
+   and then one as a narrow window squeezes it, so the buttons never
+   overflow sideways. Sits between the format section and custom save. */
 .pmd-save-as-presets {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
   gap: 0.5rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--pmd-c-divider-faint);
