@@ -10,6 +10,35 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: Reload From Disk (button + `Mod-r`) (`disk-conflict.ts`, `ribbon-commands.ts`, `index.ts`)
+
+`reloadFromDiskWithPrompt(deps)` is the one flow: no handle → toast; session
+host → toast (the pill withholds "Keep their changes" for the same reason);
+unsaved edits → `promptForRouteChoice` with a single destructive choice;
+then `deps.reloadFromDisk(handle)` (`reloadActiveFromDisk` single-doc,
+`MultiPaneShell.reloadFromDisk` three-pane — both existing). The command
+(`reloadFromDisk`, default `Mod-r`, desktop-only in `ribbon-availability`)
+runs it through `reloadActiveDocFromDisk()`, which uses the deps the disk
+badge was installed with, so it follows the focused pane. `Mod-r` was free:
+the View menu's plain Reload deliberately has no accelerator (a stray ⌘R
+used to reload the renderer), and the web edition blocks the chord at the
+window. The prompt is what keeps a stray ⌘R from being data loss.
+
+Buttons: single-doc, a `.pmd-reload-pill` first in the bottom-right tray, so
+it sits left of the cloud pill; per pane, `.pmd-pane-reload-btn` appended
+before the cloud badge. Both show for any doc with a handle (not only
+cloud-synced), hide for an unsaved one, and refresh with the cloud badge.
+`pmd-disk-pill-active` (editor bottom runway) now follows "reload button
+showing" rather than "pill showing".
+
+### Removed: the status-bar "reset zoom to 100%" button (`index.html`, `index.ts`)
+
+The `#zoom-reset-btn` element and its listener are gone; the zoom readout is
+− / % / +. The `zoomReset` command, `zoomActiveReset` and the View menu's
+Reset Zoom stay.
+
 ## 1.13.0-bcb.3 — 2026-09-30
 
 ### From upstream

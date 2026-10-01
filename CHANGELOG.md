@@ -8,6 +8,22 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+
+- **Reload from disk.** A new reload button (a circular arrow) sits just
+  left of the cloud icon at the bottom right of the window, and in each
+  pane's footer in the three-pane workspace. It replaces the document with
+  what's saved in its file, for any saved file, cloud-synced or not. Ctrl+R
+  (⌘R on Mac) does the same, as the new Reload From Disk command. With
+  unsaved edits it asks before discarding them. Desktop only.
+
+### Removed
+
+- **The "reset zoom to 100%" button** in the status bar. The zoom readout
+  keeps its − and + buttons; the Reset Zoom command is still available.
+
 ## 1.13.0-bcb.3 — 2026-09-30
 
 ### Added

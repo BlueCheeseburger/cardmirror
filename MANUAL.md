@@ -2482,6 +2482,16 @@ a normal, unencrypted file — CardMirror doesn't re-apply the password. (Only
 the modern Word encryption is supported; a file from very old Office versions
 will ask you to re-save it in a current Word first.)
 
+**Reloading from disk.** **(Fork)** The **Reload** button — a circular
+arrow in the bottom-right corner of the window, or in each pane's footer
+in the three-pane workspace, just left of the cloud icon when the file is
+in a synced folder — and the **Reload From Disk** command (**Mod-R**)
+replace the document with what's saved in its file. It works for any saved
+file, not only cloud-synced ones. If the document has unsaved edits it
+asks before discarding them; a document that hosts a co-editing session
+can't be reloaded until the session ends; an unsaved document has no file
+to reload. *(Desktop only.)*
+
 **Finding a file on disk.** The **Open Containing Folder** command
 (desktop; command bar — try "reveal in finder" — or a custom ribbon
 button / shortcut) opens your file manager with the current document
@@ -3475,7 +3485,9 @@ everyone, apply direct formatting in the document itself).
   automatically. A **Steady text cursor (no blinking)** option (off by
   default) replaces the blinking caret with a steady one.
 - **Zoom.** **Mod-=** / **Mod--** zoom the document text; the status bar
-  shows the level (click to reset). Zoom is **per editor** — it applies only
+  shows the level between − and + buttons. **(Fork)** There's no reset
+  button any more; the **Reset Zoom** command (command bar, or a shortcut
+  you give it) still returns to 100%. Zoom is **per editor** — it applies only
   to the document you're in, so you can zoom one document in while another
   stays out, independently per pane in the three-pane workspace. It doesn't
   sync across windows or persist; instead documents open at a default you can
