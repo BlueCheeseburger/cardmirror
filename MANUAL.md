@@ -1068,7 +1068,6 @@ you *browse* that whole source.
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
 | **`p`** | **Open docs and windows** — every document open in any pane of any window, plus windows you've named **(fork)** | Switches to it: raises its window and brings the doc forward in its pane |
 | **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
-| **`w`** | Your other open **CardMirror windows**, most recently used first *(desktop only)* | Brings that window to the front |
 
 Searching **version** (or "about this install") shows the running app
 version, and Enter jumps to the About this install section of Settings.
@@ -1610,19 +1609,11 @@ create in the speech-side slot (Slot 3 for right, Slot 1 for left) gets marked.
 Once a speech doc is marked, nothing changes, and moving a document between
 slots never marks it.
 
-### Switching windows
+### Switching documents in a slot
 
-**Switch Window** (**Ctrl+Tab** by default, on macOS too) opens the Search
-Everything palette on your other CardMirror windows — the `w` prefix — with
-the one you were in most recently at the top. Press **Enter** to go straight
-back to it, or type part of a document's name to jump to that window. Press
-**Ctrl+Tab** again while the list is open to move down it (**Ctrl+Shift+Tab**
-moves up). A minimized window is restored. It's the quick way between windows
-where the operating system's Alt+Tab mixes CardMirror in with every other app.
-Desktop only.
-
-In the three-pane workspace, Ctrl+Tab keeps its existing job there: it cycles
-the focused slot's documents (hold Ctrl, tap Tab, release to switch).
+In the three-pane workspace, **Ctrl+Tab** cycles the focused slot's documents
+(hold Ctrl, tap Tab, release to switch). To jump to any open document or
+window by name, use the `p` prefix in Search Everything.
 
 ### Send-to-speech and the dropzone
 
