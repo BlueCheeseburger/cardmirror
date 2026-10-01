@@ -1603,7 +1603,8 @@ html:not(.pmd-doc-name-chip-on) #doc-name-chip { display: none !important; }
 body.pmd-multi-doc .pmd-pill-tray-right {
   display: none;
 }
-.pmd-disk-bar {
+.pmd-disk-bar,
+.pmd-reload-bar {
   cursor: pointer;
 }
 .pmd-disk-badge[data-state='changed'] .pmd-pill-bar {
@@ -12717,6 +12718,32 @@ body.pmd-pane-dragging * {
 }
 .pmd-pane-copresence-label {
   font-weight: 600;
+}
+
+/* Per-pane reload button (disk-conflict.ts): the same compact footprint as
+   the cloud badge beside it, sitting to its left. Hidden for an unsaved doc. */
+.pmd-pane-reload-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 1px 4px;
+  color: var(--pmd-c-text-muted);
+  cursor: pointer;
+}
+.pmd-pane-reload-btn:hover {
+  background: var(--pmd-c-hover);
+}
+.pmd-pane-reload-btn svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+}
+.pmd-pane-reload-btn[hidden] {
+  display: none;
 }
 
 /* Per-pane cloud-sync badge (disk-conflict.ts's `createPaneDiskBadge`)

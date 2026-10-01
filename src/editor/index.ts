@@ -326,6 +326,7 @@ import {
   noteSavedInPlace,
   noteKeptCopy,
   noteReloaded,
+  reloadActiveDocFromDisk,
   setAutoApplyHandler,
   noteDocReleased,
   conflictedCopyUserName,
@@ -1061,7 +1062,6 @@ function updatePlainPasteIndicator(armed: boolean): void {
 
 const zoomOutBtn = document.getElementById('zoom-out-btn') as HTMLButtonElement;
 const zoomInBtn = document.getElementById('zoom-in-btn') as HTMLButtonElement;
-const zoomResetBtn = document.getElementById('zoom-reset-btn') as HTMLButtonElement;
 /** Bottom-right CardMirror mark: drag the focused doc's file into other
  *  apps (desktop). Synced from `updateWindowTitle`, the one path every
  *  doc-identity change already goes through. */
@@ -1923,6 +1923,15 @@ const ribbonContext: RibbonContext = {
       const opened = await restoreWorkspace(snapshot);
       if (opened === 0) showToast('Every document in that workspace is already open.');
     })();
+  },
+  reloadFromDisk: () => {
+    if (!getElectronHost()) {
+      showToast('Reload From Disk requires the desktop edition.');
+      return;
+    }
+    void reloadActiveDocFromDisk().then((ran) => {
+      if (!ran) showToast('Reload From Disk isn’t available here.');
+    });
   },
   openContainingFolder: () => {
     const host = getElectronHost();
@@ -3373,7 +3382,6 @@ export function threadIdAtCursor(state: EditorState): string | null {
 
 zoomOutBtn.addEventListener('click', () => zoomActiveBy(-10));
 zoomInBtn.addEventListener('click', () => zoomActiveBy(10));
-zoomResetBtn.addEventListener('click', () => zoomActiveReset());
 
 // Gesture zoom — trackpad pinch and Ctrl+mouse-wheel. Chromium delivers a
 // trackpad pinch as a `wheel` event with `ctrlKey` set (identical shape to
@@ -3643,11 +3651,9 @@ function applyZoom(pct: number): void {
 }
 
 /** Status-bar % label only — shared by the single-pane applyZoom and the
- *  multi-pane per-pane path. The reset button stays enabled at every zoom
- *  level (clicking it at 100% is a harmless no-op): disabling it AT 100%
- *  used to fade it to the generic `#ribbon button:disabled` 0.4 opacity,
- *  which against the ribbon's light background read as the button having
- *  vanished rather than as "disabled" — field report, 2026-09-18. */
+ *  multi-pane per-pane path. (There is no reset-to-100% button any more —
+ *  the status bar keeps just − / % / +; the Reset Zoom command is still
+ *  there for a keybinding, the command bar and the View menu.) */
 function updateZoomStatus(pct: number): void {
   zoomPct.textContent = `${pct}%`;
 }
