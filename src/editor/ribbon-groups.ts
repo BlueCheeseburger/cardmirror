@@ -195,7 +195,6 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'openSettings',
       'cycleTheme',
       'minimizeWindow',
-      'switchWindow',
       'openShortcutsReference',
       'startUiTour',
     ],

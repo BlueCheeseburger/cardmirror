@@ -10,7 +10,22 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.13.0-bcb.4 — 2026-10-01
+
+### Removed: upstream's Switch Window and the `w ` palette source
+
+The user asked to drop it (the fork's `p` source already lists windows and
+open docs). Removed: the `w` prefix and `window` result source
+(`quick-card-search-ui.ts`: `searchWindowSource`, `runWindowSearch`,
+`isInWindowMode`, `moveSelection`, the Ctrl+Tab-in-palette handler), the
+`switchWindow` command (id, label, aliases, `Mod-Tab` default, group,
+availability, view-less dispatch), `host:list-windows` and the focus-order
+tracking in `main.ts`, `listWindows` / `WindowListEntry` in the preload and
+host, and `tests/editor/switch-window.test.ts`. Kept: `host:focus-window`
+(the `p` window rows use it), the slot doc switcher's Ctrl-Tab listener
+(`MultiPaneShell.stepDocSwitcher`), `openSearchPalette`'s `initialQuery`, and
+`formatKeyForDisplay`'s Tab glyph. Upstream's own Unreleased entries for the
+feature stay as they are, in the upstream section.
 
 ### Added: Reload From Disk (button + `Mod-r`) (`disk-conflict.ts`, `ribbon-commands.ts`, `index.ts`)
 

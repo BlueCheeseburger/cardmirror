@@ -2449,27 +2449,6 @@ const ribbonContext: RibbonContext = {
   minimizeWindow: () => {
     void getElectronHost()?.minimizeWindow();
   },
-  switchWindow: () => {
-    // Three-pane workspace: one window, so the "windows" are the focused
-    // slot's docs — drive its Ctrl-Tab switcher (held Ctrl commits).
-    if (multiDocActive) {
-      void import('./multi-pane-shell.js').then((m) => m.stepFocusedSlotDocSwitcher(1));
-      return;
-    }
-    // Already open on the window list (focus outside the bar): step on.
-    if (quickCardSearchUI.isInWindowMode()) {
-      quickCardSearchUI.moveSelection(1);
-      return;
-    }
-    if (!getElectronHost()) {
-      showToast('Switching windows requires the desktop edition.');
-      return;
-    }
-    // Open on another source → reopen on the window list (a plain open
-    // while open would just toggle the bar closed).
-    if (quickCardSearchUI.isOpen()) quickCardSearchUI.close();
-    openSearchPalette('w ');
-  },
   openJournalsFolder: () => {
     void getElectronHost()?.openJournalsFolder();
   },
@@ -4950,9 +4929,6 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<AnyCommandId>([
   'cycleDocNext',
   'cycleDocPrev',
   'closeDocOrWindow',
-  // Opens the palette on the window list (or the slot doc switcher) —
-  // works from the home screen, and from inside the open palette.
-  'switchWindow',
   // Voice toggle flips a session, not a doc — works with no pane focused.
   'toggleVoice',
   'calibrateVoice',
@@ -5014,7 +4990,6 @@ function runViewlessRibbon(id: AnyCommandId): void {
     case 'hideSlot': void runMultiPane('hideSlot', 0); return;
     case 'revealAllSlots': void runMultiPane('revealAllSlots', 0); return;
     case 'cycleDocNext': void runMultiPaneCycle(1); return;
-    case 'switchWindow': ribbonContext.switchWindow(); return;
     case 'cycleDocPrev': void runMultiPaneCycle(-1); return;
     case 'closeDocOrWindow':
       void (async () => {
@@ -5088,7 +5063,7 @@ async function runMultiPane(
 
 /** Open Search Everything over the focused pane (multi-pane) or the editor
  *  element (single-doc); browse-only when there's no active view.
- *  `initialQuery` opens it with a prefix already typed (`w ` = Switch Window). */
+ *  `initialQuery` opens it with a prefix already typed. */
 function openSearchPalette(initialQuery?: string): void {
   const paneEl =
     (view?.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
