@@ -4448,6 +4448,7 @@ export type RibbonCommandId =
   | 'toggleAutoScroll'
   | 'toggleReaderView'
   | 'openContainingFolder'
+  | 'reloadFromDisk'
   | 'saveWorkspace'
   | 'reopenWorkspace'
   | 'arrangeWindows'
@@ -4721,6 +4722,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'toggleAutoScroll',
   'toggleReaderView',
   'openContainingFolder',
+  'reloadFromDisk',
   'saveWorkspace',
   'reopenWorkspace',
   'arrangeWindows',
@@ -4939,6 +4941,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   toggleAutoScroll: 'Toggle Auto-Scroll (Paced to Reading Speed)',
   toggleReaderView: 'Toggle Reading View',
   openContainingFolder: 'Open Containing Folder',
+  reloadFromDisk: 'Reload From Disk',
   saveWorkspace: 'Save Workspace',
   reopenWorkspace: 'Reopen Last Workspace',
   arrangeWindows: 'Arrange Windows',
@@ -5152,6 +5155,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
     'stop scrolling',
   ],
   toggleReaderView: ['reading view', 'reader view', 'paginated view', 'read view', 'book view', 'columns'],
+  reloadFromDisk: ['reload', 'refresh', 'revert', 'revert to saved', 'discard changes', 'refresh from disk', 'reload document', 'reload file'],
   openContainingFolder: ['reveal in finder', 'show in folder', 'show in explorer', 'reveal file', 'file location', 'containing folder'],
   saveWorkspace: ['save session', 'save open documents', 'remember open documents', 'save tabs'],
   reopenWorkspace: ['restore session', 'reopen session', 'open previous session', 'reopen last session', 'restore workspace', 'reopen documents', 'reopen tabs'],
@@ -5357,6 +5361,10 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   toggleAutoScroll: '',
   toggleReaderView: '',
   openContainingFolder: '',
+  // Reload the document from its file. Cmd/Ctrl+R: nothing else in the app
+  // uses it (the View > Reload menu item deliberately has no accelerator). A
+  // document with unsaved edits asks before discarding them.
+  reloadFromDisk: 'Mod-r',
   saveWorkspace: '',
   reopenWorkspace: '',
   arrangeWindows: '',
@@ -5634,6 +5642,8 @@ export interface RibbonContext {
   toggleAutoScroll: () => void;
   toggleReaderView: () => void;
   openContainingFolder: () => void;
+  /** Replace the active document with what's saved on disk. */
+  reloadFromDisk: () => void;
   saveWorkspace: () => void;
   reopenWorkspace: () => void;
   /** Arrange Windows: speech doc on one side, everything else on the
@@ -5864,6 +5874,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   toggleAutoScroll: () => {},
   toggleReaderView: () => {},
   openContainingFolder: () => {},
+  reloadFromDisk: () => {},
   saveWorkspace: () => {},
   reopenWorkspace: () => {},
   arrangeWindows: () => {},
@@ -6155,6 +6166,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.openContainingFolder();
+        return true;
+      };
+    case 'reloadFromDisk':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.reloadFromDisk();
         return true;
       };
     case 'saveWorkspace':
