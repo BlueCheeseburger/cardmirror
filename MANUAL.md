@@ -1039,8 +1039,11 @@ it off may help.
 
 ### Find and Find/Replace
 
-- **Find (Mod-F)** opens the find bar.
-- **Find and Replace (Mod-H)** adds a replace field.
+- **Find (Mod-F)** opens the find bar **(fork)**: the search box, Match case,
+  the selection-only toggle, previous/next, and the matches-in-context list.
+  There is no Whole word toggle or close button here; **Esc** closes it.
+- **Find and Replace (Mod-H)** adds a replace field, Replace and Replace All,
+  and keeps every control, including Whole word and the close button.
 - **Find without category grouping (Alt-F)** orders matches by position
   rather than grouping them by structural type.
 

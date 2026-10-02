@@ -10,6 +10,15 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: plain find bar drops Whole word and Close (`find-replace-ui.ts`, `style.css`)
+
+`FindReplaceBar.open()` stamps `data-mode` on the bar root; in `find` mode CSS
+hides `.pmd-find-word` and `.pmd-find-close`, and Whole word is cleared on open
+so a hidden toggle can't keep filtering. `replace` mode (Mod-H) shows both.
+Replace behavior is untouched: an empty replacement still deletes the match.
+
 ## 1.13.0-bcb.5 — 2026-10-02
 
 ### Changed: Mod-F11 is "Highlight with White" (`ribbon-commands.ts`, `marks.ts`, `style.css`)

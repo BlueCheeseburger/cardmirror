@@ -8,6 +8,14 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **The plain find bar (Mod-F) is trimmed down.** The Whole word toggle and the
+  close button are gone from it; Esc still closes it. Find and Replace (Mod-H)
+  is unchanged and keeps every control.
+
 ## 1.13.0-bcb.5 — 2026-10-02
 
 ### Changed

@@ -8538,6 +8538,10 @@ body.pmd-steady-cursor .pmd-italic-caret,
   border-color: var(--pmd-c-accent);
 }
 .pmd-find-replace-row[hidden] { display: none; }
+/* The plain find bar drops Whole word and the close button; Find and
+   Replace keeps every control. */
+.pmd-find-bar[data-mode="find"] .pmd-find-word,
+.pmd-find-bar[data-mode="find"] .pmd-find-close { display: none; }
 
 /* Results expansion panel — a visually-separate box that sits
    directly below the find bar when the chevron is open. Same
