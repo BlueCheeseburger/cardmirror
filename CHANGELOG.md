@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.13.0-bcb.5 — 2026-10-02
 
 ### Changed
 
@@ -23,6 +23,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   emoji, in the pane title chip and in the Select Speech Document list.
 - **Reloading from disk shows a toast**, and the outline keeps the headings
   you had open instead of folding back to the default depth.
+- **Search Everything centers on the window**, not on the focused pane, in
+  the three-pane workspace.
+- **The "Left" readout shows times only.** The word count is gone from it
+  (`Left · Amy: 5:20`), like the whole-document side.
 
 ### Removed
 
@@ -33,13 +37,6 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 - **Emoji no longer lean sideways in italic text** (undertags, italic
   runs). They stay upright.
-
-### Changed
-
-- **Search Everything centers on the window**, not on the focused pane, in
-  the three-pane workspace.
-- **The "Left" readout shows times only.** The word count is gone from it
-  (`Left · Amy: 5:20`), like the whole-document side.
 
 ## 1.13.0-bcb.4 — 2026-10-01
 

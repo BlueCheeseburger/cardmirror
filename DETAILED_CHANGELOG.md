@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.13.0-bcb.5 — 2026-10-02
 
 ### Changed: Mod-F11 is "Highlight with White" (`ribbon-commands.ts`, `marks.ts`, `style.css`)
 
