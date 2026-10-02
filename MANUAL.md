@@ -1486,7 +1486,7 @@ A third readout — **what's left to read** — is available and **off by
 default**: turn on **Settings → General → "Live read time for what is
 left to read"** and the bar appends everything still ahead of where
 you are **scrolled to** — from the line at the top of the window to the
-end of the document — with each reader's time for it: `Doc · Amy: 8:12 | Card: 42 · Amy: 0:31 | Left: 806
+end of the document — with each reader's time for it: `Doc · Amy: 8:12 | Card: 42 · Amy: 0:31 | Left
 · Amy: 5:20`. Only read-aloud text counts, same as every other readout,
 so trimming highlights lowers it. It follows the scroll, not the cursor
 (a speaker reads from the top of the screen, and the caret is wherever

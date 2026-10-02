@@ -8,6 +8,13 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **The "Left" readout shows times only.** The word count is gone from it
+  (`Left · Amy: 5:20`), like the whole-document side.
+
 ## 1.13.0-bcb.4 — 2026-10-01
 
 ### Added

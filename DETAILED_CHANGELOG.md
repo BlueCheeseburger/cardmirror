@@ -10,6 +10,14 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: the Left segment drops its word count (`live-read-time.ts`)
+
+`remainingReadSegment` renders `Left · <reader times>`; the count moved to
+the new `remainingReadCounts(state, view)`, which the tests read. The
+container (`Card:`) and selection segments keep their counts.
+
 ## 1.13.0-bcb.4 — 2026-10-01
 
 ### Removed: upstream's Switch Window and the `w ` palette source

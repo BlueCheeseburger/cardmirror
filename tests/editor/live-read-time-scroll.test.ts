@@ -12,10 +12,12 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
 import {
   remainingReadSegment,
+  remainingReadCounts,
   scrollAnchorPos,
   watchScrollForRemaining,
 } from '../../src/editor/live-read-time.js';
 import { settings } from '../../src/editor/settings.js';
+import { totalWords } from '../../src/editor/word-count.js';
 
 function card(tagText: string, bodyText: string): PMNode {
   return schema.nodes['card']!.createChecked(null, [
@@ -69,7 +71,7 @@ function fakeView(opts: { scroller: DOMRect; editor: DOMRect; hit: number | null
   return { view, asked, scroller };
 }
 
-const leftOf = (seg: string | null): number => Number(/^Left: ([\d,]+)/.exec(seg!)![1]!.replace(/,/g, ''));
+const leftOf = (counts: ReturnType<typeof remainingReadCounts>): number => totalWords(counts!);
 
 beforeEach(() => {
   settings.set('liveRemainingReadTime', true);
@@ -115,9 +117,9 @@ describe('remainingReadSegment follows the scroll, not the cursor', () => {
     const state = cursorAtStart();
     const atBeta = fakeView({ scroller: rect(0, 600), editor: rect(-400, 2000), hit: posOf('nine') }).view;
     const atGamma = fakeView({ scroller: rect(0, 600), editor: rect(-900, 2000), hit: posOf('thirteen') }).view;
-    const fromStart = leftOf(remainingReadSegment(state));
-    const fromBeta = leftOf(remainingReadSegment(state, false, atBeta));
-    const fromGamma = leftOf(remainingReadSegment(state, false, atGamma));
+    const fromStart = leftOf(remainingReadCounts(state));
+    const fromBeta = leftOf(remainingReadCounts(state, atBeta));
+    const fromGamma = leftOf(remainingReadCounts(state, atGamma));
     expect(fromBeta).toBeLessThan(fromStart);
     expect(fromGamma).toBeLessThan(fromBeta);
   });

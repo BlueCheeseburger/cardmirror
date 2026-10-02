@@ -22,6 +22,7 @@ import {
   findEnclosingContainer,
   liveContainerSegment,
   remainingReadSegment,
+  remainingReadCounts,
   primaryReadSegment,
   hasLaySpeeds,
 } from '../../src/editor/live-read-time.js';
@@ -234,11 +235,9 @@ describe('remainingReadSegment', () => {
 
   /** The number the segment leads with. */
   function left(state: EditorState): number {
-    const seg = remainingReadSegment(state);
-    if (seg === null) throw new Error('segment is off');
-    const match = /^Left: ([\d,]+) /.exec(seg);
-    if (!match) throw new Error(`unexpected segment "${seg}"`);
-    return Number(match[1]!.replace(/,/g, ''));
+    const counts = remainingReadCounts(state);
+    if (counts === null) throw new Error('segment is off');
+    return totalWords(counts);
   }
 
   beforeEach(() => {
@@ -257,7 +256,8 @@ describe('remainingReadSegment', () => {
 
   it('renders label, count, and the first two readers', () => {
     const seg = remainingReadSegment(cursorAt(doc, textStart(doc, 'five six')))!;
-    expect(seg).toMatch(/^Left: \d/);
+    // Times only — no word count.
+    expect(seg).toMatch(/^Left · Amy: \d+:\d\d · Ben: \d+:\d\d$/);
     expect(seg).toContain('Amy: ');
     expect(seg).toContain('Ben: ');
     expect(seg).not.toContain('Cal'); // first two readers only
@@ -332,17 +332,17 @@ describe('remainingReadSegment', () => {
     const container = liveContainerSegment(state);
     const remaining = remainingReadSegment(state);
     expect(container).toMatch(/^Card: /);
-    expect(remaining).toMatch(/^Left: /);
+    expect(remaining).toMatch(/^Left · /);
     // The bars join in scope order, skipping whatever is off (the join
     // itself lives in index.ts / multi-pane-shell.ts).
     const segments = ['Doc: 16 · Amy: 0:04 · Ben: 0:09', container, remaining].filter(
       (s): s is string => s !== null,
     );
-    expect(segments.join(' | ')).toMatch(/^Doc: .+ \| Card: .+ \| Left: .+$/);
+    expect(segments.join(' | ')).toMatch(/^Doc: .+ \| Card: .+ \| Left · .+$/);
     // Container off, remaining on → two segments, still in order.
     settings.set('liveContainerReadTime', false);
     expect(liveContainerSegment(state)).toBeNull();
-    expect(remainingReadSegment(state)).toMatch(/^Left: /);
+    expect(remainingReadSegment(state)).toMatch(/^Left · /);
   });
 });
 
