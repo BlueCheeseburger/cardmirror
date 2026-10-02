@@ -2807,6 +2807,14 @@ if your install can't be updated in place (for example the app isn't in
 a writable location), the chip opens the releases page instead so you
 can grab the new `.dmg`.
 
+**(fork) What's new after an update.** The first time you open a new
+version, a **What's new** pop-up shows that version's release notes, the same
+text as its page on GitHub. **Got it** (or Enter or Esc) closes it, **View on
+GitHub** opens the release page, and links inside open in your browser. It
+shows once per version. It needs a connection to fetch the notes: offline,
+nothing appears and it tries again at the next launch. A fresh install doesn't
+show one, and the Lite build and the web edition never do.
+
 **(fork) Plugins update the same way.** Every time CardMirror checks
 itself for updates (at launch, then hourly while the app is in the
 foreground, and when you check by hand), it also checks your installed

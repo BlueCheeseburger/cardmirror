@@ -10,6 +10,13 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **A What's new pop-up after an update.** The first time you open a new
+  version, a dialog shows that version's release notes, the same text as its
+  GitHub release page. It shows once per version; offline it just tries again
+  next launch.
+
 ### Fixed
 
 - **Reloading a document keeps it the speech document.** Reload From Disk
