@@ -1603,8 +1603,7 @@ html:not(.pmd-doc-name-chip-on) #doc-name-chip { display: none !important; }
 body.pmd-multi-doc .pmd-pill-tray-right {
   display: none;
 }
-.pmd-disk-bar,
-.pmd-reload-bar {
+.pmd-disk-bar {
   cursor: pointer;
 }
 .pmd-disk-badge[data-state='changed'] .pmd-pill-bar {
@@ -3531,6 +3530,13 @@ code {
   contain-intrinsic-height: auto 40px;
 }
 
+/* Emoji inside italic text: emoji fonts have no italic face, so the browser
+   fakes one by skewing the glyph. Ask for the upright face (emoji-upright-
+   plugin.ts wraps each emoji in this span). */
+.pmd-emoji {
+  font-style: normal;
+}
+
 /* Undertag paragraph. Color is settings-driven (--pmd-color-undertag);
    italic / bold are gated on typography-flag classes on #editor. */
 .pmd-undertag {
@@ -4225,6 +4231,7 @@ body.pmd-override-shading [data-shading] {
 .pmd-highlight[data-highlight="darkYellow"]  { background: #808000; color: var(--pmd-c-band-fg-dark); }
 .pmd-highlight[data-highlight="darkGray"]    { background: #808080; color: var(--pmd-c-band-fg-dark); }
 .pmd-highlight[data-highlight="lightGray"]   { background: #c0c0c0; color: var(--pmd-c-band-fg-light); }
+.pmd-highlight[data-highlight="white"]       { background: #ffffff; color: var(--pmd-c-band-fg-light); }
 .pmd-highlight[data-highlight="black"]       { background: #000000; color: var(--pmd-c-band-fg-dark); }
 .pmd-highlight[data-highlight="none"]        { background: transparent; }
 
@@ -12023,6 +12030,8 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   text-align: center;
   font-size: 1rem;
   line-height: 1;
+  /* The microphone outline paints in the row's text color. */
+  color: var(--pmd-c-text);
 }
 .pmd-select-speech-row-text,
 .pmd-list-pick-row-text {
@@ -12383,13 +12392,13 @@ body.pmd-pane-dragging * {
 }
 
 /* Speech-doc indicator. Class on the pane element gets set/cleared
-   by `MultiPaneShell.refreshSpeechChips`. The 🎤 prefix on the
+   by `MultiPaneShell.refreshSpeechChips`. The microphone-outline prefix on the
    chip name is the same affordance Verbatim's title-bar tweak
    uses ("Speech …") — just visible enough to remind the user
    which slot is the active destination for the send-to-speech
    chord. The chip's accent stripe reinforces it without crowding
    the filename. */
-/* \1F3A4 = 🎤, spelled as an escape ON PURPOSE (as are all non-ASCII
+/* The classic-icons fallback below spells \1F3A4 (the mic emoji) as an escape ON PURPOSE (as are all non-ASCII
    `content` values repo-wide; icon-coverage.test.ts enforces it). A
    stylesheet served without a charset is decoded per the REFERENCING
    document, and when that context slips (field bug 2026-07-27: this
@@ -12398,8 +12407,26 @@ body.pmd-pane-dragging * {
    ASCII — immune to any decoding. The trailing space terminates the
    escape; the parser consumes it, it never renders. */
 .pmd-pane-speech .pmd-pane-chip-name::before {
-  content: '\1F3A4 ';
+  /* The microphone OUTLINE icon (the same mask as `.pmd-icon-mic`), painted
+     in the chip's text color, instead of the 🎤 emoji. */
+  content: '';
+  display: inline-block;
+  width: 1em;
+  height: 1em;
   margin-right: 0.3em;
+  vertical-align: -0.15em;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M19%2010v2a7%207%200%200%201-7%207m-7-9v2a7%207%200%200%200%207%207m0%200v3m-4%200h8m-4-7a3%203%200%200%201-3-3V5a3%203%200%201%201%206%200v7a3%203%200%200%201-3%203Z%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M19%2010v2a7%207%200%200%201-7%207m-7-9v2a7%207%200%200%200%207%207m0%200v3m-4%200h8m-4-7a3%203%200%200%201-3-3V5a3%203%200%201%201%206%200v7a3%203%200%200%201-3%203Z%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+}
+/* Classic icon set: the original emoji glyph. */
+:root[data-icons="classic"] .pmd-pane-speech .pmd-pane-chip-name::before {
+  content: '\1F3A4 ';
+  width: auto;
+  height: auto;
+  background: none;
+  -webkit-mask: none;
+  mask: none;
 }
 /* Speech-doc tint — wins over the focused-pane blue fill (user call,
    2026-09-09: the speech marking should stay visible even on the pane
@@ -12718,32 +12745,6 @@ body.pmd-pane-dragging * {
 }
 .pmd-pane-copresence-label {
   font-weight: 600;
-}
-
-/* Per-pane reload button (disk-conflict.ts): the same compact footprint as
-   the cloud badge beside it, sitting to its left. Hidden for an unsaved doc. */
-.pmd-pane-reload-btn {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  padding: 1px 4px;
-  color: var(--pmd-c-text-muted);
-  cursor: pointer;
-}
-.pmd-pane-reload-btn:hover {
-  background: var(--pmd-c-hover);
-}
-.pmd-pane-reload-btn svg {
-  display: block;
-  width: 13px;
-  height: 13px;
-}
-.pmd-pane-reload-btn[hidden] {
-  display: none;
 }
 
 /* Per-pane cloud-sync badge (disk-conflict.ts's `createPaneDiskBadge`)

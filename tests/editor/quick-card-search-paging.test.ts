@@ -41,7 +41,7 @@ import { settings } from '../../src/editor/settings.js';
 function openPalette(): void {
   quickCardSearchUI.open({
     view: null,
-    paneEl: null,
+   
     runCommand: () => {},
     openFilePath: () => {},
   });

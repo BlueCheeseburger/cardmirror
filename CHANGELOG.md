@@ -8,6 +8,36 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.13.0-bcb.5 — 2026-10-02
+
+### Changed
+
+- **Mod-F11 highlights with white.** F11 still highlights in the selected
+  color. Background color moved from Mod-F11 to Mod-Shift-F11. All three
+  (Highlight with Selected Color, Highlight with White, Background Color)
+  can be rebound in Settings → Keyboard shortcuts.
+- **Mod-Shift-X is now Strikethrough**, not the AI cite formatter, which is
+  unbound by default (Settings → Keyboard shortcuts to rebind it). If you'd
+  already set your own shortcut for either, it's untouched.
+- **The speech document marker is a microphone outline icon**, not the 🎤
+  emoji, in the pane title chip and in the Select Speech Document list.
+- **Reloading from disk shows a toast**, and the outline keeps the headings
+  you had open instead of folding back to the default depth.
+- **Search Everything centers on the window**, not on the focused pane, in
+  the three-pane workspace.
+- **The "Left" readout shows times only.** The word count is gone from it
+  (`Left · Amy: 5:20`), like the whole-document side.
+
+### Removed
+
+- **The reload button** (added in 1.13.0-bcb.4). Reload From Disk is the
+  Mod-R shortcut and the command bar only.
+
+### Fixed
+
+- **Emoji no longer lean sideways in italic text** (undertags, italic
+  runs). They stay upright.
+
 ## 1.13.0-bcb.4 — 2026-10-01
 
 ### Added

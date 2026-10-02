@@ -248,17 +248,9 @@ export interface DiskBadgeDeps {
   openOriginal: (originalHandle: string) => Promise<void>;
 }
 
-/** Refresh arrows (stroke icon, like the cloud). */
-const RELOAD_SVG =
-  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
-  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg>';
-
-const RELOAD_TITLE = 'Reload from disk — replaces this document with the saved file';
-
 /**
- * Reload the active document from the file on disk (the reload button and
- * the Reload From Disk command). A document with unsaved edits asks first,
+ * Reload the active document from the file on disk (the Reload From Disk
+ * command, Mod-R). A document with unsaved edits asks first,
  * since the reload discards them; a co-editing host can't (it would replace
  * the shared document under everyone); an unsaved document has no file.
  */
@@ -302,8 +294,6 @@ export async function reloadActiveDocFromDisk(): Promise<boolean> {
 }
 
 let trayEl: HTMLElement | null = null;
-/** The reload button's pill (single-doc tray); shown for any saved file. */
-let reloadEl: HTMLElement | null = null;
 /** The document the pill last rendered for (null = hidden / none). */
 let lastRenderedHandle: string | null = null;
 let badgeEl: HTMLElement | null = null;
@@ -350,34 +340,6 @@ export function installDiskBadge(deps: DiskBadgeDeps, opts?: { parent?: HTMLElem
   const parent = opts?.parent ?? document.body;
   trayEl = document.createElement('div');
   trayEl.className = 'pmd-pill-tray-right';
-  // Reload sits LEFT of the cloud pill (row order), and — unlike the pill —
-  // shows for any saved file, cloud-synced or not.
-  const reload = document.createElement('div');
-  reload.className = 'pmd-pill pmd-reload-pill';
-  reload.hidden = true;
-  const reloadBar = document.createElement('div');
-  reloadBar.className = 'pmd-pill-bar pmd-reload-bar';
-  reloadBar.setAttribute('role', 'button');
-  reloadBar.tabIndex = 0;
-  reloadBar.title = RELOAD_TITLE;
-  reloadBar.setAttribute('aria-label', RELOAD_TITLE);
-  const reloadIcon = document.createElement('span');
-  reloadIcon.className = 'pmd-pill-icon';
-  reloadIcon.setAttribute('aria-hidden', 'true');
-  reloadIcon.innerHTML = RELOAD_SVG;
-  reloadBar.appendChild(reloadIcon);
-  reload.appendChild(reloadBar);
-  const runReload = (): void => void reloadFromDiskWithPrompt(deps);
-  reloadBar.addEventListener('mousedown', (e) => e.preventDefault()); // keep the editor's focus
-  reloadBar.addEventListener('click', runReload);
-  reloadBar.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      runReload();
-    }
-  });
-  trayEl.appendChild(reload);
-  reloadEl = reload;
   const root = document.createElement('div');
   root.className = 'pmd-pill pmd-disk-pill pmd-disk-badge';
   root.hidden = true;
@@ -415,13 +377,10 @@ function render(): void {
   const { handle, name } = badgeDeps.getActive();
   lastRenderedHandle = handle;
   const info = handle ? byHandle.get(handle) : null;
-  if (reloadEl) reloadEl.hidden = !handle;
   if (!info || info.state === 'local') {
     badgeEl.hidden = true;
     badgeEl.removeAttribute('data-state');
-    // The tray still holds the reload button for a saved local file, and it
-    // needs the same bottom runway as the pill.
-    document.documentElement.classList.toggle('pmd-disk-pill-active', !!handle);
+    document.documentElement.classList.remove('pmd-disk-pill-active');
     stopClock();
     return;
   }
@@ -560,7 +519,6 @@ export function __resetDiskConflictForTests(): void {
   stopClock();
   trayEl?.remove();
   trayEl = null;
-  reloadEl = null;
   lastRenderedHandle = null;
   badgeEl = null;
   barEl = null;
@@ -601,18 +559,6 @@ export interface PaneDiskBadgeHandle {
  *  controls already use). Hidden (zero footprint) for a local file,
  *  same as the single-doc tray badge. */
 export function createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement): PaneDiskBadgeHandle {
-  // Reload button: left of the cloud badge, shown for any saved file.
-  const reload = document.createElement('button');
-  reload.type = 'button';
-  reload.className = 'pmd-pane-reload-btn';
-  reload.hidden = true;
-  reload.title = RELOAD_TITLE;
-  reload.setAttribute('aria-label', RELOAD_TITLE);
-  reload.innerHTML = RELOAD_SVG;
-  reload.addEventListener('mousedown', (e) => e.preventDefault()); // keep the editor's focus
-  reload.addEventListener('click', () => void reloadFromDiskWithPrompt(deps));
-  parent.appendChild(reload);
-
   const root = document.createElement('button');
   root.type = 'button';
   root.className = 'pmd-pane-disk-badge';
@@ -640,7 +586,6 @@ export function createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement): P
   function render(): void {
     if (deps.isSuppressed()) return;
     const { handle, name } = deps.getActive();
-    reload.hidden = !handle;
     const info = handle ? byHandle.get(handle) : null;
     if (!info || info.state === 'local') {
       root.hidden = true;
@@ -692,7 +637,6 @@ export function createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement): P
       paneRefreshListeners.delete(render);
       stopClock();
       root.remove();
-      reload.remove();
     },
   };
 }

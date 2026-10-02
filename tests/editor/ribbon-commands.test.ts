@@ -2948,12 +2948,21 @@ describe('double-tap toggles with a selected trailing space (gap-fix interplay)'
     expect(markOn(s2.doc, 'alpha', ['highlight'])).toBe(false);
   });
 
-  it('Mod-F11 twice: shading strips on the second tap', () => {
+  it('Mod-Shift-F11 twice: shading strips on the second tap', () => {
     const state = selectFirstWordPlusSpace('alpha beta', 'alpha');
     const s1 = apply(state, applyShading(() => 'D2D2D2'))!;
     expect(markOn(s1.doc, 'alpha', ['shading'])).toBe(true);
     const s2 = apply(s1, applyShading(() => 'D2D2D2'))!;
     expect(markOn(s2.doc, 'alpha', ['shading'])).toBe(false);
+  });
+
+  it('Mod-F11 paints white over an existing highlight, and strips it on a second tap', () => {
+    const state = selectFirstWordPlusSpace('alpha beta', 'alpha');
+    const s1 = apply(state, applyHighlight(() => 'yellow'))!;
+    const s2 = apply(s1, getRibbonCommand('applyHighlightWhite'))!;
+    expect(hasMarkOfNameWithAttr(s2.doc, 'alpha', 'highlight', 'color')).toBe('white');
+    const s3 = apply(s2, getRibbonCommand('applyHighlightWhite'))!;
+    expect(markOn(s3.doc, 'alpha', ['highlight'])).toBe(false);
   });
 
   it('F9 twice: underline strips on the second tap', () => {
@@ -2995,7 +3004,7 @@ describe('double-tap toggles with a selected trailing space (gap-fix interplay)'
 
 // ---- applyShading (Mod-F11) ----
 
-describe('applyShading (Mod-F11)', () => {
+describe('applyShading (Mod-Shift-F11)', () => {
   it('empty selection: no-op', () => {
     const doc = makeDoc([paragraph('hello')]);
     const state = setCursorIn(doc, (n) => n.type.name === 'paragraph');
@@ -3084,8 +3093,13 @@ describe('applyShading (Mod-F11)', () => {
     expect(hasMarkOfNameWithAttr(s2.doc, 'mixed', 'highlight', 'color')).toBe('yellow');
   });
 
-  it('default key binding: Mod-F11 → applyShading', () => {
-    expect(DEFAULT_RIBBON_KEYS['applyShading']).toBe('Mod-F11');
+  it('default key binding: Mod-Shift-F11 → applyShading', () => {
+    expect(DEFAULT_RIBBON_KEYS['applyShading']).toBe('Mod-Shift-F11');
+  });
+
+  it('default key bindings: F11 → selected color, Mod-F11 → white highlight', () => {
+    expect(DEFAULT_RIBBON_KEYS['applyHighlight']).toBe('F11');
+    expect(DEFAULT_RIBBON_KEYS['applyHighlightWhite']).toBe('Mod-F11');
   });
 
   it('null pen ("No background color" active): strips instead of applying', () => {

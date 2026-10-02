@@ -286,6 +286,7 @@ import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
 import { cardHighlightPlugin, cardHighlightAction, cardRangesForSelection } from './card-highlight-toggle.js';
+import { emojiUprightPlugin } from './emoji-upright-plugin.js';
 import { readerViewPlugin, applyReaderViewToTarget } from './reader-view.js';
 import { headingIdGuardPlugin } from './heading-id-guard.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
@@ -2379,12 +2380,9 @@ const ribbonContext: RibbonContext = {
   insertLiveZone: () => {
     // Same picker, in transclude mode: pick a file, drill to a header, insert a
     // live zone. Needs the current doc's path to build a portable source ref.
-    const paneEl =
-      (view?.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
     const docPath = view ? getViewDocPath(view) : null;
     quickCardSearchUI.open({
       view,
-      paneEl,
       runCommand: runRibbonCommandById,
       openFilePath: openFileByPath,
       transcludeMode: true,
@@ -5061,15 +5059,12 @@ async function runMultiPane(
   }
 }
 
-/** Open Search Everything over the focused pane (multi-pane) or the editor
- *  element (single-doc); browse-only when there's no active view.
+/** Open Search Everything (centered on the window); browse-only when
+ *  there's no active view.
  *  `initialQuery` opens it with a prefix already typed. */
 function openSearchPalette(initialQuery?: string): void {
-  const paneEl =
-    (view?.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
   quickCardSearchUI.open({
     view,
-    paneEl,
     runCommand: runRibbonCommandById,
     runCommandOnState: runRibbonCommandOnState,
     openFilePath: openFileByPath,
@@ -6239,6 +6234,9 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // Remembers what Unhighlight Card removed so Rehighlight Card can put it
     // back while the unhighlight is still undoable (card-highlight-toggle.ts).
     cardHighlightPlugin(),
+    // Emoji stay upright inside italic text instead of being skewed by the
+    // browser's synthesized italic (emoji-upright-plugin.ts).
+    emojiUprightPlugin(),
     // Swallow the browser's `dragstart` on the editor's content-
     // editable so the user can't initiate a text-move drag from a
     // selection. (Text drag-and-drop never worked reliably, so it's
@@ -9631,6 +9629,9 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
       docThreads = result.threads;
       docId = result.docId;
     }
+    // The mount builds a fresh outline at the default depth; keep which
+    // headings were open instead of folding them all back.
+    const navState = navPanel.captureViewState();
     mountOpenedSingleDoc({
       docNode,
       docThreads,
@@ -9641,10 +9642,12 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
       dirty: false,
       recordAsRecent: false,
     });
+    navPanel.restoreViewState(navState);
     // Same handle as before, so the mount did not re-register: claim the
     // fresh read as the baseline explicitly.
     await registerDocPath(file.handle);
     noteReloaded(file.handle);
+    showToast(`Reloaded “${file.name}” from disk.`);
   } catch (err) {
     if (err instanceof OpenCancelledError) return;
     void alertDialog(`Reload failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -12415,11 +12418,8 @@ async function applyRecovery(
 // in re-pick mode for that zone — same deps as the insertLiveZone command, which
 // live in this module.
 setRePickOpener((targetView, pos, identity) => {
-  const paneEl =
-    (targetView.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
   quickCardSearchUI.open({
     view: targetView,
-    paneEl,
     runCommand: runRibbonCommandById,
     openFilePath: openFileByPath,
     transcludeMode: true,

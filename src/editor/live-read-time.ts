@@ -339,18 +339,33 @@ export function watchScrollForRemaining(scroller: HTMLElement, refresh: () => vo
   };
 }
 
-/** The readout tail for what's still unread ("Left: 1,204 · Amy: 6:31 ·
- *  Ben: 5:44"), or null when the feature is off. Callers join it after
- *  the container segment with " | ". Counted from where `view` is
+/** The read-aloud words still unread: counted from where `view` is
  *  scrolled to; without a view, or when that can't be measured, from the
  *  end of the selection (the furthest point the user has accounted for,
- *  which for a bare cursor is the cursor). */
+ *  which for a bare cursor is the cursor). Null when the feature is off. */
+export function remainingReadCounts(
+  state: EditorState,
+  view: EditorView | null = null,
+): ReadAloudCounts | null {
+  if (!settings.get('liveRemainingReadTime')) return null;
+  const from = (view ? scrollAnchorPos(view) : null) ?? state.selection.to;
+  return countRemaining(state.doc, Math.min(from, state.doc.content.size));
+}
+
+/** The readout tail for what's still unread ("Left · Amy: 6:31 · Ben:
+ *  5:44"), or null when the feature is off. Times only — no word count,
+ *  like the whole-document side. Callers join it after the container
+ *  segment with " | ". */
 export function remainingReadSegment(
   state: EditorState,
   useLay = false,
   view: EditorView | null = null,
 ): string | null {
-  if (!settings.get('liveRemainingReadTime')) return null;
-  const from = (view ? scrollAnchorPos(view) : null) ?? state.selection.to;
-  return formatSegment('Left', countRemaining(state.doc, Math.min(from, state.doc.content.size)), useLay);
+  const counts = remainingReadCounts(state, view);
+  if (!counts) return null;
+  const parts = ['Left'];
+  for (const r of settings.get('readers').slice(0, 2)) {
+    parts.push(readerTimePart(r, counts, useLay));
+  }
+  return parts.join(' · ');
 }

@@ -29,7 +29,7 @@ function openPalette(
   runCommand: (id: AnyCommandId) => void = () => {},
   runCommandOnState?: (id: AnyCommandId, state: EditorState) => EditorState | null,
 ): void {
-  quickCardSearchUI.open({ view, paneEl: null, runCommand, runCommandOnState, openFilePath: () => {} });
+  quickCardSearchUI.open({ view, runCommand, runCommandOnState, openFilePath: () => {} });
 }
 
 function type(q: string): void {

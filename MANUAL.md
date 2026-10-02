@@ -449,7 +449,8 @@ below say which fallback applies where it matters.
 | **Bold / Italic** | Mod-B / Mod-I | Standard direct formatting. With nothing selected, toggles it for the text you're about to type; while italic typing is on, the cursor tilts to match. Tags and headings are bold by default, so **Bold inside a tag un-bolds** the selected words (press it again to restore) — and .docx files with un-bolded words in tags now show that correctly. |
 
 Super/subscript and strikethrough live in the **Format** menu (super and
-subscript also have shortcuts: **Mod-Shift-=** and **Mod-=**).
+subscript also have shortcuts: **Mod-Shift-=** and **Mod-=**; **(fork)**
+strikethrough is **Mod-Shift-X**).
 
 <a id="paste-text-f2"></a>
 ### Paste Text (F2)
@@ -637,7 +638,7 @@ the markers stay full size. Press **Mod-8** again to keep cycling smaller.
   card whose cite contains that text. A selection that runs past the cite
   uses just the part inside it. With no cite under the cursor or in the
   selection, nothing is copied.
-- **Format Cite from selection (Mod-Shift-X)** uses AI to turn a pasted
+- **Format Cite from selection** (unbound by default; **(fork)** Mod-Shift-X now toggles strikethrough) uses AI to turn a pasted
   citation or URL into a properly styled cite (see
   [AI features](#13-ai-features)).
 - **Create Reference** copies the selected card text to your clipboard as
@@ -690,18 +691,22 @@ light gray unless you change them). The top-left swatch
 selects **no color** (No highlight / No background / Automatic) — and
 "no color" is a real pen, not just a one-off eraser: it stays active
 (the indicator bar under the button turns white), and the main button,
-paintbrush mode, and F11 / Mod-F11 then *strip* the mark wherever you
+paintbrush mode, and F11 / Mod-Shift-F11 then *strip* the mark wherever you
 paint, until you pick a color again.
 
-- **Highlight (F11)** — toggles the active highlight on the selection.
-  Supports all 15 Word highlight colors.
-- **Background color (Mod-F11)** — a separate background color that
+- **Highlight with selected color (F11)** — toggles the active highlight
+  on the selection. Supports all 15 Word highlight colors.
+- **Highlight with white (Mod-F11)** — paints white over the selection
+  (covering any other highlight) regardless of the selected color;
+  pressing it again removes it. It stays a real highlight, so it round-trips
+  to Word as white highlighting.
+- **Background color (Mod-Shift-F11)** — a separate background color that
   can coexist with a highlight; takes any color.
 - **Emphasis + Background Color** (unbound; run it from Search
   Everything or give it a key in Settings → Keyboard shortcuts) applies
   Emphasis and the active background color in one step, with one undo.
   Applying Emphasis on its own removes background color, so pressing
-  Mod-F11 and then F10 loses the background; this command does them in
+  Mod-Shift-F11 and then F10 loses the background; this command does them in
   the order that keeps both. Like F10 it always applies (pressing it
   again doesn't toggle anything off), and with nothing selected it acts
   on the word at the cursor. With the "no color" background pen active,
@@ -1486,7 +1491,7 @@ A third readout — **what's left to read** — is available and **off by
 default**: turn on **Settings → General → "Live read time for what is
 left to read"** and the bar appends everything still ahead of where
 you are **scrolled to** — from the line at the top of the window to the
-end of the document — with each reader's time for it: `Doc · Amy: 8:12 | Card: 42 · Amy: 0:31 | Left: 806
+end of the document — with each reader's time for it: `Doc · Amy: 8:12 | Card: 42 · Amy: 0:31 | Left
 · Amy: 5:20`. Only read-aloud text counts, same as every other readout,
 so trimming highlights lowers it. It follows the scroll, not the cursor
 (a speaker reads from the top of the screen, and the caret is wherever
@@ -2473,15 +2478,13 @@ a normal, unencrypted file — CardMirror doesn't re-apply the password. (Only
 the modern Word encryption is supported; a file from very old Office versions
 will ask you to re-save it in a current Word first.)
 
-**Reloading from disk.** **(Fork)** The **Reload** button — a circular
-arrow in the bottom-right corner of the window, or in each pane's footer
-in the three-pane workspace, just left of the cloud icon when the file is
-in a synced folder — and the **Reload From Disk** command (**Mod-R**)
-replace the document with what's saved in its file. It works for any saved
-file, not only cloud-synced ones. If the document has unsaved edits it
-asks before discarding them; a document that hosts a co-editing session
-can't be reloaded until the session ends; an unsaved document has no file
-to reload. *(Desktop only.)*
+**Reloading from disk.** **(Fork)** The **Reload From Disk** command
+(**Mod-R**, or the command bar) replaces the document with what's saved in
+its file, for any saved file, and a toast confirms it. The outline keeps
+which headings were open. If the document has unsaved edits it asks before
+discarding them; a document that hosts a co-editing session can't be
+reloaded until the session ends; an unsaved document has no file to reload.
+There's no button for it, on purpose. *(Desktop only.)*
 
 **Finding a file on disk.** The **Open Containing Folder** command
 (desktop; command bar — try "reveal in finder" — or a custom ribbon
@@ -3505,7 +3508,8 @@ All defaults; rebind any of them in **Settings → Keyboard shortcuts**.
 | F9 / Mod-U | Underline |
 | F10 / Alt-F10 | Emphasis / Emphasize acronym |
 | F11 / Alt-F11 | Highlight / Highlight acronym |
-| Mod-F11 | Background color |
+| Mod-F11 | Highlight with white |
+| Mod-Shift-F11 | Background color |
 | Mod-Z / Mod-Y | Undo / Redo (Mod-Shift-Z also redoes) |
 | Mod-B / Mod-I | Bold / Italic |
 | Mod-K | Add / remove hyperlink (fork) |

@@ -62,7 +62,7 @@ function fixtureDoc(): PMNode {
 function openPalette(): void {
   quickCardSearchUI.open({
     view: null,
-    paneEl: null,
+   
     runCommand: () => {},
     openFilePath: () => {},
   });
