@@ -12,6 +12,14 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: reload dropped the speech-document marker (`multi-pane-shell.ts`, `index.ts`)
+
+`reloadFromDisk` closes the old record (which clears the speech designation
+and unregisters its uid) and builds a fresh one. Both paths now capture
+`isSpeechByUid` before the close/mount and mark the fresh view/uid afterward.
+In one-document mode the mount also assigns a new uid, so the old designation
+was left pointing at a uid that no longer existed.
+
 ### Changed: plain find bar drops Whole word and Close (`find-replace-ui.ts`, `style.css`)
 
 `FindReplaceBar.open()` stamps `data-mode` on the bar root; in `find` mode CSS

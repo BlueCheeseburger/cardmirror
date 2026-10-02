@@ -9632,6 +9632,9 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
     // The mount builds a fresh outline at the default depth; keep which
     // headings were open instead of folding them all back.
     const navState = navPanel.captureViewState();
+    // The mount gives the document a fresh uid; the speech designation
+    // belongs to the document, so carry it over.
+    const wasSpeech = getSpeechDocResolver().isSpeechByUid(currentDocUid);
     mountOpenedSingleDoc({
       docNode,
       docThreads,
@@ -9643,6 +9646,7 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
       recordAsRecent: false,
     });
     navPanel.restoreViewState(navState);
+    if (wasSpeech) getSpeechDocResolver().setSpeechByUid(currentDocUid);
     // Same handle as before, so the mount did not re-register: claim the
     // fresh read as the baseline explicitly.
     await registerDocPath(file.handle);

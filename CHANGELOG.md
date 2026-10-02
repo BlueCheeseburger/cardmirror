@@ -10,6 +10,11 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Fixed
+
+- **Reloading a document keeps it the speech document.** Reload From Disk
+  (Mod-R) used to drop the speech-document marker.
+
 ### Changed
 
 - **The plain find bar (Mod-F) is trimmed down.** The Whole word toggle and the
