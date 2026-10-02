@@ -12,6 +12,22 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: What's new pop-up (`whats-new.ts`, `index.ts`, `style.css`)
+
+`maybeShowWhatsNew` runs from `startUpdateChecks`' first-window block (desktop,
+not Lite). The last-seen version lives in `localStorage` under
+`cm-whats-new-last-version`, outside the settings blob, so every window shares
+it. `decideWhatsNew`: same version -> nothing; no marker and no settings blob at
+module load (a fresh install) -> record only; otherwise show. Notes come from
+`api.github.com/.../releases/tags/v<version>` (8 s timeout); an empty body or a
+failed request shows nothing and leaves the marker alone so a later launch
+retries. The marker is written before the dialog opens so a second window can't
+stack another. `renderReleaseNotes` renders the markdown subset release notes
+use (headings, bullets with continuation lines, bold, code, http(s) links)
+through `createElement`/`textContent` only. The dialog reuses the confirm
+dialog's modal wiring (`pushOverlay`, `installModalKeys`); links and **View on
+GitHub** go through `openExternal`.
+
 ### Fixed: reload dropped the speech-document marker (`multi-pane-shell.ts`, `index.ts`)
 
 `reloadFromDisk` closes the old record (which clears the speech designation

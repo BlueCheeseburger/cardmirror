@@ -277,6 +277,7 @@ import { collabEnabled } from './collab/collab-gate.js';
 import { parseJoinLinkHash } from './collab/join-link.js';
 import { setRePickOpener, setOpenSourceOpener } from './transclusion-actions.js';
 import { isLiteBuild } from './lite.js';
+import { maybeShowWhatsNew } from './whats-new.js';
 import { isTransclusionNode, fragmentHasZone } from './transclusion.js';
 import { showConfirm } from './confirm-dialog.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
@@ -11374,6 +11375,17 @@ function startUpdateChecks(): void {
             'CardMirror now checks for updates automatically. You can turn this off — or pause it for a tournament — in Settings → General → About this install.',
           );
         });
+      }
+      // After an update, show that version's release notes once. First
+      // window only (the marker is shared, but one dialog is enough); the
+      // Lite build has no network, so it never asks.
+      if (isFirst && !isLiteBuild()) {
+        void maybeShowWhatsNew({
+          version: appVersion,
+          openExternal: (url) => {
+            void electron.openExternal(url).catch((err) => console.warn('openExternal failed:', err));
+          },
+        }).catch((err) => console.warn("What's new popup failed:", err));
       }
       if (isFirst && allowed()) {
         try {
