@@ -5308,7 +5308,9 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   moveContainerDown: 'Mod-Alt-ArrowDown',
   toggleBold: 'Mod-b',
   toggleItalic: 'Mod-i',
-  toggleStrikethrough: '',
+  // Mod-Shift-X was the AI cite creator's chord; strikethrough has it now
+  // (the AI command is unbound by default — rebind it in Settings).
+  toggleStrikethrough: 'Mod-Shift-x',
   toggleSuperscript: 'Mod-Shift-=',
   toggleSubscript: 'Mod-=',
   applyCite: 'F8',
@@ -5365,7 +5367,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   addCommentToSelection: '',
   addNoteToSelection: 'Mod-Shift-n',
   aiAskAboutSelection: 'Mod-Shift-q',
-  aiCreateCite: 'Mod-Shift-x',
+  aiCreateCite: '',
   // Deliberately unbound: one model request per cite in the document is
   // far too expensive to sit behind a stray chord. Bind it in Settings →
   // Keyboard shortcuts if you want one.

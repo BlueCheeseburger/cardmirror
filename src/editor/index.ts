@@ -9629,6 +9629,9 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
       docThreads = result.threads;
       docId = result.docId;
     }
+    // The mount builds a fresh outline at the default depth; keep which
+    // headings were open instead of folding them all back.
+    const navState = navPanel.captureViewState();
     mountOpenedSingleDoc({
       docNode,
       docThreads,
@@ -9639,10 +9642,12 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
       dirty: false,
       recordAsRecent: false,
     });
+    navPanel.restoreViewState(navState);
     // Same handle as before, so the mount did not re-register: claim the
     // fresh read as the baseline explicitly.
     await registerDocPath(file.handle);
     noteReloaded(file.handle);
+    showToast(`Reloaded “${file.name}” from disk.`);
   } catch (err) {
     if (err instanceof OpenCancelledError) return;
     void alertDialog(`Reload failed: ${err instanceof Error ? err.message : String(err)}`);

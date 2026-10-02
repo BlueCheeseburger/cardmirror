@@ -715,6 +715,54 @@ export class NavigationPanel {
     }
   }
 
+  /** The outline's view state — which headings are expanded or folded, the
+   *  depth filter, the list scroll — so a RELOAD of the same file (new view,
+   *  new panel) can put it back instead of folding everything to the default
+   *  depth. Headings are matched by id and, when the reloaded file carries
+   *  fresh ids, by level + text + occurrence. */
+  captureViewState(): NavViewState {
+    const doc = this.currentDoc;
+    const entries = doc ? collectHeadings(doc) : [];
+    const keys = headingTextKeys(entries);
+    const known: NavViewState['known'] = [];
+    const folded: NavViewState['folded'] = [];
+    entries.forEach((e, i) => {
+      const isFolded = e.id != null && this.collapsed.has(e.id);
+      known.push({ id: e.id, key: keys[i]! });
+      if (isFolded) folded.push({ id: e.id, key: keys[i]! });
+    });
+    return { maxLevel: this.localMaxLevel, known, folded, scrollTop: this.listEl.scrollTop };
+  }
+
+  /** Re-apply a state from `captureViewState` after the doc was reloaded.
+   *  Headings the old outline didn't have fold to the depth the filter
+   *  implies, like any newly arrived heading. */
+  restoreViewState(state: NavViewState): void {
+    const doc = this.currentDoc;
+    if (!doc) return;
+    this.localMaxLevel = state.maxLevel;
+    this.updateLevelButtonsActive();
+    this.applyMaxLevelToCollapseState(); // the depth default for everything
+    const entries = collectHeadings(doc);
+    const keys = headingTextKeys(entries);
+    const knownIds = new Set(state.known.map((k) => k.id).filter((id): id is string => id != null));
+    const knownKeys = new Set(state.known.map((k) => k.key));
+    const foldedIds = new Set(state.folded.map((k) => k.id).filter((id): id is string => id != null));
+    const foldedKeys = new Set(state.folded.map((k) => k.key));
+    entries.forEach((e, i) => {
+      if (e.id == null) return;
+      const byId = knownIds.has(e.id);
+      if (!byId && !knownKeys.has(keys[i]!)) return; // new heading: keep the default
+      const folded = byId ? foldedIds.has(e.id) : foldedKeys.has(keys[i]!);
+      const next = entries[i + 1];
+      const hasChildren = next != null && next.level > e.level;
+      if (folded && hasChildren) this.collapsed.add(e.id);
+      else this.collapsed.delete(e.id);
+    });
+    this.render(doc);
+    this.listEl.scrollTop = state.scrollTop;
+  }
+
   /** Scroll the outline back to the top. Called by the editor on
    *  doc load so a freshly-opened doc doesn't inherit the previous
    *  doc's nav-pane scroll offset. */
@@ -2622,6 +2670,28 @@ export class NavigationPanel {
 }
 
 // ---------------------------------------------- Context menu plumbing
+
+/** What `NavigationPanel.captureViewState` returns (see there). */
+export interface NavViewState {
+  maxLevel: number;
+  /** Every heading the panel knew, by id and by level+text+occurrence. */
+  known: Array<{ id: string | null; key: string }>;
+  /** The ones that were folded. */
+  folded: Array<{ id: string | null; key: string }>;
+  scrollTop: number;
+}
+
+/** `level|text|n` for each heading, n counting repeats of the same level
+ *  and text so two "Solvency" blocks stay distinct. */
+function headingTextKeys(entries: HeadingEntry[]): string[] {
+  const seen = new Map<string, number>();
+  return entries.map((e) => {
+    const base = `${e.level}|${e.text}`;
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    return `${base}|${n}`;
+  });
+}
 
 /** Runs a ribbon command on a scratch state and hands back its transaction
  *  (null when it doesn't apply). Registered by index.ts, which owns the

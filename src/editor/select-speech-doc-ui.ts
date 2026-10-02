@@ -69,7 +69,7 @@ function renderRow(host: NonNullable<ReturnType<typeof getElectronHost>>, row: D
   const indicator = document.createElement('span');
   indicator.className = 'pmd-select-speech-row-indicator';
   indicator.setAttribute('aria-hidden', 'true');
-  indicator.textContent = row.isSpeech ? '🎤' : '';
+  if (row.isSpeech) setIcon(indicator, 'mic');
   btn.appendChild(indicator);
 
   const text = document.createElement('span');

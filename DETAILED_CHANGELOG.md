@@ -12,6 +12,34 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: Mod-Shift-X is Strikethrough (`ribbon-commands.ts`)
+
+`DEFAULT_RIBBON_KEYS.toggleStrikethrough` is `Mod-Shift-x`; `aiCreateCite`
+(its old owner) defaults to unbound. User overrides are stored separately
+from the defaults, so a shortcut someone set for either command is unchanged.
+
+### Changed: speech-doc marker is the mic outline icon (`style.css`, `select-speech-doc-ui.ts`)
+
+The pane chip's `::before` paints the Untitled UI `mic` outline through a
+mask in the chip's text color (the emoji stays under the classic icon set);
+the Select Speech Document row uses `setIcon(indicator, 'mic')`. The
+single-window banner already used the icon.
+
+### Changed: reload toasts and keeps the outline's state (`index.ts`, `multi-pane-shell.ts`, `nav-panel.ts`)
+
+`reloadActiveFromDisk` / `MultiPaneShell.reloadFromDisk` show "Reloaded “name”
+from disk." on success (so the pill's "Keep their changes" toasts too).
+`NavigationPanel.captureViewState` / `restoreViewState` carry the depth
+filter, the list scroll and which headings were folded across the new view
+and panel: matched by heading id, else by level + text + occurrence; headings
+the old outline didn't have follow the depth default.
+
+### Removed: the reload button (`disk-conflict.ts`, `style.css`)
+
+The tray pill and per-pane footer button added in 1.13.0-bcb.4 are gone, and
+`pmd-disk-pill-active` is back to following the cloud pill only. The command,
+`Mod-r` and the prompt flow stay.
+
 ### Fixed: emoji skewed in italic text (`emoji-upright-plugin.ts`, `style.css`)
 
 Emoji fonts have no italic face, so the browser synthesizes one by skewing
