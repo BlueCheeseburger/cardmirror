@@ -12,6 +12,13 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: Search Everything centers on the window (`quick-card-search-ui.ts`)
+
+`reposition()` centers on `window.innerWidth / 2` at `PALETTE_WIDTH`
+(shrinking only for a window narrower than the bar). The `paneEl` option,
+which centered on the focused pane and shifted inward at an edge pane, is
+gone along with its three callers in `index.ts`.
+
 ### Changed: the Left segment drops its word count (`live-read-time.ts`)
 
 `remainingReadSegment` renders `Left · <reader times>`; the count moved to

@@ -2379,12 +2379,9 @@ const ribbonContext: RibbonContext = {
   insertLiveZone: () => {
     // Same picker, in transclude mode: pick a file, drill to a header, insert a
     // live zone. Needs the current doc's path to build a portable source ref.
-    const paneEl =
-      (view?.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
     const docPath = view ? getViewDocPath(view) : null;
     quickCardSearchUI.open({
       view,
-      paneEl,
       runCommand: runRibbonCommandById,
       openFilePath: openFileByPath,
       transcludeMode: true,
@@ -5061,15 +5058,12 @@ async function runMultiPane(
   }
 }
 
-/** Open Search Everything over the focused pane (multi-pane) or the editor
- *  element (single-doc); browse-only when there's no active view.
+/** Open Search Everything (centered on the window); browse-only when
+ *  there's no active view.
  *  `initialQuery` opens it with a prefix already typed. */
 function openSearchPalette(initialQuery?: string): void {
-  const paneEl =
-    (view?.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
   quickCardSearchUI.open({
     view,
-    paneEl,
     runCommand: runRibbonCommandById,
     runCommandOnState: runRibbonCommandOnState,
     openFilePath: openFileByPath,
@@ -12415,11 +12409,8 @@ async function applyRecovery(
 // in re-pick mode for that zone — same deps as the insertLiveZone command, which
 // live in this module.
 setRePickOpener((targetView, pos, identity) => {
-  const paneEl =
-    (targetView.dom.closest('.pmd-pane') as HTMLElement | null) ?? editorEl ?? null;
   quickCardSearchUI.open({
     view: targetView,
-    paneEl,
     runCommand: runRibbonCommandById,
     openFilePath: openFileByPath,
     transcludeMode: true,
