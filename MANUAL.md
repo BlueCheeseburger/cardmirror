@@ -691,18 +691,22 @@ light gray unless you change them). The top-left swatch
 selects **no color** (No highlight / No background / Automatic) — and
 "no color" is a real pen, not just a one-off eraser: it stays active
 (the indicator bar under the button turns white), and the main button,
-paintbrush mode, and F11 / Mod-F11 then *strip* the mark wherever you
+paintbrush mode, and F11 / Mod-Shift-F11 then *strip* the mark wherever you
 paint, until you pick a color again.
 
-- **Highlight (F11)** — toggles the active highlight on the selection.
-  Supports all 15 Word highlight colors.
-- **Background color (Mod-F11)** — a separate background color that
+- **Highlight with selected color (F11)** — toggles the active highlight
+  on the selection. Supports all 15 Word highlight colors.
+- **Highlight with white (Mod-F11)** — paints white over the selection
+  (covering any other highlight) regardless of the selected color;
+  pressing it again removes it. It stays a real highlight, so it round-trips
+  to Word as white highlighting.
+- **Background color (Mod-Shift-F11)** — a separate background color that
   can coexist with a highlight; takes any color.
 - **Emphasis + Background Color** (unbound; run it from Search
   Everything or give it a key in Settings → Keyboard shortcuts) applies
   Emphasis and the active background color in one step, with one undo.
   Applying Emphasis on its own removes background color, so pressing
-  Mod-F11 and then F10 loses the background; this command does them in
+  Mod-Shift-F11 and then F10 loses the background; this command does them in
   the order that keeps both. Like F10 it always applies (pressing it
   again doesn't toggle anything off), and with nothing selected it acts
   on the word at the cursor. With the "no color" background pen active,
@@ -3504,7 +3508,8 @@ All defaults; rebind any of them in **Settings → Keyboard shortcuts**.
 | F9 / Mod-U | Underline |
 | F10 / Alt-F10 | Emphasis / Emphasize acronym |
 | F11 / Alt-F11 | Highlight / Highlight acronym |
-| Mod-F11 | Background color |
+| Mod-F11 | Highlight with white |
+| Mod-Shift-F11 | Background color |
 | Mod-Z / Mod-Y | Undo / Redo (Mod-Shift-Z also redoes) |
 | Mod-B / Mod-I | Bold / Italic |
 | Mod-K | Add / remove hyperlink (fork) |

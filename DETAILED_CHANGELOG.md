@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: Mod-F11 is "Highlight with White" (`ribbon-commands.ts`, `marks.ts`, `style.css`)
+
+New ribbon command `applyHighlightWhite` = `applyHighlight(() => 'white')`, so it
+reuses the same-color toggle (repaints over another highlight, strips on a
+second tap) and the operating-range / gap-fix handling. `white` is a legal
+`w:highlight` value, so export and import already carry it; it was added to
+`HIGHLIGHT_BAND` (light), the `.pmd-highlight[data-highlight="white"]` rule and
+the clipboard HTML color table. Defaults: `applyHighlight` F11,
+`applyHighlightWhite` Mod-F11, `applyShading` Mod-Shift-F11 (was Mod-F11). Labels
+are now "Highlight with Selected Color" / "Highlight with White" / "Background
+Color". Users who set their own key for shading keep it.
+
 ### Changed: Mod-Shift-X is Strikethrough (`ribbon-commands.ts`)
 
 `DEFAULT_RIBBON_KEYS.toggleStrikethrough` is `Mod-Shift-x`; `aiCreateCite`
