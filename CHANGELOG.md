@@ -12,6 +12,8 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 
+- **Search Everything centers on the window**, not on the focused pane, in
+  the three-pane workspace.
 - **The "Left" readout shows times only.** The word count is gone from it
   (`Left · Amy: 5:20`), like the whole-document side.
 
