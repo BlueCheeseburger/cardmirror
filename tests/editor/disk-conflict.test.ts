@@ -131,12 +131,6 @@ describe('badge', () => {
     setHandle('/local/x.cmir');
     refreshDiskBadge();
     expect(el.hidden).toBe(true);
-    // A saved local file still shows the reload button in the tray, which
-    // needs the same bottom runway as the pill…
-    expect(document.documentElement.classList.contains('pmd-disk-pill-active')).toBe(true);
-    // …and an unsaved document shows neither.
-    setHandle(null);
-    refreshDiskBadge();
     expect(document.documentElement.classList.contains('pmd-disk-pill-active')).toBe(false);
   });
 

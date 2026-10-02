@@ -449,7 +449,8 @@ below say which fallback applies where it matters.
 | **Bold / Italic** | Mod-B / Mod-I | Standard direct formatting. With nothing selected, toggles it for the text you're about to type; while italic typing is on, the cursor tilts to match. Tags and headings are bold by default, so **Bold inside a tag un-bolds** the selected words (press it again to restore) — and .docx files with un-bolded words in tags now show that correctly. |
 
 Super/subscript and strikethrough live in the **Format** menu (super and
-subscript also have shortcuts: **Mod-Shift-=** and **Mod-=**).
+subscript also have shortcuts: **Mod-Shift-=** and **Mod-=**; **(fork)**
+strikethrough is **Mod-Shift-X**).
 
 <a id="paste-text-f2"></a>
 ### Paste Text (F2)
@@ -637,7 +638,7 @@ the markers stay full size. Press **Mod-8** again to keep cycling smaller.
   card whose cite contains that text. A selection that runs past the cite
   uses just the part inside it. With no cite under the cursor or in the
   selection, nothing is copied.
-- **Format Cite from selection (Mod-Shift-X)** uses AI to turn a pasted
+- **Format Cite from selection** (unbound by default; **(fork)** Mod-Shift-X now toggles strikethrough) uses AI to turn a pasted
   citation or URL into a properly styled cite (see
   [AI features](#13-ai-features)).
 - **Create Reference** copies the selected card text to your clipboard as
@@ -2473,15 +2474,13 @@ a normal, unencrypted file — CardMirror doesn't re-apply the password. (Only
 the modern Word encryption is supported; a file from very old Office versions
 will ask you to re-save it in a current Word first.)
 
-**Reloading from disk.** **(Fork)** The **Reload** button — a circular
-arrow in the bottom-right corner of the window, or in each pane's footer
-in the three-pane workspace, just left of the cloud icon when the file is
-in a synced folder — and the **Reload From Disk** command (**Mod-R**)
-replace the document with what's saved in its file. It works for any saved
-file, not only cloud-synced ones. If the document has unsaved edits it
-asks before discarding them; a document that hosts a co-editing session
-can't be reloaded until the session ends; an unsaved document has no file
-to reload. *(Desktop only.)*
+**Reloading from disk.** **(Fork)** The **Reload From Disk** command
+(**Mod-R**, or the command bar) replaces the document with what's saved in
+its file, for any saved file, and a toast confirms it. The outline keeps
+which headings were open. If the document has unsaved edits it asks before
+discarding them; a document that hosts a co-editing session can't be
+reloaded until the session ends; an unsaved document has no file to reload.
+There's no button for it, on purpose. *(Desktop only.)*
 
 **Finding a file on disk.** The **Open Containing Folder** command
 (desktop; command bar — try "reveal in finder" — or a custom ribbon

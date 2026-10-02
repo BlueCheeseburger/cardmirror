@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
- * Reload From Disk: the reload button (single-doc tray, left of the cloud
- * pill; per-pane footer, left of the cloud badge) and the command that
- * share one flow — ask before discarding unsaved edits, refuse for a
- * co-editing host, and say so for a document with no file.
+ * Reload From Disk (Mod-R): ask before discarding unsaved edits, refuse for
+ * a co-editing host, and say so for a document with no file. There is no
+ * button for it — the shortcut and the command bar only.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
@@ -26,7 +25,6 @@ import {
 import { DEFAULT_RIBBON_KEYS } from '../../src/editor/ribbon-commands.js';
 
 const A = '/Dropbox/Aff.cmir';
-const L = '/local/Neg.cmir';
 
 function deps(over: Partial<DiskBadgeDeps> & { handle?: string | null } = {}): DiskBadgeDeps & {
   reloadFromDisk: ReturnType<typeof vi.fn>;
@@ -116,69 +114,15 @@ describe('the command', () => {
   });
 });
 
-describe('single-doc tray button', () => {
-  it('sits left of the cloud pill and shows for a saved local file too', () => {
-    const d = deps({ handle: L });
-    noteDocRegistered(L, 'fresh', null);
-    installDiskBadge(d, { parent: document.body });
-    const tray = document.querySelector('.pmd-pill-tray-right')!;
-    const [first, second] = Array.from(tray.children) as HTMLElement[];
-    expect(first!.classList.contains('pmd-reload-pill')).toBe(true);
-    expect(second!.classList.contains('pmd-disk-badge')).toBe(true);
-    expect(first!.hidden).toBe(false); // saved local file: reload yes…
-    expect(second!.hidden).toBe(true); // …cloud pill no
-    expect(document.documentElement.classList.contains('pmd-disk-pill-active')).toBe(true);
-  });
-
-  it('hides for an unsaved document and follows the active document', async () => {
-    const d = deps({ handle: null });
-    installDiskBadge(d, { parent: document.body });
-    const reload = document.querySelector('.pmd-reload-pill') as HTMLElement;
-    expect(reload.hidden).toBe(true);
-    expect(document.documentElement.classList.contains('pmd-disk-pill-active')).toBe(false);
-    noteDocRegistered(A, 'fresh', 'dropbox');
-    d.setHandle(A);
-    const { refreshDiskBadge } = await import('../../src/editor/disk-conflict.js');
-    refreshDiskBadge();
-    expect(reload.hidden).toBe(false);
-  });
-
-  it('clicking it runs the reload flow', async () => {
-    const d = deps();
-    noteDocRegistered(A, 'fresh', 'dropbox');
-    installDiskBadge(d, { parent: document.body });
-    (document.querySelector('.pmd-reload-bar') as HTMLElement).click();
-    await vi.waitFor(() => expect(d.reloadFromDisk).toHaveBeenCalledWith(A));
-  });
-});
-
-describe('per-pane footer button', () => {
-  it('is added before the cloud badge, shows for any saved file, and goes away with the pane', () => {
+describe('no reload button', () => {
+  it('neither the tray nor a pane footer carries one', () => {
+    installDiskBadge(deps(), { parent: document.body });
+    expect(document.querySelector('.pmd-reload-pill, .pmd-reload-bar')).toBeNull();
     const parent = document.createElement('div');
     document.body.appendChild(parent);
-    const d = deps({ handle: L });
-    noteDocRegistered(L, 'fresh', null);
-    const handle = createPaneDiskBadge(d, parent);
-    const kids = Array.from(parent.children) as HTMLElement[];
-    expect(kids[0]!.className).toBe('pmd-pane-reload-btn');
-    expect(kids[1]).toBe(handle.el);
-    expect(kids[0]!.hidden).toBe(false);
-    expect(handle.el.hidden).toBe(true);
+    const handle = createPaneDiskBadge(deps(), parent);
+    expect(parent.querySelector('.pmd-pane-reload-btn')).toBeNull();
+    expect(parent.children).toHaveLength(1); // just the cloud badge
     handle.destroy();
-    expect(parent.children.length).toBe(0);
-  });
-
-  it('hidden for an unsaved doc; click reloads', async () => {
-    const parent = document.createElement('div');
-    document.body.appendChild(parent);
-    const d = deps({ handle: null });
-    createPaneDiskBadge(d, parent);
-    const btn = parent.querySelector('.pmd-pane-reload-btn') as HTMLButtonElement;
-    expect(btn.hidden).toBe(true);
-    d.setHandle(A);
-    noteDocRegistered(A, 'fresh', 'dropbox'); // refreshes every pane badge
-    expect(btn.hidden).toBe(false);
-    btn.click();
-    await vi.waitFor(() => expect(d.reloadFromDisk).toHaveBeenCalledWith(A));
   });
 });

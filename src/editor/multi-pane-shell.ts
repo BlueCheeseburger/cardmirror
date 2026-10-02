@@ -3279,6 +3279,9 @@ class MultiPaneShell {
       showToast(`Reload failed: ${err instanceof Error ? err.message : String(err)}`);
       return;
     }
+    // The fresh record's outline starts at the default depth; carry over
+    // which headings were open.
+    const navState = record.navPanel.captureViewState();
     record.dirty = false; // discarding is the option's stated effect: close without prompting
     await slot.closeRecord(record);
     const fresh = buildDocRecord(file.name, parsed.doc, slot, {
@@ -3288,8 +3291,10 @@ class MultiPaneShell {
       threads: parsed.threads,
     });
     slot.push(fresh);
+    fresh.navPanel.restoreViewState(navState);
     this.focusSlot(slot);
     noteReloaded(file.handle);
+    showToast(`Reloaded “${file.name}” from disk.`);
   }
 
   /** A clean document follows the file when another device saves it (see

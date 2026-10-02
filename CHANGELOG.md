@@ -10,6 +10,21 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Changed
+
+- **Mod-Shift-X is now Strikethrough**, not the AI cite formatter, which is
+  unbound by default (Settings → Keyboard shortcuts to rebind it). If you'd
+  already set your own shortcut for either, it's untouched.
+- **The speech document marker is a microphone outline icon**, not the 🎤
+  emoji, in the pane title chip and in the Select Speech Document list.
+- **Reloading from disk shows a toast**, and the outline keeps the headings
+  you had open instead of folding back to the default depth.
+
+### Removed
+
+- **The reload button** (added in 1.13.0-bcb.4). Reload From Disk is the
+  Mod-R shortcut and the command bar only.
+
 ### Fixed
 
 - **Emoji no longer lean sideways in italic text** (undertags, italic
