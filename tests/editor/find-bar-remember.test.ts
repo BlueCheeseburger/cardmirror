@@ -69,3 +69,27 @@ describe('find bar: remember-last-query gating', () => {
     expect(input().value).toBe('mid-search');
   });
 });
+
+describe('find bar: trimmed in find mode', () => {
+  const toggle = (cls: string) => document.querySelector<HTMLElement>(`.${cls}`)!;
+  const root = () => document.querySelector<HTMLElement>('.pmd-find-bar')!;
+
+  it('marks the bar by mode so CSS can hide Whole word and Close in find mode', () => {
+    const { bar } = makeBar();
+    bar.open(OPEN);
+    expect(root().dataset['mode']).toBe('find');
+    expect(toggle('pmd-find-word')).toBeTruthy();
+    expect(toggle('pmd-find-close')).toBeTruthy();
+    bar.open({ mode: 'replace', sortMode: 'categorized' });
+    expect(root().dataset['mode']).toBe('replace');
+  });
+
+  it('clears Whole word when opening in find mode so a hidden toggle cannot filter', () => {
+    const { bar } = makeBar();
+    bar.open({ mode: 'replace', sortMode: 'categorized' });
+    const cb = document.querySelector<HTMLInputElement>('.pmd-find-word input')!;
+    cb.checked = true;
+    bar.open(OPEN);
+    expect(cb.checked).toBe(false);
+  });
+});
