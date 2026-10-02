@@ -30,7 +30,7 @@ import { quickCardSearchUI } from '../../src/editor/quick-card-search-ui.js';
 import { settings } from '../../src/editor/settings.js';
 
 function openPalette(docPath: string | null = null): void {
-  quickCardSearchUI.open({ view: null, paneEl: null, runCommand: () => {}, openFilePath: () => {}, docPath });
+  quickCardSearchUI.open({ view: null, runCommand: () => {}, openFilePath: () => {}, docPath });
 }
 const input = (): HTMLInputElement => document.querySelector<HTMLInputElement>('.pmd-qcs-input')!;
 function type(q: string): void {

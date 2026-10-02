@@ -1255,9 +1255,9 @@ export function applyEmphasis(): Command {
  * Emphasis and background color in one step (unbound by default): F10,
  * then the active background color over the same ranges, in one
  * transaction — one undo. F10 alone strips background, so pressing
- * Mod-F11 then F10 lost the background; this does it in the order that
+ * Mod-Shift-F11 then F10 lost the background; this does it in the order that
  * keeps both. Apply-only, like F10: repeating it re-applies rather than
- * toggling off. The background follows the Mod-F11 pen; with "No
+ * toggling off. The background follows the background-color pen; with "No
  * background" active, the text is left without one.
  */
 export function applyEmphasisAndShading(activeShading: () => string | null): Command {
@@ -2055,7 +2055,7 @@ export function applyHighlight(activeColor: () => string | null): Command {
 }
 
 /**
- * Mod-F11 — toggle Shading (background color, `<w:shd w:fill="…"/>`).
+ * Mod-Shift-F11 — toggle Shading (background color, `<w:shd w:fill="…"/>`).
  * Same toggle shape as F11. Shading is independent of highlight —
  * both can coexist on the same character. When both are present the
  * inner DOM wrapper (highlight, defined after shading in the schema)
@@ -4415,6 +4415,7 @@ export type RibbonCommandId =
   | 'applyEmphasisAndShading'
   | 'emphasizeAcronym'
   | 'applyHighlight'
+  | 'applyHighlightWhite'
   | 'highlightAcronym'
   | 'underlineAcronym'
   | 'applyShading'
@@ -4685,6 +4686,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'applyEmphasisAndShading',
   'emphasizeAcronym',
   'applyHighlight',
+  'applyHighlightWhite',
   'highlightAcronym',
   'underlineAcronym',
   'applyShading',
@@ -4902,10 +4904,11 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   applyEmphasis: 'Apply Emphasis Style',
   applyEmphasisAndShading: 'Emphasis + Background Color',
   emphasizeAcronym: 'Emphasize Acronym',
-  applyHighlight: 'Toggle Highlight',
+  applyHighlight: 'Highlight with Selected Color',
+  applyHighlightWhite: 'Highlight with White',
   highlightAcronym: 'Highlight Acronym',
   underlineAcronym: 'Underline Acronym',
-  applyShading: 'Toggle Background Color',
+  applyShading: 'Background Color',
   condenseDefault: 'Condense',
   condenseNoIntegrity: 'Condense Without Paragraph Integrity',
   condenseNoIntegrityWithPilcrows: 'Condense Without Paragraph Integrity (With Pilcrows)',
@@ -5173,6 +5176,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   toggleLink: ['add link', 'insert link', 'hyperlink', 'create link', 'remove link', 'unlink selection'],
   linkUrls: ['hyperlink urls', 'autolink', 'make links', 'add links', 'linkify'],
   resetDefaultColors: ['default colors', 'reset colors', 'reset swatches', 'reset highlight color', 'reset background color'],
+  applyHighlightWhite: ['white highlight', 'highlight white', 'erase highlight'],
   applyShading: ['shading', 'text highlight color'],
   applyEmphasisAndShading: ['emphasize and background', 'emphasis and shading', 'emphasis background', 'emphasize shade'],
   insertImage: ['add image', 'insert picture', 'photo'],
@@ -5308,7 +5312,9 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   moveContainerDown: 'Mod-Alt-ArrowDown',
   toggleBold: 'Mod-b',
   toggleItalic: 'Mod-i',
-  toggleStrikethrough: '',
+  // Mod-Shift-X was the AI cite creator's chord; strikethrough has it now
+  // (the AI command is unbound by default — rebind it in Settings).
+  toggleStrikethrough: 'Mod-Shift-x',
   toggleSuperscript: 'Mod-Shift-=',
   toggleSubscript: 'Mod-=',
   applyCite: 'F8',
@@ -5319,9 +5325,10 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   applyEmphasisAndShading: '',
   emphasizeAcronym: 'Alt-F10',
   applyHighlight: 'F11',
+  applyHighlightWhite: 'Mod-F11',
   highlightAcronym: 'Alt-F11',
   underlineAcronym: '',
-  applyShading: 'Mod-F11',
+  applyShading: 'Mod-Shift-F11',
   condenseDefault: 'F3',
   condenseNoIntegrity: 'Alt-F3',
   condenseNoIntegrityWithPilcrows: 'Mod-Alt-F3',
@@ -5365,7 +5372,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   addCommentToSelection: '',
   addNoteToSelection: 'Mod-Shift-n',
   aiAskAboutSelection: 'Mod-Shift-q',
-  aiCreateCite: 'Mod-Shift-x',
+  aiCreateCite: '',
   // Deliberately unbound: one model request per cite in the document is
   // far too expensive to sit behind a stray chord. Bind it in Settings →
   // Keyboard shortcuts if you want one.
@@ -6013,6 +6020,7 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
     case 'applyEmphasisAndShading': return applyEmphasisAndShading(ctx.shadingColor);
     case 'emphasizeAcronym': return emphasizeAcronym();
     case 'applyHighlight': return applyHighlight(ctx.highlightColor);
+    case 'applyHighlightWhite': return applyHighlight(() => 'white');
     case 'highlightAcronym': return highlightAcronym(ctx.highlightColor);
     case 'underlineAcronym': return underlineAcronym();
     case 'applyShading': return applyShading(ctx.shadingColor);

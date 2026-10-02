@@ -445,7 +445,6 @@ export function prewarmQuickCardFiles(): void {
 
 export interface QuickCardSearchOptions {
   view: EditorView | null;
-  paneEl: HTMLElement | null;
   /** Trigger a ribbon command by id (the palette's command source). */
   runCommand: (id: AnyCommandId) => void;
   /** Run a ribbon command against a scratch state instead of the live
@@ -1143,7 +1142,6 @@ class QuickCardSearchUI {
   private hintsEl!: HTMLDivElement;
   private unsubscribe: (() => void) | null = null;
   private view: EditorView | null = null;
-  private paneEl: HTMLElement | null = null;
   private runCommand: (id: AnyCommandId) => void = () => {};
   private runCommandOnState: ((id: AnyCommandId, state: EditorState) => EditorState | null) | null = null;
   private openFilePath: (path: string, name: string) => void = () => {};
@@ -1262,7 +1260,6 @@ class QuickCardSearchUI {
       return;
     }
     this.view = opts.view;
-    this.paneEl = opts.paneEl;
     this.runCommand = opts.runCommand;
     this.runCommandOnState = opts.runCommandOnState ?? null;
     this.openFilePath = opts.openFilePath;
@@ -1338,21 +1335,16 @@ class QuickCardSearchUI {
     });
   }
 
-  /** Center over the target pane at the full palette width — the same
-   *  width whether the window shows one doc or three panes (fork: the
-   *  bar used to shrink to fit its pane). Only the window can narrow it,
-   *  and the center shifts inward when needed so an edge pane's bar
-   *  stays fully on screen. Re-run on resize since panes reflow. */
+  /** Center over the WINDOW at the full palette width — in the three-pane
+   *  workspace it used to center over the focused pane, which put it off to
+   *  one side of the window. Only a narrow window can shrink it. Re-run on
+   *  resize. */
   private reposition(): void {
     if (!this.root) return;
-    const rect = this.paneEl?.getBoundingClientRect();
     const winW = window.innerWidth;
     const margin = 12;
     const width = Math.max(240, Math.min(PALETTE_WIDTH, winW - 2 * margin));
-    const wanted = rect && rect.width > 0 ? rect.left + rect.width / 2 : winW / 2;
-    const half = width / 2;
-    const centerX = Math.min(Math.max(wanted, margin + half), winW - margin - half);
-    this.root.style.left = `${Math.round(centerX)}px`;
+    this.root.style.left = `${Math.round(winW / 2)}px`;
     this.root.style.width = `${Math.round(width)}px`;
   }
 

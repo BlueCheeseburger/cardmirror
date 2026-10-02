@@ -612,7 +612,7 @@ function runRepairOnUnit(command: 'repairText' | 'repairFormatting'): void {
 }
 
 /** Repair cite: select the tapped card's cite paragraph and run the
- *  AI cite creator on it (the Mod-Shift-X command). A card with no
+ *  AI cite creator on it (the Format Cite command). A card with no
  *  cite paragraph falls back to the first non-undertag paragraph
  *  beneath the tag — imported/OCR'd cards often carry their citation
  *  as plain body text, which is exactly what the cite creator is

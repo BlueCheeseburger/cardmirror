@@ -19,8 +19,8 @@ import { quickCardSearchUI, searchOpenDocsSource } from '../../src/editor/quick-
 import { setLocalOpenDocsProvider, type OpenDocEntry } from '../../src/editor/open-docs.js';
 import { showToast } from '../../src/editor/toast.js';
 
-function openPalette(paneEl: HTMLElement | null = null): void {
-  quickCardSearchUI.open({ view: null, paneEl, runCommand: () => {}, openFilePath: () => {} });
+function openPalette(): void {
+  quickCardSearchUI.open({ view: null, runCommand: () => {}, openFilePath: () => {} });
 }
 
 function type(q: string): void {
@@ -168,17 +168,19 @@ describe('palette width', () => {
     document.body.innerHTML = '';
   });
 
-  it('stays full width over a narrow pane instead of shrinking to fit it', () => {
-    const pane = document.createElement('div');
-    document.body.appendChild(pane);
-    pane.getBoundingClientRect = () =>
-      ({ left: 0, width: 300, top: 0, height: 500, right: 300, bottom: 500, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+  it('is centered on the window at full width, wherever the focused pane is', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 });
-    openPalette(pane);
+    openPalette();
     const root = document.querySelector<HTMLElement>('.pmd-qcs')!;
     expect(root.style.width).toBe('540px');
-    // Centered over the pane (x=150) would push the bar off the left
-    // edge, so the center shifts inward: 12px margin + half of 540.
-    expect(root.style.left).toBe('282px');
+    expect(root.style.left).toBe('600px');
+  });
+
+  it('shrinks only when the window itself is narrower than the bar', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 400 });
+    openPalette();
+    const root = document.querySelector<HTMLElement>('.pmd-qcs')!;
+    expect(root.style.width).toBe('376px');
+    expect(root.style.left).toBe('200px');
   });
 });
