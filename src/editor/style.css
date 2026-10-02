@@ -3531,6 +3531,13 @@ code {
   contain-intrinsic-height: auto 40px;
 }
 
+/* Emoji inside italic text: emoji fonts have no italic face, so the browser
+   fakes one by skewing the glyph. Ask for the upright face (emoji-upright-
+   plugin.ts wraps each emoji in this span). */
+.pmd-emoji {
+  font-style: normal;
+}
+
 /* Undertag paragraph. Color is settings-driven (--pmd-color-undertag);
    italic / bold are gated on typography-flag classes on #editor. */
 .pmd-undertag {

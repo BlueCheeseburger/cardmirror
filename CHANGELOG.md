@@ -10,6 +10,11 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Fixed
+
+- **Emoji no longer lean sideways in italic text** (undertags, italic
+  runs). They stay upright.
+
 ### Changed
 
 - **Search Everything centers on the window**, not on the focused pane, in

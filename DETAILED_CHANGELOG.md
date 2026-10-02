@@ -12,6 +12,19 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: emoji skewed in italic text (`emoji-upright-plugin.ts`, `style.css`)
+
+Emoji fonts have no italic face, so the browser synthesizes one by skewing
+the glyph (an italic undertag turned a 😭 sideways). `emojiUprightPlugin`
+wraps each emoji in an inline decoration `.pmd-emoji { font-style: normal }`,
+so the upright face is used. Decoration only, nothing in the document. It
+scans the document once, then rebuilds only the textblocks a transaction
+touched (the rest map through); a 300-edit random test checks it never
+drifts from a fresh scan. The match is emoji-presentation characters, or a
+pictograph plus VS16, with ZWJ sequences and skin tones, so ©, ® and ™ keep
+their real italics. Not applied in the read-only version previews, which
+don't load the editor plugin list.
+
 ### Changed: Search Everything centers on the window (`quick-card-search-ui.ts`)
 
 `reposition()` centers on `window.innerWidth / 2` at `PALETTE_WIDTH`
