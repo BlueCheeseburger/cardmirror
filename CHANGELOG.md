@@ -12,6 +12,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 
+- **Mod-F11 highlights with white.** F11 still highlights in the selected
+  color. Background color moved from Mod-F11 to Mod-Shift-F11. All three
+  (Highlight with Selected Color, Highlight with White, Background Color)
+  can be rebound in Settings → Keyboard shortcuts.
 - **Mod-Shift-X is now Strikethrough**, not the AI cite formatter, which is
   unbound by default (Settings → Keyboard shortcuts to rebind it). If you'd
   already set your own shortcut for either, it's untouched.

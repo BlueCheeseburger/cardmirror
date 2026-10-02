@@ -4231,6 +4231,7 @@ body.pmd-override-shading [data-shading] {
 .pmd-highlight[data-highlight="darkYellow"]  { background: #808000; color: var(--pmd-c-band-fg-dark); }
 .pmd-highlight[data-highlight="darkGray"]    { background: #808080; color: var(--pmd-c-band-fg-dark); }
 .pmd-highlight[data-highlight="lightGray"]   { background: #c0c0c0; color: var(--pmd-c-band-fg-light); }
+.pmd-highlight[data-highlight="white"]       { background: #ffffff; color: var(--pmd-c-band-fg-light); }
 .pmd-highlight[data-highlight="black"]       { background: #000000; color: var(--pmd-c-band-fg-dark); }
 .pmd-highlight[data-highlight="none"]        { background: transparent; }
 

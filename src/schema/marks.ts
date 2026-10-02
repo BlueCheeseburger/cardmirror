@@ -69,6 +69,7 @@ export const HIGHLIGHT_BAND: Record<string, 'light' | 'dark' | 'none'> = {
   magenta: 'light',
   red: 'light',
   lightGray: 'light',
+  white: 'light',
   blue: 'dark',
   darkBlue: 'dark',
   darkCyan: 'dark',
