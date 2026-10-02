@@ -286,6 +286,7 @@ import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
 import { cardHighlightPlugin, cardHighlightAction, cardRangesForSelection } from './card-highlight-toggle.js';
+import { emojiUprightPlugin } from './emoji-upright-plugin.js';
 import { readerViewPlugin, applyReaderViewToTarget } from './reader-view.js';
 import { headingIdGuardPlugin } from './heading-id-guard.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
@@ -6233,6 +6234,9 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // Remembers what Unhighlight Card removed so Rehighlight Card can put it
     // back while the unhighlight is still undoable (card-highlight-toggle.ts).
     cardHighlightPlugin(),
+    // Emoji stay upright inside italic text instead of being skewed by the
+    // browser's synthesized italic (emoji-upright-plugin.ts).
+    emojiUprightPlugin(),
     // Swallow the browser's `dragstart` on the editor's content-
     // editable so the user can't initiate a text-move drag from a
     // selection. (Text drag-and-drop never worked reliably, so it's
