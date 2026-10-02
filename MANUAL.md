@@ -1039,8 +1039,11 @@ it off may help.
 
 ### Find and Find/Replace
 
-- **Find (Mod-F)** opens the find bar.
-- **Find and Replace (Mod-H)** adds a replace field.
+- **Find (Mod-F)** opens the find bar **(fork)**: the search box, Match case,
+  the selection-only toggle, previous/next, and the matches-in-context list.
+  There is no Whole word toggle or close button here; **Esc** closes it.
+- **Find and Replace (Mod-H)** adds a replace field, Replace and Replace All,
+  and keeps every control, including Whole word and the close button.
 - **Find without category grouping (Alt-F)** orders matches by position
   rather than grouping them by structural type.
 
@@ -2803,6 +2806,14 @@ same way and clicking the chip restarts straight into the new version;
 if your install can't be updated in place (for example the app isn't in
 a writable location), the chip opens the releases page instead so you
 can grab the new `.dmg`.
+
+**(fork) What's new after an update.** The first time you open a new
+version, a **What's new** pop-up shows that version's release notes, the same
+text as its page on GitHub. **Got it** (or Enter or Esc) closes it, **View on
+GitHub** opens the release page, and links inside open in your browser. It
+shows once per version. It needs a connection to fetch the notes: offline,
+nothing appears and it tries again at the next launch. A fresh install doesn't
+show one, and the Lite build and the web edition never do.
 
 **(fork) Plugins update the same way.** Every time CardMirror checks
 itself for updates (at launch, then hourly while the app is in the

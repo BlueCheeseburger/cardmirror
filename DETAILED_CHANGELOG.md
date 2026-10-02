@@ -10,6 +10,39 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: What's new pop-up (`whats-new.ts`, `index.ts`, `style.css`)
+
+`maybeShowWhatsNew` runs from `startUpdateChecks`' first-window block (desktop,
+not Lite). The last-seen version lives in `localStorage` under
+`cm-whats-new-last-version`, outside the settings blob, so every window shares
+it. `decideWhatsNew`: same version -> nothing; no marker and no settings blob at
+module load (a fresh install) -> record only; otherwise show. Notes come from
+`api.github.com/.../releases/tags/v<version>` (8 s timeout); an empty body or a
+failed request shows nothing and leaves the marker alone so a later launch
+retries. The marker is written before the dialog opens so a second window can't
+stack another. `renderReleaseNotes` renders the markdown subset release notes
+use (headings, bullets with continuation lines, bold, code, http(s) links)
+through `createElement`/`textContent` only. The dialog reuses the confirm
+dialog's modal wiring (`pushOverlay`, `installModalKeys`); links and **View on
+GitHub** go through `openExternal`.
+
+### Fixed: reload dropped the speech-document marker (`multi-pane-shell.ts`, `index.ts`)
+
+`reloadFromDisk` closes the old record (which clears the speech designation
+and unregisters its uid) and builds a fresh one. Both paths now capture
+`isSpeechByUid` before the close/mount and mark the fresh view/uid afterward.
+In one-document mode the mount also assigns a new uid, so the old designation
+was left pointing at a uid that no longer existed.
+
+### Changed: plain find bar drops Whole word and Close (`find-replace-ui.ts`, `style.css`)
+
+`FindReplaceBar.open()` stamps `data-mode` on the bar root; in `find` mode CSS
+hides `.pmd-find-word` and `.pmd-find-close`, and Whole word is cleared on open
+so a hidden toggle can't keep filtering. `replace` mode (Mod-H) shows both.
+Replace behavior is untouched: an empty replacement still deletes the match.
+
 ## 1.13.0-bcb.5 — 2026-10-02
 
 ### Changed: Mod-F11 is "Highlight with White" (`ribbon-commands.ts`, `marks.ts`, `style.css`)

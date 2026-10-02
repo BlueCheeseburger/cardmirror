@@ -8,6 +8,26 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+
+- **A What's new pop-up after an update.** The first time you open a new
+  version, a dialog shows that version's release notes, the same text as its
+  GitHub release page. It shows once per version; offline it just tries again
+  next launch.
+
+### Fixed
+
+- **Reloading a document keeps it the speech document.** Reload From Disk
+  (Mod-R) used to drop the speech-document marker.
+
+### Changed
+
+- **The plain find bar (Mod-F) is trimmed down.** The Whole word toggle and the
+  close button are gone from it; Esc still closes it. Find and Replace (Mod-H)
+  is unchanged and keeps every control.
+
 ## 1.13.0-bcb.5 — 2026-10-02
 
 ### Changed
