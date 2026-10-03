@@ -39,6 +39,12 @@ see `DETAILED_CHANGELOG.md`.
   pasted, as with an ordinary cut and paste. Other text still pastes
   without removing anything. Thanks to Cora (@coralynnkc)!
 
+- **Save As fits a short or narrow window.** The dialog used to run off
+  the top and bottom of a short window, leaving the close button, Cancel
+  and the lower options out of reach. It now stays inside the window and
+  scrolls, and the one-click save buttons reflow instead of spilling
+  sideways when the window is narrow. Thanks to Deniz (@dbuldum4)!
+
 ## 1.13.0 — 2026-09-25
 
 ### Added
