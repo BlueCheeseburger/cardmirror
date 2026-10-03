@@ -52,6 +52,7 @@ import {
   applyNumberingSeparator,
 } from './settings.js';
 import { CATEGORY_TABS, visibleCategoryTabs, type SettingsTarget } from './settings-categories.js';
+import { compileSettingsQuery } from './settings-search.js';
 import { generateGroupId, normalizePairingCode } from './pairing/pairing-ids.js';
 import { inboxStore, recentSenders } from './pairing/inbox-store.js';
 import { regenerateOwnCode } from './pairing/pairing-wiring.js';
@@ -287,6 +288,69 @@ function scrollTabIntoView(tab: HTMLElement, container: HTMLElement): void {
 // settings-categories.ts so the command palette (main chunk) can use
 // them without pulling this lazily-loaded module in with them.
 
+const METADATA_BY_KEY = new Map<string, SettingMeta>(SETTING_METADATA.map((m) => [m.key, m]));
+
+/** Hide the children of one settings panel that don't match a search, and
+ *  the section headings left with nothing under them. Setting rows match on
+ *  their label / section / aliases (same fields as the command palette's
+ *  settings search); the non-setting blocks (About this install, Back up
+ *  settings, …) match on their headings. Every item also matches on its tab
+ *  name, so "appearance" lists that whole tab. Returns whether anything in
+ *  the panel matched, and shows / hides the panel to match. */
+function filterPanelForSearch(
+  panel: HTMLElement,
+  matches: (haystack: string) => boolean,
+): boolean {
+  const tabLabel = panel.dataset['tabLabel'] ?? '';
+  let anyVisible = false;
+  let sectionTitle: HTMLElement | null = null;
+  let sectionHasMatch = false;
+  const closeSection = (): void => {
+    sectionTitle?.classList.toggle('pmd-settings-search-miss', !sectionHasMatch);
+  };
+  for (const child of Array.from(panel.children) as HTMLElement[]) {
+    if (child.classList.contains('pmd-settings-search-category')) continue;
+    if (child.classList.contains('pmd-settings-section-title')) {
+      closeSection();
+      sectionTitle = child;
+      sectionHasMatch = false;
+      continue;
+    }
+    let haystack: string;
+    const meta = child.dataset['settingKey']
+      ? METADATA_BY_KEY.get(child.dataset['settingKey'])
+      : undefined;
+    if (meta) {
+      haystack = [meta.label, meta.section ?? '', ...(meta.aliases ?? []), tabLabel].join(' ');
+    } else if (child.classList.contains('pmd-settings-empty')) {
+      haystack = ''; // "No settings in this section yet." — never a result
+    } else {
+      // A block that carries its own heading (About this install,
+      // Performance benchmark, Crash dumps) is its own section, not a
+      // member of whichever setting section happens to precede it.
+      if (child.querySelector('.pmd-settings-section-title, .pmd-install-info-heading')) {
+        closeSection();
+        sectionTitle = null;
+        sectionHasMatch = false;
+      }
+      const titles = child.querySelectorAll(
+        '.pmd-settings-section-title, .pmd-settings-row-title, .pmd-install-info-heading',
+      );
+      const titleText = Array.from(titles, (t) => t.textContent ?? '').join(' ');
+      haystack = `${titleText || child.textContent || ''} ${tabLabel}`;
+    }
+    const hit = haystack !== '' && matches(haystack);
+    child.classList.toggle('pmd-settings-search-miss', !hit);
+    if (hit) {
+      sectionHasMatch = true;
+      anyVisible = true;
+    }
+  }
+  closeSection();
+  panel.hidden = !anyVisible;
+  return anyVisible;
+}
+
 /** The settings dialog. `open()` takes a deep-link target: a tab to
  *  activate and optionally a setting row — or a named non-setting
  *  section (e.g. "About this install") via its `data-anchor` — to
@@ -320,6 +384,8 @@ class SettingsModal {
    *  scroll-arrow buttons when the tabs overflow horizontally.
    *  Disconnected on close() and on each new render(). */
   private tabsResizeObserver: ResizeObserver | null = null;
+  /** Header search box; rebuilt (and so cleared) by each render(). */
+  private searchInput: HTMLInputElement | null = null;
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -351,13 +417,29 @@ class SettingsModal {
       // AI cite-prompt editor) is stacked on top.
       this.removeModalKeys = installModalKeys(this.dialog, token, (e) => {
         if (e.key === 'Escape') {
+          // First Escape clears an active search; the next one closes.
+          if (this.searchInput?.value) {
+            this.searchInput.value = '';
+            this.applySearch('');
+            this.searchInput.focus();
+            return true;
+          }
           this.close();
+          return true;
+        }
+        if (e.key === 'f' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+          this.searchInput?.focus();
+          this.searchInput?.select();
           return true;
         }
         return false;
       });
     }
     armDialogFocus(this.dialog, 'dialog', 'Settings');
+    // A plain open lands in the search box so the user can just type; a
+    // deep-link open keeps focus on the dialog so the target row is what
+    // they're looking at.
+    if (!target) this.searchInput?.focus();
     // Subscribe so toggling any "parent" setting (AI master switch,
     // multi-doc, etc.) greys / un-greys the dependent rows live
     // without needing a re-open.
@@ -447,12 +529,28 @@ class SettingsModal {
     // is replaced.
     flushRowCleanups();
     this.dialog.innerHTML = '';
+    // The dialog element outlives a render (it is reused across opens) but
+    // the search box does not: a rebuild starts with an empty query, so the
+    // searching layout (tab strip hidden, per-tab headings shown) must go
+    // with it. Left on, closing mid-search and reopening showed one tab
+    // with no tab strip.
+    this.dialog.classList.remove('pmd-settings-searching');
 
     const header = document.createElement('header');
     header.className = 'pmd-settings-header';
     const title = document.createElement('h2');
     title.textContent = 'Settings';
     header.appendChild(title);
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'pmd-settings-search';
+    search.placeholder = 'Search settings';
+    search.setAttribute('aria-label', 'Search settings');
+    search.spellcheck = false;
+    search.autocomplete = 'off';
+    search.addEventListener('input', () => this.applySearch(search.value));
+    header.appendChild(search);
+    this.searchInput = search;
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'pmd-settings-close';
@@ -538,10 +636,17 @@ class SettingsModal {
     // refreshDependents pass can find rows under inactive tabs too.
     this.dependentRows = [];
     const panels: Partial<Record<SettingsCategory, HTMLDivElement>> = {};
-    for (const { id } of visibleCategoryTabs()) {
+    for (const { id, label: tabLabel } of visibleCategoryTabs()) {
       const panel = document.createElement('div');
       panel.className = 'pmd-settings-list pmd-settings-panel';
       panel.setAttribute('role', 'tabpanel');
+      panel.dataset['tabLabel'] = tabLabel;
+      // Tab name above this panel's matches while searching (CSS keeps it
+      // hidden otherwise — the tab strip already says which tab you're on).
+      const searchHeading = document.createElement('h3');
+      searchHeading.className = 'pmd-settings-search-category';
+      searchHeading.textContent = tabLabel;
+      panel.appendChild(searchHeading);
       const hostKind = getHost().kind;
       const entries = SETTING_METADATA.filter(
         (m) =>
@@ -625,6 +730,12 @@ class SettingsModal {
       panels[id] = panel;
     }
 
+    const searchEmpty = document.createElement('p');
+    searchEmpty.className = 'pmd-settings-empty pmd-settings-search-empty';
+    searchEmpty.textContent = 'No settings match your search.';
+    searchEmpty.hidden = true;
+    this.dialog.appendChild(searchEmpty);
+
     // Wire tab selection logic.
     const applyActive = (): void => {
       for (const { id } of visibleCategoryTabs()) {
@@ -649,7 +760,32 @@ class SettingsModal {
       applyActive();
     };
     applyActive();
+
+    this.applySearch = (query: string) => {
+      const searching = query.trim().length > 0;
+      this.dialog.classList.toggle('pmd-settings-searching', searching);
+      if (!searching) {
+        for (const el of this.dialog.querySelectorAll('.pmd-settings-search-miss')) {
+          el.classList.remove('pmd-settings-search-miss');
+        }
+        searchEmpty.hidden = true;
+        applyActive();
+        return;
+      }
+      const matches = compileSettingsQuery(query);
+      let anyPanel = false;
+      for (const { id } of visibleCategoryTabs()) {
+        const panel = panels[id];
+        if (panel) anyPanel = filterPanelForSearch(panel, matches) || anyPanel;
+      }
+      searchEmpty.hidden = anyPanel;
+    };
   }
+
+  /** Filter the dialog to rows matching `query` across every tab (blank
+   *  restores the normal tabbed view). Reassigned each `render()` to close
+   *  over the just-built panels. */
+  private applySearch: (query: string) => void = () => {};
 
   /** Export / Import settings — pinned at the bottom of General. */
   private buildSettingsBackupSection(): HTMLElement {

@@ -9,6 +9,13 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **Search in Settings.** A search box at the top of Settings filters
+  every tab at once: type a few words and the matching settings from all
+  tabs are listed together under their tab names. It knows common
+  synonyms ("toolbar" finds the ribbon settings, "hotkey" finds
+  Keyboard). Esc clears the search, and Esc again closes Settings. Thanks
+  to Brian (@brian-cai)!
+
 - **File search: folder priority.** Two new lists under Settings →
   Files → File search tell file search which folders matter most.
   Matches from a **Highest priority** folder always list first. Matches
