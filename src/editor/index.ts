@@ -371,6 +371,7 @@ import { captureCleanToken } from './save-clean-token.js';
 import { wireWebEditionHeaderButtons } from './web-download.js';
 import { computeSelectionChrome, type SelectionChrome } from './selection-chrome.js';
 import { formatSpeechFilename } from './speech-filename.js';
+import { isBackdropClick } from './backdrop-click.js';
 
 // Install the last-resort error hooks before ANY app wiring — an exception
 // during boot or in a fire-and-forget flow must never be invisible again.
@@ -2563,7 +2564,7 @@ function confirmNewDocOverwrite(): Promise<'save' | 'discard' | 'cancel'> {
     overlay.appendChild(dialog);
     // Click outside the dialog box → cancel.
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) { cleanup(); resolve('cancel'); }
+      if (isBackdropClick(e, overlay)) { cleanup(); resolve('cancel'); }
     });
     // Capture-phase + swallow (see installModalKeys): this dialog is
     // bound to Mod-N, so it always opens over a FOCUSED editor — a
@@ -9665,7 +9666,7 @@ export function confirmCloseUnsaved(): Promise<'save' | 'saveAs' | 'discard' | '
 
     overlay.appendChild(dialog);
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) {
+      if (isBackdropClick(e, overlay)) {
         cleanup();
         resolve('cancel');
       }

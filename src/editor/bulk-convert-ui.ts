@@ -18,6 +18,7 @@ import { getHost, getElectronHost } from './host/index.js';
 import { settings } from './settings.js';
 import { runWebFileTool } from './web-file-tools.js';
 import { setIcon } from './icons';
+import { isBackdropClick } from './backdrop-click.js';
 
 type Direction = 'docx2cmir' | 'cmir2docx';
 type Output = 'files' | 'zip';
@@ -84,7 +85,7 @@ class BulkConvertModal {
     this.dialog.className = 'pmd-bulk-dialog';
     this.overlay.appendChild(this.dialog);
     this.overlay.addEventListener('click', (e) => {
-      if (e.target === this.overlay) this.close();
+      if (isBackdropClick(e, this.overlay)) this.close();
     });
     document.addEventListener('keydown', this.onKey, true);
     this.render();
