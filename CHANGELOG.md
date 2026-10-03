@@ -14,7 +14,8 @@ see `DETAILED_CHANGELOG.md`.
   can get back into: ones you have a saved copy of, and ones you left in
   the last week. Click one to rejoin. Pasting a code works as before,
   with no extra click. Sessions that have ended drop off the list, and a
-  session you left has a ✕ to forget it. To make this possible the app
+  session you left has a ✕ to forget it. The command is now named
+  **Join or Rejoin Collaboration Session** (searching "rejoin" finds it). To make this possible the app
   now remembers a left session's share code on your device for up to 7
   days (see the privacy policy). Thanks to Brian (@brian-cai)!
 

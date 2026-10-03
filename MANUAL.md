@@ -1453,7 +1453,7 @@ edition's mobile layout has neither.
 3. To cooperate just once, run the **Start Collaboration Session** command from
    the command bar. This will copy a document code to your clipboard. Anyone you
    share this code with will be able to collaborate on your document by running the
-   **Join Collaboration Session** command and pasting the code. 
+   **Join or Rejoin Collaboration Session** command and pasting the code. 
 4. Optional, all in the same settings section:
    - **Groups** — a named set of recipients; sending to a group sends to
      every member. The **↑ / ↓** arrows reorder recipients and groups, and
@@ -1564,7 +1564,7 @@ Inviting requires the person's code in *your* Recipients list.
 **Collaboration** group, or the command bar). It confirms which document
 you're sharing, then copies a **share code** to the clipboard — send it
 however you like (**Copy Session Share Code** re-copies it). The other
-person runs **Join Collaboration Session** and pastes it. The shared
+person runs **Join or Rejoin Collaboration Session** and pastes it. The shared
 document opens in a new window — in three-pane, you pick which pane.
 
 **Interruptions:** joiners past the 10-person cap get a "session is full"
@@ -1589,7 +1589,7 @@ the session (rejoin later from the Sessions list) or end/leave it now. The
 ✕ on a home-screen Sessions row: as host, asks whether to end for everyone
 or just forget your copy; as guest, forgets your copy.
 
-**Rejoining:** **Join Collaboration Session** (or **Join session** on the
+**Rejoining:** **Join or Rejoin Collaboration Session** (or **Join session** on the
 Receive pill) opens with a box for a share code or invite link, ready to
 paste into: paste and press Enter to join a new session. Below it are the
 sessions you can get back into: saved copies (the same ones as the home
@@ -1618,7 +1618,7 @@ differences:
   code; on any edition, **Copy Session Invite Link** produces one for
   the current session. Opening the link in a desktop-layout browser
   offers the join directly — no account, no setup; pasting it into the
-  **Join Collaboration Session** dialog works too, so a Chromebook with
+  **Join or Rejoin Collaboration Session** dialog works too, so a Chromebook with
   the app already open can join from a link received in a chat. Treat
   the link like the document itself: it carries the session's
   encryption key, and anyone holding it can join. A guest who closes

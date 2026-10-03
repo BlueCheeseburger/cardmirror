@@ -104,7 +104,7 @@ export function pickSessionToJoin(candidates: RejoinCandidate[]): Promise<Rejoin
 
     const header = document.createElement('div');
     header.className = 'pmd-route-header';
-    header.textContent = 'Join a session';
+    header.textContent = 'Join or rejoin a session';
     dialog.appendChild(header);
 
     let settled = false;
@@ -244,7 +244,7 @@ export function pickSessionToJoin(candidates: RejoinCandidate[]): Promise<Rejoin
       return false;
     });
     document.body.appendChild(overlay);
-    armDialogFocus(dialog, 'dialog', 'Join a session');
+    armDialogFocus(dialog, 'dialog', 'Join or rejoin a session');
     // The box takes focus: paste, Enter. (After the dialog's own focus, as
     // the text prompt does.)
     setTimeout(() => input.focus(), 0);

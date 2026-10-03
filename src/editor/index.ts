@@ -1476,7 +1476,7 @@ setCollabSessionStarter(() => {
   void loadCollabUi().then((m) => m.startSessionFlow(collabDeps));
 });
 // The Receive pill's Join button — same flow (and same deps choice) as
-// the Join Collaboration Session command: multi-pane joins into a
+// the Join or Rejoin Collaboration Session command: multi-pane joins into a
 // user-picked slot; single-pane in place.
 setCollabSessionJoinPrompt(() => {
   void loadCollabUi().then((m) =>
