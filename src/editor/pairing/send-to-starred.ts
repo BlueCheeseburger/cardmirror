@@ -7,10 +7,11 @@
 
 import type { EditorView } from 'prosemirror-view';
 import { settings, type PairingPartner, type PairingGroup } from '../settings.js';
-import { takeSendSlice } from '../speech-doc-send.js';
+import { takeSendPieces } from '../speech-doc-send.js';
+import { bundleSendItems } from './send-bundle.js';
 import { deriveDropzoneLabel } from '../dropzone-store.js';
 import { showToast } from '../toast.js';
-import { relayClient, sendOutcomeToast, type SendItem } from './relay-client.js';
+import { relayClient, sendOutcomeToast, type SendResult } from './relay-client.js';
 
 /** Resolve the starred ref → recipient codes + a display label (groups also
  *  carry a `via` label). Returns null when nothing is starred or the starred
@@ -64,14 +65,22 @@ export async function sendViewTo(
     showToast(emptyGroupMessage);
     return;
   }
-  const slice = takeSendSlice(view);
-  if (!slice) return;
-  const type = slice.content.firstChild?.type.name || 'text';
-  const item: SendItem = {
-    label: deriveDropzoneLabel(slice, type),
-    type,
-    sliceJson: slice.toJSON(),
-  };
-  const res = await relayClient.send(target.codes, item, { via: target.via });
+  const pieces = takeSendPieces(view);
+  if (!pieces || pieces.length === 0) return;
+  // Several pieces (scattered headings, a run of cards) travel as one
+  // bundle labelled "First + N more", exactly as a multi-item drag onto
+  // the Send pill does. A send with an open text fragment can't bundle and
+  // goes per item.
+  const items = bundleSendItems(
+    pieces.map((slice) => {
+      const type = slice.content.firstChild?.type.name || 'text';
+      return { slice, type, label: deriveDropzoneLabel(slice, type) };
+    }),
+  );
+  let res: SendResult = { ok: 0, fail: 0, authFail: 0 };
+  for (const item of items) {
+    const r = await relayClient.send(target.codes, item, { via: target.via });
+    res = { ok: res.ok + r.ok, fail: res.fail + r.fail, authFail: res.authFail + r.authFail };
+  }
   showToast(sendOutcomeToast(target.label, res));
 }

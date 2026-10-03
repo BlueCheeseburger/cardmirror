@@ -43,6 +43,7 @@ import {
 import {
   sendToSpeech as runSendToSpeech,
   takeSendSlice,
+  takeSendPieces,
   resolveCursorStructureRange,
   buildDeleteStructureTr,
   installIncomingSpeechSliceHandler,
@@ -628,17 +629,21 @@ function runSingleDocSendToSpeech(sourceView: EditorView, atEnd: boolean): void 
  *  nav-pane bubble updates immediately. Exported for the multi-
  *  pane shell, which calls this with its focused-slot view. */
 export async function sendViewToDropzone(sourceView: EditorView): Promise<void> {
-  const slice = takeSendSlice(sourceView);
-  if (!slice) return;
-  const first = slice.content.firstChild;
-  const type = first ? first.type.name : 'text';
-  await dropzoneStore.add({
-    id: `dz-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    label: deriveDropzoneLabel(slice, type),
-    type,
-    sliceJson: slice.toJSON(),
-    createdAt: Date.now(),
-  });
+  // One shelf row per piece (each heading with its section, each loose
+  // card), matching what dragging the same headings onto the shelf does.
+  const pieces = takeSendPieces(sourceView);
+  if (!pieces) return;
+  for (const slice of pieces) {
+    const first = slice.content.firstChild;
+    const type = first ? first.type.name : 'text';
+    await dropzoneStore.add({
+      id: `dz-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      label: deriveDropzoneLabel(slice, type),
+      type,
+      sliceJson: slice.toJSON(),
+      createdAt: Date.now(),
+    });
+  }
 }
 
 /** Text of the smallest heading enclosing the selection — the nearest

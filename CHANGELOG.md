@@ -45,6 +45,13 @@ see `DETAILED_CHANGELOG.md`.
   scrolls, and the one-click save buttons reflow instead of spilling
   sideways when the window is narrow. Thanks to Deniz (@dbuldum4)!
 
+- **Sending several sections at once is labelled consistently.** Send to
+  Dropzone with several headings selected now shelves one row per
+  heading, the same as dragging them onto the shelf. Send to Starred or
+  to a recipient labels the delivery "First heading + N more", the same
+  as dragging them onto the Send pill. Both used to show only the first
+  heading's name, as if a single section had been sent.
+
 ## 1.13.0 — 2026-09-25
 
 ### Added
