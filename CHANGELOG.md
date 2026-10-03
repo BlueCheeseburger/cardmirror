@@ -9,6 +9,15 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **Save As in the ribbon, and Save As PDF.** The ribbon has a Save As
+  button next to Save. Save As has a third format, PDF: a print-ready
+  copy with your highlighting, shading and card numbers, and without
+  comments. Every preset (As-Is, Send Doc, Read Doc, Marked Doc, Custom)
+  works with it. Footnotes and endnotes print with their numbers, and the
+  notes are listed at the end. A PDF is always a separate copy, so your
+  document stays open and is not marked saved. On the web, PDF opens the
+  browser's print dialog. Thanks to Brian (@brian-cai)!
+
 - **Search in Settings.** A search box at the top of Settings filters
   every tab at once: type a few words and the matching settings from all
   tabs are listed together under their tab names. It knows common

@@ -93,6 +93,7 @@ import {
 } from './read-scope.js';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { gzip as zlibGzip, gunzip as zlibGunzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import {
@@ -736,6 +737,83 @@ ipcMain.handle('host:open-journals-folder', async () => {
  *  (Mod-m default) and the macOS Window-menu Minimize item. */
 ipcMain.handle('host:minimize-window', (event) => {
   ownerWindow(event.sender)?.minimize();
+});
+
+/** Save As → PDF: render a self-contained HTML page (built by the
+ *  renderer from the export doc, styles inlined) in a hidden window and
+ *  print it to PDF bytes. The page is the user's own document, but it
+ *  still loads with JavaScript off and navigation / pop-ups blocked. It
+ *  goes through a temp file rather than a data: URL, which caps out on
+ *  long docs. Backgrounds print, so highlights and shading survive. */
+let pdfExportSeq = 0;
+/** Hidden windows rendering a PDF right now. They are not document
+ *  windows: the window list, the mode switch and the last-window logic
+ *  skip them (see `isAuxWindow`). */
+const pdfExportWindows = new Set<BrowserWindow>();
+/** The only file each export window may load: its own temp page. */
+const pdfExportAllowedUrls = new Set<string>();
+/** A generous ceiling on the page handed to the hidden window (images are
+ *  inline data: URIs, so real documents can be large). */
+const PDF_EXPORT_MAX_HTML_BYTES = 256 * 1024 * 1024;
+let pdfExportSession: Electron.Session | null = null;
+/** The export windows' own in-memory session, with every request refused
+ *  except the temp page itself and inline data: content. JavaScript is off
+ *  in the window, but an `<iframe src="file:///…">` or a remote image in
+ *  the page would still LOAD, and the renderer supplies the page: without
+ *  this a compromised renderer could read any local file back as PDF
+ *  bytes, past the read-scope check every other read handler applies. */
+function getPdfExportSession(): Electron.Session {
+  if (pdfExportSession) return pdfExportSession;
+  const ses = session.fromPartition('cm-pdf-export');
+  ses.webRequest.onBeforeRequest((details, callback) => {
+    const ok = pdfExportAllowedUrls.has(details.url) || details.url.startsWith('data:');
+    callback({ cancel: !ok });
+  });
+  ses.setPermissionRequestHandler((_wc, _permission, cb) => cb(false));
+  pdfExportSession = ses;
+  return ses;
+}
+ipcMain.handle('host:html-to-pdf', async (_event, html: unknown) => {
+  if (typeof html !== 'string') throw new Error('html-to-pdf: expected an HTML string');
+  if (Buffer.byteLength(html, 'utf8') > PDF_EXPORT_MAX_HTML_BYTES) {
+    throw new Error('html-to-pdf: document too large to export');
+  }
+  const tmp = path.join(
+    app.getPath('temp'),
+    `cardmirror-pdf-${process.pid}-${Date.now()}-${++pdfExportSeq}.html`,
+  );
+  const tmpUrl = pathToFileURL(tmp).href;
+  await fs.writeFile(tmp, html, 'utf8');
+  const win = new BrowserWindow({
+    show: false,
+    width: 816, // US Letter at 96 dpi — only affects layout before printing
+    height: 1056,
+    webPreferences: {
+      javascript: false,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      session: getPdfExportSession(),
+    },
+  });
+  pdfExportWindows.add(win);
+  pdfExportAllowedUrls.add(tmpUrl);
+  win.webContents.on('will-navigate', (e) => e.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  try {
+    await win.loadURL(tmpUrl);
+    const pdf = await win.webContents.printToPDF({
+      printBackground: true,
+      pageSize: 'Letter',
+      margins: { top: 0.75, bottom: 0.75, left: 0.75, right: 0.75 },
+    });
+    return new Uint8Array(pdf);
+  } finally {
+    pdfExportWindows.delete(win);
+    pdfExportAllowedUrls.delete(tmpUrl);
+    if (!win.isDestroyed()) win.destroy();
+    await fs.unlink(tmp).catch(() => {});
+  }
 });
 
 // Renderer accessibility tree toggle (see the `--disable-renderer-accessibility`
@@ -2123,8 +2201,10 @@ ipcMain.handle('host:journal-and-close-other-windows', async (event) => {
   // whose surviving window never collected them.
   modeSwitchJournaledDocs = [];
   try {
+  // Not the hidden PDF-export window: it never answers the close request,
+  // so the wait would time out and destroy it mid-export.
   const others = BrowserWindow.getAllWindows().filter(
-    (w) => w !== sender && !w.isDestroyed(),
+    (w) => w !== sender && !w.isDestroyed() && !pdfExportWindows.has(w),
   );
   await Promise.all(
     others.map(
@@ -2375,7 +2455,7 @@ ipcMain.handle('host:list-windows', async (event) => {
     return i === -1 ? Number.MAX_SAFE_INTEGER : i;
   };
   return BrowserWindow.getAllWindows()
-    .filter((w) => !w.isDestroyed() && !isTimerWindow(w))
+    .filter((w) => !w.isDestroyed() && !isAuxWindow(w))
     .sort((a, b) => rank(a.id) - rank(b.id))
     .map((w) => ({
       windowId: w.id,
@@ -2798,7 +2878,7 @@ app.on('browser-window-created', (_event, win) => {
     // count — it's chrome, not a document window, and it closes
     // itself right after the last doc window anyway.
     const remaining = BrowserWindow.getAllWindows().filter(
-      (w) => !w.isDestroyed() && !isTimerWindow(w),
+      (w) => !w.isDestroyed() && !isAuxWindow(w),
     );
     if (remaining.length === 0) {
       firstWindowId = null;
@@ -3154,7 +3234,7 @@ function dialogParentWindow(): BrowserWindow | null {
   // document window even when the float happens to hold focus.
   const focused = BrowserWindow.getFocusedWindow();
   if (focused && !isTimerWindow(focused)) return focused;
-  return BrowserWindow.getAllWindows().find((w) => !isTimerWindow(w)) ?? null;
+  return BrowserWindow.getAllWindows().find((w) => !isAuxWindow(w)) ?? null;
 }
 
 /** Re-entrancy guard. A single in-flight check guards the manual
@@ -3341,6 +3421,13 @@ function isTimerWindow(w: BrowserWindow): boolean {
   return timerWindow !== null && w === timerWindow;
 }
 
+/** Chrome, not a document: the pop-out timer and a hidden PDF-export
+ *  window. Anything that counts, lists or closes document windows skips
+ *  these. */
+function isAuxWindow(w: BrowserWindow): boolean {
+  return isTimerWindow(w) || pdfExportWindows.has(w);
+}
+
 /** Arrange Windows (Verbatim's Window Arranger): the speech doc's window
  *  takes one side of the invoking window's display, every other
  *  CardMirror window the other side — all of them the same rectangle,
@@ -3353,7 +3440,7 @@ function isTimerWindow(w: BrowserWindow): boolean {
 ipcMain.handle('host:arrange-windows', async (event, opts: ArrangeOptions) => {
   const sender = BrowserWindow.fromWebContents(event.sender);
   if (!sender || sender.isDestroyed()) return { speechFound: false, arranged: 0 };
-  const windows = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !isTimerWindow(w));
+  const windows = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !isAuxWindow(w));
   let speechWindowId: number | null = speechRegistration?.windowId ?? null;
   if (speechWindowId === null) {
     for (const [uid, windowId] of docOwners.entries()) {
@@ -3392,7 +3479,7 @@ ipcMain.handle('host:arrange-windows', async (event, opts: ArrangeOptions) => {
 function closeTimerWindowIfOrphaned(): void {
   if (!timerWindow || timerWindow.isDestroyed()) return;
   const others = BrowserWindow.getAllWindows().filter(
-    (w) => !w.isDestroyed() && !isTimerWindow(w),
+    (w) => !w.isDestroyed() && !isAuxWindow(w),
   );
   if (others.length === 0) timerWindow.close();
 }
