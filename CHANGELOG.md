@@ -27,6 +27,12 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **Selecting text in a dialog no longer closes it.** Dragging to select
+  text in a dialog's field and letting go past the dialog's edge (for
+  example the relay address in Settings) used to count as a click outside
+  and close the dialog. A dialog now closes only when the click both
+  starts and ends outside it. Thanks to Brian (@brian-cai)!
+
 - **Undo in a co-editing session no longer gets stuck.** If you added a
   card or pressed Enter in a tag, and a partner then edited that card,
   Ctrl+Z used to stop there for good: every press was refused and nothing
