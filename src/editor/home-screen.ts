@@ -43,6 +43,7 @@ import { collabEnabled } from './collab/collab-gate.js';
 import {
   listSessionRecords,
   deleteSessionRecord,
+  deleteRecentRoom,
   subscribeSessionRecords,
   type PersistedSessionRecord,
 } from './collab/collab-store.js';
@@ -573,7 +574,10 @@ class HomeScreen {
       // Participant: purely local — abandoning your copy leaves the room (and
       // everyone in it) untouched.
       if (record.role !== 'host') {
+        // Forget means forget: the remembered room key goes too, or the
+        // session would reappear under "left" in the Join list.
         void deleteSessionRecord(record.roomId);
+        void deleteRecentRoom(record.roomId).catch(() => {});
         return;
       }
       // Host: X should be able to actually END the session. Just deleting the
@@ -610,9 +614,14 @@ class HomeScreen {
             return;
           }
           await deleteSessionRecord(record.roomId);
+          await deleteRecentRoom(record.roomId); // ended: nothing left to rejoin
           showToast('Session ended for everyone');
         } else if (choice === 'forget') {
           await deleteSessionRecord(record.roomId);
+          // And the remembered key: left in place, the Join list offered
+          // the room again as "You hosted", and picking it rejoined as a
+          // plain participant with no way to End.
+          await deleteRecentRoom(record.roomId);
         }
       })();
     });

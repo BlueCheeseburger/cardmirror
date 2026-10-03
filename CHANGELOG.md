@@ -9,6 +9,18 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **Rejoin a session from Join session.** Join session now starts with a
+  list of sessions you can get back into: ones you have a saved copy of,
+  and ones you left in the last week. Pick one to rejoin, or choose to
+  paste a share code as before. Sessions that have ended drop off the
+  list, and each row has a ✕ to forget it. To make this possible the app
+  now remembers a left session's share code on your device for up to 7
+  days (see the privacy policy). Thanks to Brian (@brian-cai)!
+
+- **A shortcut to Collaboration settings.** The Send and Receive popups
+  have a gear button that opens Settings → Collaboration. Thanks to Brian
+  (@brian-cai)!
+
 - **Search in Settings.** A search box at the top of Settings filters
   every tab at once: type a few words and the matching settings from all
   tabs are listed together under their tab names. It knows common
