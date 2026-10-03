@@ -7,6 +7,59 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+### Fixed: session undo walled off by one blocked step; exact steps for partner edits
+
+**The undo wall.** `undo-guard.ts` protects a card a partner has edited
+from an undo that would delete it (a CRDT container delete takes every
+concurrent edit inside it). It did so by letting the undo run and then
+reversing it with `redo()`, which puts the step straight back on top of
+the undo stack. Every later Ctrl+Z retried the same step and was reversed
+again, so nothing older was reachable for the rest of the session. Two
+things made it worse: the manager merges edits that land within a second,
+so unrelated typing in other cards was trapped inside the blocked step;
+and every blocked press deleted and rebuilt the partner's card as new
+containers.
+
+A blocked undo is now SKIPPED. The guard writes the document back exactly
+with a commit the manager excludes (origin `cm-undo-skip`; Loro still
+rebases the rest of the stack over excluded-origin commits), clears the
+redo stack, and continues to the step before, up to 25 skips per
+keypress, with one toast counting them. Container-creating and
+container-deleting edits are isolated into undo steps of their own
+(`setMergeInterval(0)` around the commit), so a skip drops only the
+structural action. A blocked redo is still reversed and stays on the redo
+stack. The binding patch gains a `cmCommitOrigin` transaction meta so a
+write can name its commit origin.
+
+Known limit, pinned by a test: Loro cannot discard a step without running
+it, so a skip still rebuilds the partner's card once, and their own undo
+steps for edits inside it go dead. Before, that happened on every blocked
+press. Tests: tests/collab/undo-chain.test.ts (real peers, the session's
+plugin stack, the app's merge interval); the probes that mapped the
+behaviour are tests/collab/undo-chain-explore*.test.ts (`UNDO_PROBES=1`).
+
+**Exact remote steps.** The binding rendered a remote batch as ONE
+replace from the first difference to the last. A batch with an edit in
+card 1 and an edit in card 9 therefore told every position in between
+that its content was replaced, and a document comparison could not tell
+which of two equal characters a partner deleted. `collab/remote-steps.ts`
+builds the same result from what changed: children aligned by Loro
+container id (prefix/suffix by identity, then the heaviest in-order
+subsequence, so a reorder keeps the most document in place), Loro's text
+delta inside each text block, mark steps for mark changes and
+`setNodeMarkup` for attribute changes. It compares its transaction's
+document with the materialized one and returns null on any mismatch; the
+binding's bounded replace remains the fallback. The binding calls it via
+`globalThis.__CM_REMOTE_STEPS__`; `CollabSession.plugins()` installs it.
+A moved card still reads as removed and re-inserted, since the editor
+has no move step.
+
+Measured: 1,959 of 1,959 renders exact in the new randomized test
+(80 seeds); 6,547 of 6,550 across every collab test; 813 of 813 in the
+real-relay chaos rig, which fails the same three seeds as before. No
+measurable cost on a 3,000-card document. One drag test changed meaning:
+a drop slot now survives a partner inserting a card elsewhere.
+
 ### Added: Switch Window (`w ` palette source, Mod-Tab)
 
 Main records window focus order (`browser-window-focus`) and answers

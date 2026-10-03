@@ -30,6 +30,7 @@
  * truncate the log and joins stay fast on long sessions.
  */
 
+import { installRemoteStepBuilder } from './remote-steps.js';
 import { LoroDoc, VersionVector, decodeImportBlobMeta } from 'loro-crdt';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { Plugin } from 'prosemirror-state';
@@ -580,6 +581,8 @@ export class CollabSession {
   /** The ProseMirror plugins that bind an EditorView to this session.
    *  Fresh instances per view; the LoroDoc is the shared state. */
   plugins(): Plugin[] {
+    // Partner edits render as exact steps (see remote-steps.ts).
+    installRemoteStepBuilder();
     return [LoroSyncPlugin({ doc: this.loroDoc as SyncDoc })];
   }
 

@@ -21,6 +21,23 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **Undo in a co-editing session no longer gets stuck.** If you added a
+  card or pressed Enter in a tag, and a partner then edited that card,
+  Ctrl+Z used to stop there for good: every press was refused and nothing
+  you had done earlier could be undone. That one step is now skipped,
+  with a note, and the same keypress carries on to the step before it.
+  Your partner's card and typing stay as they are.
+
+- **Adding or removing a card is its own undo step in a session.** It
+  used to be bundled with whatever you typed in the same second, so
+  undoing one took the other with it.
+
+- **Your place holds steadier while a partner edits.** A partner's
+  changes are now applied exactly where they happened. Before, two edits
+  arriving together were treated as one change covering everything
+  between them, which could reset a drag's drop target or shift things
+  anchored in the untouched middle.
+
 - **Sending a scattered selection works.** Selecting several non-
   adjacent headings in the navigation pane and then sending (Send to
   Speech, the dropzone, a starred recipient) used to do nothing. Every
