@@ -1590,12 +1590,13 @@ the session (rejoin later from the Sessions list) or end/leave it now. The
 or just forget your copy; as guest, forgets your copy.
 
 **Rejoining:** **Join Collaboration Session** (or **Join session** on the
-Receive pill) first lists the sessions you can get back into: saved copies
-(the same ones as the home screen's Sessions list; rejoining syncs your
-offline edits) and sessions you left in the last week, while they are still
-running. Pick one to rejoin, or **Paste a share code or invite link…** for a
-new one. A session the host ended can't be rejoined and drops off the list;
-the ✕ on a left session forgets it.
+Receive pill) opens with a box for a share code or invite link, ready to
+paste into: paste and press Enter to join a new session. Below it are the
+sessions you can get back into: saved copies (the same ones as the home
+screen's Sessions list; rejoining syncs your offline edits) and sessions you
+left in the last week, while they are still running. Click one to rejoin. A
+session the host ended can't be rejoined and drops off the list; the ✕ on a
+left session forgets it.
 
 **Cutting cards in a shared document.** Cut (Cmd/Ctrl-X, or Cut in the
 nav pane's menu) on a whole card or section does not remove it: the card

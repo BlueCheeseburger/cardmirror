@@ -72,13 +72,53 @@ describe('pickSessionToJoin', () => {
     at: Date.now(),
   });
   const rows = () => [...document.querySelectorAll<HTMLButtonElement>('.pmd-rejoin-btn')];
+  const box = () => document.querySelector<HTMLInputElement>('.pmd-rejoin-input')!;
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+  const key = (k: string) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
 
   it('lists each session and resolves the clicked one', async () => {
     const pending = pickSessionToJoin([cand('a', 'saved'), cand('b', 'left')]);
-    expect(rows().map((b) => b.querySelector('strong')!.textContent)).toEqual(['Doc a', 'Doc b']);
+    expect(rows().map((b) => b.querySelector('.pmd-home-recent-name')!.textContent)).toEqual(['Doc a', 'Doc b']);
+    // Same row anatomy as the home screen's Sessions list.
+    expect(rows()[0]!.classList.contains('pmd-home-session-open')).toBe(true);
+    expect(rows()[0]!.querySelector('.pmd-home-session-role')!.textContent).toBe('JOINED');
     rows()[1]!.click();
     expect(await pending).toEqual({ kind: 'rejoin', shareCode: 'code-b', guestPass: 'gp' });
     expect(document.querySelector('.pmd-rejoin-dialog')).toBeNull();
+  });
+
+  it('the paste box comes first and has focus: paste, Enter, joined', async () => {
+    const pending = pickSessionToJoin([cand('a', 'saved')]);
+    await tick();
+    const dialog = document.querySelector('.pmd-rejoin-dialog')!;
+    expect(document.activeElement, 'no click needed before pasting').toBe(box());
+    // The box sits above the session list.
+    const order = [...dialog.querySelectorAll('.pmd-rejoin-input, .pmd-rejoin-list')].map((e) => e.className.includes('input'));
+    expect(order).toEqual([true, false]);
+    box().value = '  cmshare2.room.key.1  ';
+    key('Enter');
+    expect(await pending).toEqual({ kind: 'code', text: 'cmshare2.room.key.1' });
+  });
+
+  it('the Join button submits the box; an empty box does not close the dialog', async () => {
+    const pending = pickSessionToJoin([cand('a', 'saved')]);
+    await tick();
+    const join = document.querySelector<HTMLButtonElement>('.pmd-rejoin-join')!;
+    join.click();
+    expect(document.querySelector('.pmd-rejoin-dialog'), 'still open').not.toBeNull();
+    box().value = 'https://cardmirror.app/#join=abc';
+    join.click();
+    expect(await pending).toEqual({ kind: 'code', text: 'https://cardmirror.app/#join=abc' });
+  });
+
+  it('with nothing to rejoin it is just the box', async () => {
+    const pending = pickSessionToJoin([]);
+    await tick();
+    expect(document.querySelector<HTMLElement>('.pmd-rejoin-section')!.hidden).toBe(true);
+    expect(document.activeElement).toBe(box());
+    box().value = 'code-x';
+    key('Enter');
+    expect(await pending).toEqual({ kind: 'code', text: 'code-x' });
   });
 
   it('forget (left rooms only) removes the row and the remembered room', async () => {
@@ -90,8 +130,8 @@ describe('pickSessionToJoin', () => {
     expect(rows().length).toBe(1);
     await new Promise((r) => setTimeout(r, 10));
     expect(await loadRecentRoom('b')).toBeNull();
-    (document.querySelector('.pmd-rejoin-paste') as HTMLButtonElement).click();
-    expect(await pending).toEqual({ kind: 'paste' });
+    key('Escape');
+    expect(await pending).toBeNull();
   });
 
   it('cancel resolves null', async () => {

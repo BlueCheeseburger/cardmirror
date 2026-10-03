@@ -1,6 +1,8 @@
 /**
- * Join session's first screen: the sessions this user can get back into,
- * above the paste-a-code prompt.
+ * The Join session dialog: a box to paste a share code or invite link into
+ * — focused, so a new join is paste-and-Enter with no click first — and,
+ * below it, the sessions this user can get back into, laid out like the
+ * home screen's Sessions list.
  *
  * Two sources, merged by room:
  *  - SAVED sessions (collab-store session records): a copy kept on this
@@ -15,6 +17,7 @@
 
 import { relativeTime } from '../disk-conflict.js';
 import { pushOverlay, popOverlay } from '../overlay-stack.js';
+import { isBackdropClick } from '../backdrop-click.js';
 import { installModalKeys, captureFocusForDialog, armDialogFocus } from '../text-prompt.js';
 import {
   listSessionRecords,
@@ -37,7 +40,8 @@ export interface RejoinCandidate {
 
 export type RejoinPick =
   | { kind: 'rejoin'; shareCode: string; guestPass: string | null }
-  | { kind: 'paste' };
+  /** What was typed or pasted into the box: a share code or an invite link. */
+  | { kind: 'code'; text: string };
 
 /** Saved sessions first-class (they hold local edits), then left rooms not
  *  already covered by a saved one; newest first; live rooms dropped. */
@@ -83,14 +87,12 @@ export async function loadRejoinCandidates(isLive: (roomId: string) => boolean):
 }
 
 function describe(c: RejoinCandidate): string {
-  const role = c.role === 'host' ? 'You hosted' : 'You joined';
-  return c.kind === 'saved'
-    ? `${role} · copy saved ${relativeTime(c.at)} · rejoin syncs your edits`
-    : `${role} · last here ${relativeTime(c.at)}`;
+  // "last here", not "left": a crash records no leave time.
+  return c.kind === 'saved' ? `saved ${relativeTime(c.at)}` : `last here ${relativeTime(c.at)}`;
 }
 
-/** The picker. Resolves with a session to rejoin, 'paste' for the share-code
- *  prompt, or null on cancel. */
+/** The dialog. Resolves with a session to rejoin, the text entered in the
+ *  box, or null on cancel. With no candidates it is just the box. */
 export function pickSessionToJoin(candidates: RejoinCandidate[]): Promise<RejoinPick | null> {
   return new Promise((resolve) => {
     const restoreFocus = captureFocusForDialog();
@@ -105,11 +107,6 @@ export function pickSessionToJoin(candidates: RejoinCandidate[]): Promise<Rejoin
     header.textContent = 'Join a session';
     dialog.appendChild(header);
 
-    const list = document.createElement('div');
-    list.className = 'pmd-rejoin-list';
-    list.setAttribute('role', 'list');
-    dialog.appendChild(list);
-
     let settled = false;
     let removeKeys = (): void => {};
     const finish = (value: RejoinPick | null): void => {
@@ -122,35 +119,73 @@ export function pickSessionToJoin(candidates: RejoinCandidate[]): Promise<Rejoin
       resolve(value);
     };
 
+    // ── Paste box: first, and focused ─────────────────────────────────
+    const entry = document.createElement('div');
+    entry.className = 'pmd-rejoin-entry';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'pmd-text-prompt-input pmd-rejoin-input';
+    input.placeholder = 'Paste a share code or invite link';
+    input.setAttribute('aria-label', 'Share code or invite link');
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    entry.appendChild(input);
+    const join = document.createElement('button');
+    join.type = 'button';
+    join.className = 'pmd-text-prompt-ok pmd-rejoin-join';
+    join.textContent = 'Join';
+    const submit = (): void => {
+      const text = input.value.trim();
+      if (text) finish({ kind: 'code', text });
+      else input.focus();
+    };
+    join.addEventListener('click', submit);
+    entry.appendChild(join);
+    dialog.appendChild(entry);
+
+    // ── Sessions to get back into ─────────────────────────────────────
+    const section = document.createElement('div');
+    section.className = 'pmd-rejoin-section';
+    const heading = document.createElement('div');
+    heading.className = 'pmd-rejoin-heading';
+    heading.textContent = 'Recent sessions';
+    section.appendChild(heading);
+    const list = document.createElement('div');
+    list.className = 'pmd-home-sessions pmd-rejoin-list';
+    list.setAttribute('role', 'list');
+    section.appendChild(list);
+    dialog.appendChild(section);
+
     const renderRows = (): void => {
       list.innerHTML = '';
-      if (candidates.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'pmd-rejoin-empty';
-        empty.textContent = 'No recent sessions to rejoin.';
-        list.appendChild(empty);
-        return;
-      }
+      section.hidden = candidates.length === 0;
       for (const c of candidates) {
-        const row = document.createElement('div');
-        row.className = 'pmd-rejoin-row';
-        row.setAttribute('role', 'listitem');
+        // Same row as the home screen's Sessions list (same classes).
+        const wrap = document.createElement('div');
+        wrap.className = 'pmd-home-session pmd-rejoin-row';
+        wrap.setAttribute('role', 'listitem');
 
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'pmd-route-btn pmd-rejoin-btn';
-        const strong = document.createElement('strong');
-        strong.textContent = c.title || 'Collaboration session';
-        btn.appendChild(strong);
-        btn.appendChild(document.createElement('br'));
-        const span = document.createElement('span');
-        span.textContent = describe(c);
-        btn.appendChild(span);
-        btn.title = c.kind === 'saved' ? 'Rejoin with your saved copy' : 'Rejoin this session';
-        btn.addEventListener('click', () =>
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'pmd-home-session-open pmd-rejoin-btn';
+        row.title = c.kind === 'saved' ? 'Rejoin with your saved copy (syncs your edits)' : 'Rejoin this session';
+        const chip = document.createElement('span');
+        chip.className = 'pmd-home-recent-format pmd-home-session-role';
+        chip.textContent = c.role === 'host' ? 'HOST' : 'JOINED';
+        row.appendChild(chip);
+        const name = document.createElement('span');
+        name.className = 'pmd-home-recent-name';
+        name.textContent = c.title || 'Collaboration session';
+        name.title = name.textContent;
+        row.appendChild(name);
+        const meta = document.createElement('span');
+        meta.className = 'pmd-home-recent-path';
+        meta.textContent = describe(c);
+        row.appendChild(meta);
+        row.addEventListener('click', () =>
           finish({ kind: 'rejoin', shareCode: c.shareCode, guestPass: c.guestPass }),
         );
-        row.appendChild(btn);
+        wrap.appendChild(row);
 
         // Forgetting a LEFT room only drops its remembered credentials.
         // Saved copies are managed from the home screen's Sessions list,
@@ -158,7 +193,7 @@ export function pickSessionToJoin(candidates: RejoinCandidate[]): Promise<Rejoin
         if (c.kind === 'left') {
           const forget = document.createElement('button');
           forget.type = 'button';
-          forget.className = 'pmd-rejoin-forget';
+          forget.className = 'pmd-home-session-forget pmd-rejoin-forget';
           forget.textContent = '✕';
           forget.title = 'Forget this session';
           forget.setAttribute('aria-label', `Forget ${c.title || 'this session'}`);
@@ -166,22 +201,24 @@ export function pickSessionToJoin(candidates: RejoinCandidate[]): Promise<Rejoin
             void deleteRecentRoom(c.roomId).catch(() => {});
             candidates = candidates.filter((x) => x.roomId !== c.roomId);
             renderRows();
+            input.focus();
           });
-          row.appendChild(forget);
+          wrap.appendChild(forget);
+        } else {
+          // Same width as a ✕, so every row's time lines up.
+          const spacer = document.createElement('span');
+          spacer.className = 'pmd-home-session-forget pmd-rejoin-spacer';
+          spacer.textContent = '✕';
+          spacer.setAttribute('aria-hidden', 'true');
+          wrap.appendChild(spacer);
         }
-        list.appendChild(row);
+        list.appendChild(wrap);
       }
     };
     renderRows();
 
     const footer = document.createElement('div');
     footer.className = 'pmd-rejoin-footer';
-    const paste = document.createElement('button');
-    paste.type = 'button';
-    paste.className = 'pmd-route-btn pmd-rejoin-paste';
-    paste.textContent = 'Paste a share code or invite link…';
-    paste.addEventListener('click', () => finish({ kind: 'paste' }));
-    footer.appendChild(paste);
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.className = 'pmd-route-cancel';
@@ -192,16 +229,24 @@ export function pickSessionToJoin(candidates: RejoinCandidate[]): Promise<Rejoin
 
     overlay.appendChild(dialog);
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) finish(null);
+      if (isBackdropClick(e, overlay)) finish(null);
     });
     removeKeys = installModalKeys(dialog, overlayToken, (e) => {
       if (e.key === 'Escape') {
         finish(null);
         return true;
       }
+      // Enter in the box joins; on a row or a button it activates that.
+      if (e.key === 'Enter' && document.activeElement === input) {
+        submit();
+        return true;
+      }
       return false;
     });
     document.body.appendChild(overlay);
     armDialogFocus(dialog, 'dialog', 'Join a session');
+    // The box takes focus: paste, Enter. (After the dialog's own focus, as
+    // the text prompt does.)
+    setTimeout(() => input.focus(), 0);
   });
 }

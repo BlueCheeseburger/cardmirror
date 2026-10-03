@@ -1032,28 +1032,22 @@ async function startSessionFlowInner(
 export async function joinSessionFlow(deps: CollabUiDeps): Promise<void> {
   if (!collabEnabled()) return;
   // Sessions this user can get back into (saved copies, rooms they left)
-  // come first; the paste prompt is one click away, and the only screen
-  // when there's nothing to list.
+  // are listed under the paste box.
   const listed = await loadRejoinCandidates(roomLiveInWindow);
   // A room live in ANOTHER window is not something to rejoin from here: in
   // the single-window shell picking it spawned a window first, whose resume
   // then refused the room and left that window empty.
   const elsewhere = await Promise.all(listed.map((c) => roomLiveElsewhere(c.roomId)));
   const candidates = listed.filter((_, i) => !elsewhere[i]);
-  if (candidates.length > 0) {
-    const pick = await pickSessionToJoin(candidates);
-    if (!pick) return;
-    if (pick.kind === 'rejoin') {
-      await joinSessionWithCode(deps, pick.shareCode, { guestPass: pick.guestPass });
-      return;
-    }
+  // One dialog: the paste box on top (focused — a new join is paste and
+  // Enter), the sessions to get back into below it.
+  const pick = await pickSessionToJoin(candidates);
+  if (!pick) return;
+  if (pick.kind === 'rejoin') {
+    await joinSessionWithCode(deps, pick.shareCode, { guestPass: pick.guestPass });
+    return;
   }
-  const entered = await promptForText({
-    message: 'Paste the share code — or the invite link — from your partner',
-    placeholder: 'cmshare… or https://cardmirror.app/#join=…',
-    okLabel: 'Join',
-  });
-  if (!entered) return;
+  const entered = pick.text;
   // A full invite link pastes here too (the Chromebook path: link
   // received in a chat, app already open). Extract code + guest pass.
   const hashIdx = entered.indexOf('#');

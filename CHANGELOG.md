@@ -9,11 +9,12 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
-- **Rejoin a session from Join session.** Join session now starts with a
-  list of sessions you can get back into: ones you have a saved copy of,
-  and ones you left in the last week. Pick one to rejoin, or choose to
-  paste a share code as before. Sessions that have ended drop off the
-  list, and each row has a ✕ to forget it. To make this possible the app
+- **Rejoin a session from Join session.** Under the box where you paste
+  a share code or invite link, Join session now lists the sessions you
+  can get back into: ones you have a saved copy of, and ones you left in
+  the last week. Click one to rejoin. Pasting a code works as before,
+  with no extra click. Sessions that have ended drop off the list, and a
+  session you left has a ✕ to forget it. To make this possible the app
   now remembers a left session's share code on your device for up to 7
   days (see the privacy policy). Thanks to Brian (@brian-cai)!
 
