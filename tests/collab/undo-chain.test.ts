@@ -11,7 +11,7 @@
  *
  * Real Loro peers, the session's plugin stack, the app's merge interval.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { TextSelection } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
@@ -24,7 +24,13 @@ import { causalMarkHealPlugin } from '../../src/editor/collab/causal-mark-heal.j
 import { collabRepairPlugin } from '../../src/editor/collab/collab-repair.js';
 import { createUndoGuard, undoSkippedMessage, type UndoGuard } from '../../src/editor/collab/undo-guard.js';
 import { enterMidTag } from '../../src/editor/tag-keymap.js';
+import { schema, newHeadingId } from '../../src/schema/index.js';
+import { dragController } from '../../src/editor/drag-controller.js';
+import { collectHeadings, computeHeadingRange } from '../../src/editor/headings.js';
 import { createLoroPeers, settle, sleep, docOf, cardNode, findText, type LoroPeer } from './_loro-helpers.js';
+
+vi.mock('../../src/editor/toast.js', () => ({ showToast: vi.fn() }));
+(document as unknown as { elementFromPoint: () => null }).elementFromPoint = () => null;
 
 declare global {
   // eslint-disable-next-line no-var
@@ -56,14 +62,14 @@ interface Rig {
   notices: string[];
 }
 /** `mergeInterval` 0 = every edit its own step; omit for the app default. */
-async function rig(mergeInterval?: number): Promise<Rig> {
+async function rig(mergeInterval?: number, seed?: PMNode): Promise<Rig> {
   globalThis.__CM_MOVABLE_LIST__ = true;
   const ums: UndoManager[] = [];
   const guards: UndoGuard[] = [];
   const notices: string[] = [];
   const views: Array<EditorView | null> = [];
   const peers = await createLoroPeers(
-    docOf(cardNode('Alpha', ['alpha body']), cardNode('Bravo', ['bravo body']), cardNode('Charlie', ['charlie body'])),
+    seed ?? docOf(cardNode('Alpha', ['alpha body']), cardNode('Bravo', ['bravo body']), cardNode('Charlie', ['charlie body'])),
     2,
     (ldoc: LoroDoc) => {
       const idx = ums.length;
@@ -288,6 +294,76 @@ describe('undo chain in a co-editing session', () => {
     expect(text(A.doc()), 'then the untouched card itself').not.toContain('delta body');
     expect(r.ums[0]!.canUndo()).toBe(false);
     expect(r.notices).toEqual([]);
+    expect(converged(r)).toBe(true);
+    for (const p of r.peers) p.destroy();
+  }, 20000);
+
+  it("undoing my move keeps a card the partner added beside it (Loro's undo deletes it)", async () => {
+    // Raw Loro: A drags a section (a block and its card) to the end, B adds
+    // a card right after it, A undoes the drag — B's card is deleted on
+    // every peer. The guard lets the undo stand and writes B's card back.
+    const block = (t: string): PMNode => schema.nodes['block']!.create({ id: newHeadingId() }, schema.text(t));
+    const r = await rig(
+      0,
+      docOf(block('One'), cardNode('Alpha', ['alpha body']), block('Two'), cardNode('Bravo', ['bravo body']), block('Three'), cardNode('Charlie', ['charlie body'])),
+    );
+    const [A, B] = r.peers as [LoroPeer, LoroPeer];
+    await typeAfter(r, 0, 'charlie body', ' early');
+    {
+      const d = A.doc();
+      const entry = collectHeadings(d).find((e) => e.type === 'block' && e.text === 'Two')!;
+      const range = computeHeadingRange(d, entry)!;
+      dragController.begin({ view: A.view, items: [{ from: range.from, to: range.to, id: entry.id, type: 'block', level: 3, label: 'Two' }] });
+      dragController.setHoverTarget({ view: A.view, insertPos: d.content.size });
+      expect(dragController.commit()).toBe(true);
+    }
+    await settle();
+    await sync(r.peers);
+    B.view.dispatch(B.view.state.tr.insert(B.view.state.doc.content.size, cardNode('Partner', ['partner body'])));
+    await settle();
+    await sync(r.peers);
+    const tags = (d: PMNode): string[] => text(d).filter((t) => /^[A-Z]/.test(t));
+    expect(tags(A.doc())).toEqual(['One', 'Alpha', 'Three', 'Charlie', 'Two', 'Bravo', 'Partner']);
+
+    await press(r, 0);
+    expect(tags(A.doc()), 'the drag is undone and the partner card is kept, after the card it followed').toEqual([
+      'One',
+      'Alpha',
+      'Two',
+      'Bravo',
+      'Partner',
+      'Three',
+      'Charlie',
+    ]);
+    expect(text(A.doc())).toContain('partner body');
+    expect(r.notices, 'nothing was lost, so nothing is announced').toEqual([]);
+    expect(r.guards[0]!.stats.rescued).toBe(1);
+    expect(r.ums[0]!.canRedo(), 'the redo would re-create the rescued card').toBe(false);
+    expect(converged(r)).toBe(true);
+
+    await press(r, 0); // the chain continues past it
+    expect(text(A.doc())).toContain('charlie body');
+    expect(converged(r)).toBe(true);
+    for (const p of r.peers) p.destroy();
+  });
+
+  it('a move gets an undo step of its own at the app merge interval', async () => {
+    const r = await rig();
+    const [A] = r.peers as [LoroPeer, LoroPeer];
+    await typeAfter(r, 0, 'charlie body', ' typed');
+    await sleep(120);
+    const first = A.doc().child(0);
+    const tr = A.view.state.tr.delete(0, first.nodeSize);
+    tr.insert(tr.doc.content.size, first);
+    A.view.dispatch(tr); // Bravo, Charlie, Alpha
+    await settle();
+    await sync(r.peers);
+
+    await press(r, 0);
+    expect(text(A.doc()).filter((t) => /^[A-Z]/.test(t)), 'only the move').toEqual(['Alpha', 'Bravo', 'Charlie']);
+    expect(text(A.doc()), 'the typing before it is still there').toContain('charlie body typed');
+    await press(r, 0);
+    expect(text(A.doc())).toContain('charlie body');
     expect(converged(r)).toBe(true);
     for (const p of r.peers) p.destroy();
   }, 20000);

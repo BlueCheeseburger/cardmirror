@@ -22,6 +22,7 @@ import type { EditorState, Transaction } from 'prosemirror-state';
 import type { Mappable } from 'prosemirror-transform';
 import { Fragment, type Node as PMNode, Slice } from 'prosemirror-model';
 import { newHeadingId, HEADING_TYPE_NAMES } from '../schema/ids.js';
+import { TYPE_TO_LEVEL, sectionEndFromHeading } from './headings.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
 import { READ_MODE_DRAG_META } from './reading-marker.js';
 import { autoScrollUnderPointer } from './drag-autoscroll.js';
@@ -130,38 +131,82 @@ function unitHeadId(doc: PMNode, from: number): string | null {
   return typeof id === 'string' && id ? id : null;
 }
 
-/** The exact range of the dragged unit in `doc` after a doc change:
- *  the mapped range when it still holds a node of the pickup's type and
- *  head id (and nothing else), else the unit found by its head id
- *  wherever it now sits, else null (the unit is gone). */
+/** What a dragged unit is, captured at pickup, so it can be found again
+ *  after the document changes under the drag:
+ *   - `node`: exactly one node (a card, an analytic unit, a live zone);
+ *   - `section`: a pocket / hat / block heading WITH everything under it,
+ *     up to the next heading of its level or shallower — many nodes, and a
+ *     span whose size changes whenever a partner edits inside it;
+ *   - `range`: any other span (an editor selection). */
+interface UnitAnchor {
+  typeName: string | null;
+  headId: string | null;
+  kind: 'node' | 'section' | 'range';
+}
+const NO_ANCHOR: UnitAnchor = { typeName: null, headId: null, kind: 'range' };
+
+/** End of the section the heading at `pos` opens: the start of the next
+ *  sibling heading of its level or shallower, else the parent's end. */
+function sectionEnd(doc: PMNode, pos: number): number | null {
+  const node = doc.nodeAt(pos);
+  if (!node) return null;
+  const level = TYPE_TO_LEVEL[node.type.name];
+  if (level === undefined) return null;
+  const $pos = doc.resolve(pos);
+  return sectionEndFromHeading($pos.parent, $pos.index(), pos + node.nodeSize, level);
+}
+
+function anchorFor(doc: PMNode, it: { from: number; to: number; id: string | null }): UnitAnchor {
+  const node = doc.nodeAt(it.from);
+  const typeName = node?.type.name ?? null;
+  const headId = unitHeadId(doc, it.from) ?? it.id;
+  if (node && node.nodeSize === it.to - it.from) return { typeName, headId, kind: 'node' };
+  if (node && sectionEnd(doc, it.from) === it.to) return { typeName, headId, kind: 'section' };
+  return { typeName, headId, kind: 'range' };
+}
+
+/** The exact range of the dragged unit in `doc` after a doc change, by
+ *  IDENTITY rather than by mapped position: the unit's head node is
+ *  found (at the mapped start if it is still there, else by head id
+ *  wherever it now sits) and its extent is recomputed from the document
+ *  — one node, or a heading's whole section as it stands NOW, so a
+ *  partner's edit inside the section travels with it. Null when the unit
+ *  is gone. A plain range has no identity to recompute from: it keeps its
+ *  mapped span while that still starts on the same thing. */
 function resolveUnit(
   doc: PMNode,
   mapped: { from: number; to: number },
-  anchor: { typeName: string | null; headId: string | null },
+  anchor: UnitAnchor,
 ): { from: number; to: number } | null {
-  const at = mapped.to > mapped.from ? doc.nodeAt(mapped.from) : null;
-  if (
-    at &&
-    at.nodeSize === mapped.to - mapped.from &&
-    (anchor.typeName === null || at.type.name === anchor.typeName) &&
-    (anchor.headId === null || unitHeadId(doc, mapped.from) === anchor.headId)
-  ) {
-    return mapped;
-  }
-  if (anchor.headId === null) return null;
-  let found: { from: number; to: number } | null = null;
-  doc.descendants((node, pos) => {
-    if (found) return false;
-    if (
+  const matches = (pos: number): boolean => {
+    const node = doc.nodeAt(pos);
+    return (
+      !!node &&
       (anchor.typeName === null || node.type.name === anchor.typeName) &&
-      unitHeadId(doc, pos) === anchor.headId
-    ) {
-      found = { from: pos, to: pos + node.nodeSize };
-      return false;
-    }
-    return true;
-  });
-  return found;
+      (anchor.headId === null || unitHeadId(doc, pos) === anchor.headId)
+    );
+  };
+  if (anchor.kind === 'range') {
+    return mapped.to > mapped.from && mapped.from <= doc.content.size && matches(mapped.from) ? mapped : null;
+  }
+  let head: number | null = mapped.from <= doc.content.size && matches(mapped.from) ? mapped.from : null;
+  if (head === null) {
+    if (anchor.headId === null) return null;
+    doc.descendants((_node, pos) => {
+      if (head !== null) return false;
+      if (matches(pos)) {
+        head = pos;
+        return false;
+      }
+      return true;
+    });
+    if (head === null) return null;
+  }
+  if (anchor.kind === 'section') {
+    const end = sectionEnd(doc, head);
+    return end === null ? null : { from: head, to: end };
+  }
+  return { from: head, to: head + doc.nodeAt(head)!.nodeSize };
 }
 
 class DragControllerImpl {
@@ -184,7 +229,7 @@ class DragControllerImpl {
    *  node's own (the range shrinks to one position → the guard misses it
    *  and the drop moves garbage). After every remap the unit is
    *  re-resolved by identity instead. */
-  private anchors: Array<{ typeName: string | null; headId: string | null }> = [];
+  private anchors: UnitAnchor[] = [];
 
   isActive(): boolean {
     return this.session !== null;
@@ -274,7 +319,7 @@ class DragControllerImpl {
       const items: DragItem[] = [];
       for (let i = 0; i < session.items.length; i++) {
         const it = session.items[i]!;
-        const anchor = this.anchors[i] ?? { typeName: null, headId: null };
+        const anchor = this.anchors[i] ?? NO_ANCHOR;
         const mapped = { from: mapping.map(it.from, 1), to: mapping.map(it.to, -1) };
         const range = resolveUnit(doc, mapped, anchor);
         if (!range) {
@@ -287,7 +332,7 @@ class DragControllerImpl {
       // Re-resolution can reorder units the partner moved around.
       const order = items.map((it, i) => i).sort((a, b) => items[a]!.from - items[b]!.from);
       this.session = { ...session, items: order.map((i) => items[i]!) };
-      this.anchors = order.map((i) => this.anchors[i] ?? { typeName: null, headId: null });
+      this.anchors = order.map((i) => this.anchors[i] ?? NO_ANCHOR);
     }
     const hover = this.hoverTarget;
     if (hover && hover.view === view && !hover.absorb) {
@@ -305,10 +350,7 @@ class DragControllerImpl {
     const doc = session.view.state.doc;
     this.anchors = session.virtual
       ? []
-      : session.items.map((it) => {
-          const node = doc.nodeAt(it.from);
-          return { typeName: node?.type.name ?? null, headId: unitHeadId(doc, it.from) ?? it.id };
-        });
+      : session.items.map((it) => anchorFor(doc, it));
   }
 
   private commitInner(opts: { copy?: boolean }): boolean {
@@ -318,7 +360,7 @@ class DragControllerImpl {
     if (!this.session.virtual) {
       const doc = this.session.view.state.doc;
       const stale = this.session.items.some(
-        (it, i) => !resolveUnit(doc, it, this.anchors[i] ?? { typeName: null, headId: null }),
+        (it, i) => !resolveUnit(doc, it, this.anchors[i] ?? NO_ANCHOR),
       );
       if (stale) {
         this.cancel();

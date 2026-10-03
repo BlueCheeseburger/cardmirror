@@ -38,6 +38,32 @@ press. Tests: tests/collab/undo-chain.test.ts (real peers, the session's
 plugin stack, the app's merge interval); the probes that mapped the
 behaviour are tests/collab/undo-chain-explore*.test.ts (`UNDO_PROBES=1`).
 
+**Collateral rescue and move isolation (2026-10-03, found in a two-person
+hands-on test).** Loro's undo of a section drag deletes a card a partner
+inserted right after the moved run (reproduced on raw Loro with no guard:
+the partner's card is gone on every peer). The guard saw a partner-touched
+container vanish and skipped the undo, so "undo my drag" appeared to do
+nothing. The ledger now also records containers that FIRST APPEARED in a
+remote transaction (`partnerCreated`): no step of mine created those, so
+when every partner-touched container an undo removed is of that kind the
+undo stands and they are written back after their nearest surviving
+sibling (`rescueContainers`, same excluded commit). The redo of that undo
+is cleared, because it would re-create what the undo deleted. A local
+transaction that only changes the ORDER of containers (a drag) is isolated
+into its own undo step like a create or delete. Upstream report owed.
+
+**Dragging a header mid-edit moved the header alone.** The identity
+re-resolution in `drag-controller.ts` (`resolveUnit`) compared the mapped
+span with ONE node's size. A header's drag unit is a section — the heading
+plus everything under it — so the check always failed and the unit fell
+back to "the node with this heading id": the heading by itself. Any
+transaction landing mid-drag (a partner's edit anywhere, or one's own)
+left the cards behind on drop. Units now carry a kind (`node`, `section`,
+`range`) captured at pickup, and a section's extent is recomputed from the
+document as it stands, so a partner's edit inside it, or a card they add
+to it, travels with the drop. Tests: tests/collab/drag-section-during-
+session.test.ts (5 of 6 fail on the old code).
+
 **Exact remote steps.** The binding rendered a remote batch as ONE
 replace from the first difference to the last. A batch with an edit in
 card 1 and an edit in card 9 therefore told every position in between

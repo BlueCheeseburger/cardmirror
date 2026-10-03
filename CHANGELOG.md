@@ -40,9 +40,14 @@ see `DETAILED_CHANGELOG.md`.
   with a note, and the same keypress carries on to the step before it.
   Your partner's card and typing stay as they are.
 
-- **Adding or removing a card is its own undo step in a session.** It
-  used to be bundled with whatever you typed in the same second, so
-  undoing one took the other with it.
+- **Adding, removing or dragging a card is its own undo step in a
+  session.** It used to be bundled with whatever you typed in the same
+  second, so undoing one took the other with it.
+
+- **Undoing a drag in a session keeps what your partner added.** If you
+  dragged a section and a partner then added a card next to it, undoing
+  the drag could take their card with it. The drag is now undone and
+  their card stays, following the section it was added to.
 
 - **Your place holds steadier while a partner edits.** A partner's
   changes are now applied exactly where they happened. Before, two edits

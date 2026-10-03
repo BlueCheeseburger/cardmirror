@@ -31,6 +31,18 @@
  *     version of this guard) left the blocked step on top of the stack
  *     for ever: every later Ctrl+Z retried it, was reversed again, and
  *     everything the user had done before it became unreachable.
+ *   - COLLATERAL removals are RESCUED, and the undo stands. Loro's undo of
+ *     a list move can delete a card a partner inserted beside the moved
+ *     run (found 2026-10-03: drag a section, partner adds a card at its
+ *     end, undo — the partner's card is gone on every peer). A container
+ *     that first appeared in a REMOTE transaction was never created by
+ *     any step of mine, so no undo of mine is entitled to remove it: when
+ *     every partner-touched container an undo removed is of that kind,
+ *     they are written back where they stood (after their nearest
+ *     surviving sibling) with the same excluded commit, the rest of the
+ *     undo is kept. The redo of that undo is dropped (it would re-create
+ *     what the undo deleted, a second copy). Nothing is announced; nothing
+ *     was lost.
  *   - A blocked REDO is still reversed (undo of the redo) and explained;
  *     it stays on the redo stack.
  *   - Container-creating and container-deleting edits are ISOLATED into
@@ -61,7 +73,7 @@ export interface UndoGuard {
   /** Test/diagnostic counters. `unrecoverable` = a reversal was needed
    *  but the manager could no longer perform it (a new local edit had
    *  already cleared the redo stack). */
-  readonly stats: { blocked: number; allowed: number; unrecoverable: number; skipped: number };
+  readonly stats: { blocked: number; allowed: number; unrecoverable: number; skipped: number; rescued: number };
   dispose(): void;
 }
 
@@ -113,7 +125,7 @@ export function containerFingerprints(doc: PMNode): Map<string, string> {
 
 export function createUndoGuard(opts: UndoGuardOptions): UndoGuard {
   const { undoManager, getView, doc } = opts;
-  const stats = { blocked: 0, allowed: 0, unrecoverable: 0, skipped: 0 };
+  const stats = { blocked: 0, allowed: 0, unrecoverable: 0, skipped: 0, rescued: 0 };
   const baseMergeInterval = opts.mergeInterval ?? 1000;
   undoManager.addExcludeOriginPrefix(UNDO_SKIP_ORIGIN);
   /** Local commits still to land with merging off (see `isolateStep`). */
@@ -128,6 +140,9 @@ export function createUndoGuard(opts: UndoGuardOptions): UndoGuard {
   /** Containers (heading ids) a remote transaction touched since they last
    *  appeared or were deliberately deleted locally. */
   const partnerTouched = new Set<string>();
+  /** Containers (heading ids) that first appeared in a remote transaction:
+   *  a partner made them, so no undo step of mine created them. */
+  const partnerCreated = new Set<string>();
 
   // The binding dispatches BOTH remote imports and undo/redo results with
   // the same 'non-local-updates' meta; Loro's event tells them apart
@@ -157,7 +172,10 @@ export function createUndoGuard(opts: UndoGuardOptions): UndoGuard {
         const after = containerFingerprints(newState.doc);
         if (sync?.type === 'non-local-updates') {
           if (lastEventBy !== 'import') return value; // undo/redo result: marks persist
-          for (const [id, fp] of after) if (before.get(id) !== fp) partnerTouched.add(id);
+          for (const [id, fp] of after) {
+            if (before.get(id) !== fp) partnerTouched.add(id);
+            if (!before.has(id)) partnerCreated.add(id);
+          }
           return value;
         }
         if (sync !== undefined) return value; // the binding's own echoes
@@ -177,6 +195,18 @@ export function createUndoGuard(opts: UndoGuardOptions): UndoGuard {
             partnerTouched.delete(id);
             structural = true;
           }
+        // A move (a drag, a cut-and-paste that kept its ids) changes the
+        // ORDER of the containers and nothing else; it gets a step of its
+        // own too, so undoing a drag never takes the typing before it.
+        if (!structural && before.size === after.size) {
+          const was = before.keys();
+          for (const id of after.keys()) {
+            if (was.next().value !== id) {
+              structural = true;
+              break;
+            }
+          }
+        }
         if (structural) isolateStep();
         return value;
       },
@@ -222,6 +252,50 @@ export function createUndoGuard(opts: UndoGuardOptions): UndoGuard {
     return true;
   };
 
+  /** Heading id of a top-level node: a heading's own, a card's tag's. */
+  const topLevelHeadId = (n: PMNode): string | null => {
+    const head = HEADING_TYPE_NAMES.has(n.type.name) ? n : n.firstChild;
+    const id = head && HEADING_TYPE_NAMES.has(head.type.name) ? head.attrs['id'] : null;
+    return typeof id === 'string' && id ? id : null;
+  };
+
+  /** Write back the top-level containers `ids` that an undo removed, each
+   *  after its nearest sibling (in `docBefore`) that still exists. False
+   *  when one of them was not a top-level node (the caller skips instead). */
+  const rescueContainers = (view: EditorView, docBefore: PMNode, ids: string[]): boolean => {
+    const wanted = new Set(ids);
+    const tr = view.state.tr;
+    const kids: PMNode[] = [];
+    docBefore.forEach((n) => kids.push(n));
+    let found = 0;
+    for (let i = 0; i < kids.length; i++) {
+      const id = topLevelHeadId(kids[i]!);
+      if (id === null || !wanted.has(id)) continue;
+      found++;
+      // Insert after the nearest earlier sibling present in the document
+      // as it now stands (which includes containers rescued a moment ago).
+      let at = 0;
+      for (let j = i - 1; j >= 0 && at === 0; j--) {
+        const prevId = topLevelHeadId(kids[j]!);
+        if (prevId === null) continue;
+        tr.doc.forEach((n, off) => {
+          if (at === 0 && topLevelHeadId(n) === prevId) at = off + n.nodeSize;
+        });
+      }
+      try {
+        tr.insert(at, kids[i]!);
+      } catch {
+        return false;
+      }
+    }
+    if (found !== wanted.size) return false;
+    tr.setMeta(undoGuardKey, 'restore');
+    tr.setMeta('cmCommitOrigin', UNDO_SKIP_ORIGIN);
+    tr.setMeta('addToHistory', false);
+    view.dispatch(tr);
+    return true;
+  };
+
   /** After the step's events have reached the PM doc, compare. `skips` is
    *  how many steps this one keypress has already skipped. */
   const verify = (before: EditorState, isUndo: boolean, skips: number, attempt = 0): void => {
@@ -243,6 +317,33 @@ export function createUndoGuard(opts: UndoGuardOptions): UndoGuard {
       if (skips > 0) (opts.onSkipped ?? opts.onBlocked)(undoSkippedMessage(skips));
       return;
     }
+    const lost = removed.filter((id) => partnerTouched.has(id));
+    if (isUndo && lost.every((id) => partnerCreated.has(id))) {
+      // Collateral: the step never created these, yet its undo took them.
+      // Keep the undo and put them back. (A redo that does the same is
+      // reversed like any blocked redo.)
+      setTimeout(() => {
+        const v = getView();
+        if (v && rescueContainers(v, docBefore, lost)) {
+          // The redo of this undo would re-create what the undo deleted —
+          // a second copy of every container just rescued.
+          undoManager.clearRedo();
+          stats.rescued++;
+          stats.allowed++;
+          if (skips > 0) (opts.onSkipped ?? opts.onBlocked)(undoSkippedMessage(skips));
+          return;
+        }
+        resolveBlocked(before, isUndo, skips);
+      }, 0);
+      return;
+    }
+    resolveBlocked(before, isUndo, skips);
+  };
+
+  /** The step would remove a container a partner has built on and that it
+   *  is entitled to remove (it created it): reverse a redo, skip an undo. */
+  const resolveBlocked = (before: EditorState, isUndo: boolean, skips: number): void => {
+    const docBefore = before.doc;
     stats.blocked++;
     if (!isUndo) {
       const reverted = undoManager.undo();
