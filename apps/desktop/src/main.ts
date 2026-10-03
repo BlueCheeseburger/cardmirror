@@ -3544,6 +3544,17 @@ function setUpdateChip(next: Exclude<UpdateChipState, null>): void {
   }
 }
 
+/** Dev aid: `CM_FAKE_UPDATE=ready` (or `available`, optionally with a
+ *  version: `ready:9.9.9`) shows the update chip in an UNPACKAGED build so
+ *  its surfaces (status bar, home screen) can be looked at without a real
+ *  release. Clicking the fake chip does nothing. Ignored when packaged. */
+const fakeUpdateChip: UpdateChipState = (() => {
+  if (app.isPackaged) return null;
+  const m = /^(ready|available)(?::(.+))?$/.exec(process.env['CM_FAKE_UPDATE'] ?? '');
+  return m ? { state: m[1] as 'ready' | 'available', version: m[2] ?? '9.9.9' } : null;
+})();
+if (fakeUpdateChip) updateChip = fakeUpdateChip;
+
 /** Late-opened windows pull the current chip state at boot. */
 ipcMain.handle('host:update-chip-state', () => updateChip);
 
@@ -3551,6 +3562,10 @@ ipcMain.handle('host:update-chip-state', () => updateChip);
  *  (macOS, not stageable yet) → open the release page. */
 ipcMain.handle('host:update-chip-action', () => {
   if (!updateChip) return;
+  if (fakeUpdateChip) {
+    console.log('Update chip clicked (CM_FAKE_UPDATE): no action in a dev build.');
+    return;
+  }
   if (updateChip.state === 'ready') {
     if (process.platform === 'darwin') {
       // Bundle swap (Squirrel can't install into unsigned builds): hand

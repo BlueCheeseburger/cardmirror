@@ -22,7 +22,8 @@ see `DETAILED_CHANGELOG.md`.
 - **Update from the home screen.** When an update is ready (or
   available), the home screen now shows the same update button as the
   status bar, under the CardMirror title, so you can install it without
-  opening a document first. Desktop only.
+  opening a document first. Desktop only. Thanks to Brian
+  (@brian-cai)!
 
 ### Fixed
 
