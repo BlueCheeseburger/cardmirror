@@ -9819,6 +9819,11 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   box-shadow: 0 8px 32px var(--pmd-c-shadow-deep);
   width: 90%;
   max-width: 420px;
+  /* Cap to the overlay (= the visible viewport), less a 0.5rem margin
+     top and bottom: on a short window the header stays put and the
+     body scrolls, so every option stays reachable. A percentage, not
+     vh, so a mobile browser's collapsing toolbar is accounted for. */
+  max-height: calc(100% - 1rem);
   display: flex;
   flex-direction: column;
   font-family: var(--pmd-ui-font);
@@ -9839,6 +9844,9 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  /* Scroll region for the capped dialog. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .pmd-save-as-field {
@@ -9929,12 +9937,14 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   margin-bottom: 0.1rem;
 }
 
-/* One-click preset saves (As-Is / Send Doc / Read Doc). Three equal
-   columns, each a primary (blue) button with its description as a
-   caption below. Sits between the format section and custom save. */
+/* One-click preset saves (As-Is / Send Doc / Read Doc / Marked Doc).
+   Equal columns, each a primary (blue) button with its description as
+   a caption below: three at the dialog's full width, dropping to two
+   and then one as a narrow window squeezes it, so the buttons never
+   overflow sideways. Sits between the format section and custom save. */
 .pmd-save-as-presets {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
   gap: 0.5rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--pmd-c-divider-faint);
