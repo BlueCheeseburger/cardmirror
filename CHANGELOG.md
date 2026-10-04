@@ -82,6 +82,15 @@ see `DETAILED_CHANGELOG.md`.
   way. A selected image no longer limits the search to nothing. Thanks to
   Brian (@brian-cai)!
 
+### Faster
+
+- **Typing in very large documents is smoother.** Several checks that
+  ran over the whole document on every keystroke now look only at what
+  changed: the outline's heading scan, the live-view check, the
+  heading-id check, and, in a co-editing session, the undo safety check.
+  On a document with about 2,500 headings these went from roughly 25 ms
+  of work per keystroke to about 1 ms. Thanks to Brian (@brian-cai)!
+
 ### Fixed
 
 - **Saving no longer writes the "unread" red into your file.** With
