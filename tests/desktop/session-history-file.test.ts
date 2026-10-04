@@ -69,4 +69,32 @@ describe('readHistoryHeader', () => {
     );
     expect((await readHistoryHeader(file))?.roomId).toBe('r');
   });
+
+  it('a file torn in the middle of its snapshot is not listed (it could not be opened)', async () => {
+    const whole = await writeEnvelope('g');
+    const text = await fs.readFile(whole, 'utf8');
+    const torn = path.join(dir, 'g-torn');
+    await fs.writeFile(torn, text.slice(0, text.length - 5000));
+    expect(parseHistoryEnvelope(await fs.readFile(torn, 'utf8')), 'a full parse rejects it').toBeNull();
+    expect(await readHistoryHeader(torn)).toBeNull();
+  });
+
+  it('a valid file whose head cannot be cut at the snapshot key is still listed', async () => {
+    // The key text inside a nested value, before the real snapshot: the
+    // head is cut mid-array and does not parse. The full parse lists it.
+    const file = path.join(dir, 'h');
+    await fs.writeFile(
+      file,
+      JSON.stringify({
+        v: 1,
+        roomId: 'nested',
+        docTitle: 'T',
+        startedAt: 1,
+        updatedAt: 2,
+        changeTimes: [{ peer: 'p', counter: 1, at: 1, snapshotB64: 'decoy' }],
+        snapshotB64: 'AAAA',
+      }),
+    );
+    expect((await readHistoryHeader(file))?.roomId).toBe('nested');
+  });
 });

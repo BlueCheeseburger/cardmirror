@@ -19,6 +19,7 @@ class FakeWorker {
     posted++;
     const data = reply(req);
     queueMicrotask(() => {
+      if (data === 'silent') return; // never answers
       if (data === 'crash') this.onerror?.();
       else this.onmessage?.({ data } as MessageEvent);
     });
@@ -76,5 +77,38 @@ describe('openDocxOffThread', () => {
     reply = (req) => ({ id: req.id, ok: true, docJson: expected.doc.toJSON(), threads: [], docId: null });
     await openDocxOffThread(bytes);
     expect(posted).toBe(2);
+  });
+
+  it('a worker that never answers: the open falls back inline after the timeout, and a new worker serves the next', async () => {
+    vi.useFakeTimers();
+    try {
+      reply = () => 'silent';
+      const { openDocxOffThread, docxWorkerTimeoutMs } = await import('../../src/editor/docx-open.js');
+      const bytes = await sampleDocx();
+      let settled = false;
+      const opening = openDocxOffThread(bytes).then((r) => {
+        settled = true;
+        return r;
+      });
+      await vi.advanceTimersByTimeAsync(docxWorkerTimeoutMs(bytes.byteLength) - 50);
+      expect(settled, 'still waiting on the worker').toBe(false);
+      await vi.advanceTimersByTimeAsync(100);
+      expect((await opening).doc.textContent).toContain('Warming is real');
+      // The stuck worker was retired: the next open posts to a fresh one.
+      const expected = await fromDocxFull(bytes);
+      reply = (req) => ({ id: req.id, ok: true, docJson: expected.doc.toJSON(), threads: [], docId: null });
+      const again = openDocxOffThread(bytes);
+      await vi.advanceTimersByTimeAsync(0);
+      expect((await again).doc.textContent).toContain('Warming is real');
+      expect(posted).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives a larger file more time', async () => {
+    const { docxWorkerTimeoutMs } = await import('../../src/editor/docx-open.js');
+    expect(docxWorkerTimeoutMs(100_000)).toBe(22_000);
+    expect(docxWorkerTimeoutMs(50 * 1024 * 1024)).toBe(120_000);
   });
 });

@@ -91,6 +91,17 @@ see `DETAILED_CHANGELOG.md`.
   On a document with about 2,500 headings these went from roughly 25 ms
   of work per keystroke to about 1 ms. Thanks to Brian (@brian-cai)!
 
+- **Opening a Word file no longer freezes the window.** The conversion
+  runs in the background, so the app stays responsive while a large
+  .docx opens. If the background step fails or takes too long, the file
+  opens the old way. Thanks to Brian (@brian-cai)!
+
+- **Lighter saving and listing.** Autosave reuses the work the crash
+  journal just did when the document hasn't changed, the session history
+  list no longer reads every history file in full, and images are encoded
+  with the browser's built-in method where available. Thanks to Brian
+  (@brian-cai)!
+
 ### Fixed
 
 - **Saving no longer writes the "unread" red into your file.** With

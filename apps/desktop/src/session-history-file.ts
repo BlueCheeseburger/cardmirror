@@ -68,8 +68,9 @@ const SNAPSHOT_KEY = ',"snapshotB64":"';
 const HEAD_CHUNK = 64 * 1024;
 
 /** A history file's listing fields, read from its head. Null when the file
- *  isn't a valid v1 envelope. Files written without the snapshot last (none
- *  are, but a hand-edited one could be) fall back to a full parse. */
+ *  isn't a valid v1 envelope. Anything the head cannot vouch for (the
+ *  snapshot not last, a head that does not parse, a file that does not end
+ *  as an envelope) falls back to a full parse. */
 export async function readHistoryHeader(fullPath: string): Promise<HistoryHeader | null> {
   const handle = await fs.open(fullPath, 'r');
   try {
@@ -91,13 +92,28 @@ export async function readHistoryHeader(fullPath: string): Promise<HistoryHeader
       if (head[valueStart] === '"') return null; // empty snapshot: invalid, as parse says
       const prefix = Buffer.from(head.slice(0, at), 'latin1').toString('utf8');
       const env = parseHistoryEnvelope(`${prefix},"snapshotB64":"-"}`);
-      return env && toHeader(env, size);
+      // The head stands for the file only when the head parses AND the file
+      // ends as a whole envelope does. Otherwise let the full parse decide:
+      // it lists a valid file whose head we cut in the wrong place (the key
+      // text inside a nested value), and it rejects a file torn at the end
+      // — listed from its head, that one would fail only when opened.
+      if (env && (await endsLikeAnEnvelope(handle, size))) return toHeader(env, size);
+      break;
     }
     const env = parseHistoryEnvelope(await fs.readFile(fullPath, 'utf8'));
     return env && toHeader(env, size);
   } finally {
     await handle.close();
   }
+}
+
+/** `JSON.stringify` ends the envelope with the snapshot's closing quote and
+ *  the object's brace. */
+async function endsLikeAnEnvelope(handle: fs.FileHandle, size: number): Promise<boolean> {
+  if (size < 2) return false;
+  const tail = Buffer.alloc(2);
+  const { bytesRead } = await handle.read(tail, 0, 2, size - 2);
+  return bytesRead === 2 && tail.toString('latin1') === '"}';
 }
 
 function toHeader(env: HistoryEnvelopeIpc, sizeBytes: number): HistoryHeader {
