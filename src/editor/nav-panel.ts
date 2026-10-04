@@ -19,6 +19,7 @@ import { settings, SETTINGS_DEFAULTS } from './settings.js';
 import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
 import { isCutInPlaceDoc, markCutInPlace } from './cut-in-place.js';
 import { showToast } from './toast.js';
+import { isAnyOverlayOpen } from './overlay-stack.js';
 import { setManualShadowSelection } from './similar-selection-plugin.js';
 import {
   insertSelfRef,
@@ -338,6 +339,34 @@ export class NavigationPanel {
   private searchRenderTimer: ReturnType<typeof setTimeout> | null = null;
   /** Whether the rows now in the DOM are search results (set by render). */
   private renderedSearchResults = false;
+  /** Whether the user's last click landed in this pane. Escape closes an
+   *  open search then, wherever typing focus went afterwards (clicking a
+   *  result hands focus to the editor). */
+  private lastPointerInPane = false;
+  private readonly boundTrackPointer = (e: PointerEvent): void => {
+    this.lastPointerInPane = e.target instanceof Node && this.root.contains(e.target);
+  };
+  private readonly boundSearchEscape = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape' || !this.searchMode || !this.lastPointerInPane) return;
+    if (e.defaultPrevented || e.isComposing) return;
+    // Anything with its own claim on Escape goes first: a dialog, this
+    // pane's context menu, a drag in flight, another text field (the find
+    // bar). The search box handles its own Escape.
+    if (isAnyOverlayOpen() || openContextMenuEl || dragController.isActive()) return;
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      !this.root.contains(active) &&
+      (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')
+    ) {
+      return;
+    }
+    if (active === this.searchInput) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.setSearchMode(false);
+    this.view?.focus();
+  };
   private searchQuery = '';
   private searchInput: HTMLInputElement;
   private searchBtn: HTMLButtonElement;
@@ -637,6 +666,9 @@ export class NavigationPanel {
    */
   destroy(): void {
     this.destroyed = true;
+    document.removeEventListener('pointerdown', this.boundTrackPointer, true);
+    document.removeEventListener('keydown', this.boundSearchEscape, true);
+    if (this.searchRenderTimer !== null) clearTimeout(this.searchRenderTimer);
     this.cancelLongPress();
     this.unsubscribeSettings?.();
     this.unsubscribeSettings = null;
@@ -1382,6 +1414,16 @@ export class NavigationPanel {
       return;
     }
     this.searchMode = on;
+    // Pane-wide Escape, only while the search is open. Capture phase: the
+    // editor's own Escape handling must not see a press that closed this.
+    if (on) {
+      this.lastPointerInPane = true; // opened from this pane's button
+      document.addEventListener('pointerdown', this.boundTrackPointer, true);
+      document.addEventListener('keydown', this.boundSearchEscape, true);
+    } else {
+      document.removeEventListener('pointerdown', this.boundTrackPointer, true);
+      document.removeEventListener('keydown', this.boundSearchEscape, true);
+    }
     this.root.classList.toggle('pmd-nav-searching', on);
     this.searchBtn.classList.toggle('pmd-nav-search-btn-active', on);
     this.searchBtn.setAttribute('aria-pressed', String(on));

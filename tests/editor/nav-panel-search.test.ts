@@ -232,6 +232,54 @@ describe('nav pane search', () => {
     expect(input.value).toBe('warming');
   });
 
+  it('Escape also closes the search from outside the box, when the last click was in the pane', () => {
+    open();
+    search(panel, 'warming');
+    const root = rootOf(panel);
+    document.body.appendChild(root);
+    const searching = () => root.classList.contains('pmd-nav-searching');
+    const esc = () => {
+      const e = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      return e;
+    };
+    const clickOn = (el: Element) => el.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+
+    // The user clicks in the document: Escape there is the editor's.
+    clickOn(view.dom);
+    expect(esc().defaultPrevented).toBe(false);
+    expect(searching()).toBe(true);
+
+    // The user clicks a result (typing focus goes to the editor): Escape
+    // closes the search.
+    clickOn(root.querySelector('.pmd-nav-item')!);
+    view.focus();
+    expect(esc().defaultPrevented).toBe(true);
+    expect(searching()).toBe(false);
+
+    // Closed: the pane no longer claims Escape.
+    clickOn(root.querySelector('.pmd-nav-item')!);
+    expect(esc().defaultPrevented).toBe(false);
+    root.remove();
+  });
+
+  it('pane-wide Escape yields to another text field', () => {
+    open();
+    search(panel, 'warming');
+    const root = rootOf(panel);
+    document.body.appendChild(root);
+    root.querySelector('.pmd-nav-item')!.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    const other = document.createElement('input');
+    document.body.appendChild(other);
+    other.focus();
+    const e = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    document.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+    expect(root.classList.contains('pmd-nav-searching')).toBe(true);
+    other.remove();
+    root.remove();
+  });
+
   it('closing keeps the selected result where it was on screen', () => {
     open();
     search(panel, 'extensions');
