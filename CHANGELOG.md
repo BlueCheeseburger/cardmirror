@@ -9,6 +9,17 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Added
 
+- **Search the navigation pane.** The magnifier at the top of the nav
+  pane opens a search box. As you type, matching headings are
+  highlighted in the outline, including ones hidden by the level buttons
+  or inside a collapsed section, and by default the outline narrows to
+  the matches and the headings above them. You can search one heading
+  level or all of them, and optionally the text under each heading.
+  Up/Down step through matches and Enter jumps. While results are
+  showing you can click to jump, select several, copy, and drag them to
+  the dropzone or the Send pill; moving, cutting and deleting headings
+  wait until the search is cleared. Thanks to Brian (@brian-cai)!
+
 - **Rejoin a session from Join session.** Under the box where you paste
   a share code or invite link, Join session now lists the sessions you
   can get back into: ones you have a saved copy of, and ones you left in

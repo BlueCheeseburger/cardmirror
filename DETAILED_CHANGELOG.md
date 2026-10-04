@@ -7,6 +7,46 @@ in each release, see `CHANGELOG.md`.
 
 ## Unreleased
 
+### Added: nav pane search, as a results view
+
+Brian's PR #92 adds a search bar to the nav pane header (level select,
+"Hide non-matches", "Search content"; `computeSearch` over the heading
+entries, cached per doc + query + options; matches revealed even below the
+level filter or inside a collapsed section; ancestors kept as a skeleton).
+State is per panel, so each pane of the three-pane workspace searches its
+own document.
+
+The PR left the filtered outline fully editable, which is where it went
+wrong: a Shift-click range was resolved against the whole document, so it
+selected every same-level heading the search had HIDDEN between the two
+clicks, and a drag, Cut, Delete or Send then acted on blocks the user could
+not see; a drop "between" two results landed among hidden headings.
+
+Merged with the outline treated as SEARCH RESULTS while a query is active
+(`searchResultsShown()`):
+
+- Drags started from a result row are `absorbOnly` (new `DragSession`
+  flag): the controller's `dispatchHit` skips any surface hit without an
+  `absorb`, `commitInner` refuses a non-absorbing target, and the nav and
+  editor surfaces render no in-document slots for such a drag. The
+  dropzone and the Send pill are the only places it can end. A panel
+  showing results offers no slots to ANY drag (including one from another
+  pane). A refused release toasts why.
+- Shift-click ranges run over the rows shown (`liEntries` order); a
+  search re-render prunes selected ids whose rows are gone.
+- The context menu is Select and Copy only.
+- Collapse arrows, click-to-jump and keyboard stepping are unchanged.
+
+Also fixed at merge: the caret highlight lit the nearest shown row above
+the caret even when that row did not contain it (now only a row whose
+range holds the caret, else none); "Search content" credited text to the
+nearest searched heading above it even across a shallower heading (a Hat
+named "Solvency" lit the last Block of the previous Hat) — a heading's
+section now ends at the next heading of its level or shallower; typing is
+debounced 90 ms (each render rebuilds the list); closing from the × or
+the magnifier returns focus to the editor. Tests:
+nav-panel-search.test.ts, drag-absorb-only.test.ts.
+
 ### Added: file-search folder priority (highest / preferred)
 
 There are two new `pathList` settings, `fileSearchHighestFolders` and

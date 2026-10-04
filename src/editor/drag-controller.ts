@@ -74,6 +74,13 @@ export interface DragSession {
    *  (the dropzone shelf) rather than a real view region. Drops
    *  always copy in this mode; the source view is never mutated. */
   virtual?: boolean;
+  /** The drag may only end on a surface that ABSORBS it (the dropzone
+   *  shelf, the Send pill) — never inside a document. Set by the nav pane
+   *  while its outline is showing search results: those rows are not
+   *  adjacent in the document, so a slot between two of them does not
+   *  mean one place, and the outline must not be rearranged through a
+   *  filtered view. No surface offers in-document slots for such a drag. */
+  absorbOnly?: boolean;
 }
 
 export interface DropTarget {
@@ -368,7 +375,7 @@ class DragControllerImpl {
         return false;
       }
     }
-    if (!this.hoverTarget) {
+    if (!this.hoverTarget || (this.session.absorbOnly && !this.hoverTarget.absorb)) {
       this.cancel();
       return false;
     }
@@ -536,6 +543,7 @@ class DragControllerImpl {
     for (const surface of this.surfaces) {
       const hit = surface.hitTest(clientX, clientY);
       if (!hit) continue;
+      if (this.session.absorbOnly && !hit.absorb) continue;
       if (!winner || hit.dy < winner.dy) winner = { ...hit, surface };
     }
     for (const surface of this.surfaces) {

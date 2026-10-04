@@ -295,6 +295,34 @@ mirrors Word's Navigation Pane, but does more:
   Level 1** … **Show Levels 1–4** commands in Settings → Keyboard
   shortcuts (unbound by default); they act on the focused document's
   pane, exactly like the buttons.
+- **Search** — click the magnifier at the top of the pane to open the
+  search bar under the level buttons. As you type, headings that
+  contain the search are highlighted right in the outline — even ones
+  hidden by the level filter or a collapsed section. Options, which
+  CardMirror remembers:
+  - **Level** — search **Pocket**, **Hat**, **Block** or **Tag**
+    headings only, or **All** (the default).
+  - **Hide non-matches** (on by default) — the outline shrinks to the
+    matches plus the headings above them, so you can still click
+    through the skeleton. Off, the full outline stays and the matches
+    are just highlighted.
+  - **Search content** — a heading also matches when the text under it
+    contains the search (marked with a dot). The match goes to the
+    heading of the chosen level that contains that text, so with
+    **Block** selected, a hit inside a card lights up its Block.
+
+  While results are showing, the outline is for finding and collecting,
+  not for rearranging. Click a row to jump to it; Cmd/Ctrl-click and
+  Shift-click select several (Shift-click spans only the rows you can
+  see); the arrows fold sections; right-click offers **Select** and
+  **Copy**. You can drag results to the dropzone or the Send pill, but
+  not to a new place in the outline or the document: clear the search to
+  move, cut or delete headings.
+
+  The Up/Down arrows step through the matches and scroll the document
+  without leaving the search box; Enter jumps. Esc clears the search;
+  Esc again, the ×, or the magnifier closes the bar. Case and curly vs.
+  straight quotes don't matter.
 - **Multi-select** — Mod-click adds an entry to the selection,
   Shift-click selects a contiguous range.
 - **Reorder** — drag an entry (or a multi-selection) up or down. It
