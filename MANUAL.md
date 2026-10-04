@@ -923,6 +923,13 @@ it off may help.
 
 - **Find (Mod-F)** opens the find bar.
 - **Find and Replace (Mod-H)** adds a replace field.
+- **What a selection does.** Highlight a word or phrase (within one
+  paragraph, up to 200 characters) and open Find: the box is filled with
+  it and the whole document is searched. Select something larger — more
+  than one paragraph, a whole card, a section via **Select heading and
+  contents** — and Find and Replace are limited to that selection, shown
+  by the ⌖ button being on. **Alt-L** (or the ⌖ button) switches the limit
+  on or off at any time.
 - **Find without category grouping (Alt-F)** orders matches by position
   rather than grouping them by structural type.
 
@@ -2616,7 +2623,8 @@ headers shown inside each tab.
 **Find**
 
 - **Find: remember the last search query** — when on, the find bar
-  reopens pre-filled with your last search.
+  reopens pre-filled with your last search. A highlighted word or phrase
+  takes priority over it.
 - **Find: category priority order** — the order Ctrl-F steps through
   result groups (heading / tag / cite / other); Alt-F ignores it and goes
   purely by proximity (see [Find and Find/Replace](#find-and-findreplace)).

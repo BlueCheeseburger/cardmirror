@@ -56,6 +56,21 @@ see `DETAILED_CHANGELOG.md`.
   opening a document first. Desktop only. Thanks to Brian
   (@brian-cai)!
 
+### Changed
+
+- **Find starts with your highlighted text.** Highlight a word or phrase
+  and press Ctrl/Cmd+F: the find bar opens with that text already in the
+  search box and finds it across the whole document, as in Word and
+  Google Docs. Before, the box stayed empty and the search was limited to
+  the highlighted words. Highlighting something else and pressing
+  Ctrl/Cmd+F again, with the bar still open, swaps in the new text. A
+  larger selection still limits Find and Replace to itself, as before:
+  anything spanning more than one paragraph, a passage longer than 200
+  characters, a whole card, or a section picked with **Select heading and
+  contents**. Alt+L, or the ⌖ button, switches the limit on or off either
+  way. A selected image no longer limits the search to nothing. Thanks to
+  Brian (@brian-cai)!
+
 ### Fixed
 
 - **Selecting text in a dialog no longer closes it.** Dragging to select

@@ -19,6 +19,7 @@
  * the editor.
  */
 
+import type { EditorState } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { suppressAutofill } from './autofill-ignore.js';
 import {
@@ -78,6 +79,42 @@ function buildSnippet(
   const after =
     afterRaw.replace(/\s+/g, ' ') + (afterEnd < text.length ? '…' : '');
   return { before, hit, after };
+}
+
+/** Longest selection that pre-fills the find input on open. */
+const SELECTION_SEED_MAX = 200;
+
+/** Stands in for an inline atom (a footnote marker, an inline image) when
+ *  the selection is read as text — the same placeholder the find engine
+ *  sees there, so a selection holding one is never taken for a query. */
+const LEAF_PLACEHOLDER = '\u0000';
+
+/** What a selection means to a find bar opened over it. Decided by WHAT is
+ *  selected, never by how the selection was made:
+ *   - `term`: a short highlight inside one paragraph — the thing to look
+ *     FOR. It fills the box and the whole document is searched.
+ *   - `region`: anything else that holds text — several paragraphs or
+ *     cards, a long passage, a whole card, a section selected from the nav
+ *     pane. The place to look IN: the box is left alone and the search is
+ *     limited to it.
+ *   - `none`: nothing selected, or a selection with no text in it (an
+ *     image). The whole document is searched. */
+export type FindSelection =
+  | { kind: 'none' }
+  | { kind: 'term'; text: string }
+  | { kind: 'region' };
+
+export function classifyFindSelection(state: EditorState): FindSelection {
+  const { selection, doc } = state;
+  if (selection.empty) return { kind: 'none' };
+  const raw = doc.textBetween(selection.from, selection.to, '\n', LEAF_PLACEHOLDER);
+  // Nothing to search for or in: an image on its own, empty paragraphs.
+  if (!raw.split(LEAF_PLACEHOLDER).join('').trim()) return { kind: 'none' };
+  // Paragraph breaks at the edges are not content: a drag to the end of a
+  // line, or a triple-click, runs into the start of the next paragraph.
+  const text = raw.replace(/^\n+|\n+$/g, '');
+  const oneRun = !text.includes('\n') && !text.includes(LEAF_PLACEHOLDER);
+  return oneRun && text.length <= SELECTION_SEED_MAX ? { kind: 'term', text } : { kind: 'region' };
 }
 
 export class FindReplaceBar {
@@ -465,34 +502,48 @@ export class FindReplaceBar {
     // the editor selection visually (the browser doesn't render
     // text-selection highlights on an unfocused contenteditable),
     // losing the user's intent.
-    let scopeCandidate: { from: number; to: number } | null = null;
-    if (view && !view.state.selection.empty) {
-      const { from, to } = view.state.selection;
-      scopeCandidate = { from, to };
+    const picked: FindSelection = view ? classifyFindSelection(view.state) : { kind: 'none' };
+    // Stepping through matches moves the editor selection onto the current
+    // match. A re-open while the bar is up (Ctrl-F → Ctrl-H) over THAT
+    // selection is not the user selecting something: it must neither
+    // become the scope nor overwrite the typed query with the match's
+    // literal text ("smith" → "SMITH", straight quotes → curly).
+    const onCurrentMatch = ((): boolean => {
+      if (!view || wasClosed) return false;
+      const st = findReplaceKey.getState(view.state);
+      const m = st && st.currentIndex >= 0 ? st.matches[st.currentIndex] : undefined;
+      return !!m && m.from === view.state.selection.from && m.to === view.state.selection.to;
+    })();
+    // A term can still be scoped to by hand (Alt-L); a selection with no
+    // text in it is not offered as a scope at all.
+    if (!onCurrentMatch) {
+      this.capturedScope =
+        view && picked.kind !== 'none'
+          ? { from: view.state.selection.from, to: view.state.selection.to }
+          : null;
     }
-    this.capturedScope = scopeCandidate;
 
-    // Seed the input on a fresh open: with the remembered last query
-    // when that setting is on, otherwise empty. Set it unconditionally
-    // (not only when currently empty) — the bar keeps the DOM input's
-    // value across open/close, so when the setting is off we must
-    // actively clear the lingering query, otherwise the bar behaves as
-    // if "remember last query" were always on. Selection-seeding is
-    // intentionally NOT done — a user opening Ctrl-F with text selected
-    // typically wants to scope the search to that selection (see the
-    // scope toggle below), not pre-fill the find input with it.
-    if (wasClosed) {
+    // Seeding the input:
+    //  - A TERM fills it (Word / Google Docs / VS Code) — on a fresh open,
+    //    and on a re-open while the bar is up when the user has highlighted
+    //    something new.
+    //  - Otherwise a fresh open seeds the remembered query when that
+    //    setting is on, else empty. Set unconditionally, not only when
+    //    currently empty: the bar keeps the DOM input's value across
+    //    open/close, so with the setting off the lingering query must be
+    //    cleared. A re-open while already open keeps what is typed.
+    if (picked.kind === 'term' && !onCurrentMatch) {
+      this.findInput.value = picked.text;
+    } else if (wasClosed) {
       this.findInput.value = settings.get('findRememberLastQuery')
         ? settings.get('findLastQuery')
         : '';
     }
-
-    // Auto-enable the scope toggle whenever the user opened the
-    // bar over a non-empty selection. The scope band decoration
-    // doubles as the "we still know what you selected" visual,
-    // which matters because focusing the find input clears the
-    // browser's selection highlight on the editor.
-    this.scopeCheckbox.checked = scopeCandidate !== null;
+    // A REGION limits the search to itself; the scope band doubles as the
+    // "we still know what you selected" visual, since focusing the find
+    // input stops the browser rendering the editor's selection. On a
+    // re-open the user's own toggle choice stands.
+    if (wasClosed) this.scopeCheckbox.checked = picked.kind === 'region';
 
     this.findInput.focus();
     this.findInput.select();
@@ -647,7 +698,8 @@ export class FindReplaceBar {
       let next = this.capturedScope;
       if (!next) {
         const sel = view.state.selection;
-        if (!sel.empty) next = { from: sel.from, to: sel.to };
+        // (A selection with no text in it — an image — is not a scope.)
+        if (classifyFindSelection(view.state).kind !== 'none') next = { from: sel.from, to: sel.to };
       }
       if (!next) {
         // No selection to scope over — flip the toggle back off.
