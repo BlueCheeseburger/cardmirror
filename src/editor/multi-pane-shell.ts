@@ -1371,6 +1371,12 @@ class Slot {
       window.clearTimeout(rec.autosaveTimer);
       rec.autosaveTimer = null;
     }
+    // And delete the journal it already has. Cancelling the timer covers
+    // only a write still pending; the usual order is edit, journal written,
+    // save, close — and that journal stayed on disk, so the closed document
+    // came back as a crash-recovery draft at the next launch. After any
+    // write still in flight, so it cannot land behind the delete.
+    void (recordJournalChains.get(rec) ?? Promise.resolve()).then(() => clearJournalForRecord(rec));
     // Clear speech-doc designation if the closing record was it.
     const speechResolver = getSpeechDocResolver();
     if (speechResolver.isSpeechByUid(rec.uid)) {

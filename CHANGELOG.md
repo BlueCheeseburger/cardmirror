@@ -84,6 +84,23 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **Saving no longer writes the "unread" red into your file.** With
+  "mark unread text after the reading marker" on, every save turned the
+  on-screen red into real red text in the document. After reopening, that
+  text was treated as part of the marker, and removing the marker deleted
+  it. The red is now written only when you export a copy to Word; your
+  own working file never carries it. Files already saved with the red in
+  them keep it. Thanks to Brian (@brian-cai)!
+
+- **Three-pane autosave keeps version history and warns on a slow
+  save**, as single-window autosave already did. Thanks to Brian
+  (@brian-cai)!
+
+- **A closed document no longer comes back as a crash-recovery draft.**
+  In the three-pane workspace, closing a saved document from the stack
+  could leave its recovery file behind, so it was offered for recovery at
+  the next launch. Thanks to Brian (@brian-cai)!
+
 - **Selecting text in a dialog no longer closes it.** Dragging to select
   text in a dialog's field and letting go past the dialog's edge (for
   example the relay address in Settings) used to count as a click outside

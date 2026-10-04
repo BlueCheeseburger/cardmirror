@@ -19,7 +19,7 @@ import { baseKeymap } from 'prosemirror-commands';
 import { Node as PMNode, type Mark } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
 import { fromDocxFull, toDocx, serializeNative, serializeNativeAsync, parseNative, parseNativeSalvage, NativeDamagedError, readDocIdFromBytes, stampDocId, setSaveHealListener } from '../index.js';
-import { transformForExport, countMarkedCards } from '../export/transform-for-export.js';
+import { transformForExport, countMarkedCards, bakesUnreadRedOnSave } from '../export/transform-for-export.js';
 import type { Thread, Comment } from './comments-plugin.js';
 import type { LocalComment } from './learn-store.js';
 import { NavigationPanel } from './nav-panel.js';
@@ -8122,6 +8122,9 @@ async function serializeForSave(
      *  remove. Omitted → freeze when the export drops numbered content
      *  (analytics / read mode / marked cards), else keep. */
     numbering?: NumberingExportMode;
+    /** The write is the user's own working file (Save in place, a
+     *  conflicted copy of it), not an export made for someone else. */
+    workingCopy?: boolean;
   },
   /** Stable doc identity to embed (`.cmir` field / `.docx` docProps).
    *  Omitted for derived/lossy exports, which stay clean (no identity). */
@@ -8141,10 +8144,14 @@ async function serializeForSave(
     includeUndertags: opts.includeUndertags,
     readMode: opts.readMode,
     markedCardsOnly: opts.markedCardsOnly ?? false,
-    // Word only: the red is a display-only decoration CardMirror redraws
-    // from the marker. Baked into a .cmir it would become real font color
-    // that outlives the setting and a moved marker.
-    markUnreadAfterMarker: format === 'docx' && settings.get('markUnreadAfterMarker'),
+    // Exports to Word only — never the user's working file, in either
+    // format (see bakesUnreadRedOnSave: baked red is read back as marker
+    // text and deleted with the marker).
+    markUnreadAfterMarker: bakesUnreadRedOnSave(
+      format,
+      opts.workingCopy === true,
+      settings.get('markUnreadAfterMarker'),
+    ),
   });
   if (view) gcOrphanThreads(view);
   const baseThreads =
@@ -8700,7 +8707,7 @@ async function keepBothForActiveFile(
 async function serializeActiveForSave(format: 'cmir' | 'docx', docId: string | null): Promise<Uint8Array> {
   return serializeForSave(
     format,
-    { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false },
+    { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false, workingCopy: true },
     docId ?? undefined,
   );
 }
@@ -8877,6 +8884,7 @@ async function runSaveFlowInner(): Promise<boolean> {
           includeAnalytics: true,
           includeUndertags: true,
           readMode: false,
+          workingCopy: true,
         },
         docId,
       ),
