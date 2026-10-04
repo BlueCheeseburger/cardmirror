@@ -5,7 +5,7 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
-## Unreleased
+## 1.14.0 — 2026-10-03
 
 ### Added
 
@@ -26,9 +26,10 @@ see `DETAILED_CHANGELOG.md`.
   the last week. Click one to rejoin. Pasting a code works as before,
   with no extra click. Sessions that have ended drop off the list, and a
   session you left has a ✕ to forget it. The command is now named
-  **Join or Rejoin Collaboration Session** (searching "rejoin" finds it). To make this possible the app
-  now remembers a left session's share code on your device for up to 7
-  days (see the privacy policy). Thanks to Brian (@brian-cai)!
+  **Join or Rejoin Collaboration Session** (searching "rejoin" finds
+  it). To make this possible the app now remembers a left session's
+  share code on your device for up to 7 days (see the privacy policy).
+  Thanks to Brian (@brian-cai)!
 
 - **A shortcut to Collaboration settings.** The Send and Receive popups
   have a gear button that opens Settings → Collaboration. Thanks to Brian
@@ -81,8 +82,6 @@ see `DETAILED_CHANGELOG.md`.
   contents**. Alt+L, or the ⌖ button, switches the limit on or off either
   way. A selected image no longer limits the search to nothing. Thanks to
   Brian (@brian-cai)!
-
-### Faster
 
 - **Typing in very large documents is smoother.** Several checks that
   ran over the whole document on every keystroke now look only at what
