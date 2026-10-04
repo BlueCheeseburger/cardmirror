@@ -220,14 +220,58 @@ describe('nav pane search', () => {
     expect(rows(panel)).toHaveLength(6);
   });
 
-  it('Escape clears the query, then closes the bar', () => {
+  it('Escape closes the search in one press and brings the full outline back', () => {
     open();
     const input = search(panel, 'warming');
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    expect(input.value).toBe('');
-    expect(hits(panel)).toEqual([]);
+    expect(rows(panel)).not.toContain('3:Economy Advantage');
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(rootOf(panel).classList.contains('pmd-nav-searching')).toBe(false);
+    expect(hits(panel)).toEqual([]);
+    expect(rows(panel)).toContain('3:Economy Advantage');
+    // The query is kept for the next open.
+    expect(input.value).toBe('warming');
+  });
+
+  it('closing keeps the selected result where it was on screen', () => {
+    open();
+    search(panel, 'extensions');
+    const p = panel as unknown as {
+      listEl: HTMLElement;
+      liEntries: Map<HTMLLIElement, { id: string | null; text: string }>;
+      selectSingle(e: unknown): void;
+    };
+    const entryOf = (text: string) => [...p.liEntries.values()].find((e) => e.text === text)!;
+    p.selectSingle(entryOf('Warming — Extensions'));
+    // jsdom has no layout: give every row a 20px slot by its index in the
+    // list, offset by the list's scrollTop, as a browser would report it.
+    const list = p.listEl;
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, get: () => list.children.length * 20 });
+    Object.defineProperty(list, 'clientHeight', { configurable: true, get: () => 60 });
+    list.getBoundingClientRect = () => ({ top: 0, bottom: 60, left: 0, right: 100, width: 100, height: 60, x: 0, y: 0, toJSON: () => ({}) });
+    const realRect = HTMLElement.prototype.getBoundingClientRect;
+    HTMLLIElement.prototype.getBoundingClientRect = function (this: HTMLLIElement) {
+      const i = [...list.children].indexOf(this);
+      const top = i * 20 - list.scrollTop;
+      return { top, bottom: top + 20, left: 0, right: 100, width: 100, height: 20, x: 0, y: top, toJSON: () => ({}) };
+    };
+    try {
+      const rowTop = (text: string): number => {
+        const li = [...p.liEntries.entries()].find(([, e]) => e.text === text)![0];
+        return li.getBoundingClientRect().top;
+      };
+      // Results: 1AC > Solvency > Warming — Extensions. The result is the
+      // third row, 40px down.
+      expect(rowTop('Warming — Extensions')).toBe(40);
+      rootOf(panel).querySelector<HTMLInputElement>('.pmd-nav-search-input')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      // Full outline: the same row is now the 6th (index 5, 100px into the
+      // list). It is still 40px down the pane, not scrolled out of view.
+      expect(rows(panel).indexOf('3:Warming — Extensions')).toBe(5);
+      expect(rowTop('Warming — Extensions')).toBe(40);
+      expect(list.scrollTop).toBe(60);
+    } finally {
+      HTMLLIElement.prototype.getBoundingClientRect = realRect;
+    }
   });
 
   it('the header × closes the search, not the pane, while searching', () => {

@@ -336,6 +336,8 @@ export class NavigationPanel {
    *  query filters/highlights its rows in place. */
   private searchMode = false;
   private searchRenderTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Whether the rows now in the DOM are search results (set by render). */
+  private renderedSearchResults = false;
   private searchQuery = '';
   private searchInput: HTMLInputElement;
   private searchBtn: HTMLButtonElement;
@@ -1013,6 +1015,7 @@ export class NavigationPanel {
     // a collapsed parent or past the level filter; "Hide non-matches"
     // shows ONLY those rows.
     const search = this.currentSearch(doc, entries);
+    this.renderedSearchResults = search != null;
     const hideNonMatches = search != null && settings.get('navSearchHideNonMatches');
     this.searchHitRows = [];
     this.searchStatusEl.textContent = !search
@@ -1284,11 +1287,67 @@ export class NavigationPanel {
    *  put the selection and the caret highlight back on rows that exist. */
   private renderForSearch(): void {
     if (!this.currentDoc) return;
+    // Results → full outline (search closed or cleared): everything the
+    // search hid comes back above the row the user was on, so the same
+    // scroll offset would show somewhere else entirely. Keep that row
+    // where it sits on screen.
+    const anchor = this.renderedSearchResults ? this.captureScrollAnchor() : null;
     this.render(this.currentDoc);
+    if (anchor && !this.renderedSearchResults) this.restoreScrollAnchor(anchor);
     this.pruneSelectionToShownRows();
     // A deliberate multi-selection of results stands; otherwise the single
     // highlight follows the caret, as after any other re-render.
     if (this.selectedIds.size <= 1) this.resyncCaretHighlight();
+  }
+
+  /** The element that scrolls the outline: the list itself in the
+   *  single-window layout, the section body in the three-pane rail. */
+  private navScroller(): HTMLElement {
+    const list = this.listEl;
+    return list.scrollHeight > list.clientHeight
+      ? list
+      : (list.closest<HTMLElement>('.pmd-multi-nav-body') ?? list);
+  }
+
+  /** The row to hold in place across a re-render, and where it is on
+   *  screen: the selected row, else the keyboard-active match, else the
+   *  first row in view. */
+  private captureScrollAnchor(): { id: string | null; pos: number; top: number } | null {
+    const view = this.navScroller().getBoundingClientRect();
+    const rows = [...this.liEntries.keys()];
+    const inView = (li: HTMLLIElement): boolean => {
+      const r = li.getBoundingClientRect();
+      return r.bottom > view.top && r.top < view.bottom;
+    };
+    const li =
+      rows.find((r) => r.classList.contains('pmd-nav-item-selected') && inView(r)) ??
+      rows.find((r) => r.classList.contains('pmd-nav-search-active') && inView(r)) ??
+      rows.find((r) => r.classList.contains('pmd-nav-item-selected')) ??
+      rows.find(inView);
+    const entry = li && this.liEntries.get(li);
+    if (!li || !entry) return null;
+    return { id: entry.id, pos: entry.pos, top: li.getBoundingClientRect().top };
+  }
+
+  /** Scroll so the anchor row is back at its captured screen position. If
+   *  the row is no longer rendered (a match the level filter hides once the
+   *  search is closed), the nearest rendered row above it stands in. */
+  private restoreScrollAnchor(anchor: { id: string | null; pos: number; top: number }): void {
+    let target: HTMLLIElement | null = null;
+    let nearest: { li: HTMLLIElement; pos: number } | null = null;
+    for (const [li, entry] of this.liEntries) {
+      if (anchor.id != null && entry.id === anchor.id) {
+        target = li;
+        break;
+      }
+      if (entry.pos <= anchor.pos && (!nearest || entry.pos >= nearest.pos)) nearest = { li, pos: entry.pos };
+    }
+    const li = target ?? nearest?.li;
+    if (!li) return;
+    const scroller = this.navScroller();
+    const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    const next = scroller.scrollTop + (li.getBoundingClientRect().top - anchor.top);
+    scroller.scrollTop = Math.max(0, Math.min(next, max));
   }
 
   /** Drop selected ids whose rows are not shown — a selection must never
@@ -1365,17 +1424,12 @@ export class NavigationPanel {
     }
     const hits = this.searchHitRows;
     if (e.key === 'Escape') {
+      // Escape closes the search outright (the query is kept for the next
+      // open, selected, so typing replaces it).
       e.preventDefault();
       e.stopPropagation();
-      if (this.searchInput.value) {
-        this.searchInput.value = '';
-        this.searchQuery = '';
-        this.flushSearchRender();
-        this.renderForSearch();
-      } else {
-        this.setSearchMode(false);
-        this.view?.focus();
-      }
+      this.setSearchMode(false);
+      this.view?.focus();
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (hits.length === 0) return;

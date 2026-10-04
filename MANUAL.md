@@ -320,8 +320,9 @@ mirrors Word's Navigation Pane, but does more:
   move, cut or delete headings.
 
   The Up/Down arrows step through the matches and scroll the document
-  without leaving the search box; Enter jumps. Esc clears the search;
-  Esc again, the ×, or the magnifier closes the bar. Case and curly vs.
+  without leaving the search box; Enter jumps. Esc, the ×, or the
+  magnifier closes the search and brings the full outline back, keeping
+  the result you were on where it was in the pane. Case and curly vs.
   straight quotes don't matter.
 - **Multi-select** — Mod-click adds an entry to the selection,
   Shift-click selects a contiguous range.
