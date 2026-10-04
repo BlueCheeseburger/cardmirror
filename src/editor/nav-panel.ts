@@ -346,6 +346,24 @@ export class NavigationPanel {
   private readonly boundTrackPointer = (e: PointerEvent): void => {
     this.lastPointerInPane = e.target instanceof Node && this.root.contains(e.target);
   };
+  /** The claim on Escape ends the moment the user does anything outside
+   *  the pane: types in the document (or presses any shortcut there), or
+   *  focus moves into something else — a dialog, the find bar, a palette. */
+  private readonly boundReleaseOnKey = (e: KeyboardEvent): void => {
+    if (!this.lastPointerInPane || e.key === 'Escape') return;
+    if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+    if (e.target instanceof Node && this.root.contains(e.target)) return;
+    this.lastPointerInPane = false;
+  };
+  private readonly boundReleaseOnFocus = (e: FocusEvent): void => {
+    if (!this.lastPointerInPane) return;
+    const to = e.target;
+    if (!(to instanceof Node) || this.root.contains(to)) return;
+    // Clicking a result puts typing focus in this pane's editor: that is
+    // part of the click, not the user moving on.
+    if (this.view && this.view.dom.contains(to)) return;
+    this.lastPointerInPane = false;
+  };
   private readonly boundSearchEscape = (e: KeyboardEvent): void => {
     if (e.key !== 'Escape' || !this.searchMode || !this.lastPointerInPane) return;
     if (e.defaultPrevented || e.isComposing) return;
@@ -353,6 +371,11 @@ export class NavigationPanel {
     // pane's context menu, a drag in flight, another text field (the find
     // bar). The search box handles its own Escape.
     if (isAnyOverlayOpen() || openContextMenuEl || dragController.isActive()) return;
+    // Not every dialog registers with the overlay stack (Clean, Bulk
+    // convert, the benchmark…), but every one of them is a `pmd-*-overlay`
+    // element: stand down while any is showing. This listener is on the
+    // capture phase and would otherwise run before theirs.
+    if (anyModalOverlayShowing()) return;
     const active = document.activeElement;
     if (
       active instanceof HTMLElement &&
@@ -666,8 +689,7 @@ export class NavigationPanel {
    */
   destroy(): void {
     this.destroyed = true;
-    document.removeEventListener('pointerdown', this.boundTrackPointer, true);
-    document.removeEventListener('keydown', this.boundSearchEscape, true);
+    this.removeSearchEscapeListeners();
     if (this.searchRenderTimer !== null) clearTimeout(this.searchRenderTimer);
     this.cancelLongPress();
     this.unsubscribeSettings?.();
@@ -1420,9 +1442,10 @@ export class NavigationPanel {
       this.lastPointerInPane = true; // opened from this pane's button
       document.addEventListener('pointerdown', this.boundTrackPointer, true);
       document.addEventListener('keydown', this.boundSearchEscape, true);
+      document.addEventListener('keydown', this.boundReleaseOnKey, true);
+      document.addEventListener('focusin', this.boundReleaseOnFocus, true);
     } else {
-      document.removeEventListener('pointerdown', this.boundTrackPointer, true);
-      document.removeEventListener('keydown', this.boundSearchEscape, true);
+      this.removeSearchEscapeListeners();
     }
     this.root.classList.toggle('pmd-nav-searching', on);
     this.searchBtn.classList.toggle('pmd-nav-search-btn-active', on);
@@ -1436,6 +1459,13 @@ export class NavigationPanel {
     if (on) this.focusSearchInput();
     // Closing from the × or the magnifier: typing goes back to the editor.
     else if (this.root.contains(document.activeElement)) this.view?.focus();
+  }
+
+  private removeSearchEscapeListeners(): void {
+    document.removeEventListener('pointerdown', this.boundTrackPointer, true);
+    document.removeEventListener('keydown', this.boundSearchEscape, true);
+    document.removeEventListener('keydown', this.boundReleaseOnKey, true);
+    document.removeEventListener('focusin', this.boundReleaseOnFocus, true);
   }
 
   /** Apply a pending (debounced) query now. */
@@ -3013,6 +3043,18 @@ export class NavigationPanel {
 interface SearchResult {
   matchAt: Map<number, number>;
   keep: Set<number>;
+}
+
+/** Is any modal overlay on screen? Every dialog's backdrop carries a class
+ *  ending in `-overlay` (`pmd-settings-overlay`, `pmd-route-overlay`,
+ *  `pmd-bulk-overlay`, …), whether or not it uses the overlay stack. */
+function anyModalOverlayShowing(): boolean {
+  for (const el of document.querySelectorAll<HTMLElement>('[class$="-overlay"], [class*="-overlay "]')) {
+    if (el.hidden) continue;
+    if (getComputedStyle(el).display === 'none') continue;
+    return true;
+  }
+  return false;
 }
 
 /** Pause in typing before the outline re-renders for a search. */

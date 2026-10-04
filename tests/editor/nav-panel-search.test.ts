@@ -263,6 +263,69 @@ describe('nav pane search', () => {
     root.remove();
   });
 
+  it("typing in the document ends the pane's claim on Escape", () => {
+    open();
+    search(panel, 'warming');
+    const root = rootOf(panel);
+    document.body.appendChild(root);
+    root.querySelector('.pmd-nav-item')!.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    view.focus();
+    // A bare modifier is not typing.
+    view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', bubbles: true }));
+    // A letter in the document is.
+    view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    const e = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    document.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+    expect(root.classList.contains('pmd-nav-searching')).toBe(true);
+    // Clicking back in the pane restores it.
+    root.querySelector('.pmd-nav-item')!.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    const e2 = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    document.dispatchEvent(e2);
+    expect(e2.defaultPrevented).toBe(true);
+    expect(root.classList.contains('pmd-nav-searching')).toBe(false);
+    root.remove();
+  });
+
+  it('pane-wide Escape yields to every kind of modal overlay', () => {
+    // The dialogs that use the shared overlay stack are covered by it; the
+    // rest are recognised by their backdrop class.
+    const overlayClasses = [
+      'pmd-settings-overlay', 'pmd-route-overlay', 'pmd-prompt-overlay', 'pmd-save-as-overlay',
+      'pmd-bulk-overlay', 'pmd-bench-overlay', 'pmd-clod-overlay', 'pmd-qc-add-overlay',
+      'pmd-reference-overlay', 'pmd-list-pick-overlay', 'pmd-select-speech-overlay',
+      'pmd-learn-create-overlay', 'pmd-learn-manage-overlay', 'pmd-learn-session-overlay',
+    ];
+    open();
+    search(panel, 'warming');
+    const root = rootOf(panel);
+    document.body.appendChild(root);
+    const press = () => {
+      root.querySelector('.pmd-nav-item')!.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      const e = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    for (const cls of overlayClasses) {
+      const overlay = document.createElement('div');
+      overlay.className = cls;
+      document.body.appendChild(overlay);
+      expect(press(), `${cls} keeps Escape`).toBe(false);
+      expect(root.classList.contains('pmd-nav-searching')).toBe(true);
+      // A hidden overlay kept in the DOM (Settings does this) does not count.
+      overlay.style.display = 'none';
+      overlay.remove();
+    }
+    const hiddenSettings = document.createElement('div');
+    hiddenSettings.className = 'pmd-settings-overlay';
+    hiddenSettings.style.display = 'none';
+    document.body.appendChild(hiddenSettings);
+    expect(press(), 'a closed (display:none) overlay does not block').toBe(true);
+    expect(root.classList.contains('pmd-nav-searching')).toBe(false);
+    hiddenSettings.remove();
+    root.remove();
+  });
+
   it('pane-wide Escape yields to another text field', () => {
     open();
     search(panel, 'warming');
