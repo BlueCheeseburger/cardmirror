@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.14.0-bcb.1 — 2026-10-05
 
 ### Added
 
@@ -24,9 +24,31 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 
-- **The plain find bar (Mod-F) is trimmed down.** The Whole word toggle and the
-  close button are gone from it; Esc still closes it. Find and Replace (Mod-H)
-  is unchanged and keeps every control.
+- **Switch Window is back, and `p` is gone.** Ctrl+Tab (and the `w` prefix in
+  Search Everything) jumps to another CardMirror window, as in upstream. The
+  fork's `p` source, which listed open documents and windows, is removed so
+  there's one way to do it.
+- **Settings search is upstream's.** The fork's own Settings search box is
+  replaced by upstream's, which also knows synonyms ("toolbar" finds the ribbon
+  settings, "hotkey" finds Keyboard).
+
+### From upstream
+
+This syncs upstream 1.14.0. The headlines (the full list is in the 1.14.0
+section further down):
+
+- Search the navigation pane, with matching headings highlighted and the
+  outline narrowed to them.
+- Find opens with your selected text in the box and searches the whole
+  document; a larger selection still limits Find and Replace.
+- Rejoin a collaboration session from the Join session list, and a gear
+  shortcut to Collaboration settings from the Send and Receive popups.
+- File search folder priority; an update button on the home screen.
+- Faster typing in very large documents, and opening a Word file no longer
+  freezes the window.
+- Fixes: saving no longer writes the "unread" red into your file, co-editing
+  undo and drag fixes, scattered nav selections send, Save As fits a short
+  window, dialogs no longer close when a text selection ends outside them.
 
 ## 1.13.0-bcb.5 — 2026-10-02
 
@@ -615,7 +637,7 @@ A search bar next to the "Settings" title searches every setting's
 name and description across every tab at once. Matches are
 highlighted in yellow and only the matching rows are shown while
 you're typing, grouped by tab. Clear the box to go back to normal
-browsing.
+browsing. (Replaced by upstream's Settings search in the 1.14.0 sync.)
 
 ### 7. Window naming
 
@@ -649,9 +671,52 @@ opened as your working document — the diff is read-only.
 *The sections below are upstream CardMirror's own release notes, synced into
 this fork. This fork's own changes are covered above in [Fork Changes](#fork-changes).*
 
-## Unreleased
+## 1.14.0 — 2026-10-03
 
 ### Added
+
+- **Search the navigation pane.** The magnifier at the top of the nav
+  pane opens a search box. As you type, matching headings are
+  highlighted in the outline, including ones hidden by the level buttons
+  or inside a collapsed section, and by default the outline narrows to
+  the matches and the headings above them. You can search one heading
+  level or all of them, and optionally the text under each heading.
+  Up/Down step through matches and Enter jumps. While results are
+  showing you can click to jump, select several, copy, and drag them to
+  the dropzone or the Send pill; moving, cutting and deleting headings
+  wait until the search is cleared. Thanks to Brian (@brian-cai)!
+
+- **Rejoin a session from Join session.** Under the box where you paste
+  a share code or invite link, Join session now lists the sessions you
+  can get back into: ones you have a saved copy of, and ones you left in
+  the last week. Click one to rejoin. Pasting a code works as before,
+  with no extra click. Sessions that have ended drop off the list, and a
+  session you left has a ✕ to forget it. The command is now named
+  **Join or Rejoin Collaboration Session** (searching "rejoin" finds
+  it). To make this possible the app now remembers a left session's
+  share code on your device for up to 7 days (see the privacy policy).
+  Thanks to Brian (@brian-cai)!
+
+- **A shortcut to Collaboration settings.** The Send and Receive popups
+  have a gear button that opens Settings → Collaboration. Thanks to Brian
+  (@brian-cai)!
+
+- **Search in Settings.** A search box at the top of Settings filters
+  every tab at once: type a few words and the matching settings from all
+  tabs are listed together under their tab names. It knows common
+  synonyms ("toolbar" finds the ribbon settings, "hotkey" finds
+  Keyboard). Esc clears the search, and Esc again closes Settings. Thanks
+  to Brian (@brian-cai)!
+
+- **File search: folder priority.** Two new lists under Settings →
+  Files → File search tell file search which folders matter most.
+  Matches from a **Highest priority** folder always list first. Matches
+  from a **Preferred** folder beat equally good matches elsewhere, but a
+  better match from another folder still comes first. You can add single
+  files as well as folders, and a subfolder listed in the other section
+  follows its own setting. With nothing typed, highest-priority files
+  list first, then preferred ones. Desktop only. Thanks to Brian
+  (@brian-cai)!
 
 - **Switch Window (Ctrl+Tab).** In one-window-per-document mode, jump to
   another CardMirror window by name instead of hunting through the
@@ -663,7 +728,91 @@ this fork. This fork's own changes are covered above in [Fork Changes](#fork-cha
   Ctrl+Tab keeps its job of switching documents in the focused slot.
   Desktop only. Thanks to Brian (@brian-cai)!
 
+- **Update from the home screen.** When an update is ready (or
+  available), the home screen now shows the same update button as the
+  status bar, under the CardMirror title, so you can install it without
+  opening a document first. Desktop only. Thanks to Brian
+  (@brian-cai)!
+
+### Changed
+
+- **Find starts with your highlighted text.** Highlight a word or phrase
+  and press Ctrl/Cmd+F: the find bar opens with that text already in the
+  search box and finds it across the whole document, as in Word and
+  Google Docs. Before, the box stayed empty and the search was limited to
+  the highlighted words. Highlighting something else and pressing
+  Ctrl/Cmd+F again, with the bar still open, swaps in the new text. A
+  larger selection still limits Find and Replace to itself, as before:
+  anything spanning more than one paragraph, a passage longer than 200
+  characters, a whole card, or a section picked with **Select heading and
+  contents**. Alt+L, or the ⌖ button, switches the limit on or off either
+  way. A selected image no longer limits the search to nothing. Thanks to
+  Brian (@brian-cai)!
+
+- **Typing in very large documents is smoother.** Several checks that
+  ran over the whole document on every keystroke now look only at what
+  changed: the outline's heading scan, the live-view check, the
+  heading-id check, and, in a co-editing session, the undo safety check.
+  On a document with about 2,500 headings these went from roughly 25 ms
+  of work per keystroke to about 1 ms. Thanks to Brian (@brian-cai)!
+
+- **Opening a Word file no longer freezes the window.** The conversion
+  runs in the background, so the app stays responsive while a large
+  .docx opens. If the background step fails or takes too long, the file
+  opens the old way. Thanks to Brian (@brian-cai)!
+
+- **Lighter saving and listing.** Autosave reuses the work the crash
+  journal just did when the document hasn't changed, the session history
+  list no longer reads every history file in full, and images are encoded
+  with the browser's built-in method where available. Thanks to Brian
+  (@brian-cai)!
+
 ### Fixed
+
+- **Saving no longer writes the "unread" red into your file.** With
+  "mark unread text after the reading marker" on, every save turned the
+  on-screen red into real red text in the document. After reopening, that
+  text was treated as part of the marker, and removing the marker deleted
+  it. The red is now written only when you export a copy to Word; your
+  own working file never carries it. Files already saved with the red in
+  them keep it. Thanks to Brian (@brian-cai)!
+
+- **Three-pane autosave keeps version history and warns on a slow
+  save**, as single-window autosave already did. Thanks to Brian
+  (@brian-cai)!
+
+- **A closed document no longer comes back as a crash-recovery draft.**
+  In the three-pane workspace, closing a saved document from the stack
+  could leave its recovery file behind, so it was offered for recovery at
+  the next launch. Thanks to Brian (@brian-cai)!
+
+- **Selecting text in a dialog no longer closes it.** Dragging to select
+  text in a dialog's field and letting go past the dialog's edge (for
+  example the relay address in Settings) used to count as a click outside
+  and close the dialog. A dialog now closes only when the click both
+  starts and ends outside it. Thanks to Brian (@brian-cai)!
+
+- **Undo in a co-editing session no longer gets stuck.** If you added a
+  card or pressed Enter in a tag, and a partner then edited that card,
+  Ctrl+Z used to stop there for good: every press was refused and nothing
+  you had done earlier could be undone. That one step is now skipped,
+  with a note, and the same keypress carries on to the step before it.
+  Your partner's card and typing stay as they are.
+
+- **Adding, removing or dragging a card is its own undo step in a
+  session.** It used to be bundled with whatever you typed in the same
+  second, so undoing one took the other with it.
+
+- **Undoing a drag in a session keeps what your partner added.** If you
+  dragged a section and a partner then added a card next to it, undoing
+  the drag could take their card with it. The drag is now undone and
+  their card stays, following the section it was added to.
+
+- **Your place holds steadier while a partner edits.** A partner's
+  changes are now applied exactly where they happened. Before, two edits
+  arriving together were treated as one change covering everything
+  between them, which could reset a drag's drop target or shift things
+  anchored in the untouched middle.
 
 - **Sending a scattered selection works.** Selecting several non-
   adjacent headings in the navigation pane and then sending (Send to
@@ -682,6 +831,19 @@ this fork. This fork's own changes are covered above in [Fork Changes](#fork-cha
   longer duplicates it.** The cut card is removed when its text is
   pasted, as with an ordinary cut and paste. Other text still pastes
   without removing anything. Thanks to Cora (@coralynnkc)!
+
+- **Save As fits a short or narrow window.** The dialog used to run off
+  the top and bottom of a short window, leaving the close button, Cancel
+  and the lower options out of reach. It now stays inside the window and
+  scrolls, and the one-click save buttons reflow instead of spilling
+  sideways when the window is narrow. Thanks to Deniz (@dbuldum4)!
+
+- **Sending several sections at once is labelled consistently.** Send to
+  Dropzone with several headings selected now shelves one row per
+  heading, the same as dragging them onto the shelf. Send to Starred or
+  to a recipient labels the delivery "First heading + N more", the same
+  as dragging them onto the Send pill. Both used to show only the first
+  heading's name, as if a single section had been sent.
 
 ## 1.13.0 — 2026-09-25
 

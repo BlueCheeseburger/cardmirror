@@ -46,6 +46,7 @@ import { autoApplyDiskChange, DISK_SYNC_META, type AutoApplyOutcome } from './di
 import { fromDocxFull, parseNative, serializeNativeAsync, toDocx, NativeDamagedError, NATIVE_FILE_EXTENSION } from '../index.js';
 import { isSelfRef, flattenSelfRefs } from './self-transclusion.js';
 import { isTransclusionNode } from './transclusion.js';
+import { openDocxOffThread } from './docx-open.js';
 import { settings } from './settings.js';
 import { MARK_UNREAD_TOGGLE } from './mark-unread-plugin.js';
 import { PMD_READ_MODE_TOGGLE } from './read-mode-plugin.js';
@@ -179,6 +180,8 @@ import { icon, setIcon } from './icons';
 import { formatSpeechFilename } from './speech-filename.js';
 import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
 import { blankSpawnPayload } from './host/types.js';
+import { maybeSnapshotVersion } from './version-history.js';
+import { awaitWithSaveWatchdog } from './save-watchdog.js';
 
 type SlotId = 'slot1' | 'slot2' | 'slot3';
 const SLOT_IDS: SlotId[] = ['slot1', 'slot2', 'slot3'];
@@ -409,8 +412,14 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
             ...(threads.length ? { threads } : {}),
             ...(record.docId ? { docId: record.docId } : {}),
           });
+    // Same as the single-doc autosave: the pre-write version snapshot, and
+    // the watchdog without its dialog (the 10s chip still turns a hung write
+    // on a stalled sync folder into feedback instead of silence).
+    maybeSnapshotVersion(record.docId, bytes, 'auto');
     try {
-      await host.saveExisting(record.handle, bytes);
+      await awaitWithSaveWatchdog(host.saveExisting(record.handle, bytes), record.filename, {
+        escalate: false,
+      });
       if (typeof record.handle === 'string') noteSavedInPlace(record.handle);
     } catch (err) {
       // Changed on disk under us (or no baseline for this window): keep
@@ -1733,10 +1742,20 @@ class Slot {
       cancelIdle(rec.heavyUpdateTimer);
       rec.heavyUpdateTimer = null;
     }
+    if (rec.journalTimer !== null) {
+      window.clearTimeout(rec.journalTimer);
+      rec.journalTimer = null;
+    }
     if (rec.autosaveTimer !== null) {
       window.clearTimeout(rec.autosaveTimer);
       rec.autosaveTimer = null;
     }
+    // And delete the journal it already has. Cancelling the timer covers
+    // only a write still pending; the usual order is edit, journal written,
+    // save, close — and that journal stayed on disk, so the closed document
+    // came back as a crash-recovery draft at the next launch. After any
+    // write still in flight, so it cannot land behind the delete.
+    void (recordJournalChains.get(rec) ?? Promise.resolve()).then(() => clearJournalForRecord(rec));
     // Clear speech-doc designation if the closing record was it.
     const speechResolver = getSpeechDocResolver();
     if (speechResolver.isSpeechByUid(rec.uid)) {
@@ -2134,37 +2153,6 @@ class MultiPaneShell {
     void runSaveAsFlow();
   }
 
-  /** Every doc in every slot, stacked ones included, in slot order —
-   *  Search Everything's `p` source (this window's half of it). */
-  listDocs(): Array<{ uid: string; filename: string | null; pane: 1 | 2 | 3 }> {
-    const out: Array<{ uid: string; filename: string | null; pane: 1 | 2 | 3 }> = [];
-    SLOT_IDS.forEach((id, i) => {
-      for (const rec of this.slots[id].stack) {
-        out.push({ uid: rec.uid, filename: rec.filename || null, pane: (i + 1) as 1 | 2 | 3 });
-      }
-    });
-    return out;
-  }
-
-  /** Bring the doc with `uid` forward: show it in its slot (it may be
-   *  stacked behind another doc), move expand mode onto its pane if a
-   *  different pane is expanded (a pane hidden behind an expanded one
-   *  can't take focus), and focus its editor. False when no slot holds
-   *  that uid. Used by Search Everything's `p` source. */
-  activateDocByUid(uid: string): boolean {
-    for (const id of SLOT_IDS) {
-      const slot = this.slots[id];
-      const rec = slot.stack.find((r) => r.uid === uid);
-      if (!rec) continue;
-      if (this.expandedSlot && this.expandedSlot !== slot) this.setExpandedSlot(slot);
-      slot.showRecord(rec);
-      this.focusSlot(slot);
-      rec.view.focus();
-      return true;
-    }
-    return false;
-  }
-
   /** `flashSaveSuccess`'s (index.ts) multi-pane redirect: a manual Save
    *  always focuses its target pane first (see the chip Save button and
    *  every other Save entry point), so by the time the shared save flow
@@ -2501,7 +2489,11 @@ class MultiPaneShell {
 
   /** Open the focused slot's doc switcher, or advance it when already
    *  open. False (nothing done) outside a focused slot holding 2+ docs.
-   *  Releasing Ctrl commits via `onDocCycleKeyUp`. */
+   *  Shared by the Ctrl-Tab listener above and the `switchWindow`
+   *  command, which in this workspace means "switch doc in the slot" —
+   *  the command's default Mod-Tab claims the keydown before the
+   *  listener sees it, so the command has to land here too. Releasing
+   *  Ctrl still commits via `onDocCycleKeyUp`. */
   stepDocSwitcher(direction: 1 | -1): boolean {
     const slot = this.focusedSlot;
     if (!slot || slot.stack.length < 2) return false;
@@ -3273,7 +3265,7 @@ class MultiPaneShell {
     let parsed: { doc: PMNode; threads: import('./comments-plugin.js').Thread[]; docId: string | null };
     try {
       const bytes = await maybeDecryptForOpen(file.bytes, file.name);
-      parsed = file.format === 'docx' ? await fromDocxFull(bytes) : parseNative(bytes);
+      parsed = file.format === 'docx' ? await openDocxOffThread(bytes) : parseNative(bytes);
     } catch (err) {
       if (err instanceof OpenCancelledError) return;
       showToast(`Reload failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -3855,7 +3847,7 @@ class MultiPaneShell {
     if (!isDocxBytes) {
       ({ doc, threads, docId } = parseNative(openBytes));
     } else {
-      ({ doc, threads, docId } = await fromDocxFull(openBytes));
+      ({ doc, threads, docId } = await openDocxOffThread(openBytes));
     }
     const slot = this.slots[target];
     // With the setting on, an Untitled doc nobody has touched gives up its
@@ -4287,18 +4279,6 @@ export function focusSlotByIndex(idx: 0 | 1 | 2): void {
   shell.focusSlotByIndex(idx);
 }
 
-/** This window's open docs, per slot (see `MultiPaneShell.listDocs`).
- *  Empty in single-doc mode. */
-export function listShellDocs(): Array<{ uid: string; filename: string | null; pane: 1 | 2 | 3 }> {
-  return shell?.listDocs() ?? [];
-}
-
-/** Bring a doc forward by uid (see `MultiPaneShell.activateDocByUid`).
- *  False in single-doc mode or when no slot holds it. */
-export function activateShellDocByUid(uid: string): boolean {
-  return shell?.activateDocByUid(uid) ?? false;
-}
-
 /** Send the focused slot's visible doc to the slot at `idx`
  *  (0/1/2). No-op when no slot is focused, when the focused slot
  *  has no visible doc, or when the target is the focused slot
@@ -4346,6 +4326,12 @@ export function revealAllSlots(): void {
 export function cycleFocusedSlotDoc(direction: 1 | -1): void {
   if (!shell) return;
   shell.cycleFocusedSlotDoc(direction);
+}
+
+/** Open / advance the focused slot's Ctrl-Tab doc switcher. No-op (false)
+ *  when the shell isn't active. Used by the `switchWindow` command. */
+export function stepFocusedSlotDocSwitcher(direction: 1 | -1): boolean {
+  return shell?.stepDocSwitcher(direction) ?? false;
 }
 
 /** If the multi-pane shell is active AND the focused slot has a

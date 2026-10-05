@@ -36,6 +36,7 @@ import {
   saveLocationsExpanded,
   setSaveLocationsExpanded,
 } from './save-locations-store.js';
+import { isBackdropClick } from './backdrop-click.js';
 
 export type SaveAsFormat = 'cmir' | 'docx';
 
@@ -252,7 +253,7 @@ class SaveAsModal {
     this.overlay.appendChild(this.dialog);
 
     this.overlay.addEventListener('click', (e) => {
-      if (e.target === this.overlay) this.cancel();
+      if (isBackdropClick(e, this.overlay)) this.cancel();
     });
 
     this.restoreFocus = captureFocusForDialog();

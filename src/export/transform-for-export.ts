@@ -69,6 +69,24 @@ export function transformForExport(
 
 // ------------------- unread-after-marker red -------------------
 //
+/** Whether a save should bake the "unread after the marker" red into the
+ *  bytes as real font colour. Only an EXPORT to Word: a copy made to hand
+ *  to someone whose editor cannot draw the decoration.
+ *
+ *  Never the user's own working file, in either format. The baked red is
+ *  the marker's own colour, so it merges into the marker's run; reopened,
+ *  CardMirror reads all of it as marker text, and toggling the marker off
+ *  DELETES it (the rest of that paragraph). It also outlives the setting
+ *  and a moved marker. CardMirror redraws the red from the marker itself,
+ *  so a working file loses nothing by not carrying it. */
+export function bakesUnreadRedOnSave(
+  format: 'cmir' | 'docx',
+  workingCopy: boolean,
+  setting: boolean,
+): boolean {
+  return setting && format === 'docx' && !workingCopy;
+}
+
 // The `markUnreadAfterMarker` review aid tints body text after a reading
 // marker red via a display-only `.pmd-unread` decoration (see
 // `mark-unread-plugin.ts`) — it never touches the doc, so the exporter can't

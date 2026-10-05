@@ -157,18 +157,38 @@ describe('a drag in flight during a co-editing session', () => {
     expect(heads(a.doc())).toEqual(['TYYwo', 'Three', 'One']);
   });
 
-  it("a drop slot that sat inside replaced content is dropped; the next hover lands right", async () => {
+  it("the drop slot survives a partner inserting a card elsewhere", async () => {
+    // Partner edits render as exact steps (remote-steps.ts): a card inserted
+    // before Two no longer reads as "everything from there on was replaced",
+    // so the slot between Two and Three is still the slot between them.
     const a = peers[0]!;
     const b = peers[1]!;
     startDrag(a.view, 0, 2); // One → between Two and Three
     await partner(b, a, (v) => v.dispatch(v.state.tr.insert(childStart(v.state.doc, 1), cardNode('New', ['new body']))));
     expect(dragController.isActive()).toBe(true);
-    expect(hoverPos()).toBeNull();
-    // The pointer's next move hit-tests a fresh slot; here, hover before Three.
-    startDragHoverOnly(a.view, 3);
+    expect(hoverPos()).toBe(childStart(a.doc(), 3));
     expect(dragController.commit()).toBe(true);
     await settle();
     expect(heads(a.doc())).toEqual(['New', 'Two', 'One', 'Three']);
+  });
+
+  it("a drop slot inside content the partner deleted is dropped; the next hover lands right", async () => {
+    const a = peers[0]!;
+    const b = peers[1]!;
+    startDrag(a.view, 0, 2); // One → between Two and Three
+    await partner(b, a, (v) => {
+      // Two and Three go in one delete: the slot between them is gone.
+      v.dispatch(v.state.tr.delete(childStart(v.state.doc, 1), v.state.doc.content.size));
+      v.dispatch(v.state.tr.insert(v.state.doc.content.size, cardNode('New', ['new body'])));
+    });
+    expect(heads(a.doc())).toEqual(['One', 'New']);
+    expect(dragController.isActive()).toBe(true);
+    expect(hoverPos()).toBeNull();
+    // The pointer's next move hit-tests a fresh slot; here, the end.
+    startDragHoverOnly(a.view, 2);
+    expect(dragController.commit()).toBe(true);
+    await settle();
+    expect(heads(a.doc())).toEqual(['New', 'One']);
   });
 
   it("the nav pane's drop indicators and dragged-row greying survive a partner's rebuild", async () => {

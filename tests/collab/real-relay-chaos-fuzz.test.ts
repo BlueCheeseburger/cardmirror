@@ -101,6 +101,7 @@ import { buildCutInPlacePlugin, installCutInPlaceContext, markCutInPlace, handle
 import { Slice, Fragment } from 'prosemirror-model';
 import { LoroUndoPlugin, LoroSyncPlugin, loroSyncPluginKey, undo as loroUndo, redo as loroRedo } from 'loro-prosemirror';
 import { createUndoGuard, type UndoGuard } from '../../src/editor/collab/undo-guard.js';
+import { remoteStepStats } from '../../src/editor/collab/remote-steps.js';
 import { UndoManager, LoroDoc } from 'loro-crdt';
 import { mkView, settle, sleep, cardNode, docOf, docText, tableNode, tableShapes } from './_loro-helpers.js';
 import { settings } from '../../src/editor/settings.js';
@@ -1079,7 +1080,7 @@ describe.skipIf(!ENABLED)('real-relay CHAOS fuzz (local relay + chaos proxy)', (
               if (UNDO_GUARD) {
                 const ref = { current: null as EditorView | null };
                 viewRef = ref;
-                const g = createUndoGuard({ doc: s.loroDoc, undoManager: um, getView: () => ref.current, onBlocked: () => { report.ops['undoBlocked'] = (report.ops['undoBlocked'] ?? 0) + 1; } });
+                const g = createUndoGuard({ doc: s.loroDoc, undoManager: um, getView: () => ref.current, mergeInterval: UNDO_MERGE_MS, onBlocked: () => { report.ops['undoBlocked'] = (report.ops['undoBlocked'] ?? 0) + 1; } });
                 pendingGuards.set(s, g);
                 undoPlugins.push(g.plugin);
               }
@@ -1719,6 +1720,7 @@ describe.skipIf(!ENABLED)('real-relay CHAOS fuzz (local relay + chaos proxy)', (
         }
       }
       const failed = reports.filter((r) => !r.ok);
+      console.log(`[chaos-fuzz] remote-steps ${JSON.stringify(remoteStepStats)}`);
       console.log(`[chaos-fuzz] ${reports.length - failed.length}/${reports.length} seeds clean`);
       for (const r of failed) console.log(`[chaos-fuzz] seed ${r.seed} problems:\n  ${r.problems.join('\n  ')}`);
       expect(failed.map((r) => r.seed)).toEqual([]);

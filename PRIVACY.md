@@ -145,6 +145,12 @@ start or join a session. A session holds up to 10 participants.
     after 7 days of inactivity**.
   - Each participant's local record of the session stays on their device until
     they leave/end the session or clear it.
+  - So that you can rejoin a session you left, the app also remembers that
+    session's **share code** (and guest pass, if you joined with one) **on
+    your device only**. It is removed when the session ends, when you
+    choose **Forget**, or automatically **7 days** after you were last in
+    the session, and at most 25 sessions are remembered. It is never sent
+    anywhere except to rejoin that session.
 
 ---
 

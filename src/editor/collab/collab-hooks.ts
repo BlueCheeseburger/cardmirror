@@ -136,7 +136,7 @@ export function collabSessionStarter(): (() => void) | null {
 }
 
 /** Join-session seam: the Receive pill's footer button triggers the
- *  same prompt-for-a-code flow as the Join Collaboration Session
+ *  same prompt-for-a-code flow as the Join or Rejoin Collaboration Session
  *  command. Null until the editor wires it at startup. */
 let sessionJoinPrompt: (() => void) | null = null;
 
