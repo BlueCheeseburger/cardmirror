@@ -24,7 +24,7 @@ import {
   collabEndOrLeaveSession,
   collabCaptureSessionHandoff,
 } from '../../src/editor/collab/collab-hooks.js';
-import { loadSessionRecord } from '../../src/editor/collab/collab-store.js';
+import { loadSessionRecord, loadRecentRoom } from '../../src/editor/collab/collab-store.js';
 
 // Sessions are keyed by the owning doc's uid; this test window's one doc.
 const OWNER = 'ui-flows-doc';
@@ -187,6 +187,10 @@ describe('collab UI flows through the editor seams', () => {
 
     hostView.dispatch(hostView.state.tr.setMeta(PMD_READ_MODE_TOGGLE, false));
 
+    // While the session is live the room is remembered for a later rejoin…
+    const liveRoomId = decodeShareCode(shareCode)!.roomId;
+    expect((await loadRecentRoom(liveRoomId))?.shareCode).toBe(shareCode);
+
     // Host ends the session: partner is notified, seams clear, chip hides.
     // The confirm is an in-app overlay — click it like a user would.
     const endP = collabUi.endSessionFlow(deps);
@@ -194,6 +198,8 @@ describe('collab UI flows through the editor seams', () => {
     clickPromptButton('End Session');
     await endP;
     await sleep(120);
+    // …and an ENDED room is forgotten: its key is of no further use.
+    expect(await loadRecentRoom(liveRoomId)).toBeNull();
     expect(collabUi.activeSession()).toBeNull();
     expect(collabPluginSourceFor(OWNER)).toBeNull();
     expect(chip.hidden).toBe(true);

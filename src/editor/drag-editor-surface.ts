@@ -144,7 +144,9 @@ export class EditorDragSurface implements DragSurface {
         // mode) without indicators when the pointer enters them. The
         // layout-batched renderIndicators keeps the cost moderate.
         const session = dragController.getSession();
-        if (session) this.renderIndicators(session.items[0]!.level);
+        // An absorb-only drag (nav search results) has no in-document slots.
+        if (session?.absorbOnly) this.removeIndicators();
+        else if (session) this.renderIndicators(session.items[0]!.level);
       } else if (event === 'end') {
         this.removeIndicators();
         this.dragOriginatedHere = false;

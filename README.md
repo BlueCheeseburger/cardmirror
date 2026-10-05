@@ -31,9 +31,10 @@
 > 5. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
 >    text and speeding through everything else. (main)
-> 6. **Settings search** — a search bar next to the Settings title matches
->    every setting's name and description at once and highlights the
->    results as you type. (main)
+> 6. **Documents follow the file** — a clean document updates by itself
+>    when another device saves it (Dropbox, OneDrive, Google Drive,
+>    iCloud), and Reload From Disk (Mod-R) pulls in the file on demand,
+>    keeping your outline as it was. (main)
 > 7. **Autosave for `.docx` files**, not just `.cmir` — plus a time-boxed,
 >    logged fallback for the zip worker and a ribbon button that
 >    distinguishes "saving" from "paused" (e.g. a doc with a live view Word
