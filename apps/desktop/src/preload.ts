@@ -846,22 +846,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }>
     >,
 
-  /** Raise the window that owns `uid` and bring that doc forward in it
-   *  (Search Everything's `p` source). False when no window owns it. */
-  activateDoc: (uid: string): Promise<boolean> => ipcRenderer.invoke('host:activate-doc', uid),
-
-  /** Raise a window by id (Search Everything's `p` window rows). */
+  /** Raise a window by id (the Switch Window palette). */
   focusWindow: (windowId: number): Promise<boolean> =>
     ipcRenderer.invoke('host:focus-window', windowId),
 
-  /** Main forwards an activate-doc request aimed at a doc in THIS
-   *  window. Returns an unsubscribe. */
-  onActivateDoc(handler: (uid: string) => void): () => void {
-    const listener = (_evt: unknown, uid: string): void => handler(uid);
-    ipcRenderer.on('host:activate-doc', listener);
-    return () => ipcRenderer.removeListener('host:activate-doc', listener);
-  },
-
+  /** Every document window, most recently focused first (the Switch
+   *  Window palette). `docNames` are the window's saved docs' filenames. */
+  listWindows: () =>
+    ipcRenderer.invoke('host:list-windows') as Promise<
+      Array<{
+        windowId: number;
+        title: string;
+        docNames: string[];
+        isSpeech: boolean;
+        isOwnWindow: boolean;
+        isMinimized: boolean;
+      }>
+    >,
 
   /** Subscribe to speech-state broadcasts. The handler receives the
    *  current `{ uid }` (uid is null when no speech doc is flagged). */

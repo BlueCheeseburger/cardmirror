@@ -21,11 +21,13 @@ import {
   type DragSurface,
 } from '../drag-controller.js';
 import { deriveDropzoneLabel } from '../dropzone-store.js';
+import { bundleSendItems, type CapturedItem } from './send-bundle.js';
 import { schema, newHeadingId } from '../../schema/index.js';
 import { settings, type PairingGroup } from '../settings.js';
 import { showToast } from '../toast.js';
 import { relayClient, sendOutcomeToast, type SendItem } from './relay-client.js';
 import { collabEnabled } from '../collab/collab-gate.js';
+import { collabSettingsAvailable, collabSettingsButton } from './collab-settings-button.js';
 import {
   collabActiveShareCode,
   collabInviter,
@@ -79,34 +81,7 @@ const RECENT_ICON =
 const COLLAB_INVITE_ICON =
   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
 
-interface CapturedItem {
-  slice: Slice;
-  type: string;
-  label: string;
-}
-
-/** A multi-selection ships as ONE item the receiver grabs atomically —
- *  the slices concatenate into a single slice (they arrive in document
- *  order from the drag session), so the wire format is unchanged and
- *  any receiver build, old or new, inserts the whole set in one go.
- *  Only closed node-level slices bundle; a drag carrying an open text
- *  fragment falls back to per-item sends (concatenating open slices
- *  would splice unrelated textblocks together). Exported for tests. */
-export function bundleSendItems(items: CapturedItem[]): SendItem[] {
-  if (items.length <= 1 || items.some((i) => i.slice.openStart !== 0 || i.slice.openEnd !== 0)) {
-    return items.map((i) => ({ label: i.label, type: i.type, sliceJson: i.slice.toJSON() }));
-  }
-  let content = Fragment.empty;
-  for (const i of items) content = content.append(i.slice.content);
-  const first = items[0]!;
-  return [
-    {
-      label: `${first.label} + ${items.length - 1} more`,
-      type: first.type,
-      sliceJson: new Slice(content, 0, 0).toJSON(),
-    },
-  ];
-}
+export { bundleSendItems };
 
 /** Edge-band autoscroll: how far a scrollable list should move this
  *  frame for a pointer at `pointerY` over `rect`. Zero outside the top
@@ -463,6 +438,10 @@ export class SendPillController {
     this.startSessionEl.classList.toggle('pmd-send-action-collab-hidden', !canInvite);
     this.refreshSessionAction();
     actions.appendChild(this.startSessionEl);
+    // Click-open only (CSS hides it while the row is a drag's drop zones).
+    if (collabSettingsAvailable()) {
+      actions.appendChild(collabSettingsButton('pmd-send-action', () => this.collapse()));
+    }
     this.panel.appendChild(actions);
   }
 

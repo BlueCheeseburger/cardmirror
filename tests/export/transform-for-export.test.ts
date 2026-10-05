@@ -5,7 +5,9 @@
 
 import { describe, expect, it } from 'vitest';
 import { schema, newHeadingId } from '../../src/schema/index.js';
-import { transformForExport, countMarkedCards } from '../../src/export/transform-for-export.js';
+import { EditorState, TextSelection } from 'prosemirror-state';
+import { transformForExport, countMarkedCards, bakesUnreadRedOnSave } from '../../src/export/transform-for-export.js';
+import { buildToggleReadingMarkerTransaction } from '../../src/editor/reading-marker.js';
 
 // ---- Doc builders ----------------------------------------------
 
@@ -394,5 +396,40 @@ describe('markUnreadAfterMarker bake', () => {
   it('leaves the doc untouched when off (only the marker stays red)', () => {
     const out = transformForExport(doc, { ...ALL_ON, markUnreadAfterMarker: false });
     expect(redRuns(out)).toEqual(['Marked 7:32']);
+  });
+});
+
+describe('the unread red is never baked into a working file', () => {
+  const marker = (s: string) =>
+    schema.text(s, [schema.marks['font_color']!.create({ color: 'FF0000' })]);
+
+  it('only an export to Word bakes it', () => {
+    expect(bakesUnreadRedOnSave('docx', false, true), 'Save As → Word').toBe(true);
+    expect(bakesUnreadRedOnSave('cmir', false, true), 'Save As → .cmir').toBe(false);
+    expect(bakesUnreadRedOnSave('cmir', true, true), 'Save / autosave of a .cmir').toBe(false);
+    expect(bakesUnreadRedOnSave('docx', true, true), 'Save in place over a .docx working file').toBe(false);
+    expect(bakesUnreadRedOnSave('docx', false, false), 'setting off').toBe(false);
+  });
+
+  it('why: baked red is read back as marker text, and toggling the marker off deletes it', () => {
+    // What a working file saved with the red baked in looks like on reopen.
+    const baked = transformForExport(
+      makeDoc(card(tag('T'), cardBody(txt('before. '), marker('Marked 7:32'), txt(' after one.')))),
+      { ...ALL_ON, markUnreadAfterMarker: true },
+    );
+    // Caret on the marker, toggle it off.
+    let markerPos = -1;
+    baked.descendants((n, pos) => {
+      if (markerPos < 0 && n.isText && (n.text ?? '').startsWith('Marked')) markerPos = pos + 2;
+      return true;
+    });
+    const state = EditorState.create({ doc: baked, selection: TextSelection.create(baked, markerPos) });
+    const after = state.apply(buildToggleReadingMarkerTransaction(state)!).doc;
+    // The user's own text after the marker went with it.
+    expect(after.textContent).toBe('Tbefore. ');
+    // From an unbaked file, the same toggle removes the marker alone.
+    const clean = makeDoc(card(tag('T'), cardBody(txt('before. '), marker('Marked 7:32'), txt(' after one.'))));
+    const cleanState = EditorState.create({ doc: clean, selection: TextSelection.create(clean, markerPos) });
+    expect(cleanState.apply(buildToggleReadingMarkerTransaction(cleanState)!).doc.textContent).toBe('Tbefore.  after one.');
   });
 });

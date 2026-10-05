@@ -268,8 +268,6 @@ fork's own additions; upstream CardMirror doesn't have them.
   you've used before without the file dialog.
 - **[Autosave for `.docx`](#saving)** **(fork)** — autosave covers Word
   files as well as `.cmir`, and is on by default.
-- **[Settings search](#17-settings-reference)** **(fork)** — find any
-  setting by name or description across every tab.
 - **[Translate a selection](#13-ai-features)** — to the clipboard, with a
   keyless backend that works even without AI features set up.
 - **[Display customizations and accessibility](#18-appearance-and-accessibility)**
@@ -339,6 +337,35 @@ mirrors Word's Navigation Pane, but does more:
   Level 1** … **Show Levels 1–4** commands in Settings → Keyboard
   shortcuts (unbound by default); they act on the focused document's
   pane, exactly like the buttons.
+- **Search** — click the magnifier at the top of the pane to open the
+  search bar under the level buttons. As you type, headings that
+  contain the search are highlighted right in the outline — even ones
+  hidden by the level filter or a collapsed section. Options, which
+  CardMirror remembers:
+  - **Level** — search **Pocket**, **Hat**, **Block** or **Tag**
+    headings only, or **All** (the default).
+  - **Hide non-matches** (on by default) — the outline shrinks to the
+    matches plus the headings above them, so you can still click
+    through the skeleton. Off, the full outline stays and the matches
+    are just highlighted.
+  - **Search content** — a heading also matches when the text under it
+    contains the search (marked with a dot). The match goes to the
+    heading of the chosen level that contains that text, so with
+    **Block** selected, a hit inside a card lights up its Block.
+
+  While results are showing, the outline is for finding and collecting,
+  not for rearranging. Click a row to jump to it; Cmd/Ctrl-click and
+  Shift-click select several (Shift-click spans only the rows you can
+  see); the arrows fold sections; right-click offers **Select** and
+  **Copy**. You can drag results to the dropzone or the Send pill, but
+  not to a new place in the outline or the document: clear the search to
+  move, cut or delete headings.
+
+  The Up/Down arrows step through the matches and scroll the document
+  without leaving the search box; Enter jumps. Esc, the ×, or the
+  magnifier closes the search and brings the full outline back, keeping
+  the result you were on where it was in the pane. Case and curly vs.
+  straight quotes don't matter.
 - **Multi-select** — Mod-click adds an entry to the selection,
   Shift-click selects a contiguous range.
 - **Reorder** — drag an entry (or a multi-selection) up or down. It
@@ -1039,11 +1066,15 @@ it off may help.
 
 ### Find and Find/Replace
 
-- **Find (Mod-F)** opens the find bar **(fork)**: the search box, Match case,
-  the selection-only toggle, previous/next, and the matches-in-context list.
-  There is no Whole word toggle or close button here; **Esc** closes it.
-- **Find and Replace (Mod-H)** adds a replace field, Replace and Replace All,
-  and keeps every control, including Whole word and the close button.
+- **Find (Mod-F)** opens the find bar.
+- **Find and Replace (Mod-H)** adds a replace field.
+- **What a selection does.** Highlight a word or phrase (within one
+  paragraph, up to 200 characters) and open Find: the box is filled with
+  it and the whole document is searched. Select something larger — more
+  than one paragraph, a whole card, a section via **Select heading and
+  contents** — and Find and Replace are limited to that selection, shown
+  by the ⌖ button being on. **Alt-L** (or the ⌖ button) switches the limit
+  on or off at any time.
 - **Find without category grouping (Alt-F)** orders matches by position
   rather than grouping them by structural type.
 
@@ -1074,8 +1105,8 @@ you *browse* that whole source.
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
-| **`p`** | **Open docs and windows** — every document open in any pane of any window, plus windows you've named **(fork)** | Switches to it: raises its window and brings the doc forward in its pane |
 | **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
+| **`w`** | Your other open **CardMirror windows**, most recently used first *(desktop only)* | Brings that window to the front |
 
 Searching **version** (or "about this install") shows the running app
 version, and Enter jumps to the About this install section of Settings.
@@ -1089,15 +1120,6 @@ the row, hovering it shows the full text in a tooltip.
 at your cursor (the same insertion the send-to-speech and Quick Card
 buttons use). If your cursor is in the middle of a paragraph, the insertion
 will drop at the nearest valid target. 
-
-**Switching to an open doc (`p`, fork).** `p` and a space lists every
-document open in CardMirror: every pane of every window, including documents
-stacked behind the one showing in a pane. Type part of a document's name
-(`p 2ac`) and press **Enter** to jump to it. Its window comes to the front,
-the document comes forward in its pane, and the cursor lands in it. Windows
-you've [named](#naming-windows-and-renaming-documents) are listed too, and
-typing a window's name (`p neg`) finds the window and every document in
-it. The web edition lists only the documents in the current tab.
 
 **Searching Logos (`g`, fork).** `g` and a space searches
 [Logos](https://logos-debate.netlify.app), a card search engine run by
@@ -1617,11 +1639,19 @@ create in the speech-side slot (Slot 3 for right, Slot 1 for left) gets marked.
 Once a speech doc is marked, nothing changes, and moving a document between
 slots never marks it.
 
-### Switching documents in a slot
+### Switching windows
 
-In the three-pane workspace, **Ctrl+Tab** cycles the focused slot's documents
-(hold Ctrl, tap Tab, release to switch). To jump to any open document or
-window by name, use the `p` prefix in Search Everything.
+**Switch Window** (**Ctrl+Tab** by default, on macOS too) opens the Search
+Everything palette on your other CardMirror windows — the `w` prefix — with
+the one you were in most recently at the top. Press **Enter** to go straight
+back to it, or type part of a document's name to jump to that window. Press
+**Ctrl+Tab** again while the list is open to move down it (**Ctrl+Shift+Tab**
+moves up). A minimized window is restored. It's the quick way between windows
+where the operating system's Alt+Tab mixes CardMirror in with every other app.
+Desktop only.
+
+In the three-pane workspace, Ctrl+Tab keeps its existing job there: it cycles
+the focused slot's documents (hold Ctrl, tap Tab, release to switch).
 
 ### Send-to-speech and the dropzone
 
@@ -1699,7 +1729,7 @@ edition's mobile layout has neither.
 3. To cooperate just once, run the **Start Collaboration Session** command from
    the command bar. This will copy a document code to your clipboard. Anyone you
    share this code with will be able to collaborate on your document by running the
-   **Join Collaboration Session** command and pasting the code. 
+   **Join or Rejoin Collaboration Session** command and pasting the code. 
 4. Optional, all in the same settings section:
    - **Groups** — a named set of recipients; sending to a group sends to
      every member. The **↑ / ↓** arrows reorder recipients and groups, and
@@ -1810,7 +1840,7 @@ Inviting requires the person's code in *your* Recipients list.
 **Collaboration** group, or the command bar). It confirms which document
 you're sharing, then copies a **share code** to the clipboard — send it
 however you like (**Copy Session Share Code** re-copies it). The other
-person runs **Join Collaboration Session** and pastes it. The shared
+person runs **Join or Rejoin Collaboration Session** and pastes it. The shared
 document opens in a new window — in three-pane, you pick which pane.
 
 **Interruptions:** joiners past the 10-person cap get a "session is full"
@@ -1835,6 +1865,15 @@ the session (rejoin later from the Sessions list) or end/leave it now. The
 ✕ on a home-screen Sessions row: as host, asks whether to end for everyone
 or just forget your copy; as guest, forgets your copy.
 
+**Rejoining:** **Join or Rejoin Collaboration Session** (or **Join session** on the
+Receive pill) opens with a box for a share code or invite link, ready to
+paste into: paste and press Enter to join a new session. Below it are the
+sessions you can get back into: saved copies (the same ones as the home
+screen's Sessions list; rejoining syncs your offline edits) and sessions you
+left in the last week, while they are still running. Click one to rejoin. A
+session the host ended can't be rejoined and drops off the list; the ✕ on a
+left session forgets it.
+
 **Cutting cards in a shared document.** Cut (Cmd/Ctrl-X, or Cut in the
 nav pane's menu) on a whole card or section does not remove it: the card
 stays, dimmed and labelled *Cut — paste to move*, until you paste. Pasting
@@ -1855,7 +1894,7 @@ differences:
   code; on any edition, **Copy Session Invite Link** produces one for
   the current session. Opening the link in a desktop-layout browser
   offers the join directly — no account, no setup; pasting it into the
-  **Join Collaboration Session** dialog works too, so a Chromebook with
+  **Join or Rejoin Collaboration Session** dialog works too, so a Chromebook with
   the app already open can join from a link received in a chat. Treat
   the link like the document itself: it carries the session's
   encryption key, and anyone holding it can join. A guest who closes
@@ -2309,7 +2348,7 @@ Keyboard shortcuts**. They appear only on Windows.
 
 ## 15. Voice control
 
-> **Experimental — and, as of 1.13.0, commands are still unreliable.** Dictation works
+> **Experimental — and, as of 1.14.0, commands are still unreliable.** Dictation works
 > well. The single-word commands do not yet: the recognizer decodes an open
 > vocabulary, so a one-word utterance often comes back as some other word
 > and nothing fires. Calibration helps only a little. A keyword-spotting pass
@@ -2848,10 +2887,13 @@ collapses into a single entry with a ×N counter instead of nagging.
 
 Open settings with the **gear** icon. Settings are grouped into tabs.
 
-**Searching settings** **(fork)**. Type in the search box next to the
-**Settings** title to search every setting's name and description on every
-tab at once. Only the matching settings show, grouped by tab, with your
-search words highlighted. Clear the box to go back to browsing by tab.
+To find a setting without knowing its tab, type in the **Search
+settings** box at the top of the dialog (it has focus when Settings
+opens; **Mod-F** returns to it). Matching rows from every tab are
+listed together under their tab names. A few everyday words map to
+CardMirror's terms, so "toolbar" finds the ribbon settings and
+"hotkey" finds Keyboard. **Esc** clears the search, and a second Esc
+closes Settings.
 
 Some rows only exist on one platform — marked *(desktop)*, *(web)*, or
 *(Windows)* below — and don't appear elsewhere.
@@ -2965,7 +3007,8 @@ headers shown inside each tab.
 **Find**
 
 - **Find: remember the last search query** — when on, the find bar
-  reopens pre-filled with your last search.
+  reopens pre-filled with your last search. A highlighted word or phrase
+  takes priority over it.
 - **Find: category priority order** — the order Ctrl-F steps through
   result groups (heading / tag / cite / other); Alt-F ignores it and goes
   purely by proximity (see [Find and Find/Replace](#find-and-findreplace)).

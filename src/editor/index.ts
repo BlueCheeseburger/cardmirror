@@ -8,7 +8,6 @@
  */
 
 import { EditorState, Plugin, Selection, TextSelection, type Command, type Transaction } from 'prosemirror-state';
-import { setLocalOpenDocsProvider } from './open-docs.js';
 import { serializeRangesForClipboard, serializeNodesForClipboard } from './clipboard-slice.js';
 import { EditorView } from 'prosemirror-view';
 import { keymap } from 'prosemirror-keymap';
@@ -19,8 +18,9 @@ import { collectCardsWithMatchingCite } from './copy-matching-cite.js';
 import { baseKeymap } from 'prosemirror-commands';
 import { Node as PMNode, type Mark } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
-import { fromDocxFull, toDocx, serializeNative, serializeNativeAsync, parseNative, parseNativeSalvage, NativeDamagedError, readDocIdFromBytes, stampDocId, setSaveHealListener } from '../index.js';
-import { transformForExport, countMarkedCards } from '../export/transform-for-export.js';
+import { toDocx, serializeNative, serializeNativeAsync, parseNative, parseNativeSalvage, NativeDamagedError, readDocIdFromBytes, stampDocId, setSaveHealListener } from '../index.js';
+import { openDocxOffThread } from './docx-open.js';
+import { transformForExport, countMarkedCards, bakesUnreadRedOnSave } from '../export/transform-for-export.js';
 import type { Thread, Comment } from './comments-plugin.js';
 import type { LocalComment } from './learn-store.js';
 import { NavigationPanel, setNavCommandRunner } from './nav-panel.js';
@@ -44,6 +44,7 @@ import {
 import {
   sendToSpeech as runSendToSpeech,
   takeSendSlice,
+  takeSendPieces,
   resolveCursorStructureRange,
   buildDeleteStructureTr,
   installIncomingSpeechSliceHandler,
@@ -398,6 +399,7 @@ import { captureCleanToken } from './save-clean-token.js';
 import { wireWebEditionHeaderButtons } from './web-download.js';
 import { computeSelectionChrome, type SelectionChrome } from './selection-chrome.js';
 import { formatSpeechFilename } from './speech-filename.js';
+import { isBackdropClick } from './backdrop-click.js';
 
 // Install the last-resort error hooks before ANY app wiring — an exception
 // during boot or in a fire-and-forget flow must never be invisible again.
@@ -708,17 +710,21 @@ function runSingleDocSendToSpeech(sourceView: EditorView, atEnd: boolean): void 
  *  nav-pane bubble updates immediately. Exported for the multi-
  *  pane shell, which calls this with its focused-slot view. */
 export async function sendViewToDropzone(sourceView: EditorView): Promise<void> {
-  const slice = takeSendSlice(sourceView);
-  if (!slice) return;
-  const first = slice.content.firstChild;
-  const type = first ? first.type.name : 'text';
-  await dropzoneStore.add({
-    id: `dz-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    label: deriveDropzoneLabel(slice, type),
-    type,
-    sliceJson: slice.toJSON(),
-    createdAt: Date.now(),
-  });
+  // One shelf row per piece (each heading with its section, each loose
+  // card), matching what dragging the same headings onto the shelf does.
+  const pieces = takeSendPieces(sourceView);
+  if (!pieces) return;
+  for (const slice of pieces) {
+    const first = slice.content.firstChild;
+    const type = first ? first.type.name : 'text';
+    await dropzoneStore.add({
+      id: `dz-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      label: deriveDropzoneLabel(slice, type),
+      type,
+      sliceJson: slice.toJSON(),
+      createdAt: Date.now(),
+    });
+  }
 }
 
 /** Text of the smallest heading enclosing the selection — the nearest
@@ -1617,7 +1623,7 @@ setCollabSessionStarter(() => {
   void loadCollabUi().then((m) => m.startSessionFlow(collabDeps));
 });
 // The Receive pill's Join button — same flow (and same deps choice) as
-// the Join Collaboration Session command: multi-pane joins into a
+// the Join or Rejoin Collaboration Session command: multi-pane joins into a
 // user-picked slot; single-pane in place.
 setCollabSessionJoinPrompt(() => {
   void loadCollabUi().then((m) =>
@@ -2448,6 +2454,27 @@ const ribbonContext: RibbonContext = {
   minimizeWindow: () => {
     void getElectronHost()?.minimizeWindow();
   },
+  switchWindow: () => {
+    // Three-pane workspace: one window, so the "windows" are the focused
+    // slot's docs — drive its Ctrl-Tab switcher (held Ctrl commits).
+    if (multiDocActive) {
+      void import('./multi-pane-shell.js').then((m) => m.stepFocusedSlotDocSwitcher(1));
+      return;
+    }
+    // Already open on the window list (focus outside the bar): step on.
+    if (quickCardSearchUI.isInWindowMode()) {
+      quickCardSearchUI.moveSelection(1);
+      return;
+    }
+    if (!getElectronHost()) {
+      showToast('Switching windows requires the desktop edition.');
+      return;
+    }
+    // Open on another source → reopen on the window list (a plain open
+    // while open would just toggle the bar closed).
+    if (quickCardSearchUI.isOpen()) quickCardSearchUI.close();
+    openSearchPalette('w ');
+  },
   openJournalsFolder: () => {
     void getElectronHost()?.openJournalsFolder();
   },
@@ -2747,7 +2774,7 @@ function confirmNewDocOverwrite(): Promise<'save' | 'discard' | 'cancel'> {
     overlay.appendChild(dialog);
     // Click outside the dialog box → cancel.
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) { cleanup(); resolve('cancel'); }
+      if (isBackdropClick(e, overlay)) { cleanup(); resolve('cancel'); }
     });
     // Capture-phase + swallow (see installModalKeys): this dialog is
     // bound to Mod-N, so it always opens over a FOCUSED editor — a
@@ -4928,6 +4955,9 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<AnyCommandId>([
   'cycleDocNext',
   'cycleDocPrev',
   'closeDocOrWindow',
+  // Opens the palette on the window list (or the slot doc switcher) —
+  // works from the home screen, and from inside the open palette.
+  'switchWindow',
   // Voice toggle flips a session, not a doc — works with no pane focused.
   'toggleVoice',
   'calibrateVoice',
@@ -4989,6 +5019,7 @@ function runViewlessRibbon(id: AnyCommandId): void {
     case 'hideSlot': void runMultiPane('hideSlot', 0); return;
     case 'revealAllSlots': void runMultiPane('revealAllSlots', 0); return;
     case 'cycleDocNext': void runMultiPaneCycle(1); return;
+    case 'switchWindow': ribbonContext.switchWindow(); return;
     case 'cycleDocPrev': void runMultiPaneCycle(-1); return;
     case 'closeDocOrWindow':
       void (async () => {
@@ -5062,7 +5093,7 @@ async function runMultiPane(
 
 /** Open Search Everything (centered on the window); browse-only when
  *  there's no active view.
- *  `initialQuery` opens it with a prefix already typed. */
+ *  `initialQuery` opens it with a prefix already typed (`w ` = Switch Window). */
 function openSearchPalette(initialQuery?: string): void {
   quickCardSearchUI.open({
     view,
@@ -7346,7 +7377,7 @@ async function routeOpenedFile(opened: OpenedFile): Promise<void> {
       docThreads = parsed.threads.length > 0 ? parsed.threads : undefined;
       docId = parsed.docId;
     } else {
-      const result = await fromDocxFull(openBytes);
+      const result = await openDocxOffThread(openBytes);
       docNode = result.doc;
       docThreads = result.threads;
       docId = result.docId;
@@ -7541,7 +7572,7 @@ async function loadFileInPlace(file: {
     docThreads = parsed.threads.length > 0 ? parsed.threads : undefined;
     docId = parsed.docId;
   } else {
-    const result = await fromDocxFull(openBytes);
+    const result = await openDocxOffThread(openBytes);
     docNode = result.doc;
     docThreads = result.threads;
     docId = result.docId;
@@ -7722,6 +7753,10 @@ const homeCallbacks: HomeScreenCallbacks = {
   },
   openSettings: () => {
     void loadSettingsUi().then((m) => m.openSettings());
+  },
+  mountUpdateChip: (el) => {
+    const chipHost = getElectronHost();
+    if (chipHost) initUpdateChip(el, chipHost);
   },
   // Clean: Electron gets the folder-recursive modal; web cleans one file at a time.
   clean:
@@ -8781,6 +8816,9 @@ async function serializeForSave(
      *  remove. Omitted → freeze when the export drops numbered content
      *  (analytics / read mode / marked cards), else keep. */
     numbering?: NumberingExportMode;
+    /** The write is the user's own working file (Save in place, a
+     *  conflicted copy of it), not an export made for someone else. */
+    workingCopy?: boolean;
   },
   /** Stable doc identity to embed (`.cmir` field / `.docx` docProps).
    *  Omitted for derived/lossy exports, which stay clean (no identity). */
@@ -8800,7 +8838,14 @@ async function serializeForSave(
     includeUndertags: opts.includeUndertags,
     readMode: opts.readMode,
     markedCardsOnly: opts.markedCardsOnly ?? false,
-    markUnreadAfterMarker: settings.get('markUnreadAfterMarker'),
+    // Exports to Word only — never the user's working file, in either
+    // format (see bakesUnreadRedOnSave: baked red is read back as marker
+    // text and deleted with the marker).
+    markUnreadAfterMarker: bakesUnreadRedOnSave(
+      format,
+      opts.workingCopy === true,
+      settings.get('markUnreadAfterMarker'),
+    ),
   });
   if (view) gcOrphanThreads(view);
   const baseThreads =
@@ -9433,7 +9478,7 @@ async function keepBothForActiveFile(
 async function serializeActiveForSave(format: 'cmir' | 'docx', docId: string | null): Promise<Uint8Array> {
   return serializeForSave(
     format,
-    { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false },
+    { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false, workingCopy: true },
     docId ?? undefined,
   );
 }
@@ -9625,7 +9670,7 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
       docThreads = parsed.threads.length > 0 ? parsed.threads : undefined;
       docId = parsed.docId;
     } else {
-      const result = await fromDocxFull(openBytes);
+      const result = await openDocxOffThread(openBytes);
       docNode = result.doc;
       docThreads = result.threads;
       docId = result.docId;
@@ -9769,6 +9814,7 @@ async function runSaveFlowInner(): Promise<boolean> {
           includeAnalytics: true,
           includeUndertags: true,
           readMode: false,
+          workingCopy: true,
         },
         docId,
       ),
@@ -10655,7 +10701,7 @@ export function confirmCloseUnsaved(
 
     overlay.appendChild(dialog);
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) {
+      if (isBackdropClick(e, overlay)) {
         cleanup();
         resolve('cancel');
       }
@@ -11053,32 +11099,6 @@ installExternalInsertHost({
 // No-ops when the preload bridge is absent (web / old shells).
 installPluginJumpHost({
   findViewForDocId: (docId) => findViewForDocId(docId),
-});
-// Search Everything's `p` source (fork): this window's open docs, and
-// the handler main calls when another window's `p` search picks one of
-// them (main has already raised this window).
-async function activateLocalOpenDoc(uid: string): Promise<boolean> {
-  if (multiDocActive) {
-    const m = await import('./multi-pane-shell.js');
-    return m.activateShellDocByUid(uid);
-  }
-  if (uid !== registeredSingleDocUid) return false;
-  getActiveView()?.focus();
-  return true;
-}
-setLocalOpenDocsProvider({
-  list: async () => {
-    if (multiDocActive) {
-      const m = await import('./multi-pane-shell.js');
-      return m.listShellDocs();
-    }
-    return registeredSingleDocUid ? [{ uid: registeredSingleDocUid, filename: currentDocFilename }] : [];
-  },
-  activate: activateLocalOpenDoc,
-  windowName: () => currentWindowName,
-});
-getElectronHost()?.onActivateDoc?.((uid) => {
-  void activateLocalOpenDoc(uid);
 });
 // External-app consent: mirror the toggle + per-app decisions to main
 // (which enforces them on /insert and /jump), run the first-contact
@@ -11667,7 +11687,7 @@ async function mountResumedSession(roomId: string): Promise<void> {
 }
 
 /** Mount a SpawnWindowPayload into this freshly-spawned window.
- *  Parses the bytes (cmir → parseNative, docx → fromDocxFull),
+ *  Parses the bytes (cmir → parseNative, docx → fromDocxFull, off-thread),
  *  mounts the result, and sets the doc-state module vars. */
 async function mountFromSpawnPayload(
   payload: Awaited<ReturnType<ReturnType<typeof getHost>['getInitialDoc']>>,
@@ -11708,7 +11728,7 @@ async function mountFromSpawnPayload(
       docThreads = parsed.threads.length > 0 ? parsed.threads : undefined;
       docId = parsed.docId;
     } else {
-      const result = await fromDocxFull(openBytes);
+      const result = await openDocxOffThread(openBytes);
       docNode = result.doc;
       docThreads = result.threads;
       docId = result.docId;

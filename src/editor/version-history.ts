@@ -33,6 +33,7 @@ import { showToast } from './toast.js';
 import { parseNative } from '../native/index.js';
 import { countReadAloudWords } from './word-count.js';
 import { NavigationPanel } from './nav-panel.js';
+import { isBackdropClick } from './backdrop-click.js';
 
 export type VersionHistoryTier = 'off' | 'standard' | 'extended' | 'custom';
 
@@ -340,7 +341,7 @@ export async function openVersionSnapshotDialog(
   };
   document.addEventListener('keydown', onKey, true);
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) close();
+    if (isBackdropClick(e, overlay)) close();
   });
 
   const header = document.createElement('header');

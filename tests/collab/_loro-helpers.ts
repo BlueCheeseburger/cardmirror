@@ -4,12 +4,24 @@
  * the vitest glob skips it. jsdom environment required (EditorView).
  */
 
+import { appendFileSync } from 'node:fs';
+import { afterAll } from 'vitest';
 import { EditorState, type Plugin } from 'prosemirror-state';
 import { EditorView, type NodeViewConstructor } from 'prosemirror-view';
 import type { Node as PMNode, Mark, MarkType } from 'prosemirror-model';
 import { LoroDoc } from 'loro-crdt';
 import { LoroSyncPlugin, updateLoroToPmState } from 'loro-prosemirror';
 import { schema, newHeadingId } from '../../src/schema/index.js';
+import { installRemoteStepBuilder, remoteStepStats } from '../../src/editor/collab/remote-steps.js';
+
+// Every collab test renders partner edits the way a session does.
+installRemoteStepBuilder();
+// REMOTE_STEP_STATS=<file>: append each worker's exact-vs-fallback counts.
+if (process.env['REMOTE_STEP_STATS']) {
+  afterAll(() => {
+    appendFileSync(process.env['REMOTE_STEP_STATS']!, JSON.stringify(remoteStepStats) + '\n');
+  });
+}
 
 type SyncDoc = Parameters<typeof LoroSyncPlugin>[0]['doc'];
 

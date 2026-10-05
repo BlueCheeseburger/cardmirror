@@ -21,12 +21,26 @@
  * Also holds invite seed PREFETCHES (§4.1): on invite receipt the
  * encrypted room backlog is downloaded eagerly, so an invite accepted
  * later — on a bus, offline — still opens the doc and joins locally.
+ *
+ * And RECENT ROOMS: the credentials of every room this user was in lately,
+ * kept past a Leave (which deletes the session record) so Join session can
+ * offer to rejoin a room that is still alive. No CRDT state — a rejoin is a
+ * fresh join. Pruned after 7 days (the relay reaps a room idle that long)
+ * and dropped as soon as the room is known to be over.
  */
 
 const DB_NAME = 'cardmirror-collab';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const SESSIONS = 'sessions';
 const PREFETCH = 'invite-prefetch';
+const RECENT = 'recent-rooms';
+
+/** Recent rooms older than this are pruned: the relay reaps a room idle for
+ *  7 days, so an older one can't be rejoined anyway. */
+export const RECENT_ROOM_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+/** At most this many rooms are remembered: each entry holds a room's key,
+ *  so the list is kept short as well as young. Oldest go first. */
+export const RECENT_ROOM_MAX = 25;
 const CHANNEL = 'pmd-collab-sessions';
 
 export interface PersistedSessionRecord {
@@ -57,6 +71,21 @@ export interface PersistedSessionRecord {
    *  joined with their own credentials. */
   guestPass?: string | null;
   updatedAt: number;
+}
+
+export interface RecentRoomRecord {
+  /** Key. */
+  roomId: string;
+  /** Carries the room key — what makes a rejoin possible after Leave. */
+  shareCode: string;
+  guestPass?: string | null;
+  role: 'host' | 'participant';
+  docTitle: string;
+  /** Last time this window was in the room (install, and again on
+   *  teardown). */
+  lastActiveAt: number;
+  /** Set when the user left; absent while in the room (or after a crash). */
+  leftAt?: number;
 }
 
 export interface InvitePrefetchRecord {
@@ -103,6 +132,7 @@ export function subscribeSessionRecords(fn: Listener): () => void {
 }
 
 let dbPromise: Promise<IDBDatabase | null> | null = null;
+let bootPruned = false;
 
 function openDb(): Promise<IDBDatabase | null> {
   return (dbPromise ??= new Promise((resolve) => {
@@ -116,8 +146,40 @@ function openDb(): Promise<IDBDatabase | null> {
         if (!db.objectStoreNames.contains(PREFETCH)) {
           db.createObjectStore(PREFETCH, { keyPath: 'roomId' });
         }
+        if (!db.objectStoreNames.contains(RECENT)) {
+          db.createObjectStore(RECENT, { keyPath: 'roomId' });
+        }
       };
-      req.onsuccess = () => resolve(req.result);
+      let settled = false;
+      req.onsuccess = () => {
+        // Another window upgrading the schema (a newer build) must not stay
+        // blocked on this connection: close it; the next open reconnects.
+        req.result.onversionchange = () => {
+          req.result.close();
+          dbPromise = null;
+        };
+        // An upgrade that was blocked and then went through: the callers
+        // that asked meanwhile were told "no storage"; later ones get it.
+        if (settled) dbPromise = Promise.resolve(req.result);
+        settled = true;
+        resolve(req.result);
+        // Room keys must not outlive their week because nobody opened the
+        // Join list: prune whenever storage is first opened (boot).
+        if (!bootPruned) {
+          bootPruned = true;
+          void pruneRecentRooms().catch(() => {});
+        }
+      };
+      // An OLDER build still open in another tab holds the database at the
+      // previous version and does not yield: the upgrade would wait for
+      // ever, and with it every caller (Join did nothing; session
+      // persistence stalled). Degrade to "no storage" for now.
+      req.onblocked = () => {
+        if (settled) return;
+        settled = true;
+        dbPromise = null;
+        resolve(null);
+      };
       req.onerror = () => resolve(null); // storage denied — persistence degrades to none
     } catch {
       resolve(null);
@@ -201,4 +263,52 @@ export async function loadPrefetch(roomId: string): Promise<InvitePrefetchRecord
 
 export async function deletePrefetch(roomId: string): Promise<void> {
   await del(PREFETCH, roomId);
+}
+
+// ── Recent rooms ─────────────────────────────────────────────────────
+
+/** Record (or refresh) a room this user is in. Keeps the first-known title
+ *  when the new one is empty (a join installs before the title arrives). */
+export async function saveRecentRoom(record: RecentRoomRecord): Promise<void> {
+  const prev = await get<RecentRoomRecord>(RECENT, record.roomId);
+  const next: RecentRoomRecord = {
+    ...prev,
+    ...record,
+    docTitle: record.docTitle || prev?.docTitle || '',
+    guestPass: record.guestPass ?? prev?.guestPass ?? null,
+  };
+  if (record.leftAt === undefined) delete next.leftAt;
+  await put(RECENT, next);
+  await pruneRecentRooms();
+  notify();
+}
+
+/** Drop recent rooms past RECENT_ROOM_MAX_AGE_MS, and the oldest beyond
+ *  RECENT_ROOM_MAX. Runs at boot, on every write and on every listing, so
+ *  a remembered room key never sits on disk past its week just because the
+ *  Join list was not opened. Returns what is left, newest first. */
+export async function pruneRecentRooms(now = Date.now()): Promise<RecentRoomRecord[]> {
+  const rows = (await all<RecentRoomRecord>(RECENT)).sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+  const keep: RecentRoomRecord[] = [];
+  const drop: RecentRoomRecord[] = [];
+  for (const r of rows) {
+    if (now - r.lastActiveAt > RECENT_ROOM_MAX_AGE_MS || keep.length >= RECENT_ROOM_MAX) drop.push(r);
+    else keep.push(r);
+  }
+  await Promise.all(drop.map((r) => del(RECENT, r.roomId)));
+  return keep;
+}
+
+/** Recent rooms, newest first (pruned on the way out). */
+export async function listRecentRooms(now = Date.now()): Promise<RecentRoomRecord[]> {
+  return pruneRecentRooms(now);
+}
+
+export async function loadRecentRoom(roomId: string): Promise<RecentRoomRecord | null> {
+  return get<RecentRoomRecord>(RECENT, roomId);
+}
+
+export async function deleteRecentRoom(roomId: string): Promise<void> {
+  await del(RECENT, roomId);
+  notify();
 }
