@@ -3282,6 +3282,9 @@ class MultiPaneShell {
     // The fresh record's outline starts at the default depth; carry over
     // which headings were open.
     const navState = record.navPanel.captureViewState();
+    // Closing the old record clears the speech designation; the reloaded
+    // document is the same document, so it keeps it.
+    const wasSpeech = getSpeechDocResolver().isSpeechByUid(record.uid);
     record.dirty = false; // discarding is the option's stated effect: close without prompting
     await slot.closeRecord(record);
     const fresh = buildDocRecord(file.name, parsed.doc, slot, {
@@ -3292,6 +3295,10 @@ class MultiPaneShell {
     });
     slot.push(fresh);
     fresh.navPanel.restoreViewState(navState);
+    if (wasSpeech) {
+      getSpeechDocResolver().setSpeech(fresh.view);
+      this.refreshSpeechChips();
+    }
     this.focusSlot(slot);
     noteReloaded(file.handle);
     showToast(`Reloaded “${file.name}” from disk.`);

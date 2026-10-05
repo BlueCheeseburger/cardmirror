@@ -3518,6 +3518,44 @@ code {
   outline-offset: 2px;
 }
 
+/* "What's new" popup after an update: the release notes in a scrollable
+   body between the title and the buttons. */
+.pmd-whatsnew {
+  max-width: 36rem;
+  max-height: min(80vh, 40rem);
+}
+.pmd-whatsnew-title {
+  font-size: 1.05rem;
+}
+.pmd-whatsnew-notes {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding-right: 0.25rem;
+}
+.pmd-whatsnew-notes h3 {
+  margin: 0.9rem 0 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pmd-c-text-muted, var(--pmd-c-text));
+}
+.pmd-whatsnew-notes h3:first-child { margin-top: 0; }
+.pmd-whatsnew-notes h4 { margin: 0.7rem 0 0.2rem; font-size: 0.875rem; }
+.pmd-whatsnew-notes p { margin: 0.3rem 0; }
+.pmd-whatsnew-notes ul { margin: 0.2rem 0 0.4rem; padding-left: 1.2rem; }
+.pmd-whatsnew-notes li { margin: 0.3rem 0; }
+.pmd-whatsnew-notes code {
+  font-size: 0.8em;
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+  background: var(--pmd-c-bg-soft);
+}
+.pmd-whatsnew-notes a { color: var(--pmd-c-accent); }
+
 /* Heading containers (pocket / hat / block) — same containment as
    cards. Smaller intrinsic-height placeholder since these are
    typically single-line headings. */
@@ -8538,6 +8576,10 @@ body.pmd-steady-cursor .pmd-italic-caret,
   border-color: var(--pmd-c-accent);
 }
 .pmd-find-replace-row[hidden] { display: none; }
+/* The plain find bar drops Whole word and the close button; Find and
+   Replace keeps every control. */
+.pmd-find-bar[data-mode="find"] .pmd-find-word,
+.pmd-find-bar[data-mode="find"] .pmd-find-close { display: none; }
 
 /* Results expansion panel — a visually-separate box that sits
    directly below the find bar when the chevron is open. Same
