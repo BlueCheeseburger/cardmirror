@@ -8,6 +8,16 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+
+- **Search card taglines inside your files: `f c <words>`.** In Search Everything,
+  `f` searches your files by name; `f c` searches the taglines of the cards
+  inside those same files. Enter inserts the whole card at your cursor and Tab
+  opens its file. The first search builds the tagline list in the background
+  (the bar shows its progress); after that only changed files are re-read.
+
 ## 1.14.0-bcb.1 — 2026-10-05
 
 ### Added

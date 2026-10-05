@@ -87,6 +87,13 @@ export interface FileIndexCore {
     roots: string[];
     exclusions: string[];
   }): Promise<Array<{ path: string; mtimeMs: number }>>;
+  /** The files a scope sees (listing + exclusion/format filters) — what the
+   *  tagline index crawls. */
+  visibleFiles(args: {
+    roots: string[];
+    exclusions: string[];
+    formats: 'both' | 'cmir' | 'docx';
+  }): Array<{ path: string; relPath: string; name: string; mtimeMs: number }>;
   /** Settle all in-flight scans/revalidations/writes (tests). */
   idle(): Promise<void>;
 }
@@ -332,6 +339,15 @@ export function createFileIndexCore(opts: {
         if (wanted.has(f.path)) out.push({ path: f.path, mtimeMs: f.mtimeMs });
       }
       return out;
+    },
+
+    visibleFiles(args) {
+      return visibleEntries(args.roots, args.exclusions, args.formats).map((f) => ({
+        path: f.path,
+        relPath: f.relPath,
+        name: f.name,
+        mtimeMs: f.mtimeMs,
+      }));
     },
 
     async idle(): Promise<void> {
