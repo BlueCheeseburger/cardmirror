@@ -2367,7 +2367,8 @@ body:not(.pmd-multi-doc) #app {
 
 /* Update chip (install-on-confirm): accent-outlined, clickable. Hidden
    ([hidden]) until the desktop main process reports an update. */
-#update-chip {
+#update-chip,
+.pmd-home-update {
   cursor: pointer;
   font-family: inherit;
   font-size: inherit;
@@ -2378,11 +2379,13 @@ body:not(.pmd-multi-doc) #app {
   padding: 0 0.6rem;
   line-height: 1.4;
 }
-#update-chip:hover {
+#update-chip:hover,
+.pmd-home-update:hover {
   color: #fff;
   background: var(--pmd-c-accent);
 }
-#update-chip[hidden] {
+#update-chip[hidden],
+.pmd-home-update[hidden] {
   display: none;
 }
 /* Downloading: same pill, but its background fills left-to-right as
@@ -4617,6 +4620,12 @@ html.pmd-home-active #speech-doc-banner {
   color: var(--pmd-c-text-muted);
   font-size: 0.95rem;
 }
+/* Home screen's copy of the update chip (styled with #update-chip). */
+.pmd-home-update {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.75rem;
+}
 .pmd-home-actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -5453,6 +5462,114 @@ body.pmd-nav-resize-active {
   border-color: var(--pmd-c-border-soft);
 }
 
+/* Right-hand header buttons (search tab toggle + close ×). */
+.pmd-nav-header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+/* ---- Search bar ----
+   The magnifier opens a bar under the level buttons (inside the header,
+   so it stays pinned in the multi-pane rail). The outline itself is
+   untouched: the query highlights matching rows in place, and "Hide
+   non-matches" filters the outline down to matches plus their ancestors. */
+.pmd-nav-search-btn.pmd-nav-search-btn-active,
+.pmd-nav-search-btn.pmd-nav-search-btn-active:hover {
+  background: var(--pmd-c-accent);
+  border-color: var(--pmd-c-accent);
+  color: var(--pmd-c-text-on-accent);
+}
+.pmd-nav-panel header {
+  flex-wrap: wrap;
+}
+.pmd-nav-search-bar {
+  display: none;
+  flex: 1 0 100%;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.pmd-nav-searching .pmd-nav-search-bar {
+  display: flex;
+}
+.pmd-nav-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 1.6rem;
+  padding: 0 0.4rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--pmd-c-text);
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  user-select: text;
+}
+.pmd-nav-search-input:focus {
+  outline: none;
+  border-color: var(--pmd-c-focus);
+  box-shadow: 0 0 0 2px var(--pmd-c-focus-glow);
+}
+.pmd-nav-search-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  color: var(--pmd-c-text-secondary);
+}
+.pmd-nav-search-level {
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--pmd-c-text);
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 3px;
+  padding: 0.05rem 0.2rem;
+}
+.pmd-nav-search-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pmd-nav-search-option input {
+  margin: 0;
+}
+.pmd-nav-search-status {
+  font-size: 0.7rem;
+  font-style: italic;
+  color: var(--pmd-c-text-faint);
+}
+.pmd-nav-search-status:empty {
+  display: none;
+}
+.pmd-nav-search-match {
+  background: var(--pmd-c-find-match-strong);
+  color: inherit;
+  border-radius: 2px;
+}
+/* Matched only in the text under the heading: a small marker dot at the
+   row's right edge (inset past the find-bar's own dot slot). */
+.pmd-nav-search-content-dot {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pmd-c-find-match-strong);
+  box-shadow: 0 0 0 1px var(--pmd-c-find-match-current-outline-soft);
+}
+.pmd-nav-item.pmd-nav-search-active {
+  background: var(--pmd-c-drop-soft);
+  border-left-color: var(--pmd-c-drop);
+}
+
 .pmd-nav-list {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -6275,48 +6392,64 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--pmd-c-divider);
   flex: 0 0 auto;
-  gap: 1rem;
-}
-
-/* Wraps the title + search box so they sit together on the left,
-   immediately next to each other, while `justify-content: space-between`
-   on the header still pins the close button to the right. */
-.pmd-settings-header-left {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-width: 0;
-  flex: 1 1 auto;
 }
 
 .pmd-settings-header h2 {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
-  flex: 0 0 auto;
 }
 
+/* Search box between the title and the close button. */
 .pmd-settings-search {
   flex: 1 1 auto;
-  min-width: 0;
-  max-width: 260px;
-  font: inherit;
-  font-size: 0.85rem;
-  padding: 0.35rem 0.6rem;
+  max-width: 18rem;
+  margin: 0 0.75rem 0 auto;
+  padding: 0.3rem 0.55rem;
+  font-family: inherit;
+  font-size: 0.9rem;
   border: 1px solid var(--pmd-c-border);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--pmd-c-bg);
   color: var(--pmd-c-text);
 }
-.pmd-settings-search:focus {
-  outline: none;
-  border-color: var(--pmd-c-accent);
+
+/* Search mode: the tab strip goes away and every tab's matching rows are
+   listed in one scroll, each tab's group under its name. The dialog becomes
+   the scroller (the panels stop scrolling individually) with the header
+   pinned so the search box stays in reach. */
+.pmd-settings-searching {
+  overflow-y: auto;
 }
-/* Native search-input decorations (WebKit's clear-x, Firefox's) —
-   keep the clear button, it's useful; the rest inherits the plain
-   text-input look above rather than the browser's own chrome. */
-.pmd-settings-search::-webkit-search-cancel-button {
-  cursor: pointer;
+.pmd-settings-searching .pmd-settings-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--pmd-c-bg);
+}
+.pmd-settings-searching .pmd-settings-tabs-bar {
+  display: none;
+}
+.pmd-settings-searching .pmd-settings-panel {
+  flex: 0 0 auto;
+  overflow: visible;
+  padding-bottom: 0.25rem;
+}
+.pmd-settings-search-category {
+  display: none;
+}
+.pmd-settings-searching .pmd-settings-search-category {
+  display: block;
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--pmd-c-text-strong);
+}
+.pmd-settings-search-miss {
+  display: none !important;
+}
+.pmd-settings-search-empty[hidden] {
+  display: none;
 }
 
 .pmd-settings-close {
@@ -6455,7 +6588,10 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   text-transform: uppercase;
   color: var(--pmd-c-text-muted);
 }
-.pmd-settings-section-title:first-child {
+/* Each panel starts with its (normally hidden) search-mode tab heading, so
+   the panel's first section title is its second child. */
+.pmd-settings-section-title:first-child,
+.pmd-settings-search-category + .pmd-settings-section-title {
   margin-top: 0.3rem;
   padding-top: 0;
   border-top: none;
@@ -6471,22 +6607,6 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   color: var(--pmd-c-text-faint);
   font-style: italic;
   margin: 2rem 0;
-}
-
-/* Search results panel (settings-ui.ts's SettingsModal.applySearch) —
-   same base list/scroll styling as a category panel (`.pmd-settings-list`
-   is shared), plus its own section headers naming which TAB each group
-   of results actually lives in (the tab strip itself is hidden while
-   searching, so this is the only place that context still shows). */
-.pmd-settings-search-hit {
-  background: #fff3a3;
-  color: #1a1a1a;
-  border-radius: 2px;
-  padding: 0 0.1em;
-}
-:root[data-theme='dark'] .pmd-settings-search-hit {
-  background: #8a7a1a;
-  color: #fff;
 }
 
 /* "About this install" block — read-only diagnostic info at the
@@ -6976,6 +7096,7 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 /* Shared scaffolding (input focus ring).
    Diverge by pulling a selector out, not by re-copying. */
 .pmd-settings-text:focus,
+.pmd-settings-search:focus,
 .pmd-macro-text:focus,
 .pmd-find-input:focus,
 .pmd-comment-reply-input:focus,
@@ -8576,10 +8697,7 @@ body.pmd-steady-cursor .pmd-italic-caret,
   border-color: var(--pmd-c-accent);
 }
 .pmd-find-replace-row[hidden] { display: none; }
-/* The plain find bar drops Whole word and the close button; Find and
-   Replace keeps every control. */
-.pmd-find-bar[data-mode="find"] .pmd-find-word,
-.pmd-find-bar[data-mode="find"] .pmd-find-close { display: none; }
+
 
 /* Results expansion panel — a visually-separate box that sits
    directly below the find bar when the chevron is open. Same
@@ -10308,14 +10426,11 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   box-shadow: 0 8px 32px var(--pmd-c-shadow-deep);
   width: 90%;
   max-width: 420px;
-  /* Bounds the dialog to the viewport — without this, a short window
-     centers a taller-than-viewport dialog around its own midpoint,
-     clipping the header off the top AND the footer's Save As/Cancel
-     buttons off the bottom with no way to reach either (field report
-     2026-09-14). `.pmd-save-as-body` below scrolls internally once the
-     dialog hits this cap, mirroring the same max-height + overflow-y
-     pattern `.pmd-clod-dialog`/`.pmd-settings-dialog` already use. */
-  max-height: 85vh;
+  /* Cap to the overlay (= the visible viewport), less a 0.5rem margin
+     top and bottom: on a short window the header stays put and the
+     body scrolls, so every option stays reachable. A percentage, not
+     vh, so a mobile browser's collapsing toolbar is accounted for. */
+  max-height: calc(100% - 1rem);
   display: flex;
   flex-direction: column;
   font-family: var(--pmd-ui-font);
@@ -10337,13 +10452,14 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   flex-direction: column;
   gap: 0.75rem;
   /* The scrollable region once the dialog hits its max-height. The
-     footer (Cancel/Save As) is now a SIBLING pinned below this element
+     footer (Cancel/Save As) is a SIBLING pinned below this element
      (see .pmd-save-as-footer) rather than a child that scrolled along
      with the rest of the form — `flex: 1 1 auto` is what lets this
      element be the one that shrinks and scrolls while the footer keeps
      its natural size at the bottom. */
   flex: 1 1 auto;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .pmd-save-as-field {
@@ -13003,6 +13119,64 @@ body.pmd-pane-dragging * {
 }
 .pmd-route-cancel:hover { color: var(--pmd-c-text); }
 
+/* Join session's picker (collab/rejoin-picker.ts): the route dialog with a
+   vertical list of sessions to rejoin, each with an optional Forget ✕. */
+.pmd-rejoin-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+/* Paste box + Join on one line, first in the dialog. */
+.pmd-rejoin-entry {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.pmd-rejoin-entry .pmd-rejoin-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+.pmd-rejoin-entry .pmd-rejoin-join {
+  flex: 0 0 auto;
+}
+/* The rows themselves are the home screen's (.pmd-home-session*). */
+.pmd-rejoin-section[hidden] {
+  display: none;
+}
+.pmd-rejoin-heading {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--pmd-c-text-muted);
+  margin: 0.2rem 0 0.25rem;
+}
+.pmd-rejoin-list {
+  max-height: min(45vh, 320px);
+}
+/* In the dialog the title takes the room the home screen gives a file
+   path: the time is short, so it sizes to itself. */
+.pmd-rejoin-list .pmd-home-recent-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+.pmd-rejoin-list .pmd-home-recent-path {
+  flex: 0 0 auto;
+}
+.pmd-rejoin-spacer {
+  visibility: hidden;
+  cursor: default;
+}
+/* HOST and JOINED the same width, so the titles start on one line. */
+.pmd-rejoin-list .pmd-home-session-role {
+  min-width: 4.6em;
+}
+.pmd-rejoin-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+.pmd-rejoin-footer .pmd-route-cancel { align-self: center; }
+
 /* In the create-flashcard dialog, size the Cancel button to match the manage
    screen's New card / Import / Export buttons (.pmd-learn-manage-new), so it
    reads the same size as the accent Create button it sits beside. */
@@ -14659,7 +14833,7 @@ body.pmd-mobile .pmd-mobile-drawer .pmd-nav-panel {
 body.pmd-mobile.pmd-nav-hidden .pmd-mobile-drawer .pmd-nav-panel {
   display: flex;
 }
-body.pmd-mobile .pmd-nav-close {
+body.pmd-mobile .pmd-nav-close:not(.pmd-nav-search-btn) {
   display: none;
 }
 /* Touch-height outline rows. */
@@ -15679,8 +15853,11 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   padding-top: 4px;
   border-top: 1px solid var(--pmd-c-border-soft);
 }
-/* display:flex would defeat the hidden attribute (collab gate closed). */
-.pmd-receive-actions[hidden] {
+/* display:flex would defeat the hidden attribute (collab gate closed) —
+   on the row, and on its buttons (Clear with nothing received, Join with
+   collab off). */
+.pmd-receive-actions[hidden],
+.pmd-receive-action[hidden] {
   display: none;
 }
 .pmd-send-action,
@@ -15720,6 +15897,19 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   font-size: 15px;
 }
 .pmd-send-action-collab-hidden {
+  display: none;
+}
+/* Collaboration-settings gear at the end of the Send / Receive action rows:
+   a square icon button beside the two labelled actions. In the Send pill
+   it's a click-open affordance only — during a drag that row is drop
+   zones, and a gear isn't one. */
+.pmd-send-action.pmd-pill-settings,
+.pmd-receive-action.pmd-pill-settings {
+  flex: 0 0 auto;
+  width: 30px;
+  padding: 5px 0;
+}
+.pmd-send-pill:not(.pmd-send-invite-mode) .pmd-pill-settings {
   display: none;
 }
 /* Drag-revealed recent-senders FLYOUT: a separate area to the right of

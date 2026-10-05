@@ -271,6 +271,65 @@ export function takeSendSlice(view: EditorView): Slice | null {
   return slice;
 }
 
+/** Outline rank of a top-level node, for splitting a send into pieces:
+ *  1 = pocket, 2 = hat, 3 = block, 4 = a card / analytic. Null for
+ *  anything that never leads a piece (loose paragraphs, tables). */
+function sendPieceRank(node: PMNode): number | null {
+  switch (node.type.name) {
+    case 'pocket':
+      return 1;
+    case 'hat':
+      return 2;
+    case 'block':
+      return 3;
+    case 'card':
+    case 'analytic_unit':
+    case 'analytic':
+      return 4;
+    default:
+      return null;
+  }
+}
+
+/** Split a closed, node-level send slice into the units a nav-pane
+ *  multi-drag would have produced: each heading with its section, each
+ *  loose card on its own. A new piece starts at every node ranked equal
+ *  to or shallower than the current piece's lead, so a block keeps the
+ *  cards under it and two sibling blocks come apart. An open slice (a
+ *  text fragment) is returned whole. */
+export function splitSendSlice(slice: Slice): Slice[] {
+  if (slice.openStart !== 0 || slice.openEnd !== 0) return [slice];
+  const pieces: PMNode[][] = [];
+  let lead = Infinity;
+  slice.content.forEach((node) => {
+    const rank = sendPieceRank(node);
+    const current = pieces[pieces.length - 1];
+    if (!current || (rank !== null && rank <= lead)) {
+      pieces.push([node]);
+      lead = rank ?? Infinity;
+    } else {
+      current.push(node);
+    }
+  });
+  if (pieces.length <= 1) return [slice];
+  return pieces.map((nodes) => new Slice(Fragment.fromArray(nodes), 0, 0));
+}
+
+/** `takeSendSlice`, delivered as separate pieces for a destination that
+ *  lists what it holds (the dropzone shelf, a recipient's inbox label).
+ *  Each range of a discontinuous selection is split on its own, so a
+ *  piece never straddles two scattered ranges. Null when there is
+ *  nothing structural to send. */
+export function takeSendPieces(view: EditorView): Slice[] | null {
+  const shadow = shadowSendRanges(view);
+  if (shadow.length > 0) {
+    const doc = view.state.doc;
+    return shadow.flatMap((r) => splitSendSlice(concatSendSlices(doc, [r])));
+  }
+  const slice = takeSendSlice(view);
+  return slice ? splitSendSlice(slice) : null;
+}
+
 /** Insert a slice into the speech view at-cursor or at-end. Handles
  *  blank-line replace, boundary snapping, history-boundary
  *  isolation (closeHistory + addToHistory meta), trailing paragraph

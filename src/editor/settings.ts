@@ -466,6 +466,15 @@ export interface Settings {
    *  doc's view only (transient, per-pane); this setting is what
    *  every new doc starts at. */
   navMaxLevel: number;
+  /** Nav-pane Search tab: which heading level the search covers — 0 all,
+   *  1 Pocket … 4 Tag (analytics count as Tag level). */
+  navSearchLevel: number;
+  /** Nav-pane Search tab: hide outline rows that aren't a match or an
+   *  ancestor of one (off: the outline stays whole, matches highlighted). */
+  navSearchHideNonMatches: boolean;
+  /** Nav-pane Search tab: also match headings whose body text contains the
+   *  query (credited to the nearest heading at the searched level). */
+  navSearchContent: boolean;
   /** When true, the nav pane scrolls to keep the outline row the cursor
    *  is in visible — the pane follows your place in the document instead
    *  of sitting wherever it was last left.
@@ -1230,6 +1239,12 @@ export interface Settings {
    *  entries never reach results, pins, or the background warm pass.
    *  Electron only. */
   fileSearchExclusions: string[];
+  /** File-search priority sections: folders (or files) whose matches list
+   *  above every other match (`highest`) or win ties with equally good
+   *  matches elsewhere (`preferred`). The deepest entry wins when they nest.
+   *  Absolute paths. Electron only. See `searchFiles`. */
+  fileSearchHighestFolders: string[];
+  fileSearchPreferredFolders: string[];
   /** Which file formats appear in the command-palette file search:
    *  'both' (default), 'cmir' only, or 'docx' only. */
   fileSearchFormats: 'both' | 'cmir' | 'docx';
@@ -1863,6 +1878,9 @@ export const CUSTOM_DASH_STYLES: ReadonlyArray<Settings['customDashStyle']> = [
 const DEFAULTS: Settings = {
   navWidth: 300,
   navMaxLevel: 3,
+  navSearchLevel: 0,
+  navSearchHideNonMatches: true,
+  navSearchContent: false,
   navFollowCursor: true,
   dragInteractions: true,
   copyPreviousCiteNearestOnly: true,
@@ -2023,6 +2041,8 @@ const DEFAULTS: Settings = {
   showQuickCardButtons: false,
   fileSearchRoots: [],
   fileSearchExclusions: [],
+  fileSearchHighestFolders: [],
+  fileSearchPreferredFolders: [],
   fileSearchFormats: 'both',
   fileSearchObjectTypes: ['block', 'tag'],
   fileSearchOutlineDepth: 3,
@@ -2972,6 +2992,31 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'files',
     section: 'File search',
     electronOnly: true,
+  },
+  {
+    key: 'fileSearchHighestFolders',
+    label: 'File search: highest priority',
+    description:
+      'Matches from these folders (or files) always list first, above every other result. '
+      + 'Among themselves they are still ordered by how well they match.',
+    kind: 'pathList',
+    category: 'files',
+    section: 'File search',
+    electronOnly: true,
+    aliases: ['folder priority', 'prioritize folder', 'boost folder', 'search ranking', 'top folders'],
+  },
+  {
+    key: 'fileSearchPreferredFolders',
+    label: 'File search: preferred',
+    description:
+      'Matches from these folders (or files) win ties: they rank above equally good matches '
+      + 'elsewhere, but a better match from another folder still comes first. If a folder is '
+      + 'listed in both sections, the more specific (deeper) entry wins.',
+    kind: 'pathList',
+    category: 'files',
+    section: 'File search',
+    electronOnly: true,
+    aliases: ['folder priority', 'prefer folder', 'boost folder', 'search ranking'],
   },
   {
     key: 'fileSearchFormats',
@@ -4895,6 +4940,9 @@ function sanitize(s: Settings): Settings {
   return {
     navWidth: clamp(s.navWidth, 150, 800),
     navMaxLevel: clamp(Math.round(s.navMaxLevel), 1, 4),
+    navSearchLevel: clamp(Math.round(s.navSearchLevel), 0, 4),
+    navSearchHideNonMatches: s.navSearchHideNonMatches !== false,
+    navSearchContent: s.navSearchContent === true,
     navFollowCursor: s.navFollowCursor !== false,
     dragInteractions: s.dragInteractions !== false,
     readerReduceMotion: s.readerReduceMotion === true,
@@ -5173,6 +5221,12 @@ function sanitize(s: Settings): Settings {
     fileSearchRoots: sanitizeFileSearchRoots(s),
     fileSearchExclusions: sanitizeStringList(
       (s as { fileSearchExclusions?: unknown }).fileSearchExclusions,
+    ),
+    fileSearchHighestFolders: sanitizeStringList(
+      (s as { fileSearchHighestFolders?: unknown }).fileSearchHighestFolders,
+    ),
+    fileSearchPreferredFolders: sanitizeStringList(
+      (s as { fileSearchPreferredFolders?: unknown }).fileSearchPreferredFolders,
     ),
     fileSearchFormats:
       s.fileSearchFormats === 'cmir'

@@ -12,6 +12,33 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### From upstream
+
+Syncs upstream 1.14.0; the user-facing summary is in `CHANGELOG.md`, and
+upstream's own detailed entry for it is further down this file. How the fork's
+code was reconciled with it:
+
+- **Switch Window / `w`:** restored by reverting the fork's removal (upstream's
+  `listWindows` / `focusWindow` IPC, `searchWindowSource`, the `switchWindow`
+  command and its Ctrl+Tab key). The fork's `p` source (`open-docs.ts`, the
+  `host:activate-doc` IPC, `activateDocByUid`, the palette rows) is deleted;
+  `host:focus-window` is upstream's again.
+- **Settings search:** the fork's implementation (two commits) was reverse-applied
+  and upstream's `settings-search.ts` version kept, so the file merges as upstream
+  plus the fork's other settings.
+- **Find:** upstream's selected-text behavior in `find-replace-ui.ts`; the
+  fork's briefly trimmed find bar (no Whole word or close button) is back to
+  full.
+- **Three-pane autosave:** the fork's docx-aware autosave plus upstream's
+  pre-write version snapshot; reload-from-disk uses upstream's off-thread
+  `.docx` open.
+- **Outline pane:** upstream's search-results context menu coexists with the
+  fork's Shrink / Unhighlight menu (search results show only Select and Copy).
+- **Save As:** upstream's viewport-cap and scroll fixes folded into the fork's
+  select-then-commit layout; upstream's one-click preset row isn't used.
+- **Update chip:** upstream's `CM_FAKE_UPDATE` dev aid alongside the fork's
+  plugin-update chip.
+
 ### Added: What's new pop-up (`whats-new.ts`, `index.ts`, `style.css`)
 
 `maybeShowWhatsNew` runs from `startUpdateChecks`' first-window block (desktop,
@@ -509,6 +536,8 @@ scrollbar appeared.
 ## 1.12.0-bcb.4 — 2026-09-25
 
 ### Added: `p` source — open docs and windows (`open-docs.ts`, `quick-card-search-ui.ts`, `multi-pane-shell.ts`, `index.ts`, `main.ts`, `preload.ts`, `electron-host.ts`)
+
+*Removed in the 1.14.0 sync: upstream's Switch Window (`w` prefix) replaced this `p` source.*
 
 Requested directly: "p 2ac" + Enter should open the 2AC wherever it is.
 
@@ -2176,6 +2205,8 @@ on any user scroll input so it doesn't fight manual navigation.
 
 ### 6. Settings search (`settings-ui.ts`, `style.css`)
 
+*Replaced in the 1.14.0 sync by upstream's Settings search (`settings-search.ts`).*
+
 **Introduced in 1.8.0-bcb.4. Bug-fixed in 1.8.0-bcb.4.1.**
 
 The search box lives in `.pmd-settings-header-left`, a new flex wrapper
@@ -2271,7 +2302,153 @@ Word-level highlighting of edited lines was added in
 synced into this fork. For the user-facing short summary of each upstream
 release, see [CHANGELOG.md § Upstream Releases](./CHANGELOG.md#upstream-releases).*
 
-## Unreleased
+## 1.14.0 — 2026-10-03
+
+### Added: nav pane search, as a results view
+
+Brian's PR #92 adds a search bar to the nav pane header (level select,
+"Hide non-matches", "Search content"; `computeSearch` over the heading
+entries, cached per doc + query + options; matches revealed even below the
+level filter or inside a collapsed section; ancestors kept as a skeleton).
+State is per panel, so each pane of the three-pane workspace searches its
+own document.
+
+The PR left the filtered outline fully editable, which is where it went
+wrong: a Shift-click range was resolved against the whole document, so it
+selected every same-level heading the search had HIDDEN between the two
+clicks, and a drag, Cut, Delete or Send then acted on blocks the user could
+not see; a drop "between" two results landed among hidden headings.
+
+Merged with the outline treated as SEARCH RESULTS while a query is active
+(`searchResultsShown()`):
+
+- Drags started from a result row are `absorbOnly` (new `DragSession`
+  flag): the controller's `dispatchHit` skips any surface hit without an
+  `absorb`, `commitInner` refuses a non-absorbing target, and the nav and
+  editor surfaces render no in-document slots for such a drag. The
+  dropzone and the Send pill are the only places it can end. A panel
+  showing results offers no slots to ANY drag (including one from another
+  pane). A refused release toasts why.
+- Shift-click ranges run over the rows shown (`liEntries` order); a
+  search re-render prunes selected ids whose rows are gone.
+- The context menu is Select and Copy only.
+- Collapse arrows, click-to-jump and keyboard stepping are unchanged.
+
+Also fixed at merge: the caret highlight lit the nearest shown row above
+the caret even when that row did not contain it (now only a row whose
+range holds the caret, else none); "Search content" credited text to the
+nearest searched heading above it even across a shallower heading (a Hat
+named "Solvency" lit the last Block of the previous Hat) — a heading's
+section now ends at the next heading of its level or shallower; typing is
+debounced 90 ms (each render rebuilds the list); closing from the × or
+the magnifier returns focus to the editor. Tests:
+nav-panel-search.test.ts, drag-absorb-only.test.ts.
+
+### Added: file-search folder priority (highest / preferred)
+
+There are two new `pathList` settings, `fileSearchHighestFolders` and
+`fileSearchPreferredFolders`, shown in Settings as the same folder-or-file
+list editor that exclusions use. They reach the index as an optional
+`folderPriority: { highest, preferred }` on `FileIndexQueryParams` and
+`FileBrowseParams`, and both lists are part of the palette's query and
+browse params keys, so editing them re-queries. Ranking lives in
+`searchFiles`, which the index service, the `/` folder browse
+(`deriveBrowse`) and the test fake all share. When either list is
+non-empty, `searchFilesByPriority` sorts by:
+
+1. highest-priority matches first;
+2. then match tier;
+3. then preferred before normal within a tier;
+4. then the tiebreak.
+
+So Highest priority beats better matches, while Preferred only wins
+ties. With an empty query, results list highest, then preferred, then
+normal. `folderPriorityFor` takes the deepest matching entry across both
+lists (a single file path works too), using the separator-aware prefix
+test that exclusions use, now shared as `isAtOrUnder`. Pins still
+partition after ranking. With both lists empty, the old `rank` path runs
+unchanged, so there is no per-keystroke cost. Tests:
+file-search-folder-priority.test.ts, plus a file-index-core query and
+browse case.
+
+### Fixed: session undo walled off by one blocked step; exact steps for partner edits
+
+**The undo wall.** `undo-guard.ts` protects a card a partner has edited
+from an undo that would delete it (a CRDT container delete takes every
+concurrent edit inside it). It did so by letting the undo run and then
+reversing it with `redo()`, which puts the step straight back on top of
+the undo stack. Every later Ctrl+Z retried the same step and was reversed
+again, so nothing older was reachable for the rest of the session. Two
+things made it worse: the manager merges edits that land within a second,
+so unrelated typing in other cards was trapped inside the blocked step;
+and every blocked press deleted and rebuilt the partner's card as new
+containers.
+
+A blocked undo is now SKIPPED. The guard writes the document back exactly
+with a commit the manager excludes (origin `cm-undo-skip`; Loro still
+rebases the rest of the stack over excluded-origin commits), clears the
+redo stack, and continues to the step before, up to 25 skips per
+keypress, with one toast counting them. Container-creating and
+container-deleting edits are isolated into undo steps of their own
+(`setMergeInterval(0)` around the commit), so a skip drops only the
+structural action. A blocked redo is still reversed and stays on the redo
+stack. The binding patch gains a `cmCommitOrigin` transaction meta so a
+write can name its commit origin.
+
+Known limit, pinned by a test: Loro cannot discard a step without running
+it, so a skip still rebuilds the partner's card once, and their own undo
+steps for edits inside it go dead. Before, that happened on every blocked
+press. Tests: tests/collab/undo-chain.test.ts (real peers, the session's
+plugin stack, the app's merge interval); the probes that mapped the
+behaviour are tests/collab/undo-chain-explore*.test.ts (`UNDO_PROBES=1`).
+
+**Collateral rescue and move isolation (2026-10-03, found in a two-person
+hands-on test).** Loro's undo of a section drag deletes a card a partner
+inserted right after the moved run (reproduced on raw Loro with no guard:
+the partner's card is gone on every peer). The guard saw a partner-touched
+container vanish and skipped the undo, so "undo my drag" appeared to do
+nothing. The ledger now also records containers that FIRST APPEARED in a
+remote transaction (`partnerCreated`): no step of mine created those, so
+when every partner-touched container an undo removed is of that kind the
+undo stands and they are written back after their nearest surviving
+sibling (`rescueContainers`, same excluded commit). The redo of that undo
+is cleared, because it would re-create what the undo deleted. A local
+transaction that only changes the ORDER of containers (a drag) is isolated
+into its own undo step like a create or delete. Upstream report owed.
+
+**Dragging a header mid-edit moved the header alone.** The identity
+re-resolution in `drag-controller.ts` (`resolveUnit`) compared the mapped
+span with ONE node's size. A header's drag unit is a section — the heading
+plus everything under it — so the check always failed and the unit fell
+back to "the node with this heading id": the heading by itself. Any
+transaction landing mid-drag (a partner's edit anywhere, or one's own)
+left the cards behind on drop. Units now carry a kind (`node`, `section`,
+`range`) captured at pickup, and a section's extent is recomputed from the
+document as it stands, so a partner's edit inside it, or a card they add
+to it, travels with the drop. Tests: tests/collab/drag-section-during-
+session.test.ts (5 of 6 fail on the old code).
+
+**Exact remote steps.** The binding rendered a remote batch as ONE
+replace from the first difference to the last. A batch with an edit in
+card 1 and an edit in card 9 therefore told every position in between
+that its content was replaced, and a document comparison could not tell
+which of two equal characters a partner deleted. `collab/remote-steps.ts`
+builds the same result from what changed: children aligned by Loro
+container id (prefix/suffix by identity, then the heaviest in-order
+subsequence, so a reorder keeps the most document in place), Loro's text
+delta inside each text block, mark steps for mark changes and
+`setNodeMarkup` for attribute changes. It compares its transaction's
+document with the materialized one and returns null on any mismatch; the
+binding's bounded replace remains the fallback. The binding calls it via
+`globalThis.__CM_REMOTE_STEPS__`; `CollabSession.plugins()` installs it.
+A moved card still reads as removed and re-inserted, since the editor
+has no move step.
+
+Measured: 1,959 of 1,959 renders exact in the new randomized test
+(80 seeds); 6,547 of 6,550 across every collab test; 813 of 813 in the
+real-relay chaos rig, which fails the same three seeds as before. No
+measurable cost on a 3,000-card document. One drag test changed meaning:
+a drop slot now survives a partner inserting a card elsewhere.
 
 ### Added: Switch Window (`w ` palette source, Mod-Tab)
 
@@ -2295,6 +2472,48 @@ not visit the keybindings editor; Ctrl folds into Mod in
 of ⌘ (⌘Tab is the OS app switcher and never reaches the app), so the
 keybindings editor and tooltips say ⌃Tab. Tests: switch-window.test.ts.
 Brian's PR #87.
+
+### Changed: find pre-fills a short highlight; a larger selection still scopes
+
+`FindReplaceBar.open` used to turn the ⌖ "search within selection only"
+toggle on for any non-empty selection and never seeded the input from it
+(eb289b9b, reversing the MVP's Word-style seeding "per user feedback").
+That made the commonest gesture — highlight a word, Ctrl-F — open an
+empty box searching inside that one word.
+
+The rule is now decided by WHAT is selected (`classifyFindSelection`),
+never by how it was selected:
+
+- **term** — text inside one paragraph, at most `SELECTION_SEED_MAX` = 200
+  characters after trimming paragraph breaks at the edges (a drag to the
+  end of a line, or a triple-click, picks one up): the thing to look FOR.
+  It pre-fills the input, takes precedence over the "remember last query"
+  seed, and the toggle opens off. Also on a re-open while the bar is up
+  when something new is highlighted.
+- **region** — anything else holding text: several paragraphs or cards,
+  a passage over 200 characters, a node-selected card, a section from the
+  nav pane's "Select heading and contents", or a highlight containing an
+  inline atom (footnote marker, inline image — read as `\u0000`, the same
+  placeholder the find engine sees, so it can never become a query that
+  matches nothing). The place to look IN: the toggle opens on, the input
+  is seeded as if nothing were selected. Replace All after dragging across
+  cards therefore stays inside them, as it always has.
+- **none** — no selection, or one with no text (a selected image). The
+  whole document is searched and Alt-L has nothing to scope to; before,
+  such a selection scoped the search to nothing.
+
+A re-open over the CURRENT MATCH (stepping through matches moves the
+editor selection onto it; Ctrl-F → Ctrl-H) changes neither the input nor
+the captured scope — it used to be able to overwrite "smith" with "SMITH".
+On a re-open the toggle keeps the user's own setting.
+
+Brian's PR #97 pre-filled a one-line highlight and scoped only after the
+nav pane's "Select heading and contents", tracked with a per-view mark
+that any document change expired (so a partner's edit in a session
+silently unscoped it), and left a dragged multi-card selection unscoped —
+Replace All would then have hit the whole document. Merged with the rule
+above in place of the mark (heading-content-selection.ts removed). Tests:
+find-bar-scope-default.test.ts.
 
 ### Fixed: sending a discontinuous (shadow) selection
 

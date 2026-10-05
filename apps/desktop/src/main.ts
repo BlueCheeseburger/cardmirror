@@ -106,6 +106,12 @@ import {
   isReadAllowed,
 } from './read-scope.js';
 import { promises as fs } from 'node:fs';
+import {
+  parseHistoryEnvelope,
+  readHistoryHeader,
+  type HistoryEnvelopeIpc,
+  type HistoryHeader,
+} from './session-history-file.js';
 import * as path from 'node:path';
 import { gzip as zlibGzip, gunzip as zlibGunzip } from 'node:zlib';
 import { promisify } from 'node:util';
@@ -1823,16 +1829,6 @@ const HISTORY_EXTENSION = '.cmir-history';
 const HISTORY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const HISTORY_MAX_TOTAL_BYTES = 500 * 1024 * 1024;
 
-interface HistoryEnvelopeIpc {
-  v: 1;
-  roomId: string;
-  docTitle: string;
-  startedAt: number;
-  updatedAt: number;
-  changeTimes: { peer: string; counter: number; at: number }[];
-  snapshotB64: string;
-}
-
 /** Write-side IPC shape: raw snapshot bytes. Encoding happens HERE —
  *  Buffer's native base64 costs ~2ms where the renderer's JS encoder
  *  cost 463ms per write on a 20 MB tournament master. */
@@ -1851,38 +1847,6 @@ function historyPathFor(roomId: string): string {
   // this string becomes a filename.
   const safe = roomId.replace(/[^a-zA-Z0-9_-]/g, '_');
   return path.join(journalsDir(), `${safe}${HISTORY_EXTENSION}`);
-}
-
-function parseHistoryEnvelope(text: string): HistoryEnvelopeIpc | null {
-  try {
-    const p = JSON.parse(text) as Partial<HistoryEnvelopeIpc>;
-    if (
-      p?.v !== 1 ||
-      typeof p.roomId !== 'string' ||
-      !p.roomId ||
-      typeof p.snapshotB64 !== 'string' ||
-      !p.snapshotB64 ||
-      typeof p.startedAt !== 'number' ||
-      typeof p.updatedAt !== 'number' ||
-      !Array.isArray(p.changeTimes)
-    ) {
-      return null;
-    }
-    return {
-      v: 1,
-      roomId: p.roomId,
-      docTitle: typeof p.docTitle === 'string' ? p.docTitle : 'Untitled',
-      startedAt: p.startedAt,
-      updatedAt: p.updatedAt,
-      changeTimes: p.changeTimes.filter(
-        (t): t is { peer: string; counter: number; at: number } =>
-          typeof t?.peer === 'string' && typeof t?.counter === 'number' && typeof t?.at === 'number',
-      ),
-      snapshotB64: p.snapshotB64,
-    };
-  } catch {
-    return null;
-  }
 }
 
 // Same per-key write chain as journals: two in-flight writes to one
@@ -1983,21 +1947,14 @@ ipcMain.handle('host:list-history', async () => {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw err;
   }
-  const rows: { roomId: string; docTitle: string; startedAt: number; updatedAt: number; sizeBytes: number }[] = [];
+  const rows: HistoryHeader[] = [];
   for (const name of entries) {
     if (!name.endsWith(HISTORY_EXTENSION)) continue;
     const fullPath = path.join(journalsDir(), name);
     try {
-      const text = await fs.readFile(fullPath, 'utf8');
-      const env = parseHistoryEnvelope(text);
-      if (!env) continue;
-      rows.push({
-        roomId: env.roomId,
-        docTitle: env.docTitle,
-        startedAt: env.startedAt,
-        updatedAt: env.updatedAt,
-        sizeBytes: Buffer.byteLength(text),
-      });
+      // Header only: the snapshot (most of the file) isn't needed to list it.
+      const header = await readHistoryHeader(fullPath);
+      if (header) rows.push(header);
     } catch (err) {
       console.warn(`Skipping unreadable history file ${name}:`, err);
     }
@@ -2584,25 +2541,48 @@ ipcMain.handle('host:list-docs', async (event) => {
   return out;
 });
 
-/** Search Everything's `p` source: raise the window that owns `uid`
- *  and tell its renderer to bring that doc forward (show it in its
- *  pane and focus it). False when no live window owns the uid. */
-ipcMain.handle('host:activate-doc', async (_event, uid: unknown): Promise<boolean> => {
-  if (typeof uid !== 'string' || !uid) return false;
-  const windowId = docOwners.get(uid);
-  const win = windowId === undefined ? null : BrowserWindow.fromId(windowId);
-  if (!win || win.isDestroyed()) return false;
-  raiseWindowForJump(win);
-  win.webContents.send('host:activate-doc', uid);
-  return true;
+// ─── Switch Window ─────────────────────────────────────────────────
+// The `switchWindow` command's `w ` palette source lists every
+// document window, most recently focused first (Alt+Tab order), so
+// opening it and pressing Enter goes back to the previous window.
+// Focus order is recorded here because only main sees every window's
+// focus changes; closed windows drop out when listed.
+const windowFocusOrder: number[] = []; // window ids, most recent first
+
+app.on('browser-window-focus', (_event, win) => {
+  const i = windowFocusOrder.indexOf(win.id);
+  if (i !== -1) windowFocusOrder.splice(i, 1);
+  windowFocusOrder.unshift(win.id);
 });
 
-/** Search Everything's `p` source, window rows: raise a window by id. */
-ipcMain.handle('host:focus-window', async (_event, windowId: unknown): Promise<boolean> => {
+ipcMain.handle('host:list-windows', async (event) => {
+  const senderId = BrowserWindow.fromWebContents(event.sender)?.id ?? -1;
+  const rank = (id: number): number => {
+    const i = windowFocusOrder.indexOf(id);
+    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  return BrowserWindow.getAllWindows()
+    .filter((w) => !w.isDestroyed() && !isTimerWindow(w))
+    .sort((a, b) => rank(a.id) - rank(b.id))
+    .map((w) => ({
+      windowId: w.id,
+      title: w.getTitle(),
+      docNames: [...(windowDocs.get(w.id) ?? [])]
+        .map((uid) => docInfo.get(uid)?.filename ?? null)
+        .filter((n): n is string => !!n),
+      isSpeech: speechRegistration?.windowId === w.id,
+      isOwnWindow: w.id === senderId,
+      isMinimized: w.isMinimized(),
+    }));
+});
+
+ipcMain.handle('host:focus-window', async (_event, windowId: unknown) => {
   if (typeof windowId !== 'number') return false;
   const win = BrowserWindow.fromId(windowId);
-  if (!win || win.isDestroyed()) return false;
-  raiseWindowForJump(win);
+  if (!win || win.isDestroyed() || isTimerWindow(win)) return false;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
   return true;
 });
 
@@ -3937,6 +3917,17 @@ function setUpdateChip(next: AppUpdateChip): void {
   broadcastChip();
 }
 
+/** Dev aid: `CM_FAKE_UPDATE=ready` (or `available`, optionally with a
+ *  version: `ready:9.9.9`) shows the update chip in an UNPACKAGED build so
+ *  its surfaces (status bar, home screen) can be looked at without a real
+ *  release. Clicking the fake chip does nothing. Ignored when packaged. */
+const fakeUpdateChip: AppUpdateChip | null = (() => {
+  if (app.isPackaged) return null;
+  const m = /^(ready|available)(?::(.+))?$/.exec(process.env['CM_FAKE_UPDATE'] ?? '');
+  return m ? { state: m[1] as 'ready' | 'available', version: m[2] ?? '9.9.9' } : null;
+})();
+if (fakeUpdateChip) updateChip = fakeUpdateChip;
+
 /** Late-opened windows pull the current chip state at boot. */
 ipcMain.handle('host:update-chip-state', () => effectiveChip());
 
@@ -3946,6 +3937,10 @@ ipcMain.handle('host:update-chip-state', () => effectiveChip());
 ipcMain.handle('host:update-chip-action', async () => {
   // No app update on the chip → it's showing plugin updates.
   if (!updateChip) return pluginChipAction();
+  if (fakeUpdateChip) {
+    console.log('Update chip clicked (CM_FAKE_UPDATE): no action in a dev build.');
+    return;
+  }
   if (updateChip.state === 'downloading') return;
   if (updateChip.state === 'ready') {
     if (process.platform === 'darwin') {

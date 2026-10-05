@@ -13,13 +13,14 @@
  *   - `c ` → search ribbon commands only
  *   - `s ` → search settings (top-level tabs + individual settings);
  *            selecting one opens that tab and scrolls to the setting
+ *   - `w ` → switch to another CardMirror window (desktop only), most
+ *            recently used first; the `switchWindow` command opens the
+ *            bar with this prefix typed
  *   - `f ` → search `.cmir` files under the configured root. Enter
  *            opens a file; Tab dives INTO the selected file (clearing
  *            the bar) to search its objects (blocks / tags / cites);
  *            Esc from there returns to the file list with the prior
  *            query restored. Selecting an object inserts it.
- *   - `p ` → open docs and windows: every doc in any pane of any window,
- *            plus named windows; Enter switches to it (fork).
  *   - `g ` → search Logos (logos-debate.netlify.app) — cards from the
  *            round docs teams open-source on opencaselist. Network-backed
  *            and debounced; Enter fetches the full card and inserts it.
@@ -67,6 +68,7 @@ import { runSettingToggle, runSettingCycle } from './setting-commands.js';
 import { CATEGORY_TABS, visibleCategoryTabs, type SettingsTarget } from './settings-categories.js';
 import { appVersion } from './install-info.js';
 import { getHost, getElectronHost, isWindowsHost } from './host/index.js';
+import type { WindowListEntry } from './host/electron-host.js';
 import { showToast } from './toast.js';
 import { confirmDialog } from './text-prompt.js';
 import { showConfirm } from './confirm-dialog.js';
@@ -86,15 +88,6 @@ import { searchQuickCards } from './quick-cards-match.js';
 import { parseNative } from '../native/index.js';
 import { fromDocx } from '../import/index.js';
 import { ensureHeadingAnchor } from '../anchor-docx.js';
-import {
-  activateOpenDoc,
-  focusOpenWindow,
-  listOpenDocs,
-  windowsOf,
-  type OpenDocEntry,
-  type OpenWindowEntry,
-} from './open-docs.js';
-import { displayFilename } from './platform.js';
 import { isLiteBuild } from './lite.js';
 import { openCardPreview } from './card-preview-modal.js';
 import {
@@ -118,6 +111,7 @@ import {
   FILE_OBJECT_KIND_BADGES,
   type FileObject,
   type FileObjectKind,
+  type FolderPriority,
   type OutlineEntry,
 } from './file-search.js';
 import {
@@ -482,8 +476,7 @@ interface PaletteResult {
     | 'file'
     | 'fileobject'
     | 'logos'
-    | 'opendoc'
-    | 'openwindow';
+    | 'window';
   name: string;
   /** Right-aligned secondary text: card tags / command keybinding /
    *  the settings tab / the file's subfolder / a cite's owning tag. */
@@ -521,10 +514,8 @@ interface PaletteResult {
   previewMeta?: string;
   /** Logos side: 'A' (aff) or 'N' (neg), when the round doc recorded it. */
   logosSide?: 'A' | 'N';
-  /** The open doc to switch to (opendoc source). */
-  openDoc?: OpenDocEntry;
-  /** The window to raise (openwindow source). */
-  openWindow?: OpenWindowEntry;
+  /** Window to bring to the front (window source). */
+  windowId?: number;
   /** Outline depth (1-4) for indentation in the nav-pane-style browse. */
   indentLevel?: number;
   /** Index into `inFile.outline` (outline browse rows only) — the key
@@ -536,7 +527,7 @@ interface PaletteResult {
   collapsed?: boolean;
 }
 
-type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'g' | 'p' | null;
+type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'g' | 'w' | null;
 
 function activeTagSet(): Set<string> {
   return new Set(settings.get('quickCardActiveTags').map(normalizeTag));
@@ -555,12 +546,12 @@ function parseBrowsePrefix(
   return /^\/c?$/i.test(raw) ? 'pending' : null;
 }
 
-/** Split a leading single-letter prefix (`q `/`d `/`c `/`s `/`f `/`g `/`p `) off the query. */
+/** Split a leading single-letter prefix (`q `/`d `/`c `/`s `/`f `/`g `/`w `) off the query. */
 function parsePrefix(raw: string): { prefix: Prefix; query: string } {
   const m = raw.match(/^([a-zA-Z])\s+(.*)$/);
   if (m) {
     const p = m[1]!.toLowerCase();
-    if (p === 'q' || p === 'd' || p === 'c' || p === 's' || p === 'f' || p === 'p')
+    if (p === 'q' || p === 'd' || p === 'c' || p === 's' || p === 'f' || p === 'w')
       return { prefix: p, query: m[2]! };
     if (p === 'g' && !isLiteBuild()) return { prefix: p, query: m[2]! };
   }
@@ -624,60 +615,6 @@ const SYNONYM_GROUPS: readonly (readonly string[])[] = [
 
 /** Command source — any ribbon command (everything bindable), matched
  *  on its label, aliases, and synonyms; Enter runs it. */
-/** A doc's name as the palette shows it: the filename without its
- *  `.cmir` / `.docx` extension, or "Untitled" for a never-saved doc. */
-function openDocLabel(filename: string | null): string {
-  return filename ? displayFilename(filename).replace(/\.(cmir|docx)$/i, '') : 'Untitled';
-}
-
-/** Where a `p` row lives, for the right-aligned meta text. */
-function openWindowLabel(w: { windowName: string | null; isOwnWindow: boolean }): string {
-  if (w.windowName) return w.isOwnWindow ? `“${w.windowName}” (this window)` : `“${w.windowName}”`;
-  return w.isOwnWindow ? 'this window' : 'another window';
-}
-
-/** `p` source: open docs whose name or window name matches every query
- *  word, plus named windows whose name matches. Rows whose own name
- *  contains the first word earliest come first; a doc beats a window on
- *  a tie. Exported for tests. */
-export function searchOpenDocsSource(docs: OpenDocEntry[], query: string): PaletteResult[] {
-  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const matches = (hay: string): boolean => tokens.every((t) => hay.includes(t));
-  const t0 = tokens[0];
-  const rows: Array<{ r: PaletteResult; rank: number; tie: number }> = [];
-  const rankOf = (name: string): number => {
-    if (!t0) return 0;
-    const i = name.toLowerCase().indexOf(t0);
-    return i === -1 ? Infinity : i;
-  };
-  for (const d of docs) {
-    const name = openDocLabel(d.filename);
-    if (!matches(`${name} ${d.windowName ?? ''}`.toLowerCase())) continue;
-    rows.push({
-      r: { source: 'opendoc', name, meta: openWindowLabel(d), matchedName: true, snippet: null, openDoc: d },
-      rank: rankOf(name),
-      tie: 0,
-    });
-  }
-  for (const w of windowsOf(docs)) {
-    if (!w.windowName || !matches(w.windowName.toLowerCase())) continue;
-    rows.push({
-      r: {
-        source: 'openwindow',
-        name: w.windowName,
-        meta: truncate(w.filenames.map(openDocLabel).join(' · ') || 'no docs', 80),
-        matchedName: true,
-        snippet: null,
-        openWindow: w,
-      },
-      rank: rankOf(w.windowName),
-      tie: 1,
-    });
-  }
-  rows.sort((a, b) => a.rank - b.rank || a.tie - b.tie || a.r.name.localeCompare(b.r.name));
-  return rows.map((x) => x.r);
-}
-
 function searchCommandSource(query: string): PaletteResult[] {
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   // Searchable text = label + any aliases, so a query phrased like an
@@ -838,6 +775,37 @@ const dropzoneOn = (): boolean => settings.get('showDropzonePill');
 
 const categoryLabel = (id: SettingsCategory): string =>
   CATEGORY_TABS.find((c) => c.id === id)?.label ?? '';
+
+/** Row label for a window: its saved docs' names, else its title minus
+ *  the app suffix (a home-screen or untitled window is just "CardMirror"). */
+export function windowLabel(w: WindowListEntry): string {
+  if (w.docNames.length > 0) return w.docNames.join(' · ');
+  const title = w.title.replace(/\s+—\s+CardMirror$/, '').trim();
+  return title && title !== 'CardMirror' ? title : 'Untitled window';
+}
+
+/** Window source (`w `) — every OTHER CardMirror window, in the
+ *  most-recently-focused order main hands back, so the top row is the
+ *  window you were just in. Every query word must hit the label or title. */
+export function searchWindowSource(windows: WindowListEntry[], query: string): PaletteResult[] {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  return windows
+    .filter((w) => !w.isOwnWindow)
+    .filter((w) => {
+      const hay = `${windowLabel(w)} ${w.title}`.toLowerCase();
+      return tokens.every((t) => hay.includes(t));
+    })
+    .map((w) => ({
+      source: 'window' as const,
+      name: windowLabel(w),
+      meta: [w.isSpeech ? 'Speech doc' : '', w.isMinimized ? 'Minimized' : '']
+        .filter(Boolean)
+        .join(' · '),
+      matchedName: true,
+      snippet: null,
+      windowId: w.windowId,
+    }));
+}
 
 /** Settings source — top-level tabs AND individual settings, matched on
  *  label. Selecting a tab opens it; selecting a setting opens its tab
@@ -1076,9 +1044,7 @@ function badgeText(r: PaletteResult): string {
     case 'logos':
       // Which side ran the card; LOGOS only when the round doc didn't say.
       return r.logosSide === 'A' ? 'AFF' : r.logosSide === 'N' ? 'NEG' : 'LOGOS';
-    case 'opendoc':
-      return 'OPEN';
-    case 'openwindow':
+    case 'window':
       return 'WIN';
   }
 }
@@ -1089,11 +1055,9 @@ function badgeText(r: PaletteResult): string {
 function resultKey(r: PaletteResult): string {
   const id = r.filePath
     ?? r.logosId
-    ?? r.openDoc?.uid
-    ?? (r.openWindow ? `w${r.openWindow.windowId ?? 'local'}` : undefined)
     ?? (r.browseLocation
       ? `${r.browseLocation.root}:${r.browseLocation.relativeDirectory}`
-      : r.commandId ?? r.name);
+      : r.commandId ?? (r.windowId !== undefined ? String(r.windowId) : r.name));
   return `${r.source}:${id}`;
 }
 
@@ -1119,8 +1083,7 @@ function enterVerb(source: PaletteResult['source']): string {
       return 'open';
     case 'folder':
       return 'enter';
-    case 'opendoc':
-    case 'openwindow':
+    case 'window':
       return 'switch to';
     default:
       return 'insert';
@@ -1131,6 +1094,14 @@ const SEARCH_PLACEHOLDER = 'Search…';
 /** The palette's width in px, in every layout (narrower only when the
  *  window itself is). */
 const PALETTE_WIDTH = 540;
+
+/** The folder-priority sections from settings, for index queries. */
+function fileSearchPriority(): FolderPriority {
+  return {
+    highest: settings.get('fileSearchHighestFolders'),
+    preferred: settings.get('fileSearchPreferredFolders'),
+  };
+}
 
 class QuickCardSearchUI {
   private root: HTMLDivElement | null = null;
@@ -1245,13 +1216,13 @@ class QuickCardSearchUI {
   /** Last query answered, with its rows — re-rendering the same query
    *  (the arrival re-runs the search) doesn't refetch. Cleared on close. */
   private logosCache: { query: string; rows: LogosResult[] } | null = null;
-  /** `p` source: the open-docs listing, fetched once per palette open
-   *  (on the first `p ` search) and filtered locally per keystroke. */
-  private openDocsCache: OpenDocEntry[] | null = null;
-  private openDocsLoading = false;
   /** Unsubscribe from main's live `.cmir` index-refresh broadcasts
    *  (Electron only); set on open, cleared on close. */
   private fileIndexUnsub: (() => void) | null = null;
+  /** Window list for the `w ` source, fetched once per open (null = not
+   *  fetched yet). */
+  private windowList: WindowListEntry[] | null = null;
+  private windowListPending = false;
 
   open(opts: QuickCardSearchOptions): void {
     // Re-triggering the open hotkey while open toggles it closed.
@@ -1276,6 +1247,8 @@ class QuickCardSearchUI {
     this.pinsCache = null;
     this.fileTail = [];
     this.materializedTail = [];
+    this.windowList = null;
+    this.windowListPending = false;
 
     const root = document.createElement('div');
     root.className = 'pmd-qcs';
@@ -1362,8 +1335,6 @@ class QuickCardSearchUI {
     this.asyncToken++; // invalidate any in-flight query / read
     this.cancelLogos();
     this.logosCache = null;
-    this.openDocsCache = null;
-    this.openDocsLoading = false;
     this.fileQueryKey = null;
     this.fileQueryPending = null;
     this.fileRows = [];
@@ -1374,6 +1345,17 @@ class QuickCardSearchUI {
     this.root.remove();
     this.root = null;
     this.view?.focus();
+  }
+
+  /** Whether the bar is open on the `w ` (Switch Window) source. */
+  isInWindowMode(): boolean {
+    return !!this.root && !this.inFile && parsePrefix(this.input.value).prefix === 'w';
+  }
+
+  /** Move the highlighted row — Switch Window pressed again while open
+   *  steps down the list the way Alt+Tab does. */
+  moveSelection(delta: number): void {
+    this.move(delta);
   }
 
   isOpen(): boolean {
@@ -1437,6 +1419,14 @@ class QuickCardSearchUI {
         redo(this.view.state, this.view.dispatch);
         return;
       }
+    }
+    // Ctrl+Tab again in Switch Window mode steps through the windows
+    // (Shift reverses) instead of reaching the Tab / tag-filter case.
+    if (e.key === 'Tab' && (e.ctrlKey || e.metaKey) && this.isInWindowMode()) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.move(e.shiftKey ? -1 : 1);
+      return;
     }
     // Alt+P pins / unpins the selected file (keeps it warm).
     if (e.altKey && e.key.toLowerCase() === 'p') {
@@ -1547,10 +1537,6 @@ class QuickCardSearchUI {
       this.runLogosSearch(query);
       return;
     }
-    if (prefix === 'p') {
-      this.runOpenDocsSearch(query);
-      return;
-    }
     if (prefix === 'q') {
       this.results = searchQuickCardSource(query);
       this.emptyText = quickCardsStore.list().length
@@ -1576,6 +1562,9 @@ class QuickCardSearchUI {
         ...searchSettingCycleSource(query),
       ];
       this.emptyText = 'No matching commands.';
+    } else if (prefix === 'w') {
+      this.runWindowSearch(query);
+      return;
     } else if (prefix === 's') {
       // The settings filter shows the deep-link rows (open the dialog) AND
       // the in-place Toggle/Cycle actions, so a setting can be changed from
@@ -1592,7 +1581,7 @@ class QuickCardSearchUI {
       this.results = [];
       this.emptyText = `Type to search everything · / browse · c commands${
         dropzoneOn() ? ' · d dropzone' : ''
-      } · f files${isLiteBuild() ? '' : ' · g Logos'} · p open docs · q cards · s settings`;
+      } · f files${isLiteBuild() ? '' : ' · g Logos'} · q cards · s settings${getElectronHost() ? ' · w windows' : ''}`;
     } else {
       // No prefix — search everything. Files (by filename) join the
       // other sources; the ranked rows come from the file-index service
@@ -1617,40 +1606,6 @@ class QuickCardSearchUI {
       return;
     }
     this.finishSearch();
-  }
-
-  /** `p` prefix: open docs (every pane of every window) and named
-   *  windows. The listing is fetched once per palette open, then each
-   *  keystroke filters it locally. */
-  private runOpenDocsSearch(query: string): void {
-    if (!this.openDocsCache) {
-      this.results = [];
-      this.emptyText = 'Loading open docs…';
-      this.finishSearch();
-      if (this.openDocsLoading) return;
-      this.openDocsLoading = true;
-      const token = this.asyncToken;
-      void listOpenDocs().then((docs) => {
-        if (token !== this.asyncToken || !this.root) return;
-        this.openDocsLoading = false;
-        this.openDocsCache = docs;
-        this.runSearch();
-      });
-      return;
-    }
-    this.results = searchOpenDocsSource(this.openDocsCache, query);
-    this.emptyText = this.openDocsCache.length ? 'No matching open docs or windows.' : 'No docs are open.';
-    this.finishSearch();
-  }
-
-  /** Enter on a `p` row: close, then switch to the doc or window. */
-  private async switchToOpenResult(result: PaletteResult): Promise<void> {
-    this.close();
-    if (result.openDoc) {
-      if (!(await activateOpenDoc(result.openDoc))) showToast('That document is no longer open.');
-    } else if (result.openWindow) {
-      if (!(await focusOpenWindow(result.openWindow))) showToast('That window is no longer open.');
-    }
   }
 
   /** Stop any pending/in-flight Logos query. */
@@ -1805,6 +1760,42 @@ class QuickCardSearchUI {
       this.runCommand(id);
     }
     restoreCaretFromEnd(view, fromEnd);
+  }
+
+  /** The `w ` source. The window list comes from main asynchronously; the
+   *  first run fetches it and re-runs the search when it lands. */
+  private runWindowSearch(query: string): void {
+    const host = getElectronHost();
+    if (!host) {
+      this.results = [];
+      this.emptyText = 'Switching windows requires the desktop edition.';
+      this.finishSearch();
+      return;
+    }
+    if (this.windowList === null) {
+      this.results = [];
+      this.emptyText = 'Loading windows…';
+      this.finishSearch();
+      if (!this.windowListPending) {
+        this.windowListPending = true;
+        const token = this.asyncToken;
+        void host
+          .listWindows()
+          .catch(() => [] as WindowListEntry[])
+          .then((list) => {
+            if (!this.root || token !== this.asyncToken) return;
+            this.windowListPending = false;
+            this.windowList = list;
+            this.runSearch();
+          });
+      }
+      return;
+    }
+    this.results = searchWindowSource(this.windowList, query);
+    this.emptyText = this.windowList.some((w) => !w.isOwnWindow)
+      ? 'No matching windows.'
+      : 'No other CardMirror windows are open.';
+    this.finishSearch();
   }
 
   /** Clamp to the first page, reset selection, render — the shared tail
@@ -1987,6 +1978,8 @@ class QuickCardSearchUI {
       settings.get('fileSearchExclusions'),
       settings.get('fileSearchFormats'),
       settings.get('fileSearchTiebreak'),
+      settings.get('fileSearchHighestFolders'),
+      settings.get('fileSearchPreferredFolders'),
       [...this.manualPinPaths()].sort(),
     ]);
   }
@@ -2019,6 +2012,7 @@ class QuickCardSearchUI {
           exclusions: settings.get('fileSearchExclusions'),
           formats: settings.get('fileSearchFormats'),
           tiebreak: settings.get('fileSearchTiebreak'),
+          folderPriority: fileSearchPriority(),
           pins: [...this.manualPinPaths()],
           limit,
         });
@@ -2142,6 +2136,8 @@ class QuickCardSearchUI {
       settings.get('fileSearchExclusions'),
       settings.get('fileSearchFormats'),
       settings.get('fileSearchTiebreak'),
+      settings.get('fileSearchHighestFolders'),
+      settings.get('fileSearchPreferredFolders'),
       [...this.manualPinPaths()].sort(),
     ]);
   }
@@ -2170,6 +2166,7 @@ class QuickCardSearchUI {
             exclusions: settings.get('fileSearchExclusions'),
             formats: settings.get('fileSearchFormats'),
             tiebreak: settings.get('fileSearchTiebreak'),
+            folderPriority: fileSearchPriority(),
             pins: [...this.manualPinPaths()],
             partitionPins,
             limit,
@@ -2838,9 +2835,15 @@ class QuickCardSearchUI {
       void import('./settings-ui.js').then((m) => m.openSettings(target));
       return;
     }
-    // Open doc / window (`p` source): switch to it. atEnd irrelevant.
-    if (result.source === 'opendoc' || result.source === 'openwindow') {
-      void this.switchToOpenResult(result);
+    // Window: close the palette and bring that window to the front.
+    if (result.source === 'window') {
+      const id = result.windowId!;
+      this.close();
+      void getElectronHost()
+        ?.focusWindow?.(id)
+        .then((ok) => {
+          if (!ok) showToast('That window has closed.');
+        });
       return;
     }
     // File: close the palette, then open the document. atEnd irrelevant.

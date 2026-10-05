@@ -51,6 +51,7 @@ import { collabEnabled } from './collab/collab-gate.js';
 import {
   listSessionRecords,
   deleteSessionRecord,
+  deleteRecentRoom,
   subscribeSessionRecords,
   type PersistedSessionRecord,
 } from './collab/collab-store.js';
@@ -83,6 +84,10 @@ export interface HomeScreenCallbacks {
    *  desktop layout, after Compare); omitted → no tile. Until 2026-09-21 the home screen
    *  reached Settings only through the command bar. */
   openSettings?: () => void;
+  /** Wire the home screen's update button (same states and click
+   *  action as the status-bar update chip, which home covers). Called
+   *  once at mount with the hidden button; omitted → it stays hidden. */
+  mountUpdateChip?: (el: HTMLButtonElement) => void;
   /** Open the .docx style cleaner. Electron-only (recursive folder I/O +
    *  write-to-path), like bulkConvert; omitted on the web edition. */
   clean?: () => void;
@@ -192,6 +197,15 @@ class HomeScreen {
     tagline.className = 'pmd-home-tagline';
     tagline.textContent = 'Open a document to start, or pick up where you left off.';
     header.appendChild(tagline);
+    // Update button — the status-bar chip is under the overlay, so an
+    // update would otherwise need a document open to install. Hidden
+    // until the host reports one.
+    const updateBtn = document.createElement('button');
+    updateBtn.type = 'button';
+    updateBtn.className = 'pmd-home-update';
+    updateBtn.hidden = true;
+    header.appendChild(updateBtn);
+    callbacks.mountUpdateChip?.(updateBtn);
     inner.appendChild(header);
 
     // Number-key actions: the 1..N shortcuts (see onKeyDown), in reading
@@ -667,7 +681,10 @@ class HomeScreen {
       // Participant: purely local — abandoning your copy leaves the room (and
       // everyone in it) untouched.
       if (record.role !== 'host') {
+        // Forget means forget: the remembered room key goes too, or the
+        // session would reappear under "left" in the Join list.
         void deleteSessionRecord(record.roomId);
+        void deleteRecentRoom(record.roomId).catch(() => {});
         return;
       }
       // Host: X should be able to actually END the session. Just deleting the
@@ -704,9 +721,14 @@ class HomeScreen {
             return;
           }
           await deleteSessionRecord(record.roomId);
+          await deleteRecentRoom(record.roomId); // ended: nothing left to rejoin
           showToast('Session ended for everyone');
         } else if (choice === 'forget') {
           await deleteSessionRecord(record.roomId);
+          // And the remembered key: left in place, the Join list offered
+          // the room again as "You hosted", and picking it rejoined as a
+          // plain participant with no way to End.
+          await deleteRecentRoom(record.roomId);
         }
       })();
     });

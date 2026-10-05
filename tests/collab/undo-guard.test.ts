@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /**
  * Container-safe undo (undo-guard.ts): an undo/redo that would delete a
- * container a partner has edited since is reversed; unedited ones and
- * text-only steps pass. Deterministic in-memory peers, movable rooms.
+ * container a partner has edited since is skipped (undo) or reversed
+ * (redo); unedited ones and text-only steps pass. The undo CHAIN past a
+ * skipped step is covered in undo-chain.test.ts. Deterministic in-memory peers, movable rooms.
  */
 import { describe, it, expect } from 'vitest';
 import { TextSelection } from 'prosemirror-state';
@@ -12,7 +13,7 @@ import { LoroUndoPlugin } from 'loro-prosemirror';
 import { UndoManager, type LoroDoc } from 'loro-crdt';
 import { enterMidTag } from '../../src/editor/tag-keymap.js';
 import { headingIdGuardPlugin } from '../../src/editor/heading-id-guard.js';
-import { createUndoGuard, UNDO_BLOCKED_MESSAGE, REDO_BLOCKED_MESSAGE, type UndoGuard } from '../../src/editor/collab/undo-guard.js';
+import { createUndoGuard, undoSkippedMessage, REDO_BLOCKED_MESSAGE, type UndoGuard } from '../../src/editor/collab/undo-guard.js';
 import { createLoroPeers, settle, docOf, cardNode, type LoroPeer } from './_loro-helpers.js';
 
 declare global {
@@ -96,7 +97,7 @@ async function runUndo(r: Rig, i: number): Promise<boolean> {
 }
 
 describe('container-safe undo in co-editing sessions', () => {
-  it('Enter-mid-tag, partner types into the new half, undo → reversed, typing kept', async () => {
+  it('Enter-mid-tag, partner types into the new half, undo → skipped, typing kept', async () => {
     const r = await rig();
     const [A, B] = r.peers as [LoroPeer, LoroPeer];
     splitTagOn(A.view);
@@ -112,8 +113,9 @@ describe('container-safe undo in co-editing sessions', () => {
     expect(count(A.doc(), '«B»'), "the partner's typing survives").toBe(1);
     expect(count(B.doc(), '«B»')).toBe(1);
     expect(A.doc().childCount, 'the split-off container is still there').toBe(3);
-    expect(r.blocked).toEqual([UNDO_BLOCKED_MESSAGE]);
+    expect(r.blocked).toEqual([undoSkippedMessage(1)]);
     expect(r.guards[0]!.stats.blocked).toBe(1);
+    expect(r.guards[0]!.stats.skipped).toBe(1);
     expect(A.doc().eq(B.doc())).toBe(true);
     for (const p of r.peers) p.destroy();
   });
@@ -133,7 +135,7 @@ describe('container-safe undo in co-editing sessions', () => {
     for (const p of r.peers) p.destroy();
   });
 
-  it('inserted card, partner types into it, undo → reversed; untouched card → undo removes it', async () => {
+  it('inserted card, partner types into it, undo → skipped; untouched card → undo removes it', async () => {
     const r = await rig();
     const [A, B] = r.peers as [LoroPeer, LoroPeer];
     A.view.dispatch(A.view.state.tr.insert(A.view.state.doc.content.size, cardNode('Fresh «HN»', ['fresh body'])));
@@ -145,7 +147,7 @@ describe('container-safe undo in co-editing sessions', () => {
     await runUndo(r, 0);
     expect(count(A.doc(), '«B»')).toBe(1);
     expect(count(A.doc(), '«HN»')).toBe(1);
-    expect(r.blocked).toEqual([UNDO_BLOCKED_MESSAGE]);
+    expect(r.blocked).toEqual([undoSkippedMessage(1)]);
     // Now a second fresh card nobody touches: plain undo works.
     A.view.dispatch(A.view.state.tr.insert(A.view.state.doc.content.size, cardNode('Fresh2 «HM»', ['fresh two'])));
     await settle();
