@@ -443,6 +443,11 @@ export class FindReplaceBar {
     const wasClosed = this.root.hidden;
     this.root.hidden = false;
     this.replaceRow.hidden = opts.mode === 'find';
+    // The plain find bar is trimmed down: no Whole word toggle and no
+    // close button (Esc closes). A hidden toggle must not keep filtering,
+    // so Whole word is cleared whenever the bar opens in find mode.
+    this.root.dataset['mode'] = opts.mode;
+    if (opts.mode === 'find') this.wholeWordCheckbox.checked = false;
     this.sortLabel.textContent =
       opts.sortMode === 'uncategorized' ? 'uncategorized' : 'categorized';
     this.sortLabel.title =
