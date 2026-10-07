@@ -1394,6 +1394,15 @@ export interface Settings {
    */
   standardizeHighlightException: string;
   /**
+   * When on, Toggle Highlight / Toggle Background Color (and the
+   * paintbrush and swatch picks) only paint text that is underlined or
+   * emphasized — plain text inside the selection is left alone. Within a
+   * word that mixes emphasis and plain underline, only the emphasized
+   * part is painted. Toggling off / "No highlight" still strips the whole
+   * selection. Off by default.
+   */
+  highlightUnderlinedOnly: boolean;
+  /**
    * The background color the "Standardize Background Color (with
    * Exception)" command leaves untouched. 6-char hex, no leading `#`
    * (matching the shading mark's stored attr); compared
@@ -2000,6 +2009,7 @@ const DEFAULTS: Settings = {
   clearFormattingOnNamedStyleToggleOff: true,
   clearRemovesHighlighting: false,
   standardizeHighlightException: 'yellow',
+  highlightUnderlinedOnly: false,
   standardizeShadingException: 'FFFF00',
   defaultHighlightColor: 'yellow',
   defaultShadingColor: 'C0C0C0',
@@ -3932,6 +3942,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['create reference gray', 'create reference grey', 'reference gray text'],
   },
   {
+    key: 'highlightUnderlinedOnly',
+    label: 'Highlight underlined text only',
+    description:
+      'When on, Toggle Highlight and Toggle Background Color (F11 / Ctrl+F11, the paintbrush, and the color pickers) only paint text that is underlined or emphasized, so painting over a mix of underlined and plain text highlights just the underlined parts. In a word that mixes emphasis and plain underline, only the emphasized part is painted. Toggling off and "No highlight" still clear the whole selection. Composes with the automatic gap bridging above.',
+    kind: 'toggle',
+    category: 'editing',
+    section: 'Highlighting',
+    aliases: ['highlight only underlined', 'highlight emphasis only', 'paint underlined only'],
+  },
+  {
     key: 'standardizeHighlightException',
     label: 'Highlighting exception',
     description:
@@ -5130,6 +5150,10 @@ function sanitize(s: Settings): Settings {
       s.autoBridgeFormattingGaps === undefined
         ? DEFAULTS.autoBridgeFormattingGaps
         : !!s.autoBridgeFormattingGaps,
+    highlightUnderlinedOnly:
+      s.highlightUnderlinedOnly === undefined
+        ? DEFAULTS.highlightUnderlinedOnly
+        : !!s.highlightUnderlinedOnly,
     clearFormattingOnNamedStyleToggleOff:
       s.clearFormattingOnNamedStyleToggleOff === undefined
         ? DEFAULTS.clearFormattingOnNamedStyleToggleOff
