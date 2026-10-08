@@ -342,7 +342,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeFileAtPath: (
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean; grantRead?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean; selfPath?: string },
   ) => ipcRenderer.invoke('host:write-file-at-path', filePath, bytes, opts),
 
   /** Bulk-compress every `.cmir` under `dir` in place (temporary

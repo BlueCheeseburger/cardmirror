@@ -8986,6 +8986,7 @@ async function saveIntoDirectory(
   dir: string,
   filename: string,
   bytes: Uint8Array,
+  selfPath?: string,
 ): Promise<{ name: string; handle: string } | null> {
   const electron = getElectronHost();
   if (!electron?.writeFileAtPath) {
@@ -9007,7 +9008,10 @@ async function saveIntoDirectory(
         { title: 'File exists', okLabel: 'Replace', cancelLabel: 'Cancel' },
       );
       if (!overwrite) return null;
-      await electron.writeFileAtPath(target, bytes, { grantRead: true });
+      await electron.writeFileAtPath(target, bytes, {
+        grantRead: true,
+        ...(selfPath ? { selfPath } : {}),
+      });
     }
     return { name: filename, handle: target };
   } catch (err) {
@@ -9087,7 +9091,12 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     // through the OS picker. Both produce the same {name, handle}, so
     // the commit path below is identical either way.
     const result = choice.destinationDir
-      ? await saveIntoDirectory(choice.destinationDir, choice.filename, bytes)
+      ? await saveIntoDirectory(
+          choice.destinationDir,
+          choice.filename,
+          bytes,
+          typeof file.handle === 'string' && file.handle ? file.handle : undefined,
+        )
       : await getHost().saveAs(choice.filename, bytes, {
           filters: saveFiltersForFormat(choice.format),
           // Open the dialog next to the doc's current path (or, after a
