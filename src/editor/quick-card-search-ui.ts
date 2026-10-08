@@ -119,7 +119,10 @@ import {
   type FileBrowseLocation,
   type FileBrowseRow,
   type FileIndexRow,
+  type TaglineQueryResult,
 } from './file-search-client.js';
+import { findTaglineEntry, type TaglineRow } from './tagline-search.js';
+import { computeHeadingRange } from './headings.js';
 import { toggleManualPin, recordUsage, effectivePins } from './pins-store.js';
 import { listRecents } from './recents-store.js';
 import { scheduleIdle } from './idle-scheduler.js';
@@ -475,6 +478,7 @@ interface PaletteResult {
     | 'folder'
     | 'file'
     | 'fileobject'
+    | 'tagline'
     | 'logos'
     | 'window';
   name: string;
@@ -495,6 +499,11 @@ interface PaletteResult {
   settingsTarget?: SettingsTarget;
   /** Absolute path to open (file source). */
   filePath?: string;
+  /** Which card in the file, and its tagline (tagline source — `f c`). */
+  taglineOrd?: number;
+  taglineText?: string;
+  /** The file's display name (tagline source; `name` is the tagline). */
+  fileName?: string;
   /** File's mtime — the warm-cache freshness key (file source). */
   fileMtimeMs?: number;
   /** Whether this file is pinned (file source) — drives ★ + sort. */
@@ -927,6 +936,24 @@ function fileResult(f: FileIndexRow): PaletteResult {
   };
 }
 
+/** A card tagline found inside an indexed file (`f c <words>`). The tagline is
+ *  the row, the card's cite sits under it, and the file is the right-hand
+ *  text (with a count when the same card is in other files too). */
+function taglineResult(r: TaglineRow): PaletteResult {
+  return {
+    source: 'tagline',
+    name: r.text,
+    meta: r.alsoIn > 0 ? `${r.name} +${r.alsoIn}` : r.name,
+    matchedName: r.cite === '',
+    snippet: r.cite || null,
+    filePath: r.path,
+    fileMtimeMs: r.mtimeMs,
+    fileName: r.name,
+    taglineOrd: r.ord,
+    taglineText: r.text,
+  };
+}
+
 function fileObjectResult(o: FileObject): PaletteResult {
   return {
     source: 'fileobject',
@@ -1041,6 +1068,8 @@ function badgeText(r: PaletteResult): string {
       return r.browseRoot ? 'ROOT' : 'DIR';
     case 'fileobject':
       return r.fileObjectKind ? FILE_OBJECT_KIND_BADGES[r.fileObjectKind] : 'OBJ';
+    case 'tagline':
+      return 'CARD';
     case 'logos':
       // Which side ran the card; LOGOS only when the round doc didn't say.
       return r.logosSide === 'A' ? 'AFF' : r.logosSide === 'N' ? 'NEG' : 'LOGOS';
@@ -1053,7 +1082,9 @@ function badgeText(r: PaletteResult): string {
  *  a re-render (e.g. a live file-index refresh) so the cursor doesn't
  *  bounce back to the top. */
 function resultKey(r: PaletteResult): string {
-  const id = r.filePath
+  const id = r.source === 'tagline'
+    ? `${r.filePath}#${r.taglineOrd}`
+    : r.filePath
     ?? r.logosId
     ?? (r.browseLocation
       ? `${r.browseLocation.root}:${r.browseLocation.relativeDirectory}`
@@ -1064,7 +1095,11 @@ function resultKey(r: PaletteResult): string {
 /** Sources whose Enter inserts a slice (and so support Alt+Enter "at end"). */
 function isInsertSource(source: PaletteResult['source']): boolean {
   return (
-    source === 'quickcard' || source === 'dropzone' || source === 'fileobject' || source === 'logos'
+    source === 'quickcard' ||
+    source === 'dropzone' ||
+    source === 'fileobject' ||
+    source === 'tagline' ||
+    source === 'logos'
   );
 }
 
@@ -1216,6 +1251,16 @@ class QuickCardSearchUI {
   /** Last query answered, with its rows — re-rendering the same query
    *  (the arrival re-runs the search) doesn't refetch. Cleared on close. */
   private logosCache: { query: string; rows: LogosResult[] } | null = null;
+  /** `f c` source: the taglines fetched for the current query (the service
+   *  ranks them; we hold only the returned window). */
+  private taglineKey: string | null = null;
+  private taglinePending: string | null = null;
+  private taglineGen = 0;
+  private taglineGenApplied = 0;
+  private taglineRows: TaglineRow[] = [];
+  private taglineTotal = 0;
+  private taglineStatus: TaglineQueryResult['status'] | null = null;
+  private taglineUnsub: (() => void) | null = null;
   /** Unsubscribe from main's live `.cmir` index-refresh broadcasts
    *  (Electron only); set on open, cleared on close. */
   private fileIndexUnsub: (() => void) | null = null;
@@ -1241,6 +1286,11 @@ class QuickCardSearchUI {
     this.fileQueryPending = null;
     this.fileRows = [];
     this.fileTotal = 0;
+    this.taglineKey = null;
+    this.taglinePending = null;
+    this.taglineRows = [];
+    this.taglineTotal = 0;
+    this.taglineStatus = null;
     this.lastFileParams = null;
     this.inFile = null;
     this.resetBrowseState();
@@ -1332,6 +1382,8 @@ class QuickCardSearchUI {
     this.unsubscribe = null;
     this.fileIndexUnsub?.();
     this.fileIndexUnsub = null;
+    this.taglineUnsub?.();
+    this.taglineUnsub = null;
     this.asyncToken++; // invalidate any in-flight query / read
     this.cancelLogos();
     this.logosCache = null;
@@ -1471,7 +1523,10 @@ class QuickCardSearchUI {
           this.enterBrowseFolder(this.results[this.selected]!);
           break;
         }
-        if (this.results[this.selected]?.source === 'file') {
+        if (
+          this.results[this.selected]?.source === 'file' ||
+          this.results[this.selected]?.source === 'tagline'
+        ) {
           void this.enterInFile();
           break;
         }
@@ -1530,6 +1585,12 @@ class QuickCardSearchUI {
     const { prefix, query } = parsePrefix(this.input.value);
     if (prefix !== 'g') this.cancelLogos();
     if (prefix === 'f') {
+      // `f c <words>`: card taglines inside the indexed files.
+      const cards = /^c\s+(.*)$/is.exec(query);
+      if (cards) {
+        this.runTaglineSearch(cards[1]!);
+        return;
+      }
       this.runFileSearch(query);
       return;
     }
@@ -1581,7 +1642,7 @@ class QuickCardSearchUI {
       this.results = [];
       this.emptyText = `Type to search everything · / browse · c commands${
         dropzoneOn() ? ' · d dropzone' : ''
-      } · f files${isLiteBuild() ? '' : ' · g Logos'} · q cards · s settings${getElectronHost() ? ' · w windows' : ''}`;
+      } · f files · f c cards in files${isLiteBuild() ? '' : ' · g Logos'} · q cards · s settings${getElectronHost() ? ' · w windows' : ''}`;
     } else {
       // No prefix — search everything. Files (by filename) join the
       // other sources; the ranked rows come from the file-index service
@@ -2125,6 +2186,129 @@ class QuickCardSearchUI {
     this.finishSearch(this.fileRows, this.fileTotal);
   }
 
+  /** `f c <words>`: card taglines inside the files already in the file
+   *  index. The service builds the tagline index in the background the first
+   *  time this is used, so early searches cover the files indexed so far and
+   *  fill in as it goes (the status line says how far along it is). */
+  private runTaglineSearch(query: string): void {
+    const electron = getElectronHost();
+    if (!electron) {
+      this.results = [];
+      this.emptyText = 'Searching card taglines needs the desktop app.';
+      this.finishSearch();
+      return;
+    }
+    if (!settings.get('fileSearchRoots').length) {
+      this.results = [];
+      this.emptyText = 'Add a file-search folder in Settings → General.';
+      this.finishSearch();
+      return;
+    }
+    const state = this.ensureTaglineQuery(query);
+    const status = this.taglineStatus;
+    const progress =
+      status && (status.running || status.indexed < status.files)
+        ? `Indexing card taglines… ${status.indexed.toLocaleString()} of ${status.files.toLocaleString()} files`
+        : '';
+    if (query.trim() === '') {
+      this.results = [];
+      this.emptyText = progress || 'Type words from a card’s tagline to search inside your indexed files.';
+      this.finishSearch();
+      return;
+    }
+    this.results = this.taglineKey === null ? [] : this.taglineRows.map(taglineResult);
+    this.emptyText =
+      state === 'loading' && this.taglineKey === null
+        ? 'Searching card taglines…'
+        : progress
+          ? `No matching cards yet. ${progress}`
+          : status?.capped
+            ? 'No matching cards (the oldest files are not indexed).'
+            : 'No matching cards.';
+    this.finishSearch();
+  }
+
+  /** Ensure `taglineRows` (eventually) reflect this query — the same
+   *  latest-wins fetch as `ensureFileQuery`. The arrival re-runs the search. */
+  private ensureTaglineQuery(query: string): 'ready' | 'loading' {
+    const limit = 300;
+    const roots = settings.get('fileSearchRoots');
+    const exclusions = settings.get('fileSearchExclusions');
+    const formats = settings.get('fileSearchFormats');
+    const key = JSON.stringify([query, roots, exclusions, formats, limit]);
+    if (this.taglineKey === key) return 'ready';
+    if (this.taglinePending === key) return 'loading';
+    this.taglinePending = key;
+    const gen = ++this.taglineGen;
+    const token = this.asyncToken;
+    void (async () => {
+      let res: TaglineQueryResult | null = null;
+      try {
+        const client = await getFileIndexClient();
+        if (client) {
+          // More taglines indexed in the background → refresh what's shown.
+          if (!this.taglineUnsub) {
+            this.taglineUnsub = client.onTaglinesChanged(() => {
+              if (!this.root || this.inFile) return;
+              const { prefix, query: q } = parsePrefix(this.input.value);
+              if (prefix !== 'f' || !/^c\s/i.test(q)) return;
+              this.taglineKey = null;
+              this.rerunPreservingView();
+            });
+          }
+          res = await client.taglineQuery({ query, roots, exclusions, formats, limit });
+        }
+      } catch {
+        /* service down — treat as empty; the next keystroke retries */
+      }
+      if (token !== this.asyncToken || !this.root) return;
+      if (gen <= this.taglineGenApplied) return;
+      this.taglineGenApplied = gen;
+      if (this.taglinePending === key) this.taglinePending = null;
+      this.taglineKey = key;
+      this.taglineRows = res?.rows ?? [];
+      this.taglineTotal = res?.total ?? 0;
+      this.taglineStatus = res?.status ?? null;
+      this.rerunPreservingView();
+    })();
+    return 'loading';
+  }
+
+  /** Enter on a tagline row: read the file, find that card, insert it. */
+  private async insertTaglineCard(result: PaletteResult, atEnd: boolean): Promise<void> {
+    const view = this.view;
+    if (!view || !view.editable) {
+      showToast('No editable document to insert into.');
+      return;
+    }
+    const electron = getElectronHost();
+    const path = result.filePath;
+    const text = result.taglineText;
+    const ord = result.taglineOrd;
+    if (!electron || !path || text === undefined || ord === undefined) return;
+    const fileName = result.fileName ?? 'that file';
+    recordUsage(path);
+    let slice: Slice;
+    try {
+      const file = await electron.readFileAtPath(path);
+      if (!file) throw new Error('read failed');
+      const doc = await parseFileDoc(file.bytes, file.format);
+      const entry = findTaglineEntry(doc, ord, text);
+      const range = entry ? computeHeadingRange(doc, entry) : null;
+      if (!range) {
+        showToast(`That card is no longer in "${fileName}".`);
+        return;
+      }
+      slice = flattenSelfRefsInSlice(doc.slice(range.from, range.to), doc, newHeadingId);
+    } catch {
+      showToast(`Couldn't read "${fileName}".`);
+      return;
+    }
+    if (!this.root) return; // closed while the file was being read
+    this.close();
+    insertSpeechSlice(view, slice, atEnd);
+  }
+
   /** Params key for a file query — anything that changes the ranked
    *  window invalidates the fetched rows. */
   private fileParamsKey(query: string, partitionPins: boolean, limit: number): string {
@@ -2314,11 +2498,11 @@ class QuickCardSearchUI {
    *  reads + parses, warming it if it's pinned. Records usage either way. */
   private async enterInFile(): Promise<void> {
     const sel = this.results[this.selected];
-    if (!sel || sel.source !== 'file' || !sel.filePath) return;
+    if (!sel || (sel.source !== 'file' && sel.source !== 'tagline') || !sel.filePath) return;
     const electron = getElectronHost();
     if (!electron) return;
     const path = sel.filePath;
-    const name = sel.name;
+    const name = sel.source === 'tagline' ? (sel.fileName ?? sel.name) : sel.name;
     const mtimeMs = sel.fileMtimeMs ?? 0;
     const savedQuery = this.input.value;
     const returnBrowse = this.browseActive
@@ -2541,7 +2725,7 @@ class QuickCardSearchUI {
     // nothing while already inside a file.
     if (!inFile) {
       if (sel?.source === 'folder') segs.push('⇥ enter folder');
-      else if (sel?.source === 'file') segs.push('⇥ search inside');
+      else if (sel?.source === 'file' || sel?.source === 'tagline') segs.push('⇥ search inside');
       else if (!this.browseActive) segs.push('⇥ tags');
     }
     if (sel?.source === 'file') segs.push(sel.pinned ? 'alt+p unpin' : 'alt+p pin');
@@ -2853,6 +3037,11 @@ class QuickCardSearchUI {
       if (path) recordUsage(path); // counts toward "frequents"
       this.close();
       if (path) this.openFilePath(path, name);
+      return;
+    }
+    // Card tagline (`f c`): read its file and insert the card.
+    if (result.source === 'tagline') {
+      void this.insertTaglineCard(result, atEnd);
       return;
     }
     // Everything else (quickcard / dropzone / fileobject / logos) inserts a slice.

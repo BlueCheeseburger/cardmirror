@@ -18,6 +18,7 @@ import type {
   FileIndexClient,
   FileIndexQueryParams,
 } from '../../src/editor/file-search-client.js';
+import { searchTaglines, type TaglineRecord } from '../../src/editor/tagline-search.js';
 import { deriveBrowse, locateInRoots, normalizeRelativeDirectory } from '../../src/editor/file-browse.js';
 
 export interface FakeFileListing {
@@ -29,7 +30,11 @@ export interface FakeFileListing {
 
 /** A FileIndexClient over a mutable listing array (share the array with
  *  the test's hostState so per-test rewrites are seen live). */
-export function makeFakeFileIndexClient(listing: { files: FakeFileListing[] }): FileIndexClient {
+export function makeFakeFileIndexClient(listing: {
+  files: FakeFileListing[];
+  /** Taglines by file path, for `f c` tests. */
+  taglines?: Record<string, TaglineRecord>;
+}): FileIndexClient {
   const changed = new Set<() => void>();
 
   function entries(params: { roots: string[]; exclusions: string[] }): FileEntry[] {
@@ -45,6 +50,18 @@ export function makeFakeFileIndexClient(listing: { files: FakeFileListing[] }): 
 
   return {
     configure: async () => {},
+    taglineQuery: async (params) => {
+      const files = entries(params).map((e) => ({
+        path: e.path,
+        relPath: e.relPath,
+        name: e.name,
+        mtimeMs: e.mtimeMs,
+        record: listing.taglines?.[e.path] ?? { tags: [], cites: [] },
+      }));
+      const r = searchTaglines(files, params.query, params.limit);
+      return { ...r, status: { indexed: files.length, files: files.length, running: false, capped: false } };
+    },
+    onTaglinesChanged: () => () => {},
     query: async (params: FileIndexQueryParams) => {
       let pool = entries(params);
       if (params.formats !== 'both') {

@@ -249,7 +249,7 @@ export function matchesAllTokens(p: string, s: string, tokens: readonly string[]
  *  lower in their getter (in-file objects). Tokens contain no
  *  whitespace, so per-field `includes` is equivalent to the joined
  *  haystack it replaces (a token can never span the field boundary). */
-function matchTier(
+export function matchTier(
   p: string,
   s: string,
   tokens: readonly string[],
