@@ -13,12 +13,6 @@
   </head>
   <body>
     <header id="ribbon">
-      <!-- Timer panel — mounted by `timer-ui.ts`. Hidden until the
-           user toggles it via the ⏱ button in the right stack
-           (per-window transient setting). Lives at the LEFT edge
-           of the ribbon when shown; the rest of the ribbon shifts
-           right to accommodate it. -->
-      <section id="timer-panel" class="ribbon-section pmd-timer-panel" hidden></section>
       <div class="ribbon-section ribbon-left">
         <!-- Undo / redo stack — hidden unless the showUndoRedoButtons
              setting is on (html.pmd-undoredo-hidden, mirroring the
@@ -264,6 +258,13 @@
           <span class="pmd-doc-name-chip-text" id="doc-name-chip-text"></span>
         </div>
       </div>
+      <!-- Timer panel — mounted by `timer-ui.ts`. Hidden until the
+           user toggles it via the ⏱ button in the right stack
+           (per-window transient setting). Sits just LEFT of the right
+           stack (shortcuts / settings / timer / home), i.e. to the right
+           of the comments buttons; "Far right" in Settings moves it past
+           the stack instead. -->
+      <section id="timer-panel" class="ribbon-section pmd-timer-panel" hidden></section>
       <div class="ribbon-section ribbon-right">
         <!-- 2×2 grid (row-major):
                 shortcuts   settings

@@ -13805,28 +13805,48 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
   flex: 0 0 auto;
   align-self: center;
   align-content: center;
-  /* Lives at the LEFT edge of the ribbon — separator on the
-     right side instead of the left. */
-  margin-right: 0.4rem;
-  padding-right: 0.4rem;
-  border-right: 1px solid var(--pmd-c-border-soft);
+  /* Sits just left of the ribbon's right stack — separator on its
+     left edge. */
+  margin-left: 0.4rem;
+  padding-left: 0.4rem;
+  border-left: 1px solid var(--pmd-c-border-soft);
   align-items: stretch;
   box-sizing: border-box;
   font-family: var(--pmd-ui-font);
 }
 .pmd-timer-panel[hidden] { display: none; }
+/* Pace row: the speech doc's "Left" times under the timer, with the
+   on-time / too-slow / too-fast indicator to their right. A third grid
+   row (small type) so the ribbon keeps its height. */
+.pmd-timer-panel.pmd-timer-has-left {
+  grid-template-rows: repeat(2, auto) auto;
+}
+#timer-panel .pmd-timer-left-row {
+  grid-row: 3;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.68rem;
+  line-height: 0.9rem;
+  white-space: nowrap;
+  color: var(--pmd-c-text-muted);
+}
+#timer-panel .pmd-timer-left-row[hidden] { display: none; }
+#timer-panel .pmd-timer-pace { font-weight: 600; }
+#timer-panel .pmd-timer-pace[data-verdict='on-time'] { color: #2e7d32; }
+#timer-panel .pmd-timer-pace[data-verdict='too-slow'] { color: #c62828; }
+#timer-panel .pmd-timer-pace[data-verdict='too-fast'] { color: #1565c0; }
+html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='on-time'] { color: #81c784; }
+html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-slow'] { color: #ef9a9a; }
+html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-fast'] { color: #90caf9; }
 /* "Timer position in the ribbon" = Far right (timerPosition setting,
    html class set by applyTimerPosition). Flex order moves the panel
    past every other ribbon section — .ribbon-center's flex-grow keeps
    it pinned to the edge — and the separator flips sides. */
 html.pmd-timer-right #timer-panel {
   order: 99;
-  margin-right: 0;
-  padding-right: 0;
-  border-right: none;
-  margin-left: 0.4rem;
-  padding-left: 0.4rem;
-  border-left: 1px solid var(--pmd-c-border-soft);
 }
 
 /* `#ribbon` prefix is required to beat the generic `#ribbon

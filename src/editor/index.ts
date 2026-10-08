@@ -26,6 +26,7 @@ import type { LocalComment } from './learn-store.js';
 import { NavigationPanel, setNavCommandRunner } from './nav-panel.js';
 import { initUpdateChip } from './update-chip.js';
 import { mountTimerUI } from './timer-ui.js';
+import { mountTimerPace } from './timer-pace.js';
 import { initTimerAudio } from './timer-audio.js';
 import {
   getTimerState as getTimerStateNow,
@@ -4457,6 +4458,9 @@ function initRibbonResizer(): void {
   // Each entry is the set of element IDs to hide/show together.
   // Adding a new group? Just append to this list.
   const panelIds: string[][] = [
+    ['comments-ops-panel'],      // (0) Comments / note / flashcard / AI
+                                 //     buttons — hidden FIRST, before
+                                 //     the character styles below.
     ['cite-panel'],              // (a) Character styles
     ['formatting-panel'],        // (b) Structural styles
     ['numbering-panel'],         // (c) Card numbering cluster — hide THIRD
@@ -4471,7 +4475,6 @@ function initRibbonResizer(): void {
                                  //     the whole color-panel also covers
                                  //     the step buttons in (f), which is
                                  //     fine — display:none is idempotent.
-    ['comments-ops-panel'],      // (h) Comments toggle + add-comment.
     ['open-btn', 'new-btn',      // (i) File ops: open, new, save,
      'export-btn', 'autosave-btn'], //     autosave-toggle.
     ['view-ops-panel'],          // (j) Read mode + nav-pane toggle.
@@ -4536,6 +4539,13 @@ function initRibbonResizer(): void {
       for (const child of Array.from(centerSection.children)) {
         centerWidth += (child as HTMLElement).getBoundingClientRect().width;
       }
+    }
+    // The timer panel sits in the gap between the two sections, so it
+    // takes room from it (when it's shown there rather than far right).
+    const timerEl = document.getElementById('timer-panel');
+    if (timerEl && timerEl.offsetWidth > 0) {
+      const r = timerEl.getBoundingClientRect();
+      if (r.left >= leftRight - 1 && r.right <= rightLeft + 1) centerWidth += r.width;
     }
     return rightLeft - leftRight - centerWidth < overflowBuffer;
   };
@@ -4694,6 +4704,11 @@ applyPillVisibility(); // default-off dropzone pill + quick-card cluster, at boo
 // stays hidden in the DOM until the user toggles ⏱ in the
 // ribbon.
 mountTimerUI();
+mountTimerPace(() => {
+  const speech = getSpeechDocResolver().getSpeechView();
+  const target = speech ?? view;
+  return target ? { view: target, useLay: laySpeakingOn } : null;
+});
 // Audible timer alerts — this window competes for the shared audio-
 // owner lock (the pop-out wins while it exists). No-op while the
 // setting is off.
