@@ -2388,6 +2388,24 @@ body:not(.pmd-multi-doc) #app {
 .pmd-home-update[hidden] {
   display: none;
 }
+/* Dismiss × inside the chip: drawn in CSS, shown only while hovering the
+   pill (and for keyboard users, when it's focused). */
+.pmd-update-chip-x {
+  display: none;
+  margin-left: 0.4rem;
+  padding: 0 0.15rem;
+  border-radius: 50%;
+  cursor: pointer;
+  line-height: 1;
+}
+.pmd-update-chip-x::before { content: '\00d7'; }
+#update-chip:hover .pmd-update-chip-x,
+#update-chip:focus-visible .pmd-update-chip-x,
+.pmd-home-update:hover .pmd-update-chip-x,
+.pmd-home-update:focus-visible .pmd-update-chip-x {
+  display: inline-block;
+}
+.pmd-update-chip-x:hover { background: rgba(255, 255, 255, 0.3); }
 /* Downloading: same pill, but its background fills left-to-right as
    `--pmd-update-pct` climbs (set in update-chip.ts on every progress
    tick) — a plain two-stop gradient with a hard edge at the percent,

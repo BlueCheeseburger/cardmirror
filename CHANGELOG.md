@@ -12,6 +12,12 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **Dismiss the update notice.** Hover the blue update pill (status bar or
+  home screen) and a × appears; clicking it hides the pill and says you can
+  still update from Settings → General → About this install. It comes back
+  at the next launch, or when the update reaches a new stage (downloaded,
+  ready).
+
 - **Search card taglines inside your files: `f c <words>`.** In Search Everything,
   `f` searches your files by name; `f c` searches the taglines of the cards
   inside those same files. Enter inserts the whole card at your cursor and Tab

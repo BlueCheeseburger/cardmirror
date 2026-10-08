@@ -12,6 +12,15 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: dismiss × on the update chip (`update-chip.ts`, `style.css`)
+
+`renderUpdateChip` appends a `.pmd-update-chip-x` span (glyph drawn by CSS
+`::before`, so the chip's text is unchanged; shown on hover/focus) to every
+state except downloading / plugins-updating. A click on it adds
+`state:version` to an in-memory dismissed set, hides the chip and toasts
+`DISMISS_NOTE`; a new state or version shows again, and a restart resets it.
+Works for both the status-bar chip and the home screen's copy.
+
 ### Added: `f c` card-tagline search (`tagline-search.ts`, `tagline-index-core.ts`, `tagline-parse.ts`, `quick-card-search-ui.ts`)
 
 The file index only listed files, so `f c <words>` needed a content layer.
