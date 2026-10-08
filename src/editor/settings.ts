@@ -846,8 +846,9 @@ export interface Settings {
    *  'color' to drop the redundant A:/N: prefix. */
   timerPrepLabel: 'text' | 'color' | 'both';
   /** Which edge of the ribbon the timer panel occupies when shown.
-   *  'left' (default) renders it as the first flex child; 'right'
-   *  moves it past the settings/right stack via flex order (see
+   *  'left' (default) renders it just left of the right-hand stack
+   *  (shortcuts / settings / timer / home), to the right of the comments
+   *  buttons; 'right' moves it past that stack via flex order (see
    *  html.pmd-timer-right in style.css). */
   timerPosition: 'left' | 'right';
   /** When read mode is toggled (either direction), scroll the

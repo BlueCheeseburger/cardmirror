@@ -8,6 +8,24 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **Narrow windows hide the comments buttons first.** The comment / note /
+  flashcard / AI button cluster now goes before the cite, emphasis, underline
+  and clear-styles buttons do.
+- **The timer sits beside the right-hand buttons**, to the right of the
+  comments buttons and left of shortcuts / settings (Settings → Timer still
+  offers "Far right").
+
+### Added
+
+- **Pace indicator under the timer.** With "live remaining read time" on, the
+  speech document's "Left" times show under the timer, with "On time", "Too
+  slow" or "Too fast" to their right, comparing the time left on the clock with
+  the first reader's time for what's still unread.
+
 ## 1.14.0-bcb.1 — 2026-10-05
 
 ### Added

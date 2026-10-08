@@ -10,6 +10,27 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: ribbon hide order and timer placement (`index.ts`, `index.html`, `style.css`)
+
+`comments-ops-panel` is now first in `initRibbonResizer`'s `panelIds` (it was
+8th), ahead of `cite-panel`. `#timer-panel` moved in `index.html` to sit between
+`.ribbon-center` and `.ribbon-right` (separator on its left edge); the resizer's
+overflow check subtracts its width when it sits in that gap. The `timerPosition`
+'left' value now means this spot; 'right' (far right) is unchanged.
+
+### Added: timer pace row (`timer-pace.ts`)
+
+`mountTimerPace` appends `#timer-left-row` to the timer panel (a third grid row,
+small type, so the ribbon keeps its height). It shows the speech document's (or
+the focused document's) "Left" read times for the first two readers, and a
+verdict comparing the speech clock with reader 1's time: `paceVerdict` returns
+on-time within max(5 s, 3 %) either way, too-slow when the clock has less than
+needed, too-fast when it has more. Hidden for prep clocks, the count-up
+stopwatch, or when live remaining read time is off. Refreshes on timer-state
+and settings changes and once a second (the clock and scrolling don't notify).
+
 ## 1.14.0-bcb.1 — 2026-10-05
 
 ### From upstream
