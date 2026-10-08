@@ -20,6 +20,8 @@
  * outside the index.ts app shell.
  */
 
+import { showToast } from './toast.js';
+
 export type UpdateChipState =
   | { state: 'downloading'; version: string; pct: number }
   | { state: 'available'; version: string }
@@ -32,6 +34,16 @@ export type UpdateChipState =
   | { state: 'plugins-updating'; count: number }
   | { state: 'plugins-ready'; count: number };
 
+/** Chip states the user has dismissed with the × (keyed by state + version,
+ *  so a newer state — e.g. "available" → "ready" — shows again). In memory
+ *  only: the chip is back at the next launch. */
+const dismissed = new Set<string>();
+const stateKey = (s: UpdateChipState): string =>
+  `${s.state}:${'version' in s ? s.version : 'count' in s ? s.count : s.plugins.map((p) => p.name + p.version).join(',')}`;
+
+export const DISMISS_NOTE =
+  'Update hidden. You can still update any time from Settings → General → About this install.';
+
 export interface UpdateChipHost {
   getUpdateChipState(): Promise<UpdateChipState | null>;
   updateChipAction(): Promise<void>;
@@ -40,6 +52,21 @@ export interface UpdateChipHost {
 
 /** Render one chip state into the button. Exported for tests. */
 export function renderUpdateChip(el: HTMLButtonElement, s: UpdateChipState | null): void {
+  if (s && dismissed.has(stateKey(s))) s = null;
+  renderChip(el, s);
+  // A × that appears on hover (a dismiss target inside the pill; its glyph
+  // is CSS-drawn so the chip's text stays just the message). Not while a
+  // download is in flight.
+  if (s && s.state !== 'downloading' && s.state !== 'plugins-updating') {
+    const x = document.createElement('span');
+    x.className = 'pmd-update-chip-x';
+    x.setAttribute('role', 'button');
+    x.setAttribute('aria-label', 'Hide this update notice');
+    el.appendChild(x);
+  }
+}
+
+function renderChip(el: HTMLButtonElement, s: UpdateChipState | null): void {
   if (!s) {
     el.hidden = true;
     return;
@@ -93,15 +120,27 @@ export function renderUpdateChip(el: HTMLButtonElement, s: UpdateChipState | nul
 /** Wire the chip: initial state pull (late-opened windows), live
  *  subscription, click → the main process picks the action. */
 export function initUpdateChip(el: HTMLButtonElement, host: UpdateChipHost): () => void {
-  el.addEventListener('click', () => {
+  let current: UpdateChipState | null = null;
+  el.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement | null)?.closest('.pmd-update-chip-x')) {
+      e.stopPropagation();
+      if (current) dismissed.add(stateKey(current));
+      renderUpdateChip(el, null);
+      showToast(DISMISS_NOTE);
+      return;
+    }
     void host.updateChipAction().catch((err) => {
       console.warn('Update chip action failed:', err);
     });
   });
-  const unsubscribe = host.onUpdateChip((s) => renderUpdateChip(el, s));
+  const show = (s: UpdateChipState | null): void => {
+    current = s;
+    renderUpdateChip(el, s);
+  };
+  const unsubscribe = host.onUpdateChip(show);
   void host
     .getUpdateChipState()
-    .then((s) => renderUpdateChip(el, s))
+    .then(show)
     .catch(() => {});
   return unsubscribe;
 }

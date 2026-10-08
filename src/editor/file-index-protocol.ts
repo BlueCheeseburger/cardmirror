@@ -77,3 +77,29 @@ export type LocateCurrentFileFailure = 'outside-roots' | 'excluded';
 export type LocateCurrentFileResult =
   | { ok: true; location: FileBrowseLocation }
   | { ok: false; reason: LocateCurrentFileFailure };
+
+/** One card-tagline hit (`f c <words>`). */
+export type { TaglineRow } from './tagline-search.js';
+
+export interface TaglineQueryParams {
+  query: string;
+  roots: string[];
+  exclusions: string[];
+  formats: 'both' | 'cmir' | 'docx';
+  limit: number;
+}
+
+export interface TaglineQueryResult {
+  rows: import('./tagline-search.js').TaglineRow[];
+  total: number;
+  status: {
+    /** Files whose taglines are indexed. */
+    indexed: number;
+    /** Files in the search folders. */
+    files: number;
+    /** The background build is still running. */
+    running: boolean;
+    /** The size cap was reached, so the oldest files are not included. */
+    capped: boolean;
+  };
+}
