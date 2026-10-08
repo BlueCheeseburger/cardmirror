@@ -28,6 +28,8 @@ import type {
   FileIndexQueryParams,
   FileIndexQueryResult,
   LocateCurrentFileResult,
+  TaglineQueryParams,
+  TaglineQueryResult,
 } from './file-index-protocol.js';
 export type {
   FileBrowseLocation,
@@ -38,6 +40,8 @@ export type {
   FileIndexQueryResult,
   FileIndexRow,
   LocateCurrentFileResult,
+  TaglineQueryParams,
+  TaglineQueryResult,
 } from './file-index-protocol.js';
 
 export interface FileIndexClient {
@@ -61,6 +65,11 @@ export interface FileIndexClient {
   }): Promise<Array<{ path: string; mtimeMs: number }>>;
   /** A scan/revalidation landed a fresh listing — re-query to stay live. */
   onChanged(handler: () => void): () => void;
+  /** Card taglines inside the indexed files (`f c <words>`). The first call
+   *  starts the background build; results fill in as it goes. */
+  taglineQuery(params: TaglineQueryParams): Promise<TaglineQueryResult>;
+  /** More taglines were indexed — re-query to stay live. */
+  onTaglinesChanged(handler: () => void): () => void;
 }
 
 const PORT_TIMEOUT_MS = 5000;
@@ -116,6 +125,7 @@ function wrapPort(port: MessagePort): FileIndexClient {
     { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
   >();
   const changedHandlers = new Set<() => void>();
+  const taglineHandlers = new Set<() => void>();
 
   const fail = (reason: string): void => {
     for (const [, p] of pending) {
@@ -132,10 +142,11 @@ function wrapPort(port: MessagePort): FileIndexClient {
     const msg = e.data as
       | { id: number; ok: boolean; result?: unknown; error?: string }
       | { push: 'changed'; root: string }
+      | { push: 'taglines' }
       | null;
     if (!msg) return;
     if ('push' in msg) {
-      for (const handler of changedHandlers) handler();
+      for (const handler of msg.push === 'taglines' ? taglineHandlers : changedHandlers) handler();
       return;
     }
     const p = pending.get(msg.id);
@@ -175,6 +186,11 @@ function wrapPort(port: MessagePort): FileIndexClient {
     onChanged: (handler) => {
       changedHandlers.add(handler);
       return () => changedHandlers.delete(handler);
+    },
+    taglineQuery: (params) => request('taglineQuery', params),
+    onTaglinesChanged: (handler) => {
+      taglineHandlers.add(handler);
+      return () => taglineHandlers.delete(handler);
     },
   };
 }

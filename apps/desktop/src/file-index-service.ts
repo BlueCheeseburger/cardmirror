@@ -20,6 +20,8 @@
  */
 
 import { createFileIndexCore } from './file-index-core.js';
+import { createTaglineIndex } from './tagline-index-core.js';
+import { parseTaglines } from './tagline-parse.js';
 
 /** The slice of Electron's MessagePortMain / parentPort surface the
  *  shim touches (no electron types in a bundled utility process). */
@@ -38,29 +40,50 @@ if (!dataDir) {
 
 const ports = new Set<PortLike>();
 
+function pushToPorts(message: unknown): void {
+  for (const port of ports) {
+    try {
+      port.postMessage(message);
+    } catch {
+      /* port gone — pruned on 'close' */
+    }
+  }
+}
+
 const core = createFileIndexCore({
   dataDir,
   onChanged: (root) => {
-    for (const port of ports) {
-      try {
-        port.postMessage({ push: 'changed', root });
-      } catch {
-        /* port gone — pruned on 'close' */
-      }
-    }
+    pushToPorts({ push: 'changed', root });
+    // A fresh listing: bring an already-built tagline index up to date.
+    void taglines.refresh().catch(() => {});
   },
+});
+
+// Card taglines inside the indexed files (`f c <words>`): built lazily on the
+// first such search, kept fresh from the same listing.
+const taglines = createTaglineIndex({
+  dataDir,
+  listFiles: (scope) => core.visibleFiles(scope),
+  parse: parseTaglines,
+  onChanged: () => pushToPorts({ push: 'taglines' }),
 });
 
 interface Request {
   id: number;
-  op: 'configure' | 'query' | 'browse' | 'locateCurrentFile' | 'entriesForPaths';
+  op: 'configure' | 'query' | 'browse' | 'locateCurrentFile' | 'entriesForPaths' | 'taglineQuery';
   args: unknown;
 }
 
 async function handle(req: Request): Promise<unknown> {
   switch (req.op) {
-    case 'configure':
-      return core.configure((req.args as { roots: string[] }).roots);
+    case 'configure': {
+      const { roots } = req.args as { roots: string[] };
+      await core.configure(roots);
+      void taglines.refresh(roots).catch(() => {});
+      return;
+    }
+    case 'taglineQuery':
+      return taglines.query(req.args as Parameters<typeof taglines.query>[0]);
     case 'query':
       return core.query(req.args as Parameters<typeof core.query>[0]);
     case 'browse':

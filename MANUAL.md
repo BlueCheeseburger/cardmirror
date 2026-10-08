@@ -1104,6 +1104,7 @@ you *browse* that whole source.
 | **`c`** | Ribbon **commands** — each row shows its current shortcut | Runs the command |
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
+| **`f c`** | The **taglines of the cards inside** your indexed files *(desktop only)* **(fork)** | Inserts the whole card at your cursor |
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
 | **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
 | **`w`** | Your other open **CardMirror windows**, most recently used first *(desktop only)* | Brings that window to the front |
@@ -1120,6 +1121,25 @@ the row, hovering it shows the full text in a tooltip.
 at your cursor (the same insertion the send-to-speech and Quick Card
 buttons use). If your cursor is in the middle of a paragraph, the insertion
 will drop at the nearest valid target. 
+
+**Searching card taglines (`f c`, fork).** `f` searches the files in your
+file-search folders by name; add `c` for cards and it searches the **taglines of
+the cards inside those files** instead (`f c heg collapse`). Every word you type
+has to appear in the tagline, in any order, and a card's cite counts as a weaker
+match. Each row is a tagline with its cite underneath and the file it came from
+on the right; a card that appears in several files shows once, from the newest
+file, with `+N` for the others. **Enter** inserts the whole card at your cursor
+(**Alt+Enter** at the end of the document), **Tab** opens that file for searching
+inside it.
+
+The first time you use `f c`, CardMirror reads the files in your search folders
+in the background, newest first, and remembers their taglines. Until it
+finishes, results cover the files read so far and the bar shows how far along
+it is ("Indexing card taglines… 1,204 of 5,311 files"). After that, only files
+that changed are read again. It covers the folders and file types chosen under
+Settings → Files → File search (exclusions apply), and stops at about 600,000
+taglines, leaving out the oldest files, so a very large collection can't use
+unlimited memory.
 
 **Searching Logos (`g`, fork).** `g` and a space searches
 [Logos](https://logos-debate.netlify.app), a card search engine run by
