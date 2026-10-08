@@ -1504,16 +1504,38 @@ ipcMain.on('host:file-index-port', (event) => {
   event.sender.postMessage('host:file-index-port', null, [port2]);
 });
 
+/** True when `target` is the path of a document some window has open,
+ *  other than `selfPath` (the doc doing the saving). Save As must never
+ *  write onto such a file: the other doc's tab would then follow the
+ *  new bytes and the original content would be gone (field report
+ *  2026-10-08). Stale entries (owner gone) don't count. */
+function openElsewhere(target: string, selfPath?: string): boolean {
+  const norm = canonicalOpenPath(target);
+  if (selfPath && canonicalOpenPath(selfPath) === norm) return false;
+  const ownerId = openPathOwners.get(norm);
+  if (ownerId === undefined) return false;
+  const ownerWin = BrowserWindow.fromId(ownerId);
+  return !!ownerWin && !ownerWin.isDestroyed();
+}
+
+const SAVE_OVER_OPEN_MESSAGE =
+  'That file is open in CardMirror as a different document. Saving onto it would replace its contents. Choose another name or close it first.';
+
 ipcMain.handle(
   'host:write-file-at-path',
   async (
     _event,
     filePath: string,
     bytes: unknown,
-    opts?: { failIfExists?: boolean; grantRead?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean; selfPath?: string },
   ) => {
     if (typeof filePath !== 'string' || !filePath) {
       throw new Error('write-file-at-path: no path');
+    }
+    // Adopting writes (Save As into a folder) that replace an existing
+    // file must not hit another open document.
+    if (opts?.grantRead && !opts.failIfExists && openElsewhere(filePath, opts.selfPath)) {
+      throw new Error(SAVE_OVER_OPEN_MESSAGE);
     }
     // mkdir: bulk convert writes into a destination folder, preserving
     // the input's subfolder structure. failIfExists is opt-in — only
@@ -1570,6 +1592,14 @@ ipcMain.handle(
       filters: opts?.filters?.length ? opts.filters : [],
     });
     if (result.canceled || !result.filePath) return null;
+    if (openElsewhere(result.filePath, opts?.nearPath)) {
+      await dialog.showMessageBox(win ?? new BrowserWindow({ show: false }), {
+        type: 'warning',
+        message: 'Can\u2019t save over an open document',
+        detail: SAVE_OVER_OPEN_MESSAGE,
+      });
+      return null;
+    }
     await saveNewDoc(result.filePath, bytesToBuffer(bytes));
     grantReadPath(result.filePath); // a saved file is reopenable by path
     return {

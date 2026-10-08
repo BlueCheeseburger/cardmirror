@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: Save As onto another open document (`main.ts`, `index.ts`)
+
+Field report 2026-10-08: after a folder rename broke autosave for two tabs, Save As wrote the first doc's bytes onto the second doc's file, and the second tab (clean) then followed the new disk contents. `host:save-as` and the Save-As-into-folder write (`host:write-file-at-path` with `grantRead`, no `failIfExists`) now refuse a target that `openPathOwners` shows as open in any live window, except the saving doc's own path (`nearPath` / new `selfPath` option).
+
 ### Added: dismiss × on the update chip (`update-chip.ts`, `style.css`)
 
 `renderUpdateChip` appends a `.pmd-update-chip-x` span (glyph drawn by CSS
