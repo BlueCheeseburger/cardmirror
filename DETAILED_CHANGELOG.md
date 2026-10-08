@@ -31,6 +31,42 @@ needed, too-fast when it has more. Hidden for prep clocks, the count-up
 stopwatch, or when live remaining read time is off. Refreshes on timer-state
 and settings changes and once a second (the clock and scrolling don't notify).
 
+### Added: dismiss × on the update chip (`update-chip.ts`, `style.css`)
+
+`renderUpdateChip` appends a `.pmd-update-chip-x` span (glyph drawn by CSS
+`::before`, so the chip's text is unchanged; shown on hover/focus) to every
+state except downloading / plugins-updating. A click on it adds
+`state:version` to an in-memory dismissed set, hides the chip and toasts
+`DISMISS_NOTE`; a new state or version shows again, and a restart resets it.
+Works for both the status-bar chip and the home screen's copy.
+
+### Added: `f c` card-tagline search (`tagline-search.ts`, `tagline-index-core.ts`, `tagline-parse.ts`, `quick-card-search-ui.ts`)
+
+The file index only listed files, so `f c <words>` needed a content layer.
+`createTaglineIndex` (`apps/desktop/src/tagline-index-core.ts`) runs in the
+file-index utility process next to the file index core, which exposes its
+filtered listing as `visibleFiles`. It is lazy: nothing is parsed until the
+first `taglineQuery`, then a crawl reads files one at a time, newest mtime
+first, yielding with `setImmediate` between files, and keeps per-file
+`{mtime, tags[], cites[]}`; later passes only re-parse files whose mtime
+changed and drop files that left the listing. It persists to
+`cmir-tagline-index.json` (so a restart is instant), is capped at 600,000
+taglines (the oldest files are left out, reported as `capped`), and records an
+unreadable file as empty so it isn't retried until it changes. Listing changes
+from the file core and `configure` call `refresh()`; the service pushes
+`{push:'taglines'}` as files are indexed, which the palette uses to refresh
+the visible rows. `parseTaglines` reads `.docx` with `fromDocx` and `.cmir` with
+`parseNative`, then `extractTaglines` lists each card's tag and cite.
+
+Ranking is `searchTaglines` (shared, pure): the palette's multi-word AND match
+with `matchTier` (now exported), cite as the weaker second field, the same card
+in several files collapsed to the newest with an `alsoIn` count. A row carries
+the card's ordinal among the file's card tags; on Enter the palette re-reads
+the file and finds the card with `findTaglineEntry` (ordinal, falling back to the
+tagline text if the file changed), slices its heading range and inserts it like
+a within-file object. `f c ` is parsed inside the `f` prefix, so `f <words>`
+still searches file names.
+
 ## 1.14.0-bcb.1 — 2026-10-05
 
 ### From upstream

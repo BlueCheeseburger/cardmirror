@@ -135,3 +135,36 @@ describe('update chip', () => {
     expect(el.textContent).toBe('Plugin updated — restart to apply');
   });
 });
+
+describe('update chip dismiss ×', () => {
+  it('hides the chip on ×, says where updates still live, and leaves the text alone', async () => {
+    const { initUpdateChip, DISMISS_NOTE } = await import('../../src/editor/update-chip.js');
+    const toast = await import('../../src/editor/toast.js');
+    const spy = vi.spyOn(toast, 'showToast').mockImplementation(() => {});
+    let push: ((s: import('../../src/editor/update-chip.js').UpdateChipState | null) => void) | null = null;
+    const action = vi.fn(() => Promise.resolve());
+    const el = document.createElement('button');
+    initUpdateChip(el, {
+      getUpdateChipState: () => Promise.resolve(null),
+      updateChipAction: action,
+      onUpdateChip: (h) => {
+        push = h;
+        return () => {};
+      },
+    });
+    push!({ state: 'available', version: '9.9.9' });
+    expect(el.textContent).toBe('Update 9.9.9 available');
+    const x = el.querySelector<HTMLElement>('.pmd-update-chip-x')!;
+    expect(x).not.toBeNull();
+    x.click();
+    expect(el.hidden).toBe(true);
+    expect(action).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith(DISMISS_NOTE);
+    // Same state stays hidden; a newer state shows again.
+    push!({ state: 'available', version: '9.9.9' });
+    expect(el.hidden).toBe(true);
+    push!({ state: 'ready', version: '9.9.9' });
+    expect(el.hidden).toBe(false);
+    spy.mockRestore();
+  });
+});

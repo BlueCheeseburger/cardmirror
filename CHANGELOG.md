@@ -25,6 +25,16 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   speech document's "Left" times show under the timer, with "On time", "Too
   slow" or "Too fast" to their right, comparing the time left on the clock with
   the first reader's time for what's still unread.
+- **Dismiss the update notice.** Hover the blue update pill (status bar or
+  home screen) and a × appears; clicking it hides the pill and says you can
+  still update from Settings → General → About this install. It comes back
+  at the next launch, or when the update reaches a new stage (downloaded,
+  ready).
+- **Search card taglines inside your files: `f c <words>`.** In Search Everything,
+  `f` searches your files by name; `f c` searches the taglines of the cards
+  inside those same files. Enter inserts the whole card at your cursor and Tab
+  opens its file. The first search builds the tagline list in the background
+  (the bar shows its progress); after that only changed files are re-read.
 
 ## 1.14.0-bcb.1 — 2026-10-05
 
