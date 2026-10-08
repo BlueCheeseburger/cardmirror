@@ -35,7 +35,8 @@ import {
 import { existsSync } from 'node:fs';
 import { autoUpdater } from 'electron-updater';
 import { bundlePathFromExe, launchSwapHelper, macBundleSelfUpdatable } from './mac-swap-update.js';
-import { buildChooserPrompt, readChooserResponse } from './multipane-chooser.js';
+import { readChooserResponse } from './multipane-chooser.js';
+import { showChooserWindow } from './multipane-chooser-ui.js';
 import {
   validateRenameTarget,
   isSamePathIgnoringCase,
@@ -368,15 +369,7 @@ async function pickMultiPaneTarget(
   }
   const labels = candidates.map(labelForChooser);
   const layout = { withCancel: opts.withCancel === true };
-  const { buttons, cancelId } = buildChooserPrompt(labels, layout);
-  const { response } = await dialog.showMessageBox({
-    type: 'question',
-    message,
-    buttons,
-    defaultId: 0,
-    cancelId,
-    noLink: true,
-  });
+  const response = await showChooserWindow({ message, labels, withCancel: layout.withCancel });
   const parsed = readChooserResponse(response, labels.length, layout);
   if (parsed.kind === 'window') return { kind: 'window', win: candidates[parsed.index]! };
   return parsed.kind === 'cancel' ? { kind: 'cancel' } : { kind: 'new-window' };

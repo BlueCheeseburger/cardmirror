@@ -12,6 +12,16 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **In-app window chooser.** The "Open … in:" / "New document in:" picker for
+  files opened from Finder or the Dock is now a CardMirror-styled window (light
+  and dark) instead of a native macOS sheet. Each window lists its docs one per
+  line; arrows + Enter, 1–9, and Esc work.
+
+- **Same-name docs show their path.** When two open docs in a window share a
+  name, including one stacked behind another in the same pane, each pane's
+  title chip (and the stack switcher) shows the file's full path beside the
+  name in small text. Unique names stay clean.
+
 - **Dismiss the update notice.** Hover the blue update pill (status bar or
   home screen) and a × appears; clicking it hides the pill and says you can
   still update from Settings → General → About this install. It comes back
