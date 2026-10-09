@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: merge two documents (`doc-merge.ts`, `doc-diff-ui.ts`)
+
+With no common ancestor the merge can't tell a deletion from an insertion, so
+it takes the union: `planMerge` runs the same line diff as Compare, keeps
+shared lines once and one-sided lines as they are, and treats a remove/add
+pair the side-by-side view would show as one edited line as a conflict
+(default: first document's version; per-conflict choice of first, second or
+both). `buildMerged` rebuilds the document from the original nodes, so
+formatting survives; a line from a card joins the card it lands in, and only
+a card's tag starts a new one. Empty paragraphs are dropped, and comments and
+footnotes aren't carried over.
+
 ### Fixed: save flows commit to the doc they started from (`index.ts`, `multi-pane-shell.ts`)
 
 Reproduced in a Playwright harness against the web build (fake File System Access handles, three-pane workspace, two docs stacked in one slot): start Save As on doc B, switch the pane to doc A while the picker is open, let the picker finish. B's bytes were written to the chosen file, but `commitSaveResult` -> `adoptFileIdentity` -> `setFocusedFile` applied the new name / handle to `focusedSlot.visible`, i.e. A. A's next save then overwrote the file with A's content. A second repro: Save on B with a slow permission check, switch to A in the gap, and `serializeForSave` (which reads the module-level focused `view`) wrote A's content into B's file.

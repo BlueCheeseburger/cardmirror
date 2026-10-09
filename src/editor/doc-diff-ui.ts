@@ -25,8 +25,14 @@ import { installModalKeys, captureFocusForDialog, armDialogFocus } from './text-
 import { pushOverlay, popOverlay } from './overlay-stack.js';
 import { parseNative } from '../native/index.js';
 import { fromDocxFull } from '../import/index.js';
-import { collectHeadings, TYPE_LABEL, type HeadingEntry } from './headings.js';
-import { extractDiffLines, diffLines, toDiffRows, summarize, DiffTooLargeError, type DiffRow } from './doc-diff.js';
+import { EditorState } from 'prosemirror-state';
+import { EditorView } from 'prosemirror-view';
+import { NavigationPanel } from './nav-panel.js';
+import { extractDiffLines, diffLines, toDiffRows, summarize, wordDiff, DiffTooLargeError, type DiffRow } from './doc-diff.js';
+import { planMerge, buildMerged, type MergePlan, type MergeChoice } from './doc-merge.js';
+import { serializeNative } from '../native/index.js';
+import { toDocx } from '../export/index.js';
+import { settings } from './settings.js';
 
 const DOC_FILTERS: FileFilter[] = [{ name: 'CardMirror / Word documents', extensions: ['cmir', 'docx'] }];
 
@@ -55,7 +61,11 @@ class DocDiffModal {
   private readonly removeKeys: () => void;
   private a: PickedFile | null = null;
   private b: PickedFile | null = null;
+  /** The parsed pair behind the current results, kept for "Merge into new file". */
+  private parsed: { docA: PMNode; docB: PMNode } | null = null;
   private closed = false;
+  /** Hidden read-only views behind each side's real navigation panel. */
+  private navViews: EditorView[] = [];
   /** Rows keyed by their (trimmed) text, one array per occurrence — a
    *  heading title (e.g. a short tag) can repeat, so the Nth outline
    *  entry with that text jumps to the Nth row with that text, not
@@ -89,6 +99,7 @@ class DocDiffModal {
   private close(): void {
     if (this.closed) return;
     this.closed = true;
+    this.destroyNavViews();
     this.removeKeys();
     popOverlay(this.overlayToken);
     this.overlay.remove();
@@ -134,6 +145,7 @@ class DocDiffModal {
   }
 
   private renderPicker(): void {
+    this.destroyNavViews();
     this.dialog.replaceChildren();
     armDialogFocus(this.dialog, 'dialog', 'Compare documents');
 
@@ -151,7 +163,7 @@ class DocDiffModal {
     body.className = 'pmd-doc-diff-picker-body';
     const blurb = document.createElement('p');
     blurb.className = 'pmd-doc-diff-blurb';
-    blurb.textContent = 'Choose two .cmir or .docx files to see a line-by-line diff of their text.';
+    blurb.textContent = 'Choose two .cmir or .docx files to see a line-by-line diff of their text, or merge them into one new file.';
     body.appendChild(blurb);
 
     const rows = document.createElement('div');
@@ -202,7 +214,130 @@ class DocDiffModal {
       }
       return;
     }
+    this.parsed = { docA, docB };
     this.renderResults(a.name, b.name, docA, docB, lines);
+  }
+
+  private renderMerge(): void {
+    if (!this.a || !this.b || !this.parsed) return;
+    const { a, b } = this;
+    const { docA, docB } = this.parsed;
+    let plan: MergePlan;
+    try {
+      plan = planMerge(docA, docB);
+    } catch (err) {
+      void alertDialog(
+        err instanceof DiffTooLargeError
+          ? err.message
+          : `Couldn't merge these documents: ${err instanceof Error ? err.message : err}`,
+      );
+      return;
+    }
+    this.destroyNavViews();
+    this.dialog.replaceChildren();
+    armDialogFocus(this.dialog, 'dialog', `Merging ${a.name} and ${b.name}`);
+
+    const titleWrap = document.createElement('div');
+    const heading = document.createElement('h2');
+    heading.className = 'pmd-doc-diff-heading';
+    heading.textContent = 'Merge into new file';
+    const summary = document.createElement('div');
+    summary.className = 'pmd-doc-diff-summary';
+    summary.textContent =
+      `${a.name} + ${b.name}: ${plan.onlyA} line${plan.onlyA === 1 ? '' : 's'} only in the first and ` +
+      `${plan.onlyB} only in the second are kept; ${plan.conflicts} conflict${plan.conflicts === 1 ? '' : 's'}.`;
+    titleWrap.append(heading, summary);
+    const back = this.button('Back', false, () => void this.runCompare());
+    const format = document.createElement('select');
+    format.className = 'pmd-doc-merge-format';
+    format.setAttribute('aria-label', 'File format');
+    for (const [value, label] of [
+      ['docx', 'Word (.docx)'],
+      ['cmir', 'CardMirror (.cmir)'],
+    ] as const) {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label;
+      format.appendChild(opt);
+    }
+    const save = this.button('Save merged file…', true, () => void this.saveMerged(plan, format.value === 'cmir'));
+    this.dialog.appendChild(this.topbar(titleWrap, [back, format, save]));
+
+    const body = document.createElement('div');
+    body.className = 'pmd-doc-diff-picker-body pmd-doc-merge-body';
+    const blurb = document.createElement('p');
+    blurb.className = 'pmd-doc-diff-blurb';
+    blurb.textContent =
+      plan.conflicts === 0
+        ? 'The two documents don\u2019t conflict anywhere. Saving combines them into a new file.'
+        : 'These lines were edited differently in each document. Pick which version goes in the merged file; everything else is combined automatically.';
+    body.appendChild(blurb);
+
+    for (const item of plan.items) {
+      if (item.kind !== 'conflict') continue;
+      const box = document.createElement('div');
+      box.className = 'pmd-doc-merge-conflict';
+      const { left, right } = wordDiff(item.a.text, item.b.text);
+      const side = (label: string, segs: typeof left, tag: 'del' | 'ins'): HTMLElement => {
+        const el = document.createElement('div');
+        el.className = 'pmd-doc-merge-version';
+        const lab = document.createElement('span');
+        lab.className = 'pmd-doc-merge-label';
+        lab.textContent = label;
+        const txt = document.createElement('span');
+        for (const seg of segs) {
+          if (!seg.changed) {
+            txt.append(seg.text);
+            continue;
+          }
+          const w = document.createElement(tag);
+          w.className = 'pmd-doc-diff-word';
+          w.textContent = seg.text;
+          txt.appendChild(w);
+        }
+        el.append(lab, txt);
+        return el;
+      };
+      box.append(side(a.name, left, 'del'), side(b.name, right, 'ins'));
+      const choices = document.createElement('div');
+      choices.className = 'pmd-doc-merge-choices';
+      const options: Array<[MergeChoice, string]> = [
+        ['a', 'Keep first'],
+        ['b', 'Keep second'],
+        ['both', 'Keep both'],
+      ];
+      for (const [value, text] of options) {
+        const lab = document.createElement('label');
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = `merge-conflict-${plan.items.indexOf(item)}`;
+        radio.checked = item.choice === value;
+        radio.addEventListener('change', () => {
+          item.choice = value;
+        });
+        lab.append(radio, document.createTextNode(` ${text}`));
+        choices.appendChild(lab);
+      }
+      box.appendChild(choices);
+      body.appendChild(box);
+    }
+    this.dialog.appendChild(body);
+  }
+
+  private async saveMerged(plan: MergePlan, asCmir: boolean): Promise<void> {
+    if (!this.parsed) return;
+    try {
+      const merged = buildMerged(plan, this.parsed.docA);
+      const bytes = asCmir ? serializeNative(merged) : await toDocx(merged, { defaultFont: settings.get('bodyFont') });
+      const saved = await getHost().saveAs(asCmir ? 'Merged.cmir' : 'Merged.docx', bytes, {
+        filters: asCmir
+          ? [{ name: 'CardMirror document', extensions: ['cmir'] }]
+          : [{ name: 'Word document', extensions: ['docx'] }],
+      });
+      if (saved) this.close();
+    } catch (err) {
+      void alertDialog(`Couldn't save the merged file: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   private renderWorking(): void {
@@ -224,6 +359,7 @@ class DocDiffModal {
   ): void {
     this.dialog.replaceChildren();
     armDialogFocus(this.dialog, 'dialog', `Comparing ${nameA} and ${nameB}`);
+    this.destroyNavViews();
     this.leftRowsByText = new Map();
     this.rightRowsByText = new Map();
 
@@ -264,8 +400,9 @@ class DocDiffModal {
     info.appendChild(summary);
 
     const back = this.button('Compare different files', false, () => this.renderPicker());
+    const merge = this.button('Merge into new file…', false, () => this.renderMerge());
     const close = this.button('Close', true, () => this.close());
-    this.dialog.appendChild(this.topbar(info, [back, close]));
+    this.dialog.appendChild(this.topbar(info, [back, merge, close]));
 
     const body = document.createElement('div');
     body.className = 'pmd-doc-diff-results-body';
@@ -288,13 +425,18 @@ class DocDiffModal {
     this.dialog.appendChild(body);
   }
 
-  /** A read-only outline rail for one side, built from the SAME doc-only
-   *  heading walk the real nav panel uses (`collectHeadings` —
-   *  `headings.ts`, shared with `nav-panel.ts`). `skipCite: true`: this
-   *  view has no use for cite text, and it's the bulk of that function's
-   *  cost on a long doc. Clicking an entry scrolls the diff table to the
-   *  matching row (matched by text, since these docs were never mounted
-   *  into an EditorView — there's no live position to jump to). */
+  private destroyNavViews(): void {
+    for (const v of this.navViews) v.destroy();
+    this.navViews = [];
+  }
+
+  /** One side's outline: the app's REAL navigation panel (level buttons,
+   *  chevron / double-click collapse, search, per-type styling), run
+   *  read-only against a hidden view of the parsed document. Clicking an
+   *  entry makes the panel move that view's selection; we catch the
+   *  selection and scroll the diff table to the matching row (matched by
+   *  text, Nth occurrence, since the diff rows aren't tied to doc
+   *  positions). */
   private buildOutline(name: string, doc: PMNode, side: 'left' | 'right'): HTMLElement {
     const rail = document.createElement('div');
     rail.className = `pmd-doc-diff-outline pmd-doc-diff-outline-${side}`;
@@ -302,54 +444,70 @@ class DocDiffModal {
     title.className = 'pmd-doc-diff-outline-title';
     title.textContent = name;
     rail.appendChild(title);
-
-    const entries = collectHeadings(doc, { skipCite: true });
-    if (entries.length === 0) {
-      const empty = document.createElement('p');
-      empty.className = 'pmd-doc-diff-outline-empty';
-      empty.textContent = 'No headings.';
-      rail.appendChild(empty);
-      return rail;
-    }
+    const navHost = document.createElement('div');
+    navHost.className = 'pmd-doc-diff-nav';
+    const mount = document.createElement('div');
+    mount.className = 'pmd-doc-diff-hidden-view';
+    rail.append(navHost, mount);
 
     const rowsByText = side === 'left' ? this.leftRowsByText : this.rightRowsByText;
-    const claimed = new Map<string, number>();
-    for (const entry of entries) {
-      rail.appendChild(this.outlineEntry(entry, rowsByText, claimed));
-    }
+    const view: EditorView = new EditorView(mount, {
+      state: EditorState.create({ doc }),
+      editable: () => false,
+      dispatchTransaction: (tr) => {
+        if (tr.docChanged) return;
+        view.updateState(view.state.apply(tr));
+        if (tr.selectionSet) this.jumpToSelection(tr.doc, tr.selection.from, rowsByText);
+      },
+    });
+    this.navViews.push(view);
+    const nav = new NavigationPanel(navHost, { readOnly: true, onClose: () => {} });
+    nav.attach(view);
+    const baseDestroy = view.destroy.bind(view);
+    view.destroy = () => {
+      nav.destroy();
+      baseDestroy();
+    };
     return rail;
   }
 
-  private outlineEntry(
-    entry: HeadingEntry,
-    rowsByText: Map<string, HTMLElement[]>,
-    claimed: Map<string, number>,
-  ): HTMLElement {
-    const text = entry.text.trim();
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pmd-doc-diff-outline-entry';
-    btn.style.paddingLeft = `${0.75 + (entry.level - 1) * 0.85}rem`;
-    btn.textContent = text || `(untitled ${TYPE_LABEL[entry.type] ?? entry.type})`;
-    btn.title = `${TYPE_LABEL[entry.type] ?? entry.type}${text ? `: ${text}` : ''}`;
-
-    const occurrence = claimed.get(text) ?? 0;
-    claimed.set(text, occurrence + 1);
-    const target = rowsByText.get(text)?.[occurrence];
-    if (!target) {
-      // No matching diff line — an empty-titled heading, or text this
-      // side's flattened line list otherwise never produced. Nothing to
-      // jump to; leave it visible but inert rather than hiding it (the
-      // outline should still reflect the document's real structure).
-      btn.disabled = true;
-    } else {
-      btn.addEventListener('click', () => {
-        target.scrollIntoView({ block: 'center' });
-        target.classList.add('pmd-doc-diff-cell-highlight');
-        window.setTimeout(() => target.classList.remove('pmd-doc-diff-cell-highlight'), 900);
-      });
+  /** Scroll the diff table to the row for the textblock at `pos`. */
+  private jumpToSelection(doc: PMNode, pos: number, rowsByText: Map<string, HTMLElement[]>): void {
+    const $pos = doc.resolve(Math.min(pos, doc.content.size));
+    let block: PMNode | null = $pos.parent.isTextblock ? $pos.parent : null;
+    let blockPos = $pos.parent.isTextblock ? $pos.start() - 1 : -1;
+    if (!block) {
+      const after = $pos.nodeAfter;
+      if (after) {
+        const start = $pos.pos;
+        after.descendants((n, off) => {
+          if (block) return false;
+          if (n.isTextblock) {
+            block = n;
+            blockPos = start + off;
+            return false;
+          }
+          return true;
+        });
+        if (!block && after.isTextblock) {
+          block = after;
+          blockPos = start;
+        }
+      }
     }
-    return btn;
+    if (!block) return;
+    const text = (block as PMNode).textContent.trim();
+    let occurrence = 0;
+    doc.descendants((n, p) => {
+      if (p >= blockPos) return false;
+      if (n.isTextblock && n.textContent.trim() === text) occurrence++;
+      return !n.isTextblock;
+    });
+    const target = rowsByText.get(text)?.[occurrence];
+    if (!target) return;
+    target.scrollIntoView({ block: 'center' });
+    target.classList.add('pmd-doc-diff-cell-highlight');
+    window.setTimeout(() => target.classList.remove('pmd-doc-diff-cell-highlight'), 900);
   }
 
   private buildRow(row: DiffRow): HTMLElement {

@@ -10,6 +10,14 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **Merge two documents into one new file (fork).** In Compare documents, after
+  comparing two files, **Merge into new file…** combines them: shared lines
+  appear once, lines only one document has are kept, and a line edited
+  differently in each is a conflict you resolve (keep first, keep second, or
+  keep both). Formatting is kept; the result is saved as a new Word (.docx) or CardMirror (.cmir) file.
+
 ### Fixed
 
 - **Save / Save As could write one document's content over another document's
