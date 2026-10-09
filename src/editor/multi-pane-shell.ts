@@ -368,7 +368,10 @@ function docLiveLinkCounts(doc: PMNode): { views: number; copies: number } {
 async function runAutosaveForRecord(record: DocRecord): Promise<void> {
   if (!record.autosaveEnabled) return;
   if (record.format !== 'cmir' && record.format !== 'docx') return;
-  if (typeof record.handle !== 'string' || !record.handle) return;
+  // Any handle will do: a desktop path string, or a browser FileSystemFileHandle.
+  // (Requiring a string made autosave silently never run in the web edition
+  // while the chip still read "Autosave is on".)
+  if (!record.handle) return;
   const host = getHost();
   if (!host.supportsInPlaceSave) return;
   const state = record.view.state;

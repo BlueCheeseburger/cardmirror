@@ -21,6 +21,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   with the document they started from, and a save that finds you have moved
   to another document before it begins stops with a message and writes
   nothing.
+- **Web edition: autosave in the three-pane workspace never ran.** The
+  pane's autosave button said "Autosave is on — saves every few seconds" but
+  nothing was written, because the autosave check only accepted a desktop file
+  path, not a browser file handle. It now saves to the file as the button says.
 - **Send Doc and similar silent exports no longer overwrite a document that
   is open.** When the export's name matches a document already open in any
   window, you get the Save As dialog (which refuses to replace an open

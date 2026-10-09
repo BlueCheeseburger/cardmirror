@@ -18,6 +18,10 @@ Reproduced in a Playwright harness against the web build (fake File System Acces
 
 Fix: `focusedDocUid()` pins the doc at flow start. `runSaveFlowInner` and `runSaveAsFlowInner` re-check it right before they serialize and, on a mismatch, stop with `abortSaveForFocusChange()` (nothing written). The commit side goes by uid: new `getFileForUid` / `setFileForUid` / `setDocIdForUid` shell hooks (`findRecordByUid`, with `setFocusedFile` and `setFileForUid` sharing `applyFileToRecord`), and `adoptFileIdentity` / `commitSaveResult` / `keepBothForActiveFile` take an optional uid. A record closed mid-save is skipped (the file is already on disk). `renameFocusedDoc` and the badge's "Keep mine as a copy" use the same pin.
 
+### Fixed: per-record autosave runs with a browser file handle (`multi-pane-shell.ts`)
+
+`runAutosaveForRecord` returned early unless `record.handle` was a string, so in the web build (FileSystemFileHandle objects) autosave never ran in the three-pane workspace while `refreshChipSaveState` still labelled it "Autosave is on". Found in the same harness: enable autosave, edit, wait past `AUTOSAVE_DELAY_MS`, nothing written. The gate is now `!record.handle`; the Electron-only conflicted-copy branch keeps its own string check. Verified with two stacked docs, one edited while backgrounded: each file gets its own doc's edit.
+
 ### Fixed: `host:save-send-doc` refuses to overwrite an open doc (`apps/desktop/src/main.ts`)
 
 The silent Send Doc / Read Doc write now returns `'collision'` (defer to the Save As dialog, which has the open-doc guard) when the target path is open in any window, via `openElsewhere`.
