@@ -25,7 +25,9 @@ import {
   remainingReadCounts,
   primaryReadSegment,
   hasLaySpeeds,
+  leftShownUnderTimer,
 } from '../../src/editor/live-read-time.js';
+import { setTimerPoppedOut, setTimerVisible } from '../../src/editor/timer-state.js';
 import { countReadAloudSplit, totalWords } from '../../src/editor/word-count.js';
 import { settings } from '../../src/editor/settings.js';
 
@@ -441,5 +443,53 @@ describe('hasLaySpeeds', () => {
   it('an invalid layWpm (zero/negative) does not count', () => {
     settings.set('readers', [{ name: 'Amy', wpm: 200, layWpm: 0 }]);
     expect(hasLaySpeeds()).toBe(false);
+  });
+});
+
+describe('the "Left" readout moving under the ribbon timer', () => {
+  const state = (): EditorState =>
+    EditorState.create({
+      doc: schema.nodes['doc']!.createChecked(null, [card('Tag', 'alpha beta gamma')]),
+    });
+
+  beforeEach(() => {
+    settings.set('liveRemainingReadTime', true);
+    settings.set('timerLeftUnderTimer', true);
+    settings.set('readers', [{ name: 'Amy', wpm: 200 }]);
+    setTimerVisible(false);
+  });
+  afterEach(() => {
+    setTimerVisible(false);
+    settings.set('timerLeftUnderTimer', false);
+    settings.set('liveRemainingReadTime', false);
+  });
+
+  it('stays in the bottom bar while the timer is hidden', () => {
+    expect(leftShownUnderTimer()).toBe(false);
+    expect(remainingReadSegment(state())).toMatch(/^Left · Amy: /);
+  });
+
+  it('leaves the bar once the timer shows in the ribbon', () => {
+    setTimerVisible(true);
+    expect(leftShownUnderTimer()).toBe(true);
+    expect(remainingReadSegment(state())).toBeNull();
+  });
+
+  it('comes back to the bar when the timer is popped out', () => {
+    setTimerVisible(true);
+    setTimerPoppedOut(true);
+    expect(leftShownUnderTimer()).toBe(false);
+    expect(remainingReadSegment(state())).toMatch(/^Left · Amy: /);
+  });
+
+  it('does nothing unless both the setting and the "left" feature are on', () => {
+    setTimerVisible(true);
+    settings.set('timerLeftUnderTimer', false);
+    expect(leftShownUnderTimer()).toBe(false);
+    expect(remainingReadSegment(state())).toMatch(/^Left · Amy: /);
+    settings.set('timerLeftUnderTimer', true);
+    settings.set('liveRemainingReadTime', false);
+    expect(leftShownUnderTimer()).toBe(false);
+    expect(remainingReadSegment(state())).toBeNull(); // feature off: no Left anywhere
   });
 });

@@ -84,6 +84,10 @@ export interface TimerState {
    *  runningSince) while running. The count-up twin of
    *  `speechBaseRemainingMs`. */
   speechStopwatchBaseMs: number;
+  /** The length the speech clock was last armed with (a preset or a
+   *  typed time), ms; 0 when unknown. The pace verdict needs it to tell a
+   *  speech doc much shorter than the speech from one that fills it. */
+  speechTotalMs: number;
 }
 
 const DEFAULT_PREP_MS = 10 * 60 * 1000;
@@ -103,6 +107,7 @@ function makeInitialState(): TimerState {
     expiredMode: null,
     stopwatch: false,
     speechStopwatchBaseMs: 0,
+    speechTotalMs: 0,
   };
 }
 
@@ -153,6 +158,7 @@ function sanitize(raw: Partial<TimerState>): TimerState {
         : null,
     stopwatch: raw.stopwatch === true,
     speechStopwatchBaseMs: nonNegInt(raw.speechStopwatchBaseMs, 0),
+    speechTotalMs: nonNegInt(raw.speechTotalMs, 0),
   };
 }
 
@@ -314,6 +320,7 @@ export function resetTimer(prepTotalMs: number = state.prepTotalMs): void {
     expiredMode: null,
     stopwatch: false,
     speechStopwatchBaseMs: 0,
+    speechTotalMs: 0,
   });
 }
 
@@ -328,6 +335,7 @@ export function loadSpeechPreset(minutes: number): void {
     running: false,
     runningSince: null,
     speechBaseRemainingMs: ms,
+    speechTotalMs: ms,
     expiredMode: null,
     stopwatch: false,
     speechStopwatchBaseMs: 0,
@@ -391,7 +399,7 @@ export function setActiveRemainingMs(ms: number): void {
   if (state.mode === 'affPrep') setState({ affPrepBaseRemainingMs: v, expiredMode: null });
   else if (state.mode === 'negPrep') setState({ negPrepBaseRemainingMs: v, expiredMode: null });
   // A typed time arms a countdown, even 0:00 (the next Start counts up from scratch).
-  else setState({ speechBaseRemainingMs: v, expiredMode: null, stopwatch: false, speechStopwatchBaseMs: 0 });
+  else setState({ speechBaseRemainingMs: v, speechTotalMs: v, expiredMode: null, stopwatch: false, speechStopwatchBaseMs: 0 });
 }
 
 /** Push the configured prep total into state. Called when settings

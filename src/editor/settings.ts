@@ -838,6 +838,10 @@ export interface Settings {
   /** Compact layout: drops the 9/6/3 preset column and stacks
    *  Reset under Start/Pause. */
   timerCompact: boolean;
+  /** Show the first reader's time left to read under the ribbon timer
+   *  (whenever the timer panel is in the ribbon) instead of in the bottom
+   *  bar's "Left" readout. Needs `liveRemainingReadTime`. */
+  timerLeftUnderTimer: boolean;
   /** How to label the Aff / Neg prep buttons:
    *    'text'  → "A: 10:00" / "N: 10:00", no special color
    *    'color' → "10:00" / "10:00", blue + red border
@@ -846,8 +850,9 @@ export interface Settings {
    *  'color' to drop the redundant A:/N: prefix. */
   timerPrepLabel: 'text' | 'color' | 'both';
   /** Which edge of the ribbon the timer panel occupies when shown.
-   *  'left' (default) renders it as the first flex child; 'right'
-   *  moves it past the settings/right stack via flex order (see
+   *  'left' (default) renders it just left of the right-hand stack
+   *  (shortcuts / settings / timer / home), to the right of the comments
+   *  buttons; 'right' moves it past that stack via flex order (see
    *  html.pmd-timer-right in style.css). */
   timerPosition: 'left' | 'right';
   /** When read mode is toggled (either direction), scroll the
@@ -1948,6 +1953,7 @@ const DEFAULTS: Settings = {
   timerSoundEnabled: false,
   timerSoundVolume: 70,
   timerCompact: false,
+  timerLeftUnderTimer: false,
   timerPrepLabel: 'both',
   timerPosition: 'left',
   jumpToDocTopOnReadModeToggle: false,
@@ -2695,7 +2701,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'liveRemainingReadTime',
     label: 'Live read time for what is left to read',
     description:
-      "Off by default. Appends one more segment to the bottom bar's word count: everything still ahead of where you are scrolled to — the read-aloud words from the line at the top of the window to the end of the document, with each reader's time for them. It follows the scroll, not the cursor.",
+      "Off by default. Appends one more segment to the bottom bar's word count: everything still ahead of where you are scrolled to — the read-aloud words from the line at the top of the window to the end of the document, with each reader's time for them. It follows the scroll, not the cursor. It also powers the timer's On time / Too slow / Too fast line while the speech clock runs.",
     kind: 'toggle',
     category: 'general',
     section: 'Word counts',
@@ -3632,7 +3638,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'timerPosition',
     label: 'Timer position in the ribbon',
     description:
-      'Which edge of the ribbon the timer panel sits on when shown: the far left (default) or the far right.',
+      'Where the timer panel sits in the ribbon when shown: beside the right-hand buttons (default) or at the far right edge.',
     kind: 'timerPosition',
     category: 'appearance',
     section: 'Timer display',
@@ -3655,6 +3661,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'toggle',
     category: 'appearance',
     section: 'Timer display',
+  },
+  {
+    key: 'timerLeftUnderTimer',
+    label: 'Show time left under the timer',
+    description:
+      "Off by default. Moves the first reader's \"Left\" time (what's still unread) from the bottom bar to a line under the timer, shown whenever the timer panel is open, even with the clock stopped. If the timer is hidden or popped out, the bottom bar shows it as usual. Needs \"Live read time for what is left to read\" (Settings → General → Word counts).",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Timer display',
+    dependsOn: 'liveRemainingReadTime',
+    aliases: ['time left', 'left under timer', 'remaining time timer', 'move left time'],
   },
   {
     key: 'timerFlashEnabled',
@@ -5081,6 +5098,7 @@ function sanitize(s: Settings): Settings {
         ? Math.min(100, Math.max(0, Math.round(s.timerSoundVolume)))
         : 70,
     timerCompact: !!s.timerCompact,
+    timerLeftUnderTimer: !!s.timerLeftUnderTimer,
     timerPrepLabel:
       s.timerPrepLabel === 'text' || s.timerPrepLabel === 'color'
         ? s.timerPrepLabel
