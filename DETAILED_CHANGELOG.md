@@ -10,10 +10,13 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.3.1 — 2026-10-09
 
 ### Fixed: inline time-left widened the timer and tripped the ribbon's overflow cascade (`style.css`)
 `.pmd-timer-has-left-inline .pmd-timer-display` carried `min-width: 4.8rem`, 3px wider than the display's natural width (73.8px vs 76.8px). `initRibbonResizer` measures the gap between `.ribbon-left` and the timer, so at a ~1200px window those 3px hid the formatting panel too (cite-panel is already hidden there), which looked like half the toolbar vanishing. The min-width is gone; the row text (~48px) fits the display as is. Measured in the real Electron app at 1000/1200/1280px: the hidden-panel set with the option on now equals the set with it off.
+
+### Changed: `timerLeftInline` defaults to true (`settings.ts`)
+Still gated by `timerLeftUnderTimer` (default off), so nothing changes until a user turns the left readout on; then it renders inline unless they switch this off.
 
 ### Removed: home-screen Search button (`home-screen.ts`, `index.ts`)
 `HomeScreenCallbacks.openSearch` and the header button are gone; the status-bar search bubble is the one on-screen entry point. The shortcut still opens the palette over the home screen.

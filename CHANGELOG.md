@@ -8,13 +8,18 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.3.1 — 2026-10-09
 
 ### Fixed
 - **"Fit time left inside the timer" no longer hides part of the toolbar.** The
   inline option made the timer a few pixels wider, which was enough to push the
   Pocket / Hat / Tag section out of the ribbon. The timer is now exactly as wide
   as it is without the option.
+
+### Changed
+- **Fit time left inside the timer is now on by default** (it still needs "Show
+  time left under the timer"; turn it off in Settings → Appearance → Timer
+  display to get the separate row back).
 
 ### Removed
 - The **Search** button on the home screen. The search bubble in the status bar
