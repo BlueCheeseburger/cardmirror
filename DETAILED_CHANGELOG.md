@@ -10,6 +10,20 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Fixed: the time under the timer follows the lay toggle in three-pane mode (`timer-pace.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+`mountTimerPace`'s target read `laySpeakingOn`, the single-document window's flag; three-pane mode keeps the toggle per document (`DocRecord.laySpeaking`, flipped by the pane footer's readout), so the single flag never changed and the row kept showing flow-rate times. The target now asks the pane that owns the speech (or focused) view through a new `laySpeakingForView` multi-doc hook (`Shell.laySpeakingForView` → `findRecordForView`). The row refreshed only on timer / settings changes and a 1 s interval, so both toggle sites (`toggleLaySpeaking`, the pane footer) also call the new `refreshTimerPace()`. Test: `timer-pace.test.ts` flips a mutable lay flag and checks `Left 0:11` ↔ `Left 0:22` immediately after `refreshTimerPace()`.
+
+### Changed: the left-time label is "Left", not the reader's name (`timer-pace.ts`)
+
+`paceRowModel` now builds `Left 3:07` (or `Left —` with no usable rate); the reader's name stays in the tooltip, and the bottom bar's "Left · Name: time" readout is unchanged.
+
+### Added: `timerLeftInline` — fit the left time inside the timer box (`settings.ts`, `timer-pace.ts`, `style.css`)
+
+With "Show time left under the timer" on, the new setting (off by default) rides the same `#timer-left-row` element over the timer display's own grid cell (`grid-row: 1 / span 2`, bottom-aligned, 0.56rem) instead of a third grid row. `paceInline()` / `paceRowReserved()` split the two modes, so inline adds no `pmd-ribbon-pace-row` class and the ribbon keeps its height; the digits move up (`.pmd-timer-has-left-inline .pmd-timer-display`) and the box gets a 4.2rem minimum so `Left 10:00` fits. There is no room for the verdict words, so the verdict is the text's colour (green / red / blue, via `data-verdict` on the row) and its words and numbers join the tooltip. Tests: `timer-pace.test.ts` (no row / no reserve class, colour + tooltip, ignored unless the under-timer setting is on). Checked in a browser screenshot against the row placement.
+
 ## 1.15.0-bcb.2.1 — 2026-10-09
 
 ### Added: Compare documents outline colors (`doc-diff.ts`, `doc-diff-ui.ts`, `style.css`)

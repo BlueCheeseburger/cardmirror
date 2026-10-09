@@ -72,7 +72,7 @@ export function speechCountdownRunning(s: TimerState): boolean {
 export const SHORT_DOC_SLACK_SEC = 120;
 
 export interface PaceRowModel {
-  /** "Reader 1 9:50" (or "—" with no usable rate); '' when it isn't shown. */
+  /** "Left 9:50" (or "Left —" with no usable rate); '' when it isn't shown. */
   left: string;
   /** "Too slow −9:50"; '' unless the speech clock is counting down. */
   verdictText: string;
@@ -108,7 +108,7 @@ export function paceRowModel(input: PaceRowInput): PaceRowModel {
   const need = readTimeSeconds(counts, reader, input.useLay);
   const out = { ...empty };
   if (input.showLeft) {
-    out.left = `${reader.name} ${need === null ? '—' : formatSeconds(need)}`;
+    out.left = `Left ${need === null ? '—' : formatSeconds(need)}`;
     out.leftTip = `${reader.name}'s read time for what's left in the speech document`;
   }
   if (input.speechCountdownRunning && need !== null) {
@@ -134,14 +134,28 @@ export function paceRowModel(input: PaceRowInput): PaceRowModel {
   return out;
 }
 
+/** The timer panel is showing in this window's ribbon and the feature behind
+ *  the row ("live read time for what is left") is on. */
+function paceAvailable(): boolean {
+  const s = getTimerState();
+  return s.visible && !s.poppedOut && settings.get('liveRemainingReadTime');
+}
+
+/** "Fit time left inside the timer" is in effect: the text sits in the timer's
+ *  own box, so the row takes no space of its own. Only meaningful while the
+ *  time left is shown under the timer. */
+export function paceInline(): boolean {
+  return paceAvailable() && settings.get('timerLeftUnderTimer') && settings.get('timerLeftInline');
+}
+
 /** Whether the pace row's space is reserved in the ribbon: the timer
  *  panel is showing in this window's ribbon and the feature behind the row
  *  ("live read time for what is left") is on. Deliberately NOT tied to the
  *  clock running or a document being open, so the ribbon holds one height
- *  while the feature is available. */
+ *  while the feature is available. Not reserved at all in the inline
+ *  placement, which adds no row. */
 export function paceRowReserved(): boolean {
-  const s = getTimerState();
-  return s.visible && !s.poppedOut && settings.get('liveRemainingReadTime');
+  return paceAvailable() && !paceInline();
 }
 
 /** Class on <html> while the row's space is reserved: the ribbon grows by
@@ -151,6 +165,15 @@ export const PACE_ROW_HTML_CLASS = 'pmd-ribbon-pace-row';
 export interface PaceTarget {
   view: EditorView;
   useLay: boolean;
+}
+
+let refreshPaceNow: (() => void) | null = null;
+
+/** Re-render the pace row right now. The row also refreshes every second and
+ *  on timer / settings changes; a per-document switch (the lay-speaking
+ *  toggle) is neither, so whoever flips it calls this. No-op before mount. */
+export function refreshTimerPace(): void {
+  refreshPaceNow?.();
 }
 
 /** Add the pace row to the ribbon timer panel. `getTarget` returns the
@@ -170,11 +193,16 @@ export function mountTimerPace(getTarget: () => PaceTarget | null): void {
   panel.appendChild(row);
 
   function update(): void {
+    const inline = paceInline();
     const reserved = paceRowReserved();
     document.documentElement.classList.toggle(PACE_ROW_HTML_CLASS, reserved);
     panel!.classList.toggle('pmd-timer-has-left', reserved);
-    row.hidden = !reserved;
-    if (!reserved) return;
+    // Inline: the same element rides over the timer's own box (CSS), the
+    // digits make room for it, and the verdict is its colour instead of text.
+    panel!.classList.toggle('pmd-timer-has-left-inline', inline);
+    row.classList.toggle('pmd-timer-left-inline', inline);
+    row.hidden = !(reserved || inline);
+    if (row.hidden) return;
 
     const state = getTimerState();
     const target = getTarget();
@@ -190,15 +218,26 @@ export function mountTimerPace(getTarget: () => PaceTarget | null): void {
       speechTotalSec: state.speechTotalMs / 1000,
     });
     times.textContent = model.left;
-    pace.textContent = model.verdictText;
-    if (model.verdict) pace.dataset['verdict'] = model.verdict;
-    else delete pace.dataset['verdict'];
+    pace.textContent = inline ? '' : model.verdictText;
+    if (model.verdict) {
+      pace.dataset['verdict'] = model.verdict;
+      row.dataset['verdict'] = model.verdict;
+    } else {
+      delete pace.dataset['verdict'];
+      delete row.dataset['verdict'];
+    }
     // Custom tooltips only: assigning `title` on every tick (these change
     // each second) would put the native tooltip back beside ours.
-    setElementTooltip(times, model.leftTip);
-    setElementTooltip(pace, model.verdictTip);
+    // Inline there's no room for the verdict text, so its words ride along
+    // in the left time's tooltip.
+    setElementTooltip(
+      times,
+      inline && model.verdictText ? [model.leftTip, `${model.verdictText}. ${model.verdictTip}`].filter(Boolean).join('\n') : model.leftTip,
+    );
+    setElementTooltip(pace, inline ? '' : model.verdictTip);
   }
 
+  refreshPaceNow = update;
   subscribeTimer(update);
   settings.subscribe(update);
   // The clock ticks and the document scrolls without either notifying us.

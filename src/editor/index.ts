@@ -26,7 +26,7 @@ import type { LocalComment } from './learn-store.js';
 import { NavigationPanel, setNavCommandRunner } from './nav-panel.js';
 import { initUpdateChip } from './update-chip.js';
 import { mountTimerUI } from './timer-ui.js';
-import { mountTimerPace } from './timer-pace.js';
+import { mountTimerPace, refreshTimerPace } from './timer-pace.js';
 import { initTimerAudio } from './timer-audio.js';
 import {
   getTimerState as getTimerStateNow,
@@ -1241,6 +1241,9 @@ let multiDocSetFileForUid:
   | ((uid: string, file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null }) => boolean)
   | null = null;
 let multiDocSetDocIdForUid: ((uid: string, docId: string) => boolean) | null = null;
+/** Whether the pane owning `view` has lay speaking on (per-document in
+ *  three-pane mode). Backs the "Left" readout under the ribbon timer. */
+let multiDocLaySpeakingForView: ((view: EditorView) => boolean) | null = null;
 /** Find the live view of any pane in this window (focused or not) whose
  *  DocRecord carries `docId`, else null. Backs the inbound-jump host and
  *  the plugin API's local-first jump, so a doc open in an unfocused pane
@@ -1356,6 +1359,7 @@ export function enableMultiDocMode(opts: {
     file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null },
   ) => boolean;
   setDocIdForUid?: (uid: string, docId: string) => boolean;
+  laySpeakingForView?: (view: EditorView) => boolean;
   /** Live view / linked-copy counts in the focused pane's doc — see
    *  `multiDocGetFocusedLiveLinkCounts`. */
   getFocusedLiveLinkCounts?: () => { views: number; copies: number };
@@ -1435,6 +1439,7 @@ export function enableMultiDocMode(opts: {
   multiDocGetFileForUid = opts.getFileForUid ?? null;
   multiDocSetFileForUid = opts.setFileForUid ?? null;
   multiDocSetDocIdForUid = opts.setDocIdForUid ?? null;
+  multiDocLaySpeakingForView = opts.laySpeakingForView ?? null;
   multiDocGetFocusedLiveLinkCounts = opts.getFocusedLiveLinkCounts ?? null;
   multiDocSetFocusedDocId = opts.setFocusedDocId ?? null;
   multiDocFindViewForDocId = opts.findViewForDocId ?? null;
@@ -4749,7 +4754,13 @@ mountTimerUI();
 mountTimerPace(() => {
   const speech = getSpeechDocResolver().getSpeechView();
   const target = speech ?? view;
-  return target ? { view: target, useLay: laySpeakingOn } : null;
+  if (!target) return null;
+  // Three-pane keeps the lay toggle per document (the pane footer's readout),
+  // so ask the pane that owns this view; the single-doc flag is only ever
+  // flipped in one-document windows.
+  const useLay =
+    multiDocActive && multiDocLaySpeakingForView ? multiDocLaySpeakingForView(target) : laySpeakingOn;
+  return { view: target, useLay };
 });
 // The bottom bar's "Left" readout moves under the ribbon timer (and back)
 // as the timer is shown, hidden or popped out.
@@ -5695,6 +5706,7 @@ let laySpeakingOn = false;
 function toggleLaySpeaking(): void {
   laySpeakingOn = !laySpeakingOn;
   refreshWordCount();
+  refreshTimerPace();
 }
 
 function refreshWordCount(opts?: { selectionOnly?: boolean }): void {

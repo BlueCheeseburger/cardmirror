@@ -38,6 +38,7 @@ import {
   type PaneDiskBadgeHandle,
 } from './disk-conflict.js';
 import { getTimerState, subscribeTimer } from './timer-state.js';
+import { refreshTimerPace } from './timer-pace.js';
 import { EditorView } from 'prosemirror-view';
 import { setViewDocPath } from './transclusion-doc-path.js';
 import { Node as PMNode } from 'prosemirror-model';
@@ -1014,6 +1015,7 @@ class Slot {
       if (!rec || !canSwitchSpeedMode(rec.laySpeaking)) return;
       rec.laySpeaking = !rec.laySpeaking;
       this.refreshWordCount();
+      refreshTimerPace(); // the "Left" readout under the ribbon timer follows it
     });
     footer.appendChild(this.wcEl);
     // Per-slot co-editing indicator (this doc's session status + who's here).
@@ -3285,6 +3287,12 @@ class MultiPaneShell {
     return true;
   }
 
+  /** Whether the pane holding `view` has its lay-speaking readout on. False
+   *  for a view that isn't one of this window's documents. */
+  laySpeakingForView(view: EditorView): boolean {
+    return this.findRecordForView(view)?.record.laySpeaking ?? false;
+  }
+
   /** `setFocusedDocId` for a specific doc, wherever it is. */
   setDocIdForUid(uid: string, docId: string): boolean {
     const found = this.findRecordByUid(uid);
@@ -4866,6 +4874,7 @@ export function mountMultiPaneShell(): void {
     getFileForUid: (uid) => shell!.getFileForUid(uid),
     setFileForUid: (uid, f) => shell!.setFileForUid(uid, f),
     setDocIdForUid: (uid, id) => shell!.setDocIdForUid(uid, id),
+    laySpeakingForView: (view) => shell!.laySpeakingForView(view),
     getFocusedLiveLinkCounts: () => shell!.getFocusedLiveLinkCounts(),
     setFocusedDocId: (id) => shell!.setFocusedDocId(id),
     findViewForDocId: (id) => shell!.findViewForDocId(id),

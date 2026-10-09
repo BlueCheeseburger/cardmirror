@@ -8,6 +8,30 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+
+- **Fit time left inside the timer (setting).** Settings → Appearance → Timer
+  display → **Fit time left inside the timer** puts the "Left" time in a small
+  line under the timer's digits, inside the same box, instead of a separate row
+  below it. The ribbon doesn't get taller and nothing is squeezed; while the
+  speech clock runs the text turns green / red / blue for on time / too slow /
+  too fast (hover it for the numbers).
+
+### Changed
+
+- **The time under the timer says "Left"** (for example "Left 3:07") instead of
+  the first reader's name.
+
+### Fixed
+
+- **The time left under the timer ignored the lay-speaking toggle in three-pane
+  mode.** Switching a pane to lay times changed that pane's footer but not the
+  time under the timer, because the timer was reading the one-document
+  window's toggle. It now follows the toggle of the pane it's counting, and
+  updates right away.
+
 ## 1.15.0-bcb.2.1 — 2026-10-09
 
 ### Added

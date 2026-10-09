@@ -842,6 +842,10 @@ export interface Settings {
    *  (whenever the timer panel is in the ribbon) instead of in the bottom
    *  bar's "Left" readout. Needs `liveRemainingReadTime`. */
   timerLeftUnderTimer: boolean;
+  /** With `timerLeftUnderTimer` on: put the time-left text inside the timer's
+   *  own box (a small line under the digits) instead of a separate row below
+   *  it, so the ribbon doesn't grow and the timer isn't squeezed. */
+  timerLeftInline: boolean;
   /** How to label the Aff / Neg prep buttons:
    *    'text'  → "A: 10:00" / "N: 10:00", no special color
    *    'color' → "10:00" / "10:00", blue + red border
@@ -1963,6 +1967,7 @@ const DEFAULTS: Settings = {
   timerSoundVolume: 70,
   timerCompact: false,
   timerLeftUnderTimer: false,
+  timerLeftInline: false,
   timerPrepLabel: 'both',
   timerPosition: 'beside',
   jumpToDocTopOnReadModeToggle: false,
@@ -3684,6 +3689,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['time left', 'left under timer', 'remaining time timer', 'move left time'],
   },
   {
+    key: 'timerLeftInline',
+    label: 'Fit time left inside the timer',
+    description:
+      "Off by default. Puts the \"Left\" time in a small line under the timer's digits, inside the same box, instead of in a separate row beneath the timer. The ribbon keeps its normal height and nothing is squeezed. While the speech clock runs, the text turns green / red / blue for on time / too slow / too fast (hover it for the numbers). Needs \"Show time left under the timer\".",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Timer display',
+    dependsOn: 'timerLeftUnderTimer',
+    aliases: ['time left inside timer', 'left in timer box', 'compact time left', 'no extra row'],
+  },
+  {
     key: 'timerFlashEnabled',
     label: 'Flash timer when countdown is low',
     description:
@@ -5119,6 +5135,7 @@ function sanitize(s: Settings): Settings {
         : 70,
     timerCompact: !!s.timerCompact,
     timerLeftUnderTimer: !!s.timerLeftUnderTimer,
+    timerLeftInline: !!s.timerLeftInline,
     timerPrepLabel:
       s.timerPrepLabel === 'text' || s.timerPrepLabel === 'color'
         ? s.timerPrepLabel
