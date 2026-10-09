@@ -38,8 +38,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 - **In-app window chooser.** The "Open … in:" / "New document in:" picker for
   files opened from Finder or the Dock is now a CardMirror-styled window (light
-  and dark) instead of a native macOS sheet. Each window lists its docs one per
-  line; arrows + Enter, 1–9, and Esc work.
+  and dark) instead of a native macOS sheet. "New window" is its own dashed row
+  at the top (key 0); the windows below are always in alphabetical order so
+  their number keys (1–9) stay the same between openings. Each window lists its
+  docs one per line; arrows + Enter and Esc work too.
 
 - **Same-name docs show their path.** When two open docs in a window share a
   name, including one stacked behind another in the same pane, each pane's
