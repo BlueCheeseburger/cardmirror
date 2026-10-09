@@ -18,6 +18,34 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   differently in each is a conflict you resolve (keep first, keep second, or
   keep both). Formatting is kept; the result is saved as a new Word (.docx) or CardMirror (.cmir) file.
 
+### Fixed
+
+- **Save / Save As could write one document's content over another document's
+  file.** If you switched to a different document while a save was starting
+  (a Save As picker open, a slow permission prompt), the save was committed
+  to whichever document you had switched to: the wrong tab took the new file
+  name and path, and its next save replaced the file the first document had
+  just written. Saves, Save As, Rename and the conflicted-copy save now stay
+  with the document they started from, and a save that finds you have moved
+  to another document before it begins stops with a message and writes
+  nothing.
+- **Web edition: autosave in the three-pane workspace never ran.** The
+  pane's autosave button said "Autosave is on — saves every few seconds" but
+  nothing was written, because the autosave check only accepted a desktop file
+  path, not a browser file handle. It now saves to the file as the button says.
+- **Send Doc and similar silent exports no longer overwrite a document that
+  is open.** When the export's name matches a document already open in any
+  window, you get the Save As dialog (which refuses to replace an open
+  document) instead of a silent overwrite.
+
+### Changed
+
+- **The timer position setting's other choice is now "Far left".** Settings →
+  Appearance → Timer display still defaults to "Beside the right-hand
+  buttons"; the second option used to be "Far right" and is now the timer's
+  original spot at the far left of the ribbon. Anyone who had picked "Far
+  right" is back on the default.
+
 ## 1.15.0-bcb.1 — 2026-10-09
 
 ### Changed
