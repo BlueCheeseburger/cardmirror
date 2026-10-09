@@ -368,7 +368,10 @@ function docLiveLinkCounts(doc: PMNode): { views: number; copies: number } {
 async function runAutosaveForRecord(record: DocRecord): Promise<void> {
   if (!record.autosaveEnabled) return;
   if (record.format !== 'cmir' && record.format !== 'docx') return;
-  if (typeof record.handle !== 'string' || !record.handle) return;
+  // Any handle will do: a desktop path string, or a browser FileSystemFileHandle.
+  // (Requiring a string made autosave silently never run in the web edition
+  // while the chip still read "Autosave is on".)
+  if (!record.handle) return;
   const host = getHost();
   if (!host.supportsInPlaceSave) return;
   const state = record.view.state;
@@ -3233,6 +3236,68 @@ class MultiPaneShell {
     if (!slot) return;
     const rec = slot.visible;
     if (!rec) return;
+    this.applyFileToRecord(slot, rec, file);
+  }
+
+  /** The record with `uid` and the slot holding it, searched across every
+   *  slot's full stack (a stacked, non-visible doc counts). */
+  private findRecordByUid(uid: string): { slot: Slot; record: DocRecord } | null {
+    for (const id of SLOT_IDS) {
+      const slot = this.slots[id];
+      for (const record of slot.stack) {
+        if (record.uid === uid) return { slot, record };
+      }
+    }
+    return null;
+  }
+
+  /** `getFocusedFile` for a specific doc, wherever it is — a save flow
+   *  pins the doc it started from and reads it back by uid, so focus
+   *  moving mid-save can't redirect the result to another pane. */
+  getFileForUid(uid: string): {
+    filename: string;
+    handle: unknown | null;
+    format: DocFormat | null;
+    docId: string | null;
+    uid: string;
+    dirty: boolean;
+  } | null {
+    const found = this.findRecordByUid(uid);
+    if (!found) return null;
+    const rec = found.record;
+    return { filename: rec.filename, handle: rec.handle, format: rec.format, docId: rec.docId, uid: rec.uid, dirty: rec.dirty };
+  }
+
+  /** `setFocusedFile` for a specific doc, wherever it is. False when the
+   *  doc has since been closed (nothing to update). A save flow that
+   *  started on one pane must land its new name / path / format on THAT
+   *  pane's record: committing to whichever pane is focused when the
+   *  write finishes gave the wrong doc the saved file's path, and its
+   *  next save then overwrote the file the first doc had just written
+   *  (reproduced in a browser harness, 2026-10-09). */
+  setFileForUid(
+    uid: string,
+    file: { filename: string; handle: unknown | null; format: DocFormat | null },
+  ): boolean {
+    const found = this.findRecordByUid(uid);
+    if (!found) return false;
+    this.applyFileToRecord(found.slot, found.record, file);
+    return true;
+  }
+
+  /** `setFocusedDocId` for a specific doc, wherever it is. */
+  setDocIdForUid(uid: string, docId: string): boolean {
+    const found = this.findRecordByUid(uid);
+    if (!found) return false;
+    found.record.docId = docId;
+    return true;
+  }
+
+  private applyFileToRecord(
+    slot: Slot,
+    rec: DocRecord,
+    file: { filename: string; handle: unknown | null; format: DocFormat | null },
+  ): void {
     rec.filename = file.filename;
     // Save-As may have moved this doc to a new on-disk location;
     // re-sync the cross-window path claim so the new path is
@@ -4798,6 +4863,9 @@ export function mountMultiPaneShell(): void {
     setFocusedFilename: (name) => shell!.setFocusedFilename(name),
     getFocusedFile: () => shell!.getFocusedFile(),
     setFocusedFile: (f) => shell!.setFocusedFile(f),
+    getFileForUid: (uid) => shell!.getFileForUid(uid),
+    setFileForUid: (uid, f) => shell!.setFileForUid(uid, f),
+    setDocIdForUid: (uid, id) => shell!.setDocIdForUid(uid, id),
     getFocusedLiveLinkCounts: () => shell!.getFocusedLiveLinkCounts(),
     setFocusedDocId: (id) => shell!.setFocusedDocId(id),
     findViewForDocId: (id) => shell!.findViewForDocId(id),

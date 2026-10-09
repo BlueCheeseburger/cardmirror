@@ -24,6 +24,24 @@ formatting survives; a line from a card joins the card it lands in, and only
 a card's tag starts a new one. Empty paragraphs are dropped, and comments and
 footnotes aren't carried over.
 
+### Fixed: save flows commit to the doc they started from (`index.ts`, `multi-pane-shell.ts`)
+
+Reproduced in a Playwright harness against the web build (fake File System Access handles, three-pane workspace, two docs stacked in one slot): start Save As on doc B, switch the pane to doc A while the picker is open, let the picker finish. B's bytes were written to the chosen file, but `commitSaveResult` -> `adoptFileIdentity` -> `setFocusedFile` applied the new name / handle to `focusedSlot.visible`, i.e. A. A's next save then overwrote the file with A's content. A second repro: Save on B with a slow permission check, switch to A in the gap, and `serializeForSave` (which reads the module-level focused `view`) wrote A's content into B's file.
+
+Fix: `focusedDocUid()` pins the doc at flow start. `runSaveFlowInner` and `runSaveAsFlowInner` re-check it right before they serialize and, on a mismatch, stop with `abortSaveForFocusChange()` (nothing written). The commit side goes by uid: new `getFileForUid` / `setFileForUid` / `setDocIdForUid` shell hooks (`findRecordByUid`, with `setFocusedFile` and `setFileForUid` sharing `applyFileToRecord`), and `adoptFileIdentity` / `commitSaveResult` / `keepBothForActiveFile` take an optional uid. A record closed mid-save is skipped (the file is already on disk). `renameFocusedDoc` and the badge's "Keep mine as a copy" use the same pin.
+
+### Fixed: per-record autosave runs with a browser file handle (`multi-pane-shell.ts`)
+
+`runAutosaveForRecord` returned early unless `record.handle` was a string, so in the web build (FileSystemFileHandle objects) autosave never ran in the three-pane workspace while `refreshChipSaveState` still labelled it "Autosave is on". Found in the same harness: enable autosave, edit, wait past `AUTOSAVE_DELAY_MS`, nothing written. The gate is now `!record.handle`; the Electron-only conflicted-copy branch keeps its own string check. Verified with two stacked docs, one edited while backgrounded: each file gets its own doc's edit.
+
+### Fixed: `host:save-send-doc` refuses to overwrite an open doc (`apps/desktop/src/main.ts`)
+
+The silent Send Doc / Read Doc write now returns `'collision'` (defer to the Save As dialog, which has the open-doc guard) when the target path is open in any window, via `openElsewhere`.
+
+### Changed: `timerPosition` values are `beside` | `far-left` (`settings.ts`, `settings-ui.ts`, `index.ts`, `style.css`)
+
+The setting's second choice moved from the far right to the timer's original far-left spot (`html.pmd-timer-far-left`, flex `order: -1`, separator on its right). The stored values were renamed from `left` | `right` to `beside` | `far-left` because the old `left` had been redefined to mean "beside the right-hand buttons"; anything stored that isn't `far-left` now reads as `beside`.
+
 ## 1.15.0-bcb.1 — 2026-10-09
 
 ### Changed: ribbon hide order and timer placement (`index.ts`, `index.html`, `style.css`)
