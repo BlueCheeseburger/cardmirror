@@ -10,6 +10,12 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Fixed: a dismissed update chip can be brought back (`update-chip.ts`, `settings-ui.ts`, `main.ts`, `preload.ts`, `electron-host.ts`)
+
+The chip's × adds `state:version` to a module-level `dismissed` set that nothing ever cleared, so a dismissed "ready" / "available" chip stayed hidden until the app restarted. Both manual-check surfaces then pointed at it (the Settings button's "watch for the status-bar chip" toast, and the Help-menu dialog's "a chip appears in the status bar"), and `DISMISS_NOTE` itself said Settings was a way to update. `revealDismissedUpdateChips()` clears the set and repaints every chip instance (status bar and home screen register a repaint listener in `initUpdateChip`). Settings → Check for updates calls it directly; Help → Check for Updates… goes through main's `revealChips()`, a new `update:chip-reveal` event exposed as the optional `onUpdateChipReveal` host method. `DISMISS_NOTE` now says how to get it back. Test: `tests/editor/update-chip.test.ts`. Not exercised against a real packaged updater.
+
 ## 1.15.0-bcb.2 — 2026-10-09
 
 ### Added: Linux releases again (`release.yml`, `apps/desktop/package.json`, `README.md`, `MANUAL.md`, `CLAUDE.md`)

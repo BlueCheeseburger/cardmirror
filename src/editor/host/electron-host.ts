@@ -527,6 +527,8 @@ interface ElectronAPI {
   getUpdateChipState(): Promise<UpdateChipState | null>;
   updateChipAction(): Promise<void>;
   onUpdateChip(handler: (payload: UpdateChipState | null) => void): () => void;
+  /** A manual check from the Help menu: un-hide a dismissed update chip. */
+  onUpdateChipReveal?(handler: () => void): () => void;
   /** Floating always-on-top timer pop-out window. Optional so a
    *  renderer against an older packaged shell (preload without the
    *  timer API) simply never offers the pop-out button. The opener

@@ -168,3 +168,51 @@ describe('update chip dismiss ×', () => {
     spy.mockRestore();
   });
 });
+
+describe('bringing a dismissed chip back', () => {
+  it('a manual check (reveal) un-hides it in every chip, whether pushed or from the host event', async () => {
+    const { vi } = await import('vitest');
+    const { initUpdateChip, revealDismissedUpdateChips } = await import('../../src/editor/update-chip.js');
+    const toast = await import('../../src/editor/toast.js');
+    const spy = vi.spyOn(toast, 'showToast').mockImplementation(() => {});
+    let push: ((s: UpdateChipState | null) => void) | null = null;
+    let reveal: (() => void) | null = null;
+    const mk = (): HTMLButtonElement => document.createElement('button');
+    const a = mk();
+    const b = mk();
+    const state: UpdateChipState = { state: 'ready', version: '8.8.8' };
+    initUpdateChip(a, {
+      getUpdateChipState: () => Promise.resolve(null),
+      updateChipAction: () => Promise.resolve(),
+      onUpdateChip: (h) => {
+        push = h;
+        return () => {};
+      },
+      onUpdateChipReveal: (h) => {
+        reveal = h;
+        return () => {};
+      },
+    });
+    initUpdateChip(b, {
+      getUpdateChipState: () => Promise.resolve(null),
+      updateChipAction: () => Promise.resolve(),
+      onUpdateChip: () => () => {},
+    });
+    push!(state);
+    a.querySelector<HTMLElement>('.pmd-update-chip-x')!.click();
+    expect(a.hidden).toBe(true);
+    // The same state arriving again stays hidden (that is the point of ×)...
+    push!(state);
+    expect(a.hidden).toBe(true);
+    // ...but the Help-menu check reveals it.
+    reveal!();
+    expect(a.hidden).toBe(false);
+    expect(a.textContent).toContain('Update 8.8.8 ready');
+    // Settings → Check for updates calls the exported function directly.
+    a.querySelector<HTMLElement>('.pmd-update-chip-x')!.click();
+    expect(a.hidden).toBe(true);
+    revealDismissedUpdateChips();
+    expect(a.hidden).toBe(false);
+    spy.mockRestore();
+  });
+});

@@ -156,6 +156,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update:chip', listener);
     return () => ipcRenderer.removeListener('update:chip', listener);
   },
+  /** Help → Check for Updates… asks every window to un-hide a chip the
+   *  user dismissed with the ×. */
+  onUpdateChipReveal(handler: () => void): () => void {
+    const listener = (): void => handler();
+    ipcRenderer.on('update:chip-reveal', listener);
+    return () => ipcRenderer.removeListener('update:chip-reveal', listener);
+  },
 
   /** Floating always-on-top timer window. `timerPopoutOpen` creates
    *  (or re-shows) it; `timerPopoutExists` is the liveness probe the

@@ -81,6 +81,7 @@ import { launchBenchmarkOverlay } from './benchmark-ui.js';
 import { resetTimer } from './timer-state.js';
 import { applyTimerProfile } from './timer-profile.js';
 import { showToast } from './toast.js';
+import { revealDismissedUpdateChips } from './update-chip.js';
 import { setIcon, CUSTOM_BUTTON_ICONS, type IconName } from './icons';
 import { availableRibbonCommandIds } from './ribbon-availability.js';
 import { commandLabelFor, RIBBON_COMMAND_LABELS, type RibbonCommandId, ribbonKeyStringFor, formatKeyForDisplay } from './ribbon-commands.js';
@@ -2035,6 +2036,9 @@ function buildInstallInfoSection(): HTMLElement {
       // restarting Electron leaves no IPC handler registered, so
       // `invoke` rejects). Without it the button would stay in
       // the disabled "Checking…" state forever.
+      // A chip the user hid with the × comes back: the toasts below point
+      // at it, and a dismissed chip was otherwise unreachable.
+      revealDismissedUpdateChips();
       electronHost.checkForUpdates().then((result) => {
         restore();
         if (result.status === 'latest') {

@@ -41,13 +41,30 @@ const dismissed = new Set<string>();
 const stateKey = (s: UpdateChipState): string =>
   `${s.state}:${'version' in s ? s.version : 'count' in s ? s.count : s.plugins.map((p) => p.name + p.version).join(',')}`;
 
+/** Chips to repaint when dismissals are cleared (the status bar's and the
+ *  home screen's are separate instances sharing the one `dismissed` set). */
+const revealListeners = new Set<() => void>();
+
+/** Bring back every chip the user hid with the ×. Called by a MANUAL
+ *  update check (Settings → Check for updates, Help → Check for Updates…):
+ *  both tell the user to "watch for the status-bar chip", and without this
+ *  a chip hidden earlier in the session stayed hidden for good, leaving no
+ *  way to install the update short of restarting the app. */
+export function revealDismissedUpdateChips(): void {
+  dismissed.clear();
+  for (const repaint of revealListeners) repaint();
+}
+
 export const DISMISS_NOTE =
-  'Update hidden. You can still update any time from Settings → General → About this install.';
+  'Update hidden. To bring it back, click Check for updates in Settings → General → About this install (or Help → Check for Updates…).';
 
 export interface UpdateChipHost {
   getUpdateChipState(): Promise<UpdateChipState | null>;
   updateChipAction(): Promise<void>;
   onUpdateChip(handler: (payload: UpdateChipState | null) => void): () => void;
+  /** Main asking every window to un-hide the chip (a manual check from the
+   *  Help menu). Optional: an older preload doesn't have it. */
+  onUpdateChipReveal?(handler: () => void): () => void;
 }
 
 /** Render one chip state into the button. Exported for tests. */
@@ -138,9 +155,16 @@ export function initUpdateChip(el: HTMLButtonElement, host: UpdateChipHost): () 
     renderUpdateChip(el, s);
   };
   const unsubscribe = host.onUpdateChip(show);
+  const repaint = (): void => renderUpdateChip(el, current);
+  revealListeners.add(repaint);
+  const unsubscribeReveal = host.onUpdateChipReveal?.(revealDismissedUpdateChips);
   void host
     .getUpdateChipState()
     .then(show)
     .catch(() => {});
-  return unsubscribe;
+  return () => {
+    unsubscribe();
+    unsubscribeReveal?.();
+    revealListeners.delete(repaint);
+  };
 }

@@ -8,6 +8,17 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Fixed
+
+- **Hiding the update chip with the × no longer leaves you with no way to
+  update.** Once hidden, the "Update x.y.z ready" chip stayed hidden for the
+  rest of the session, even though the notice said you could still update from
+  Settings and "Check for updates" told you to watch for the chip. Clicking
+  **Check for updates** (Settings → General → About this install) or
+  **Help → Check for Updates…** now brings the chip back.
+
 ## 1.15.0-bcb.2 — 2026-10-09
 
 ### Added
