@@ -236,7 +236,21 @@ describe('Compare documents — the outline rails', () => {
     await waitForResults();
   }
 
-  it('lists one outline entry per heading, on both sides', async () => {
+  /** The real nav panel's rows on one side, and a click on one (the
+   *  panel reads pointer events before the click). */
+  const navItems = (side: 'left' | 'right'): HTMLElement[] =>
+    qa(`.pmd-doc-diff-outline-${side} .pmd-nav-item`) as HTMLElement[];
+  /** Row scrolls only — the nav panel scrolls its own items too. */
+  const rowScrolls = (): HTMLElement[] =>
+    (scrollSpy.mock.contexts as HTMLElement[]).filter((el) => el.classList?.contains('pmd-doc-diff-cell'));
+  const navLabel = (el: HTMLElement): string => (el.textContent ?? '').trim();
+  function clickNav(el: HTMLElement): void {
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+      el.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0 }));
+    }
+  }
+
+  it('shows the real navigation panel with one entry per heading, on both sides', async () => {
     await runCompare(
       multiCardBytes([
         ['First tag', 'body one'],
@@ -244,10 +258,10 @@ describe('Compare documents — the outline rails', () => {
       ]),
       multiCardBytes([['First tag', 'body one']]),
     );
-    const left = qa('.pmd-doc-diff-outline-left .pmd-doc-diff-outline-entry').map((e) => e.textContent);
-    const right = qa('.pmd-doc-diff-outline-right .pmd-doc-diff-outline-entry').map((e) => e.textContent);
-    expect(left).toEqual(['First tag', 'Second tag']);
-    expect(right).toEqual(['First tag']);
+    expect(qa('.pmd-doc-diff-nav .pmd-nav-panel')).toHaveLength(2);
+    expect(qa('.pmd-doc-diff-outline-left .pmd-nav-level-btn').length).toBeGreaterThan(0);
+    expect(navItems('left').map(navLabel)).toEqual(['First tag', 'Second tag']);
+    expect(navItems('right').map(navLabel)).toEqual(['First tag']);
   });
 
   it('clicking an outline entry scrolls the matching diff row into view', async () => {
@@ -261,17 +275,14 @@ describe('Compare documents — the outline rails', () => {
         ['Second tag', 'body two'],
       ]),
     );
-    const entries = qa('.pmd-doc-diff-outline-left .pmd-doc-diff-outline-entry') as HTMLButtonElement[];
-    const secondTagEntry = entries.find((e) => e.textContent === 'Second tag')!;
-    expect(secondTagEntry.disabled).toBe(false);
-    secondTagEntry.click();
-    expect(scrollSpy).toHaveBeenCalledTimes(1);
+    clickNav(navItems('left').find((e) => navLabel(e) === 'Second tag')!);
+    expect(rowScrolls()).toHaveLength(1);
     // The scrolled element is the row cell actually holding "Second tag".
-    const scrolledEl = scrollSpy.mock.contexts[0] as HTMLElement;
+    const scrolledEl = rowScrolls()[0]!;
     expect(scrolledEl.textContent).toContain('Second tag');
   });
 
-  it('a heading with no matching diff line (e.g. untitled) renders disabled, not hidden', async () => {
+  it('a heading with no matching diff line (e.g. untitled) is listed and its click is harmless', async () => {
     const untitled = schema.nodes['doc']!.createChecked(null, [
       schema.nodes['card']!.createChecked(null, [
         schema.nodes['tag']!.create({ id: newHeadingId() }), // empty tag text
@@ -279,9 +290,10 @@ describe('Compare documents — the outline rails', () => {
       ]),
     ]);
     await runCompare(serializeNative(untitled), cardBytes('Tag', 'body'));
-    const entry = qa('.pmd-doc-diff-outline-left .pmd-doc-diff-outline-entry')[0] as HTMLButtonElement;
-    expect(entry.disabled).toBe(true);
-    expect(entry.textContent).toContain('untitled');
+    const items = navItems('left');
+    expect(items).toHaveLength(1);
+    expect(() => clickNav(items[0]!)).not.toThrow();
+    expect(rowScrolls()).toHaveLength(0);
   });
 
   it('two same-named headings on one side jump to their own occurrence, not always the first', async () => {
@@ -292,10 +304,10 @@ describe('Compare documents — the outline rails', () => {
       ]),
       multiCardBytes([['Extend', 'first occurrence body']]),
     );
-    const entries = qa('.pmd-doc-diff-outline-left .pmd-doc-diff-outline-entry') as HTMLButtonElement[];
+    const entries = navItems('left');
     expect(entries).toHaveLength(2);
-    entries[1]!.click();
-    const scrolledEl = scrollSpy.mock.contexts[0] as HTMLElement;
+    clickNav(entries[1]!);
+    const scrolledEl = rowScrolls()[0]!;
     // The second "Extend" entry must resolve to the SECOND row with that
     // text (the one belonging to the second card), not the first again.
     const allExtendCells = qa('.pmd-doc-diff-cell-left').filter(
