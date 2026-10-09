@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: in-app window chooser and same-name path hints
+
+`pickMultiPaneTarget` (main.ts) no longer calls `dialog.showMessageBox`; it opens a frameless window (`multipane-chooser-ui.ts`) loading one self-contained HTML page, no preload. Picks are `cm-chooser:N` navigations caught in `will-navigate`; indexes match `buildChooserPrompt` so `readChooserResponse` is unchanged. Theme follows `nativeTheme`. Pane chips gain a `.pmd-pane-chip-path` span fed by `duplicateNamePaths` (`duplicate-names.ts`), recomputed from every stacked record on layout/chip/filename refreshes.
+
 ### Fixed: Save As onto another open document (`main.ts`, `index.ts`)
 
 Field report 2026-10-08: after a folder rename broke autosave for two tabs, Save As wrote the first doc's bytes onto the second doc's file, and the second tab (clean) then followed the new disk contents. `host:save-as` and the Save-As-into-folder write (`host:write-file-at-path` with `grantRead`, no `failIfExists`) now refuse a target that `openPathOwners` shows as open in any live window, except the saving doc's own path (`nearPath` / new `selfPath` option).

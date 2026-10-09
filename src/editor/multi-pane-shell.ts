@@ -104,6 +104,7 @@ import { captureCleanToken } from './save-clean-token.js';
 import { scheduleIdle, cancelIdle, type IdleHandle } from './idle-scheduler.js';
 import { getSpeechDocResolver } from './speech-doc-registry.js';
 import { ctrlOrCmdWord, displayFilename } from './platform.js';
+import { duplicateNamePaths } from './duplicate-names.js';
 import { sendToSpeech as runSendToSpeech } from './speech-doc-send.js';
 import { selfRefSelectionPos } from './self-transclusion-commands.js';
 import { transclusionDivergenceKey } from './transclusion-divergence-plugin.js';
@@ -720,6 +721,9 @@ class Slot {
   private dropHintEl: HTMLElement | null = null;
   /** Title chip text container. */
   private chipNameEl: HTMLElement;
+  /** Small full-path text beside the name, shown only while another open
+   *  doc in this window shares the name (see duplicate-names.ts). */
+  private chipPathEl: HTMLElement;
   /** Title chip stack dropdown trigger (shown when stack has 2+). */
   private chipStackBtn: HTMLButtonElement;
   /** Title chip Save button — saves THIS slot's visible doc specifically
@@ -821,6 +825,10 @@ class Slot {
     this.chipNameEl.className = 'pmd-pane-chip-name';
     this.chipNameEl.title = 'Double-click to rename';
     chip.appendChild(this.chipNameEl);
+    this.chipPathEl = document.createElement('span');
+    this.chipPathEl.className = 'pmd-pane-chip-path';
+    this.chipPathEl.hidden = true;
+    chip.appendChild(this.chipPathEl);
     // Double-click the name to rename the doc — on disk too. Focus
     // this slot first (same as the chip's Save / Autosave buttons):
     // the rename acts on the FOCUSED doc, so clicking a background
@@ -1485,7 +1493,16 @@ class Slot {
 
   /** Update the chip's stack-dropdown trigger visibility based on
    *  current stack depth. */
+  /** Show (or clear) the same-name path hint. Driven by the shell, which
+   *  sees every open doc. */
+  setChipPath(path: string | null): void {
+    this.chipPathEl.hidden = !path;
+    this.chipPathEl.textContent = path ?? '';
+    this.chipPathEl.title = path ?? '';
+  }
+
   refreshChip(): void {
+    this.shell?.refreshDuplicatePaths();
     const multi = this.stack.length > 1;
     this.chipStackBtn.hidden = !multi;
     if (multi) {
@@ -1506,6 +1523,7 @@ class Slot {
     // otherwise delete the field under the user's cursor.
     if (isInlineRenaming(this.chipNameEl)) return;
     this.chipNameEl.textContent = displayFilename(rec.filename);
+    this.shell?.refreshDuplicatePaths();
   }
 
   /** Recompute this slot's Save/Autosave chip buttons from its VISIBLE
@@ -1670,6 +1688,11 @@ class Slot {
     closeOpenStackDropdown();
     const dropdown = document.createElement('div');
     dropdown.className = 'pmd-pane-chip-dropdown';
+    const dupPaths = duplicateNamePaths(
+      SLOT_IDS.flatMap((id) =>
+        this.shell.slotStack(id).map((r) => ({ uid: r.uid, filename: r.filename, handle: r.handle })),
+      ),
+    );
     for (const rec of this.stack) {
       const row = document.createElement('div');
       row.className = 'pmd-pane-chip-dropdown-row';
@@ -1682,6 +1705,14 @@ class Slot {
         this.showRecord(rec);
       });
       row.appendChild(name);
+      const dupPath = dupPaths.get(rec.uid);
+      if (dupPath) {
+        const p = document.createElement('span');
+        p.className = 'pmd-pane-chip-path';
+        p.textContent = dupPath;
+        p.title = dupPath;
+        row.appendChild(p);
+      }
       const close = document.createElement('button');
       close.type = 'button';
       close.className = 'pmd-pane-chip-dropdown-close';
@@ -2168,7 +2199,14 @@ class MultiPaneShell {
 
   /** Refresh the data-attribute count on the row, used by CSS to
    *  size each pane based on how many slots are active. */
+  /** The records stacked in a slot (read-only view for the stack
+   *  dropdown's same-name hints). */
+  slotStack(id: SlotId): readonly DocRecord[] {
+    return this.slots[id].stack;
+  }
+
   refreshLayout(): void {
+    this.refreshDuplicatePaths();
     // When a slot is expanded, the layout collapses to "one active
     // pane" regardless of how many other slots have docs loaded —
     // those panes are hidden but kept around so the user can pop
@@ -4245,6 +4283,20 @@ class MultiPaneShell {
   /** Sync the visual speech indicator on every slot's chip with
    *  the registry's current state. Called whenever the speech
    *  designation changes or a slot's visible doc changes. */
+  /** Recompute every pane's same-name path hint from all open docs in
+   *  this window — stacked-behind docs count, not just the visible ones. */
+  refreshDuplicatePaths(): void {
+    if (!this.slots) return; // a slot refreshing its chip while the shell is still constructing
+    const docs = SLOT_IDS.flatMap((id) =>
+      this.slots[id].stack.map((r) => ({ uid: r.uid, filename: r.filename, handle: r.handle })),
+    );
+    const paths = duplicateNamePaths(docs);
+    for (const id of SLOT_IDS) {
+      const slot = this.slots[id];
+      slot.setChipPath(slot.visible ? (paths.get(slot.visible.uid) ?? null) : null);
+    }
+  }
+
   refreshSpeechChips(): void {
     const speechView = getSpeechDocResolver().getSpeechView();
     for (const id of SLOT_IDS) {
