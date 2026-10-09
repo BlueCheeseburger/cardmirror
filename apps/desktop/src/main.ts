@@ -3602,6 +3602,7 @@ function runUpdateCheck(opts: UpdateCheckOpts): boolean {
 /** Manual Help → Check for Updates click handler. Shows feedback
  *  for every possible outcome. */
 function runManualUpdateCheck(): void {
+  revealChips();
   runUpdateCheck({ alertOnLatest: true, alertOnError: true, alertOnAvailable: true });
   void runPluginUpdateCheck();
 }
@@ -3875,6 +3876,15 @@ function pluginChip(): UpdateChipState {
 /** What the chip shows: the app update if there is one, else plugins. */
 function effectiveChip(): UpdateChipState {
   return updateChip ?? pluginChip();
+}
+
+/** A MANUAL update check happened (Help menu): tell every window to un-hide
+ *  an update chip the user dismissed with the ×, then repaint it. Without
+ *  this the dismissal outlived the check and the update was unreachable. */
+function revealChips(): void {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) w.webContents.send('update:chip-reveal');
+  }
 }
 
 function broadcastChip(): void {
