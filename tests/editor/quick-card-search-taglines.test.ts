@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 /**
- * `f c <words>` in Search Everything: card taglines inside the files already
- * in the file index. `f <words>` keeps searching file names. Enter reads the
- * file and inserts that whole card; Tab dives into the file.
+ * `q <words>` ("my cards") in Search Everything: quick cards AND the card
+ * taglines inside the files already in the file index. `f <words>` keeps
+ * searching file names, and `f c` is no longer special. Enter reads the file
+ * and inserts that whole card; right-click previews it (file name + tiny
+ * path); Tab dives into the file.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -53,6 +55,7 @@ import { serializeNative } from '../../src/native/index.js';
 import { extractTaglines } from '../../src/editor/tagline-search.js';
 import { quickCardSearchUI } from '../../src/editor/quick-card-search-ui.js';
 import { settings } from '../../src/editor/settings.js';
+import { quickCardsStore, type QuickCard } from '../../src/editor/quick-cards-store.js';
 import { showToast } from '../../src/editor/toast.js';
 import type { EditorView } from 'prosemirror-view';
 
@@ -102,11 +105,25 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('palette `f c` (card taglines in indexed files)', () => {
-  it('lists matching taglines with the file on the right', async () => {
+const quickCard = (name: string): QuickCard =>
+  ({
+    id: `qc-${name}`,
+    name,
+    tags: ['neg'],
+    contentJson: { content: [], openStart: 0, openEnd: 0 },
+    nameLower: name.toLowerCase(),
+    tagsLower: ['neg'],
+    textLower: name.toLowerCase(),
+    sourceName: 'Somewhere',
+    createdAt: 1,
+    updatedAt: 1,
+  }) as QuickCard;
+
+describe('palette `q` (my cards: quick cards + cards in indexed files)', () => {
+  it('lists matching file-card taglines with the file on the right and a CARD badge', async () => {
     openPalette();
     await settle();
-    type('f c warming');
+    type('q warming');
     await settle();
     const r = rows();
     expect(r).toHaveLength(1);
@@ -115,13 +132,40 @@ describe('palette `f c` (card taglines in indexed files)', () => {
     expect(r[0]!.textContent).toContain('CARD');
   });
 
-  it('shows a hint before anything is typed after `f c `', async () => {
+  it('shows quick cards (QUICK badge) first, then file cards (CARD badge)', async () => {
+    const spy = vi.spyOn(quickCardsStore, 'list').mockReturnValue([quickCard('Warming quick card')]);
+    try {
+      openPalette();
+      await settle();
+      type('q warming');
+      await settle();
+      const r = rows();
+      expect(r).toHaveLength(2);
+      expect(r[0]!.textContent).toContain('Warming quick card');
+      expect(r[0]!.textContent).toContain('QUICK');
+      expect(r[0]!.textContent).not.toContain('CARD');
+      expect(r[1]!.textContent).toContain('Warming is fast');
+      expect(r[1]!.textContent).toContain('CARD');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('shows a hint before anything is typed', async () => {
     openPalette();
     await settle();
-    type('f c ');
+    type('q ');
     await settle();
     expect(rows()).toHaveLength(0);
     expect(emptyText()).toContain('tagline');
+  });
+
+  it('`f c` is no longer a card search: it is just a file-name search for "c …"', async () => {
+    openPalette();
+    await settle();
+    type('f c warming');
+    await settle();
+    expect(rows().some((r) => r.textContent?.includes('CARD'))).toBe(false);
   });
 
   it('keeps `f <words>` as a file-name search', async () => {
@@ -138,7 +182,7 @@ describe('palette `f c` (card taglines in indexed files)', () => {
   it('Enter reads the file and inserts that whole card', async () => {
     openPalette();
     await settle();
-    type('f c warming');
+    type('q warming');
     await settle();
     press('Enter');
     await settle();
@@ -157,7 +201,7 @@ describe('palette `f c` (card taglines in indexed files)', () => {
   it('toasts instead of inserting when the card is gone from the file', async () => {
     openPalette();
     await settle();
-    type('f c warming');
+    type('q warming');
     await settle();
     // The file changed since it was indexed: the tagline no longer exists.
     hostState.bytesByPath.set(
@@ -179,11 +223,48 @@ describe('palette `f c` (card taglines in indexed files)', () => {
   it('Tab dives into the tagline’s file', async () => {
     openPalette();
     await settle();
-    type('f c warming');
+    type('q warming');
     await settle();
     press('Tab');
     await settle();
     await settle();
     expect(input().placeholder).toBe('Search in Case…');
+  });
+
+  it('right-click previews the file card: its text, the file name, and the path in small text', async () => {
+    openPalette();
+    await settle();
+    type('q warming');
+    await settle();
+    rows()[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+    await settle();
+    await settle();
+    const dialog = document.querySelector('.pmd-card-preview-dialog');
+    expect(dialog).not.toBeNull();
+    expect(dialog!.querySelector('.pmd-card-preview-title')?.textContent).toBe('Warming is fast');
+    expect(dialog!.querySelector('.pmd-card-preview-subtitle')?.textContent).toBe('Case');
+    expect(dialog!.querySelector('.pmd-card-preview-path')?.textContent).toBe('/root/Case.cmir');
+    // Previewing is not inserting.
+    expect(hostState.inserted).toHaveLength(0);
+  });
+
+  it('with no editable document, picking a file card opens it as a new document instead', async () => {
+    const opened: unknown[] = [];
+    quickCardSearchUI.open({
+      view: null,
+      runCommand: () => {},
+      openFilePath: () => {},
+      openSliceAsNewDoc: (slice) => {
+        opened.push(slice);
+      },
+    });
+    await settle();
+    type('q warming');
+    await settle();
+    press('Enter');
+    await settle();
+    await settle();
+    expect(opened).toHaveLength(1);
+    expect(hostState.inserted).toHaveLength(0);
   });
 });

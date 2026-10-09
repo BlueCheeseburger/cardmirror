@@ -43,6 +43,14 @@ import { isBackdropClick } from './backdrop-click.js';
  * exempts events targeting the dialog's own controls, so e.g. a
  * textarea keeps its native Enter-newline.
  */
+/** Chords a modal must let through to the app's own key handler instead of
+ *  swallowing — set once by the editor to "the Search Everything shortcut",
+ *  so the palette opens from every screen, not just the editor and home. */
+let modalKeyPassThrough: ((e: KeyboardEvent) => boolean) | null = null;
+export function setModalKeyPassThrough(fn: ((e: KeyboardEvent) => boolean) | null): void {
+  modalKeyPassThrough = fn;
+}
+
 export function installModalKeys(
   dialog: HTMLElement,
   overlayToken: symbol,
@@ -50,6 +58,7 @@ export function installModalKeys(
 ): () => void {
   const onKey = (e: KeyboardEvent): void => {
     if (!isTopOverlay(overlayToken)) return;
+    if (modalKeyPassThrough?.(e)) return;
     if (handle(e)) {
       e.preventDefault();
       e.stopPropagation();

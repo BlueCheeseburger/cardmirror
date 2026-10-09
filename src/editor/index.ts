@@ -16,7 +16,7 @@ import { repeatLastActionPlugin, repeatLastAction, noteCommandRun, type RepeatKe
 import { applyNumberingExport, exportFreezesNumbering, type NumberingExportMode } from './numbering-bake.js';
 import { collectCardsWithMatchingCite } from './copy-matching-cite.js';
 import { baseKeymap } from 'prosemirror-commands';
-import { Node as PMNode, type Mark } from 'prosemirror-model';
+import { Node as PMNode, Fragment, type Slice, type Mark } from 'prosemirror-model';
 import { schema, newHeadingId } from '../schema/index.js';
 import { toDocx, serializeNative, serializeNativeAsync, parseNative, parseNativeSalvage, NativeDamagedError, readDocIdFromBytes, stampDocId, setSaveHealListener } from '../index.js';
 import { openDocxOffThread } from './docx-open.js';
@@ -50,8 +50,8 @@ import {
   buildDeleteStructureTr,
   installIncomingSpeechSliceHandler,
 } from './speech-doc-send.js';
-import { promptForChoice, promptForText, promptForRouteChoice, alertDialog, confirmDialog, installModalKeys, armDialogFocus } from './text-prompt.js';
-import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
+import { promptForChoice, promptForText, promptForRouteChoice, alertDialog, confirmDialog, installModalKeys, armDialogFocus, setModalKeyPassThrough } from './text-prompt.js';
+import { pushOverlay, popOverlay, isTopOverlay, isAnyOverlayOpen } from './overlay-stack.js';
 import { positionFloatingMenu } from './context-menu-position.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
 import { openDocMenu } from './doc-menu-ui.js';
@@ -280,7 +280,7 @@ import { parseJoinLinkHash } from './collab/join-link.js';
 import { setRePickOpener, setOpenSourceOpener } from './transclusion-actions.js';
 import { isLiteBuild } from './lite.js';
 import { maybeShowWhatsNew } from './whats-new.js';
-import { isTransclusionNode, fragmentHasZone } from './transclusion.js';
+import { isTransclusionNode, fragmentHasZone, flattenZonesInSlice } from './transclusion.js';
 import { showConfirm } from './confirm-dialog.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
 import { autolinkPlugin, autolinkEnterPlugin, linkModClickPlugin } from './autolink.js';
@@ -301,7 +301,7 @@ import { wordSelectionKeymap } from './word-selection-keymap.js';
 import { morphModePlugin, toggleMorphMode } from './morph-mode.js';
 import { highlightFrequencyPlugin } from './highlight-frequency-plugin.js';
 import { editorDragSurface } from './drag-editor-surface.js';
-import { dragController } from './drag-controller.js';
+import { dragController, rewriteHeadingIds } from './drag-controller.js';
 import {
   backspaceAtTagStart,
   backspaceAtFirstBodyStart,
@@ -2659,7 +2659,7 @@ async function spawnBlankWindow(): Promise<void> {
 /** Create a new doc in THIS window, with no cross-window chooser —
  *  the routing the app used before the chooser existed, and what a
  *  window runs when the chooser hands it the request. */
-async function createNewDocLocally(): Promise<void> {
+async function createNewDocLocally(initialDoc?: PMNode): Promise<boolean> {
   const host = getHost();
   // Multi-pane: ask which slot (or a new window), the same picker Open
   // already shows — see `multiDocNewDocWithPicker`'s doc comment for why
@@ -2667,10 +2667,10 @@ async function createNewDocLocally(): Promise<void> {
   if (multiDocActive) {
     if (multiDocNewDocWithPicker) {
       await multiDocNewDocWithPicker();
-      return;
+      return true;
     }
     await spawnBlankWindow();
-    return;
+    return true;
   }
   // Multi-window mode (single-doc + Electron): New always spawns a
   // new window. The current window stays put — including when it's
@@ -2680,17 +2680,17 @@ async function createNewDocLocally(): Promise<void> {
   // window is at risk of being lost.
   if (host.canSpawnWindow) {
     await spawnBlankWindow();
-    return;
+    return true;
   }
   // Web edition: no other window to open into, so New replaces
   // what's here. Only prompt to save if there are actual edits to
   // lose — the pristine starter is disposable.
   if (!isPristineStarter) {
     const choice = await confirmNewDocOverwrite();
-    if (choice === 'cancel') return;
+    if (choice === 'cancel') return false;
     if (choice === 'save') {
       const saved = await runSaveAsFlow();
-      if (!saved) return;
+      if (!saved) return false;
     }
   }
   // Drop the old session's journal before swapping in a new doc —
@@ -2699,7 +2699,7 @@ async function createNewDocLocally(): Promise<void> {
   // content. New doc gets a fresh uid so future journals key
   // against the new session.
   void clearCurrentJournal();
-  mountView(makeNewDocBody());
+  mountView(initialDoc ?? makeNewDocBody());
   currentDocFilename = null;
   setCurrentDocHandle(null);
   currentDocFormat = null;
@@ -2715,6 +2715,7 @@ async function createNewDocLocally(): Promise<void> {
   // The user asked for a doc to type into — put the caret there so
   // typing works with no extra click.
   view?.focus();
+  return true;
 }
 
 /** Join-session doc swap: the web edition's New-in-place path, minus
@@ -4900,6 +4901,17 @@ applyFormattingPanel(
   settings.get('showCharacterStyles'),
 );
 
+// Modal screens (Compare, Convert, Learn, Quick Cards…) swallow keys that
+// aren't theirs; the Search Everything chord is exempt so the palette opens
+// over any of them.
+setModalKeyPassThrough((e) => {
+  if (!e.ctrlKey && !e.metaKey && !e.altKey) return false;
+  return (
+    ribbonCommandForKey(ribbonKeyStringFor(e), settings.get('ribbonKeyOverrides')) ===
+    'openQuickCardSearch'
+  );
+});
+
 // Claim browser shortcuts for every ribbon binding. F3 (Find), F5
 // (Reload), F7 (Caret Browse), F11 (Fullscreen), Mod-U (View Source),
 // and others normally trigger browser UI. We listen in the BUBBLE
@@ -4972,6 +4984,10 @@ document.addEventListener('keydown', suppressGuiSelectAll, true);
  *  open hits this path. */
 const VIEWLESS_RIBBON_COMMANDS = new Set<AnyCommandId>([
   'newDocument',
+  // Search Everything opens on every screen — home, an empty three-pane
+  // workspace, a dialog's own text field — and offers a new document for
+  // any card picked where there's no open one to insert into.
+  'openQuickCardSearch',
   // Settings-only; no doc needed.
   'resetDefaultColors',
   'openFile',
@@ -5156,15 +5172,60 @@ async function runMultiPane(
  *  there's no active view.
  *  `initialQuery` opens it with a prefix already typed (`w ` = Switch Window). */
 function openSearchPalette(initialQuery?: string): void {
+  // Opened over the home screen, or over another screen layered on the
+  // editor (Compare, Convert, Learn…): the document behind is not one the
+  // user is looking at, so a picked card must not land in it. Offer no view,
+  // and a card opens as a new document instead (see openSliceInNewDocument).
+  const noVisibleDoc = homeScreen.isVisible() || isAnyOverlayOpen() || !view;
   quickCardSearchUI.open({
-    view,
+    view: noVisibleDoc ? null : view,
     runCommand: runRibbonCommandById,
     runCommandOnState: runRibbonCommandOnState,
     openFilePath: openFileByPath,
     // Enables per-header Mod+Enter "transclude" while browsing a file normally.
-    docPath: view ? getViewDocPath(view) : null,
+    docPath: !noVisibleDoc && view ? getViewDocPath(view) : null,
     initialQuery,
+    openSliceAsNewDoc: openSliceInNewDocument,
   });
+}
+
+/** Search Everything's card pick with no document to insert into: the card
+ *  becomes a new, unsaved document. Desktop and installed web app open it in
+ *  a new window (like New document does there, and without disturbing
+ *  whatever is on screen); a plain browser tab replaces the current document
+ *  after the usual unsaved-changes prompt. */
+async function openSliceInNewDocument(slice: Slice): Promise<void> {
+  const content = rewriteHeadingIds(flattenZonesInSlice(slice)).content;
+  let doc: PMNode;
+  try {
+    doc = schema.topNodeType.createChecked(null, content.append(Fragment.from(schema.nodes['paragraph']!.create())));
+  } catch {
+    showToast('Couldn’t open that card in a new document.');
+    return;
+  }
+  const bytes = serializeNative(doc);
+  // Three-pane: a slot of THIS window, through the same funnel as Open (the
+  // slot picker applies), so the card lands beside the work already open.
+  if (multiDocActive && multiDocOnFileOpen) {
+    await multiDocOnFileOpen({ name: 'Untitled.cmir', bytes, handle: undefined });
+    homeScreen.hide();
+    return;
+  }
+  if (getHost().canSpawnWindow) {
+    await getHost().spawnWindow({
+      filename: 'Untitled.cmir',
+      bytes,
+      handle: null,
+      format: 'cmir',
+      uid: null,
+      markDirty: true,
+    });
+    return;
+  }
+  if (await createNewDocLocally(doc)) {
+    homeScreen.hide();
+    view?.focus();
+  }
 }
 
 /** Cycle the focused slot's visible doc forward (+1) / back (-1). Bound by the
@@ -7753,6 +7814,7 @@ function reopenWorkspaceFromHome(ws: RecentWorkspace): void {
 }
 
 const homeCallbacks: HomeScreenCallbacks = {
+  openSearch: () => ribbonContext.openQuickCardSearch(),
   // Single-doc: load in-place in this window. Multi-pane: hide
   // home and route through the shell flows, which present the
   // slot-routing UI over the now-visible workspace.

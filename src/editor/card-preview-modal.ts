@@ -32,6 +32,14 @@ export interface CardPreviewOptions {
    *  Runs after the dialog closes. Without it the dialog has no insert
    *  button. */
   onInsert?: () => void;
+  /** Where the card came from on disk, shown in very small text under the
+   *  title — the search palette passes the indexed file's path so two cards
+   *  with the same tagline can be told apart. */
+  sourcePath?: string;
+  /** Label for the insert button. Default "Insert at cursor"; the search
+   *  palette passes "Open in new document" when there is no document to
+   *  insert into (home screen). */
+  insertLabel?: string;
 }
 
 export const CARD_PREVIEW_UNREADABLE_MESSAGE = 'This card could not be previewed.';
@@ -116,6 +124,14 @@ export function openCardPreview(opts: CardPreviewOptions): boolean {
     sub.textContent = opts.subtitle;
     heading.appendChild(sub);
   }
+  if (opts.sourcePath) {
+    const path = document.createElement('span');
+    path.className = 'pmd-card-preview-path';
+    path.textContent = opts.sourcePath;
+    path.title = opts.sourcePath;
+    heading.classList.add('pmd-card-preview-heading-has-path');
+    heading.appendChild(path);
+  }
   header.appendChild(heading);
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
@@ -166,7 +182,7 @@ export function openCardPreview(opts: CardPreviewOptions): boolean {
   const insertBtn = document.createElement('button');
   insertBtn.type = 'button';
   insertBtn.className = 'pmd-bulk-btn pmd-card-preview-insert';
-  insertBtn.textContent = 'Insert at cursor';
+  insertBtn.textContent = opts.insertLabel ?? 'Insert at cursor';
   insertBtn.title = 'Insert these cards into the document at the cursor';
   insertBtn.addEventListener('click', () => {
     close();

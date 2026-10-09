@@ -47,7 +47,7 @@ export type {
 export interface FileIndexClient {
   /** Report the current roots: prunes departed ones from the persisted
    *  index and kicks scans/revalidation for the rest. */
-  configure(roots: string[]): Promise<void>;
+  configure(roots: string[], tagline?: { exclusions: string[]; formats: TaglineQueryParams['formats'] }): Promise<void>;
   query(params: FileIndexQueryParams): Promise<FileIndexQueryResult>;
   /** Immediate indexed children of one configured-root directory. */
   browse(params: FileBrowseParams): Promise<FileBrowseResult>;
@@ -65,7 +65,7 @@ export interface FileIndexClient {
   }): Promise<Array<{ path: string; mtimeMs: number }>>;
   /** A scan/revalidation landed a fresh listing — re-query to stay live. */
   onChanged(handler: () => void): () => void;
-  /** Card taglines inside the indexed files (`f c <words>`). The first call
+  /** Card taglines inside the indexed files (`q` my cards). The first call
    *  starts the background build; results fill in as it goes. */
   taglineQuery(params: TaglineQueryParams): Promise<TaglineQueryResult>;
   /** More taglines were indexed — re-query to stay live. */
@@ -178,7 +178,7 @@ function wrapPort(port: MessagePort): FileIndexClient {
   }
 
   return {
-    configure: (roots) => request('configure', { roots }),
+    configure: (roots, tagline) => request('configure', { roots, ...(tagline ?? {}) }),
     query: (params) => request('query', params),
     browse: (params) => request('browse', params),
     locateCurrentFile: (args) => request('locateCurrentFile', args),

@@ -1,5 +1,5 @@
 /**
- * Card-tagline index — the content layer under `f c <words>`.
+ * Card-tagline index — the content layer under `q` (my cards).
  *
  * The file index lists files; this keeps, per file, the taglines of the cards
  * inside it, so the palette can search card taglines across every indexed file
@@ -8,7 +8,7 @@
  * ranked rows).
  *
  * Built lazily, in the background:
- *   - nothing is parsed until the first `f c` search asks for it;
+ *   - nothing is parsed until the first card search (or app launch) asks for it;
  *   - files are parsed one at a time, most recently modified first, yielding
  *     to the event loop between files so file search stays responsive;
  *   - each file's taglines are keyed by its mtime, so a later pass only
@@ -66,8 +66,13 @@ export interface TaglineQueryResult {
 export interface TaglineIndex {
   query(args: TaglineScope & { query: string; limit: number }): Promise<TaglineQueryResult>;
   /** The file listing changed (or the app started): bring an already-built
-   *  index up to date. A no-op until `f c` has been used once. */
+   *  index up to date. A no-op until the index has been wanted once (a search,
+   *  or `start`). */
   refresh(roots?: string[]): Promise<void>;
+  /** Begin (or retarget) the background build WITHOUT a query. Called at app
+   *  launch so the index is ready by the time the first card search happens,
+   *  instead of the first search paying for the whole crawl. */
+  start(args: TaglineScope): Promise<void>;
   /** Wait for the running crawl and pending write to settle (tests). */
   idle(): Promise<void>;
 }
@@ -105,7 +110,7 @@ export function createTaglineIndex(opts: {
   const files = new Map<string, TaglineFile>();
   let total = 0; // taglines held
   let scope: TaglineScope | null = null; // the scope the crawl follows
-  let wanted = false; // `f c` has been used (now or in a past session)
+  let wanted = false; // the index has been wanted (a card search, or app launch, now or in a past session)
   let capped = false;
   /** The last crawl finished against the current scope and nothing has
    *  changed since — queries then skip the (listing-wide) walk. */
@@ -292,6 +297,21 @@ export function createTaglineIndex(opts: {
       }
       const { rows, total: matches } = searchTaglines(visible, args.query, args.limit);
       return { rows, total: matches, status: statusFor(next) };
+    },
+
+    async start(args): Promise<void> {
+      await ensureLoaded();
+      const next: TaglineScope = {
+        roots: args.roots,
+        exclusions: args.exclusions,
+        formats: args.formats,
+      };
+      if (!next.roots.length) return;
+      const changed = !scope || !sameScope(scope, next);
+      scope = next;
+      wanted = true;
+      if (changed) fresh = false;
+      if (!fresh) kick();
     },
 
     async refresh(roots?: string[]): Promise<void> {

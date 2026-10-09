@@ -32,7 +32,7 @@ export interface FakeFileListing {
  *  the test's hostState so per-test rewrites are seen live). */
 export function makeFakeFileIndexClient(listing: {
   files: FakeFileListing[];
-  /** Taglines by file path, for `f c` tests. */
+  /** Taglines by file path, for `q` my-cards tests. */
   taglines?: Record<string, TaglineRecord>;
 }): FileIndexClient {
   const changed = new Set<() => void>();

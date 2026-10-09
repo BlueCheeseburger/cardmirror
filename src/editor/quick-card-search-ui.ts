@@ -1,5 +1,5 @@
 /**
- * Quick Cards — search palette (with the prefix system).
+ * Search Everything palette (with the prefix system; Quick Cards are one source).
  *
  * A floating command-palette-style bar (see
  * `reference-docs/SPEC-quick-cards.md` §6): opens centered over the
@@ -8,7 +8,7 @@
  *
  * Prefix system (a small first slice of the eventual full set —
  * search-everything / transclude / quick cards / dropzone / index):
- *   - `q ` → search quick cards only
+ *   - `q ` → my cards: quick cards + cards inside the user's indexed files
  *   - `d ` → search the dropzone only
  *   - `c ` → search ribbon commands only
  *   - `s ` → search settings (top-level tabs + individual settings);
@@ -82,6 +82,7 @@ import { resolveHeadingIdAt } from './transclusion.js';
 import type { TransclusionAttrs } from './transclusion.js';
 import { AUTOFILL_IGNORE_ATTRS } from './autofill-ignore.js';
 import { insertSpeechSlice } from './speech-doc-send.js';
+import { pushOverlay, popOverlay } from './overlay-stack.js';
 import { quickCardsStore, distinctTags, normalizeTag } from './quick-cards-store.js';
 import { dropzoneStore } from './dropzone-store.js';
 import { searchQuickCards } from './quick-cards-match.js';
@@ -402,6 +403,14 @@ async function runWarmPass(
   }
 }
 
+/** The filters the card-tagline index follows (same as the file search's). */
+function taglineScope(): { exclusions: string[]; formats: 'both' | 'cmir' | 'docx' } {
+  return {
+    exclusions: settings.get('fileSearchExclusions'),
+    formats: settings.get('fileSearchFormats'),
+  };
+}
+
 /** Pre-warm pinned/recent files during idle, before the palette is ever
  *  opened, so the first search's file parse is already cached and
  *  never lands on a keystroke. No-op off Electron or with no search
@@ -418,7 +427,9 @@ export function prewarmQuickCardFiles(): void {
     // removed roots from the persisted index, which otherwise carries
     // them forever — and kicks its scans/revalidation off the renderer
     // AND main-process threads entirely.
-    await client.configure(roots).catch(() => {});
+    // The filters ride along so the service can start building the card index
+    // right now (my-cards search is instant on first use).
+    await client.configure(roots, taglineScope()).catch(() => {});
     if (!roots.length) return;
     // The pin CONTENT parse is renderer CPU, so it waits for idle so it
     // never janks the launch frame. Exclusions apply (the service omits
@@ -463,6 +474,12 @@ export interface QuickCardSearchOptions {
   rePickTarget?: { pos: number; identity: string };
   /** Text to open with already typed — e.g. `w ` for Switch Window. */
   initialQuery?: string;
+  /** Called with the card when the user picks one while `view` is null (the
+   *  home screen, or another screen on top of the editor): an insert has no
+   *  visible document to land in, so the card opens as a new document
+   *  instead. Omitted → such a pick just says there is nothing to insert
+   *  into. */
+  openSliceAsNewDoc?: (slice: Slice) => void | Promise<void>;
 }
 
 /** A unified palette row — a quick card, dropzone item, command,
@@ -499,7 +516,7 @@ interface PaletteResult {
   settingsTarget?: SettingsTarget;
   /** Absolute path to open (file source). */
   filePath?: string;
-  /** Which card in the file, and its tagline (tagline source — `f c`). */
+  /** Which card in the file, and its tagline (tagline source — `q` my cards). */
   taglineOrd?: number;
   taglineText?: string;
   /** The file's display name (tagline source; `name` is the tagline). */
@@ -936,7 +953,7 @@ function fileResult(f: FileIndexRow): PaletteResult {
   };
 }
 
-/** A card tagline found inside an indexed file (`f c <words>`). The tagline is
+/** A card tagline found inside an indexed file (`q` my cards). The tagline is
  *  the row, the card's cite sits under it, and the file is the right-hand
  *  text (with a count when the same card is in other files too). */
 function taglineResult(r: TaglineRow): PaletteResult {
@@ -1050,7 +1067,7 @@ function logosResult(r: LogosResult): PaletteResult {
 function badgeText(r: PaletteResult): string {
   switch (r.source) {
     case 'quickcard':
-      return 'QC';
+      return 'QUICK';
     case 'dropzone':
       return 'DZ';
     case 'command':
@@ -1148,6 +1165,12 @@ class QuickCardSearchUI {
   private hintsEl!: HTMLDivElement;
   private unsubscribe: (() => void) | null = null;
   private view: EditorView | null = null;
+  /** Overlay-stack token while open: modal screens under the palette (Compare,
+   *  Convert, Learn…) stand down — no swallowed keys, no Esc closing them. */
+  private overlayToken: symbol | null = null;
+  /** Where a picked card goes when there is no document to insert into (the
+   *  home screen, a screen layered over the editor). Set per open. */
+  private openSliceAsNewDoc: ((slice: Slice) => void | Promise<void>) | null = null;
   private runCommand: (id: AnyCommandId) => void = () => {};
   private runCommandOnState: ((id: AnyCommandId, state: EditorState) => EditorState | null) | null = null;
   private openFilePath: (path: string, name: string) => void = () => {};
@@ -1251,7 +1274,7 @@ class QuickCardSearchUI {
   /** Last query answered, with its rows — re-rendering the same query
    *  (the arrival re-runs the search) doesn't refetch. Cleared on close. */
   private logosCache: { query: string; rows: LogosResult[] } | null = null;
-  /** `f c` source: the taglines fetched for the current query (the service
+  /** `q` source: the taglines fetched for the current query (the service
    *  ranks them; we hold only the returned window). */
   private taglineKey: string | null = null;
   private taglinePending: string | null = null;
@@ -1276,6 +1299,7 @@ class QuickCardSearchUI {
       return;
     }
     this.view = opts.view;
+    this.openSliceAsNewDoc = opts.openSliceAsNewDoc ?? null;
     this.runCommand = opts.runCommand;
     this.runCommandOnState = opts.runCommandOnState ?? null;
     this.openFilePath = opts.openFilePath;
@@ -1311,6 +1335,7 @@ class QuickCardSearchUI {
              placeholder="${SEARCH_PLACEHOLDER}" aria-label="Search" />
       <div class="pmd-qcs-hints"></div>`;
     this.root = root;
+    this.overlayToken = pushOverlay();
     for (const cb of openListeners) cb();
     this.resultsEl = root.querySelector('.pmd-qcs-results')!;
     this.browseHeaderEl = root.querySelector('.pmd-qcs-browse-header')!;
@@ -1352,7 +1377,7 @@ class QuickCardSearchUI {
     // palette live, and the warm pass refreshes pinned parses.
     void getFileIndexClient().then((client) => {
       if (!client || !this.root) return;
-      void client.configure(settings.get('fileSearchRoots')).catch(() => {});
+      void client.configure(settings.get('fileSearchRoots'), taglineScope()).catch(() => {});
       this.fileIndexUnsub ??= client.onChanged(() => this.onIndexChanged());
       void this.warmPins();
     });
@@ -1396,6 +1421,8 @@ class QuickCardSearchUI {
     this.resetBrowseState();
     this.root.remove();
     this.root = null;
+    if (this.overlayToken) popOverlay(this.overlayToken);
+    this.overlayToken = null;
     this.view?.focus();
   }
 
@@ -1585,12 +1612,6 @@ class QuickCardSearchUI {
     const { prefix, query } = parsePrefix(this.input.value);
     if (prefix !== 'g') this.cancelLogos();
     if (prefix === 'f') {
-      // `f c <words>`: card taglines inside the indexed files.
-      const cards = /^c\s+(.*)$/is.exec(query);
-      if (cards) {
-        this.runTaglineSearch(cards[1]!);
-        return;
-      }
       this.runFileSearch(query);
       return;
     }
@@ -1599,10 +1620,10 @@ class QuickCardSearchUI {
       return;
     }
     if (prefix === 'q') {
-      this.results = searchQuickCardSource(query);
-      this.emptyText = quickCardsStore.list().length
-        ? 'No matching quick cards.'
-        : 'No quick cards yet.';
+      // "My cards": the quick cards AND the cards inside the user's own
+      // indexed files (Logos, `g`, is the cards from the web).
+      this.runMyCardsSearch(query);
+      return;
     } else if (prefix === 'd') {
       if (!dropzoneOn()) {
         this.results = [];
@@ -1642,7 +1663,7 @@ class QuickCardSearchUI {
       this.results = [];
       this.emptyText = `Type to search everything · / browse · c commands${
         dropzoneOn() ? ' · d dropzone' : ''
-      } · f files · f c cards in files${isLiteBuild() ? '' : ' · g Logos'} · q cards · s settings${getElectronHost() ? ' · w windows' : ''}`;
+      } · f files · q my cards${isLiteBuild() ? '' : ' · g Logos (web)'} · s settings${getElectronHost() ? ' · w windows' : ''}`;
     } else {
       // No prefix — search everything. Files (by filename) join the
       // other sources; the ranked rows come from the file-index service
@@ -1724,7 +1745,7 @@ class QuickCardSearchUI {
   /** Enter on a Logos row: fetch the full card, then insert it. The
    *  palette closes first; the insert lands in the view it was opened
    *  over, if that view is still editable when the card arrives. */
-  private async insertLogosCard(result: PaletteResult, view: EditorView, atEnd: boolean): Promise<void> {
+  private async insertLogosCard(result: PaletteResult, view: EditorView | null, atEnd: boolean): Promise<void> {
     this.close();
     let slice: Slice;
     try {
@@ -1737,11 +1758,35 @@ class QuickCardSearchUI {
       showToast(err instanceof Error ? err.message : 'Couldn’t load the card from Logos.');
       return;
     }
+    if (!view) {
+      this.deliverToNewDoc(slice);
+      return;
+    }
     if (view.isDestroyed || !view.editable) {
       showToast('The document closed before the card arrived.');
       return;
     }
     insertSpeechSlice(view, slice, atEnd, (v) => this.runLogosImportCommands(v));
+  }
+
+  /** No visible document to insert into (home screen, or a screen over the
+   *  editor): open the card as a new document instead. Without a host hook
+   *  there is nowhere to put it, so say so. */
+  private deliverToNewDoc(slice: Slice): void {
+    const open = this.openSliceAsNewDoc;
+    if (!open) {
+      showToast('No editable document to insert into.');
+      return;
+    }
+    void Promise.resolve(open(slice)).catch((err) => {
+      showToast(err instanceof Error ? err.message : 'Couldn’t open the card in a new document.');
+    });
+  }
+
+  /** Whether a card pick has somewhere to go: an editable document, or the
+   *  new-document fallback. */
+  private canDeliver(): boolean {
+    return !!(this.view?.editable || this.openSliceAsNewDoc);
   }
 
   /** Right-click on a Logos row: fetch the full card and show it in the
@@ -1767,10 +1812,15 @@ class QuickCardSearchUI {
       title: result.name,
       subtitle: result.previewMeta ?? result.meta,
       sliceJson: this.logosPreviewSlice(slice).toJSON(),
+      ...(this.view?.editable || !this.openSliceAsNewDoc ? {} : { insertLabel: 'Open in new document' }),
       onInsert: () => {
         const view = this.view;
         if (!view || !view.editable) {
-          showToast('No editable document to insert into.');
+          if (!this.openSliceAsNewDoc) {
+            showToast('No editable document to insert into.');
+            return;
+          }
+          void this.insertLogosCard(result, null, false);
           return;
         }
         void this.insertLogosCard(result, view, false);
@@ -2186,21 +2236,32 @@ class QuickCardSearchUI {
     this.finishSearch(this.fileRows, this.fileTotal);
   }
 
-  /** `f c <words>`: card taglines inside the files already in the file
-   *  index. The service builds the tagline index in the background the first
-   *  time this is used, so early searches cover the files indexed so far and
-   *  fill in as it goes (the status line says how far along it is). */
-  private runTaglineSearch(query: string): void {
+  /** `q <words>` — "my cards": quick cards first, then the taglines of cards
+   *  inside the files already in the file index (desktop). The service starts
+   *  building the tagline index at app launch; searches made before it
+   *  finishes cover the files indexed so far and fill in as it goes (the
+   *  empty-state line says how far along it is). */
+  private runMyCardsSearch(query: string): void {
+    const quick = searchQuickCardSource(query);
+    const haveQuick = quickCardsStore.list().length > 0;
     const electron = getElectronHost();
-    if (!electron) {
-      this.results = [];
-      this.emptyText = 'Searching card taglines needs the desktop app.';
-      this.finishSearch();
-      return;
-    }
-    if (!settings.get('fileSearchRoots').length) {
-      this.results = [];
-      this.emptyText = 'Add a file-search folder in Settings → General.';
+    const roots = settings.get('fileSearchRoots');
+    const filesOn = !!electron && roots.length > 0;
+    // Without a query there is nothing to match a tagline against: show the
+    // quick cards (browse) and a nudge toward the file cards.
+    if (query.trim() === '' || !filesOn) {
+      this.results = quick;
+      this.emptyText = !electron
+        ? haveQuick
+          ? 'No matching cards.'
+          : 'No quick cards yet.'
+        : !roots.length
+          ? haveQuick
+            ? 'No matching cards.'
+            : 'No quick cards yet. Add a file-search folder in Settings → General to search the cards in your files.'
+          : haveQuick
+            ? 'No matching cards.'
+            : 'Type words from a card’s tagline to search your quick cards and the cards in your files.';
       this.finishSearch();
       return;
     }
@@ -2208,18 +2269,13 @@ class QuickCardSearchUI {
     const status = this.taglineStatus;
     const progress =
       status && (status.running || status.indexed < status.files)
-        ? `Indexing card taglines… ${status.indexed.toLocaleString()} of ${status.files.toLocaleString()} files`
+        ? `Indexing cards in your files… ${status.indexed.toLocaleString()} of ${status.files.toLocaleString()} files`
         : '';
-    if (query.trim() === '') {
-      this.results = [];
-      this.emptyText = progress || 'Type words from a card’s tagline to search inside your indexed files.';
-      this.finishSearch();
-      return;
-    }
-    this.results = this.taglineKey === null ? [] : this.taglineRows.map(taglineResult);
+    const fileRows = this.taglineKey === null ? [] : this.taglineRows.map(taglineResult);
+    this.results = [...quick, ...fileRows];
     this.emptyText =
       state === 'loading' && this.taglineKey === null
-        ? 'Searching card taglines…'
+        ? 'Searching your cards…'
         : progress
           ? `No matching cards yet. ${progress}`
           : status?.capped
@@ -2274,21 +2330,17 @@ class QuickCardSearchUI {
     return 'loading';
   }
 
-  /** Enter on a tagline row: read the file, find that card, insert it. */
-  private async insertTaglineCard(result: PaletteResult, atEnd: boolean): Promise<void> {
-    const view = this.view;
-    if (!view || !view.editable) {
-      showToast('No editable document to insert into.');
-      return;
-    }
+  /** Read an indexed file and cut out one card (a `q` file-card row). Null —
+   *  after saying why in a toast — when the file can't be read or the card is
+   *  no longer in it. */
+  private async readTaglineSlice(result: PaletteResult): Promise<Slice | null> {
     const electron = getElectronHost();
     const path = result.filePath;
     const text = result.taglineText;
     const ord = result.taglineOrd;
-    if (!electron || !path || text === undefined || ord === undefined) return;
+    if (!electron || !path || text === undefined || ord === undefined) return null;
     const fileName = result.fileName ?? 'that file';
     recordUsage(path);
-    let slice: Slice;
     try {
       const file = await electron.readFileAtPath(path);
       if (!file) throw new Error('read failed');
@@ -2297,16 +2349,66 @@ class QuickCardSearchUI {
       const range = entry ? computeHeadingRange(doc, entry) : null;
       if (!range) {
         showToast(`That card is no longer in "${fileName}".`);
-        return;
+        return null;
       }
-      slice = flattenSelfRefsInSlice(doc.slice(range.from, range.to), doc, newHeadingId);
+      return flattenSelfRefsInSlice(doc.slice(range.from, range.to), doc, newHeadingId);
     } catch {
       showToast(`Couldn't read "${fileName}".`);
+      return null;
+    }
+  }
+
+  /** Enter on a file-card row: read the file, find that card, insert it. */
+  private async insertTaglineCard(result: PaletteResult, atEnd: boolean): Promise<void> {
+    if (!this.canDeliver()) {
+      showToast('No editable document to insert into.');
       return;
     }
+    const view = this.view?.editable ? this.view : null;
+    const slice = await this.readTaglineSlice(result);
+    if (!slice) return;
     if (!this.root) return; // closed while the file was being read
     this.close();
+    if (!view) {
+      this.deliverToNewDoc(slice);
+      return;
+    }
     insertSpeechSlice(view, slice, atEnd);
+  }
+
+  /** Right-click on a card row (my cards, the dropzone): show the full card
+   *  without inserting it. A file card also names the file it was indexed from
+   *  and, in very small text, that file's path. The palette stays open
+   *  underneath, so closing the preview returns here. */
+  private async previewCardRow(result: PaletteResult): Promise<void> {
+    const token = this.asyncToken;
+    let sliceJson: unknown;
+    try {
+      if (result.source === 'tagline') {
+        const slice = await this.readTaglineSlice(result);
+        if (!slice) return;
+        sliceJson = slice.toJSON();
+      } else {
+        sliceJson = checkedSliceFromJSON(result.sliceJson).toJSON();
+      }
+    } catch {
+      showToast('That card is corrupted and can’t be previewed.');
+      return;
+    }
+    // Palette closed (or reopened) while the file was read: drop it.
+    if (!this.root || token !== this.asyncToken) return;
+    const toNewDoc = !this.view?.editable && !!this.openSliceAsNewDoc;
+    openCardPreview({
+      title: result.name,
+      ...(result.source === 'tagline'
+        ? { subtitle: result.fileName ?? undefined, sourcePath: result.filePath ?? undefined }
+        : result.meta
+          ? { subtitle: result.meta }
+          : {}),
+      sliceJson,
+      ...(toNewDoc ? { insertLabel: 'Open in new document' } : {}),
+      onInsert: () => this.activateSelected(false),
+    });
   }
 
   /** Params key for a file query — anything that changes the ranked
@@ -2826,6 +2928,15 @@ class QuickCardSearchUI {
           this.setSelected(i);
           void this.previewLogosCard(r);
         });
+      } else if (r.source === 'quickcard' || r.source === 'dropzone' || r.source === 'tagline') {
+        // Same right-click preview Logos rows have, for the cards in my own
+        // collection and the cards indexed from my files.
+        row.addEventListener('contextmenu', (ev) => {
+          ev.preventDefault();
+          if (!isRightClickContextMenu(ev)) return;
+          this.setSelected(i);
+          void this.previewCardRow(r);
+        });
       } else if (r.source === 'folder') {
         row.addEventListener('contextmenu', (ev) => {
           ev.preventDefault();
@@ -3039,17 +3150,19 @@ class QuickCardSearchUI {
       if (path) this.openFilePath(path, name);
       return;
     }
-    // Card tagline (`f c`): read its file and insert the card.
+    // File card (`q` my cards): read its file and insert the card.
     if (result.source === 'tagline') {
       void this.insertTaglineCard(result, atEnd);
       return;
     }
     // Everything else (quickcard / dropzone / fileobject / logos) inserts a slice.
-    const view = this.view;
-    if (!view || !view.editable) {
+    if (!this.canDeliver()) {
       showToast('No editable document to insert into.');
       return;
     }
+    // No visible document (home screen, a screen over the editor): the card
+    // opens as a new document instead of landing in one the user can't see.
+    const view = this.view?.editable ? this.view : null;
     if (result.source === 'logos') {
       void this.insertLogosCard(result, view, atEnd);
       return;
@@ -3059,6 +3172,7 @@ class QuickCardSearchUI {
     // when the palette was opened in transclude mode. Keeps the palette open so
     // several can be grabbed in a row.
     if (
+      view &&
       (transclude || this.transcludeMode) &&
       result.source === 'fileobject' &&
       result.fileRange &&
@@ -3095,6 +3209,11 @@ class QuickCardSearchUI {
     // focus: insertSpeechSlice's deferred insert ends with a
     // `speechView.focus()`, so we re-claim the bar via `afterInsert`
     // (which also runs only on a real insert — no toast on cancel).
+    if (!view) {
+      this.close();
+      this.deliverToNewDoc(slice);
+      return;
+    }
     const keepOpen = !!this.inFile && result.source === 'fileobject';
     if (!keepOpen) this.close();
     const name = result.name;

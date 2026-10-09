@@ -1125,12 +1125,11 @@ you *browse* that whole source.
 | Prefix | Searches | Enter |
 |--------|----------|-------|
 | *(none)* | Everything — cards, commands, settings, files by name, and the dropzone (if on) | Acts on the selected row |
-| **`q`** | Your **Quick Cards** (honoring your active tag filter) | Inserts the card at your cursor |
+| **`q`** | **My cards** — your **Quick Cards** (honoring your active tag filter; badge **QUICK**) and, on desktop, the **cards inside your indexed files** (badge **CARD**) **(fork)** | Inserts the card at your cursor |
 | **`d`** | The **dropzone** (only when it's turned on) | Inserts the item at your cursor |
 | **`c`** | Ribbon **commands** — each row shows its current shortcut | Runs the command |
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
-| **`f c`** | The **taglines of the cards inside** your indexed files *(desktop only)* **(fork)** | Inserts the whole card at your cursor |
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
 | **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
 | **`w`** | Your other open **CardMirror windows**, most recently used first *(desktop only)* | Brings that window to the front |
@@ -1148,24 +1147,39 @@ at your cursor (the same insertion the send-to-speech and Quick Card
 buttons use). If your cursor is in the middle of a paragraph, the insertion
 will drop at the nearest valid target. 
 
-**Searching card taglines (`f c`, fork).** `f` searches the files in your
-file-search folders by name; add `c` for cards and it searches the **taglines of
-the cards inside those files** instead (`f c heg collapse`). Every word you type
-has to appear in the tagline, in any order, and a card's cite counts as a weaker
-match. Each row is a tagline with its cite underneath and the file it came from
-on the right; a card that appears in several files shows once, from the newest
-file, with `+N` for the others. **Enter** inserts the whole card at your cursor
-(**Alt+Enter** at the end of the document), **Tab** opens that file for searching
-inside it.
+**My cards (`q`, fork).** `q` searches the cards you already own: your Quick
+Cards first (badge **QUICK**), then, on desktop, the **taglines of the cards
+inside the files in your file-search folders** (badge **CARD**). It is "my
+cards" to set it apart from `g`, Logos, whose cards come from the web. Every
+word you type has to appear in the tagline, in any order, and a card's cite
+counts as a weaker match. A file card's row is its tagline with the cite
+underneath and the file it came from on the right; a card that appears in
+several files shows once, from the newest file, with `+N` for the others.
+**Enter** inserts the whole card at your cursor (**Alt+Enter** at the end of the
+document), **Tab** opens that file for searching inside it. **Right-click** any
+card row (a Quick Card, a dropzone item or a file card) to read the full card
+without inserting it; a file card's preview names the file it was indexed from
+and, in very small text, that file's path. (`f` is only file names now; the old
+`f c` prefix became `q`.)
 
-The first time you use `f c`, CardMirror reads the files in your search folders
-in the background, newest first, and remembers their taglines. Until it
-finishes, results cover the files read so far and the bar shows how far along
-it is ("Indexing card taglines… 1,204 of 5,311 files"). After that, only files
+CardMirror reads the files in your search folders in the background **as soon
+as the app opens**, newest first, and remembers their taglines, so the cards are
+already searchable by the time you need them. Until the first pass finishes,
+results cover the files read so far and the bar shows how far along it is
+("Indexing cards in your files… 1,204 of 5,311 files"). After that, only files
 that changed are read again. It covers the folders and file types chosen under
 Settings → Files → File search (exclusions apply), and stops at about 600,000
 taglines, leaving out the oldest files, so a very large collection can't use
 unlimited memory.
+
+**Search from any screen.** The palette opens from every screen: the editor, the
+home screen (use the **Search** button beside Settings, or the shortcut), and
+over Compare, Convert, Learn and the other full-screen tools. Where there is no
+open document to insert into (the home screen, or one of those tools covering
+the editor), picking a card opens it as a **new document** instead of dropping
+it into a document you can't see: a new window on desktop, a slot of the current
+window in three-pane mode, or the current tab in a plain browser. The card
+preview's button says "Open in new document" in that case.
 
 **Searching Logos (`g`, fork).** `g` and a space searches
 [Logos](https://logos-debate.netlify.app), a card search engine run by
@@ -3662,7 +3676,7 @@ these to extend the selection.
 |----------|--------|
 | Mod-F / Mod-H | Find / Find and Replace |
 | Alt-F | Find without grouping |
-| Mod-Shift-Space | Search Everything palette (files `f`, folders `/`, Quick Cards `q`) |
+| Mod-Shift-Space | Search Everything palette (files `f`, folders `/`, my cards `q`) |
 
 ### Speech, comments, and AI
 | Shortcut | Action |
