@@ -72,6 +72,28 @@ export function registerRibbonTooltip(t: RibbonTooltipTarget): void {
   applyOne(t);
 }
 
+/** Give any element a custom tooltip whose text may change while the pointer is
+ *  on it (the timer's pace readout, which carries a live clock). Unlike
+ *  assigning `title`, repeated calls never put a native `title` back, so the
+ *  native tooltip can't appear next to ours. Empty text removes the tooltip. A
+ *  tip that's already showing updates in place. Not mode-gated, like adopted
+ *  `title`s: it's explanatory text, not a button label. */
+export function setElementTooltip(el: HTMLElement, text: string): void {
+  installController();
+  el.removeAttribute('title');
+  if (!text) {
+    tipText.delete(el);
+    if (hoveredEl === el || activeEl === el) hideTip();
+    return;
+  }
+  if (tipText.get(el) === text) return;
+  tipText.set(el, text);
+  if (activeEl === el && tipEl) {
+    tipEl.textContent = text;
+    positionTip(el, tipEl);
+  }
+}
+
 export function unregisterRibbonTooltip(el: HTMLElement): void {
   const idx = targets.findIndex((x) => x.el === el);
   if (idx >= 0) targets.splice(idx, 1);

@@ -272,7 +272,15 @@ export function mountTimerUI(opts?: { popout?: boolean }): void {
     // Stopwatch: the CSS puts a small up-arrow before the time so a
     // count-up can't be mistaken for a countdown reading the same digits.
     display.classList.toggle('pmd-timer-up', up);
-    display.title = up ? 'Counting up — click to edit when paused' : 'Click to edit when paused';
+    // Only write the title when it changes: this runs every 250 ms while the
+    // clock runs, and the app's tooltip controller moves a native `title`
+    // into its own tooltip on first hover — re-assigning it each tick would
+    // put the native tooltip back beside the custom one.
+    const displayTip = up ? 'Counting up — click to edit when paused' : 'Click to edit when paused';
+    if (display.dataset['tip'] !== displayTip) {
+      display.dataset['tip'] = displayTip;
+      display.title = displayTip;
+    }
     // Surface the mode so CSS can give the big display the same aff/neg
     // color / text treatment as the prep buttons (per `data-prep-label`) when
     // prep time is loaded — a presentational `::before` / color, so the text

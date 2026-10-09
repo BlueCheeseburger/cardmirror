@@ -1580,6 +1580,18 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   Start to count the overtime, still in red. Prep clocks never count up: a
   prep balance at 0:00 is spent.
 
+- **Pace under the timer** *(fork)*. With **Live read time for what is left to
+  read** on (Settings → General → Word counts), a line under the timer compares
+  the clock with the **first reader's** read time for what's still unread in the
+  speech document: **On time**, **Too slow** or **Too fast**, with how many
+  minutes and seconds you're off by. It only appears while the **speech** clock is
+  counting down: not when it's paused, on a prep clock, or counting up as a
+  stopwatch. Turn on **Show time left under the timer** (Settings → Appearance →
+  Timer display) to also see that reader's time left on the same line whenever the
+  timer is open, even with the clock stopped. That moves it out of the bottom bar's
+  "Left" readout; if the timer is hidden or popped out, the bottom bar shows it
+  again. Hover the verdict to see the numbers behind it.
+
 - **Pop the timer out** *(desktop)*. The **⇱** button moves the timer into a
   small floating window that stays on top of every app — handy for keeping
   speech and prep time in view while reading a speech doc or anything else.
