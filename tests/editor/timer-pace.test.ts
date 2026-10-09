@@ -18,8 +18,10 @@ import {
   formatSeconds,
   mountTimerPace,
   paceRowModel,
+  paceInline,
   paceRowReserved,
   paceTolerance,
+  refreshTimerPace,
   paceVerdict,
   speechCountdownRunning,
   type PaceRowInput,
@@ -84,7 +86,7 @@ describe('paceRowModel', () => {
 
   it('shows the time left only when asked to, for the one reader', () => {
     expect(paceRowModel(base).left).toBe('');
-    expect(paceRowModel({ ...base, showLeft: true }).left).toBe('Amy 0:30');
+    expect(paceRowModel({ ...base, showLeft: true }).left).toBe('Left 0:30');
   });
 
   it('shows the verdict only while the speech clock counts down', () => {
@@ -104,7 +106,7 @@ describe('paceRowModel', () => {
 
   it('keeps the left time when the verdict is absent, and vice versa', () => {
     const m = paceRowModel({ ...base, showLeft: true, speechCountdownRunning: true, clockSec: 30 });
-    expect(m.left).toBe('Amy 0:30');
+    expect(m.left).toBe('Left 0:30');
     expect(m.verdictText).toBe('On time');
     expect(paceRowModel({ ...base, showLeft: false, speechCountdownRunning: true }).left).toBe('');
   });
@@ -130,7 +132,7 @@ describe('paceRowModel', () => {
 
   it('uses the lay rate in lay mode, and shows a dash (no verdict) for a reader without one', () => {
     const lay = paceRowModel({ ...base, useLay: true, showLeft: true, speechCountdownRunning: true, clockSec: 60 });
-    expect(lay.left).toBe('Amy 1:00');
+    expect(lay.left).toBe('Left 1:00');
     expect(lay.verdictText).toBe('On time');
     const noLay = paceRowModel({
       ...base,
@@ -139,7 +141,7 @@ describe('paceRowModel', () => {
       showLeft: true,
       speechCountdownRunning: true,
     });
-    expect(noLay.left).toBe('Ben —');
+    expect(noLay.left).toBe('Left —');
     expect(noLay.verdictText).toBe('');
   });
 });
@@ -194,6 +196,7 @@ describe('timer state rules', () => {
 });
 
 describe('mounted pace row', () => {
+  let lay = false;
   let view: EditorView;
 
   function docView(text: string): EditorView {
@@ -220,13 +223,15 @@ describe('mounted pace row', () => {
     settings.set('liveRemainingReadTime', true);
     settings.set('timerLeftUnderTimer', false);
     view = docView('one two three four five six seven eight nine ten');
-    mountTimerPace(() => ({ view, useLay: false }));
+    lay = false;
+    mountTimerPace(() => ({ view, useLay: lay }));
   });
   afterEach(() => {
     pauseTimer();
     setTimerVisible(false);
     settings.set('liveRemainingReadTime', false);
     settings.set('timerLeftUnderTimer', false);
+    settings.set('timerLeftInline', false);
     view.destroy();
     vi.useRealTimers();
   });
@@ -254,7 +259,7 @@ describe('mounted pace row', () => {
     settings.set('timerLeftUnderTimer', true);
     // 10 highlighted words + the 1-word tag at 60 wpm = 11 s (the count
     // starts at the cursor, at the top of the doc); Ben (100 wpm) never appears.
-    expect(times().textContent).toBe('Amy 0:11');
+    expect(times().textContent).toBe('Left 0:11');
     expect(row().textContent).not.toContain('Ben');
   });
 
@@ -285,5 +290,54 @@ describe('mounted pace row', () => {
     settings.set('liveRemainingReadTime', false);
     expect(row().hidden).toBe(true);
     expect(document.documentElement.classList.contains(PACE_ROW_HTML_CLASS)).toBe(false);
+  });
+
+  it('follows the lay toggle as soon as refreshTimerPace runs (three-pane keeps lay per pane)', () => {
+    settings.set('readers', [{ name: 'Amy', wpm: 60, layWpm: 30 }]);
+    setTimerVisible(true);
+    settings.set('timerLeftUnderTimer', true);
+    expect(times().textContent).toBe('Left 0:11');
+    lay = true; // the pane's lay readout was switched on
+    refreshTimerPace();
+    expect(times().textContent).toBe('Left 0:22'); // same words at the slower lay rate
+    lay = false;
+    refreshTimerPace();
+    expect(times().textContent).toBe('Left 0:11');
+  });
+
+  describe('inline placement (Fit time left inside the timer)', () => {
+    it('adds no row and no ribbon height, and puts the text in the timer box', () => {
+      setTimerVisible(true);
+      settings.set('timerLeftUnderTimer', true);
+      settings.set('timerLeftInline', true);
+      expect(paceInline()).toBe(true);
+      expect(paceRowReserved()).toBe(false);
+      expect(document.documentElement.classList.contains(PACE_ROW_HTML_CLASS)).toBe(false);
+      const panel = document.getElementById('timer-panel')!;
+      expect(panel.classList.contains('pmd-timer-has-left')).toBe(false);
+      expect(panel.classList.contains('pmd-timer-has-left-inline')).toBe(true);
+      expect(row().hidden).toBe(false);
+      expect(row().classList.contains('pmd-timer-left-inline')).toBe(true);
+      expect(times().textContent).toBe('Left 0:11');
+    });
+
+    it('shows the verdict as a colour and a tooltip, not as text', () => {
+      setTimerVisible(true);
+      settings.set('timerLeftUnderTimer', true);
+      settings.set('timerLeftInline', true);
+      loadSpeechPreset(1);
+      startTimer();
+      expect(row().dataset['verdict']).toBe('too-fast');
+      expect(pace().textContent).toBe('');
+      expect(row().textContent).toBe('Left 0:11');
+    });
+
+    it('is ignored unless the time left is shown under the timer', () => {
+      setTimerVisible(true);
+      settings.set('timerLeftUnderTimer', false);
+      settings.set('timerLeftInline', true);
+      expect(paceInline()).toBe(false);
+      expect(paceRowReserved()).toBe(true);
+    });
   });
 });

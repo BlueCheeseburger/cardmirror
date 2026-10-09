@@ -13911,6 +13911,39 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
 html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='on-time'] { color: #81c784; }
 html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-slow'] { color: #ef9a9a; }
 html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-fast'] { color: #90caf9; }
+/* "Fit time left inside the timer": the same row rides over the timer's own
+   box, bottom-aligned under the digits. No third grid row and no taller
+   ribbon (timer-pace.ts leaves the reserve class off); the digits shift up to
+   make room, and the verdict is only the text's colour. */
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: end;
+  justify-self: center;
+  display: block;
+  contain: none;
+  line-height: 1;
+  font-size: 0.56rem;
+  font-weight: 600;
+  padding-bottom: 0.2rem;
+  pointer-events: none;
+  z-index: 1;
+}
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline .pmd-timer-left-times { pointer-events: auto; overflow: visible; }
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline .pmd-timer-pace { display: none; }
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='on-time'] { color: #2e7d32; }
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-slow'] { color: #c62828; }
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-fast'] { color: #1565c0; }
+html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='on-time'] { color: #81c784; }
+html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-slow'] { color: #ef9a9a; }
+html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-fast'] { color: #90caf9; }
+#timer-panel.pmd-timer-has-left-inline .pmd-timer-display {
+  align-items: flex-start;
+  padding-top: 0.28rem;
+  padding-bottom: 0.7rem;
+  min-width: 4.2rem; /* wide enough for "Left 10:00" */
+}
+
 /* "Timer position in the ribbon" = Far left (timerPosition setting, html
    class set by applyTimerPosition): where the timer originally lived. Flex
    order puts it before every other ribbon section and the separator flips

@@ -1630,7 +1630,13 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   Timer display) to also see that reader's time left on the same line whenever the
   timer is open, even with the clock stopped. That moves it out of the bottom bar's
   "Left" readout; if the timer is hidden or popped out, the bottom bar shows it
-  again. Hover the verdict to see the numbers behind it.
+  again. The time reads **Left 3:07** and follows the lay-speaking toggle of the
+  document it's counting (in three-pane mode, that pane's). Hover the verdict to
+  see the numbers behind it. **Fit time left inside the timer** (right below that
+  setting) puts the text in a small line under the timer's digits, inside the same
+  box, instead of in a row of its own: the ribbon keeps its normal height, and the
+  text turns green, red or blue for on time, too slow or too fast (hover it for the
+  words and numbers).
 
 - **Pop the timer out** *(desktop)*. The **⇱** button moves the timer into a
   small floating window that stays on top of every app — handy for keeping
