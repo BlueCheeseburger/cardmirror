@@ -13957,7 +13957,9 @@ html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[d
   align-items: flex-start;
   padding-top: 0.28rem;
   padding-bottom: 0.7rem;
-  min-width: 4.8rem; /* wide enough for the dot and "Left 10:00" */
+  /* No min-width: the display's own width already holds the dot and "Left
+     159:37". Widening the timer by even a few px tips the ribbon's overflow
+     measure and hides whole sections (Pocket / Hat / Tag). */
 }
 
 /* "Timer position in the ribbon" = Far left (timerPosition setting, html

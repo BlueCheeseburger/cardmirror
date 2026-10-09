@@ -7826,7 +7826,6 @@ function reopenWorkspaceFromHome(ws: RecentWorkspace): void {
 }
 
 const homeCallbacks: HomeScreenCallbacks = {
-  openSearch: () => ribbonContext.openQuickCardSearch(),
   // Single-doc: load in-place in this window. Multi-pane: hide
   // home and route through the shell flows, which present the
   // slot-routing UI over the now-visible workspace.

@@ -8,6 +8,18 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Fixed
+- **"Fit time left inside the timer" no longer hides part of the toolbar.** The
+  inline option made the timer a few pixels wider, which was enough to push the
+  Pocket / Hat / Tag section out of the ribbon. The timer is now exactly as wide
+  as it is without the option.
+
+### Removed
+- The **Search** button on the home screen. The search bubble in the status bar
+  is the only on-screen entry point; the shortcut still works on the home screen.
+
 ## 1.15.0-bcb.3 — 2026-10-09
 
 ### Added
@@ -42,8 +54,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   removed, **green** where it was added, and **yellow** where part of it
   differs and part doesn't (an edited line, or a heading whose cards changed).
   A small key sits under each outline's title.
-- **Search Everything works on every screen.** The home screen has a **Search**
-  button beside Settings, and the shortcut now opens the palette over Compare,
+- **Search Everything works on every screen.** The shortcut now opens the palette over Compare,
   Convert, Learn and the other full-screen tools too. Where there's no open
   document to insert into, picking a card opens it as a **new document**
   instead of dropping it into a document you can't see (a new window on

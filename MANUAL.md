@@ -1173,7 +1173,7 @@ taglines, leaving out the oldest files, so a very large collection can't use
 unlimited memory.
 
 **Search from any screen.** The palette opens from every screen: the editor, the
-home screen (use the **Search** button beside Settings, or the shortcut), and
+home screen (use the shortcut), and
 over Compare, Convert, Learn and the other full-screen tools. Where there is no
 open document to insert into (the home screen, or one of those tools covering
 the editor), picking a card opens it as a **new document** instead of dropping

@@ -10,6 +10,14 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Fixed: inline time-left widened the timer and tripped the ribbon's overflow cascade (`style.css`)
+`.pmd-timer-has-left-inline .pmd-timer-display` carried `min-width: 4.8rem`, 3px wider than the display's natural width (73.8px vs 76.8px). `initRibbonResizer` measures the gap between `.ribbon-left` and the timer, so at a ~1200px window those 3px hid the formatting panel too (cite-panel is already hidden there), which looked like half the toolbar vanishing. The min-width is gone; the row text (~48px) fits the display as is. Measured in the real Electron app at 1000/1200/1280px: the hidden-panel set with the option on now equals the set with it off.
+
+### Removed: home-screen Search button (`home-screen.ts`, `index.ts`)
+`HomeScreenCallbacks.openSearch` and the header button are gone; the status-bar search bubble is the one on-screen entry point. The shortcut still opens the palette over the home screen.
+
 ## 1.15.0-bcb.3 — 2026-10-09
 
 ### Fixed: the time under the timer follows the lay toggle in three-pane mode (`timer-pace.ts`, `index.ts`, `multi-pane-shell.ts`)
@@ -32,7 +40,7 @@ With "Show time left under the timer" on, the new setting (off by default) rides
 
 ### Added: Search Everything on every screen (`quick-card-search-ui.ts`, `index.ts`, `home-screen.ts`, `text-prompt.ts`)
 
-Three gaps. (1) Modal screens (`installModalKeys`) swallowed any key aimed outside their dialog, including the Search chord, so the palette never opened over Compare / Convert etc.; `setModalKeyPassThrough` exempts exactly the `openQuickCardSearch` binding, and the palette now `pushOverlay`s so those modals stand down while it is open (their Escape no longer closes them under it). `openQuickCardSearch` also joined `VIEWLESS_RIBBON_COMMANDS`, so it opens in an empty three-pane workspace and from a native field. (2) The home screen hides the status bar, so it has its own **Search** button (`HomeScreenCallbacks.openSearch`). (3) Opened over home or another overlay, the palette was handed the hidden document's view, so a card pick wrote into a document the user couldn't see; `openSearchPalette` now passes `view: null` there plus `openSliceAsNewDoc`, and every card-delivering path (`insertLogosCard`, `insertTaglineCard`, the generic quick-card / dropzone / file-object insert, the preview's button) falls back to it. `openSliceInNewDocument` builds a doc from the slice (headings re-id'd, zones flattened, a trailing paragraph) and opens it through the multi-pane slot funnel, a spawned window, or `createNewDocLocally(doc)` (which now takes an initial doc and reports whether it ran).
+Three gaps. (1) Modal screens (`installModalKeys`) swallowed any key aimed outside their dialog, including the Search chord, so the palette never opened over Compare / Convert etc.; `setModalKeyPassThrough` exempts exactly the `openQuickCardSearch` binding, and the palette now `pushOverlay`s so those modals stand down while it is open (their Escape no longer closes them under it). `openQuickCardSearch` also joined `VIEWLESS_RIBBON_COMMANDS`, so it opens in an empty three-pane workspace and from a native field. (2) The home screen has no Search button (the one added in 1.15.0-bcb.2.1 was removed again: the only on-screen search entry point is the status-bar bubble); the shortcut works there. (3) Opened over home or another overlay, the palette was handed the hidden document's view, so a card pick wrote into a document the user couldn't see; `openSearchPalette` now passes `view: null` there plus `openSliceAsNewDoc`, and every card-delivering path (`insertLogosCard`, `insertTaglineCard`, the generic quick-card / dropzone / file-object insert, the preview's button) falls back to it. `openSliceInNewDocument` builds a doc from the slice (headings re-id'd, zones flattened, a trailing paragraph) and opens it through the multi-pane slot funnel, a spawned window, or `createNewDocLocally(doc)` (which now takes an initial doc and reports whether it ran).
 
 ### Added: right-click preview for quick-card, dropzone and file-card rows; `q` = my cards; `f c` removed (`quick-card-search-ui.ts`, `card-preview-modal.ts`)
 

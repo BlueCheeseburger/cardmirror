@@ -79,10 +79,6 @@ export interface HomeScreenCallbacks {
   reopenRecentWorkspace?: (ws: RecentWorkspace) => void;
   /** Open the Quick Cards manage overlay. */
   manageQuickCards: () => void;
-  /** Open the Search Everything palette. A "Search" button beside Settings
-   *  in the header (the status bar, where the editor has it, is hidden
-   *  under the home screen); omitted → no button. */
-  openSearch?: () => void;
   /** Open the Settings panel. Rendered as its own labeled group in the
    *  slot beside Learn (the last tile, so number key 0 in the normal
    *  desktop layout, after Compare); omitted → no tile. Until 2026-09-21 the home screen
@@ -183,15 +179,6 @@ class HomeScreen {
     this.backBtn.hidden = true;
     this.backBtn.addEventListener('click', () => this.hide());
     headerNav.appendChild(this.backBtn);
-    if (callbacks.openSearch) {
-      const searchBtn = document.createElement('button');
-      searchBtn.type = 'button';
-      searchBtn.className = 'pmd-home-settings pmd-home-search';
-      searchBtn.textContent = 'Search';
-      searchBtn.title = 'Search everything — cards, files, commands, settings';
-      searchBtn.addEventListener('click', () => callbacks.openSearch?.());
-      headerNav.appendChild(searchBtn);
-    }
     const settingsBtn = document.createElement('button');
     settingsBtn.type = 'button';
     settingsBtn.className = 'pmd-home-settings';
