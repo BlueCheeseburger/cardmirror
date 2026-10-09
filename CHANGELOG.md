@@ -16,8 +16,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   display → **Fit time left inside the timer** puts the "Left" time in a small
   line under the timer's digits, inside the same box, instead of a separate row
   below it. The ribbon doesn't get taller and nothing is squeezed; while the
-  speech clock runs a small dot before the time is green / red / blue for on
-  time / too slow / too fast (hover the text for the numbers).
+  speech clock runs a small dot before the time shades smoothly from red (well
+  behind) through green (on pace) to blue (well ahead) (hover the text for the
+  numbers).
 
 ### Changed
 

@@ -18,6 +18,10 @@ import {
   formatSeconds,
   mountTimerPace,
   paceRowModel,
+  PACE_HUE_BLUE,
+  PACE_HUE_GREEN,
+  PACE_HUE_RED,
+  paceHue,
   paceInline,
   paceRowReserved,
   paceTolerance,
@@ -78,6 +82,7 @@ describe('paceRowModel', () => {
         left: '',
         verdictText: '',
         verdict: null,
+        hue: null,
         leftTip: '',
         verdictTip: '',
       });
@@ -339,5 +344,44 @@ describe('mounted pace row', () => {
       expect(paceInline()).toBe(false);
       expect(paceRowReserved()).toBe(true);
     });
+  });
+});
+
+describe('paceHue — the indicator dot is a continuous scale', () => {
+  it('is pure green on pace and anywhere inside the on-time tolerance', () => {
+    expect(paceHue(0, 600)).toBe(PACE_HUE_GREEN);
+    expect(paceHue(paceTolerance(600) - 1, 600)).toBe(PACE_HUE_GREEN);
+    expect(paceHue(-(paceTolerance(600) - 1), 600)).toBe(PACE_HUE_GREEN);
+  });
+
+  it('runs red when well behind and blue when well ahead, and stops at the ends', () => {
+    expect(paceHue(-600, 600)).toBe(PACE_HUE_RED);
+    expect(paceHue(600, 600)).toBe(PACE_HUE_BLUE);
+  });
+
+  it('shades smoothly in between: more off pace means further along the scale', () => {
+    const need = 480;
+    const behind = [-10, -30, -60, -90].map((d) => paceHue(d, need));
+    for (let i = 1; i < behind.length; i++) expect(behind[i]!).toBeLessThan(behind[i - 1]!);
+    const ahead = [10, 30, 60, 90].map((d) => paceHue(d, need));
+    for (let i = 1; i < ahead.length; i++) expect(ahead[i]!).toBeGreaterThan(ahead[i - 1]!);
+    // Somewhere in the middle, not just one of three colours.
+    expect(paceHue(-40, need)).toBeGreaterThan(PACE_HUE_RED);
+    expect(paceHue(-40, need)).toBeLessThan(PACE_HUE_GREEN);
+  });
+
+  it('is what the model reports with a verdict, and absent without one', () => {
+    const base: PaceRowInput = {
+      reader: { name: 'Amy', wpm: 200, layWpm: 100 },
+      counts: { body: 100, other: 0 },
+      useLay: false,
+      showLeft: true,
+      speechCountdownRunning: false,
+      clockSec: 0,
+    };
+    expect(paceRowModel(base).hue).toBeNull();
+    const m = paceRowModel({ ...base, speechCountdownRunning: true, clockSec: 10 });
+    expect(m.verdict).toBe('too-slow');
+    expect(m.hue).toBe(paceHue(10 - 30, 30));
   });
 });

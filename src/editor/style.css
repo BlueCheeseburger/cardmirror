@@ -13944,12 +13944,15 @@ html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-fast'] { 
   vertical-align: baseline;
   background: transparent;
 }
-#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='on-time'] .pmd-timer-left-times::before { background: #2e7d32; }
-#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-slow'] .pmd-timer-left-times::before { background: #c62828; }
-#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-fast'] .pmd-timer-left-times::before { background: #1565c0; }
-html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='on-time'] .pmd-timer-left-times::before { background: #81c784; }
-html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-slow'] .pmd-timer-left-times::before { background: #ef9a9a; }
-html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-fast'] .pmd-timer-left-times::before { background: #90caf9; }
+/* The dot's colour is a continuous scale, not three steps: timer-pace.ts sets
+   --pmd-pace-hue (red 0° → green 130° on pace → blue 215°) from how far the
+   clock is from what's left to read. */
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict] .pmd-timer-left-times::before {
+  background: hsl(var(--pmd-pace-hue, 130) 68% 40%);
+}
+html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict] .pmd-timer-left-times::before {
+  background: hsl(var(--pmd-pace-hue, 130) 62% 66%);
+}
 #timer-panel.pmd-timer-has-left-inline .pmd-timer-display {
   align-items: flex-start;
   padding-top: 0.28rem;

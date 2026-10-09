@@ -54,6 +54,25 @@ export function paceVerdict(
   return { verdict: 'on-time', deltaSec };
 }
 
+/** Hue (degrees) of the inline indicator dot: a continuous scale instead of
+ *  three steps — red when well behind, green when on pace, blue when well
+ *  ahead, shading through orange / yellow-green and teal in between.
+ *  `deltaSec` is clock minus need (as in `paceVerdict`); "well" means about
+ *  15 % of the reading time, never less than 20 s. Anything inside the
+ *  on-time tolerance is pure green. */
+export const PACE_HUE_RED = 0;
+export const PACE_HUE_GREEN = 130;
+export const PACE_HUE_BLUE = 215;
+export function paceHue(deltaSec: number, needSec: number): number {
+  const tol = paceTolerance(needSec);
+  const full = Math.max(20, needSec * 0.15);
+  const over = Math.max(0, Math.abs(deltaSec) - tol);
+  const x = Math.min(1, over / Math.max(1, full - tol));
+  return deltaSec < 0
+    ? PACE_HUE_GREEN - x * (PACE_HUE_GREEN - PACE_HUE_RED)
+    : PACE_HUE_GREEN + x * (PACE_HUE_BLUE - PACE_HUE_GREEN);
+}
+
 const VERDICT_LABEL: Record<PaceVerdict, string> = {
   'on-time': 'On time',
   'too-slow': 'Too slow',
@@ -77,6 +96,8 @@ export interface PaceRowModel {
   /** "Too slow −9:50"; '' unless the speech clock is counting down. */
   verdictText: string;
   verdict: PaceVerdict | null;
+  /** Indicator dot hue in degrees (`paceHue`); null unless there's a verdict. */
+  hue: number | null;
   /** Tooltip for the left time; '' when `left` is. */
   leftTip: string;
   /** Tooltip for the verdict; '' when `verdictText` is. */
@@ -103,7 +124,7 @@ export interface PaceRowInput {
 /** What the pace row says. Pure, so the rules are testable without a DOM. */
 export function paceRowModel(input: PaceRowInput): PaceRowModel {
   const { reader, counts } = input;
-  const empty: PaceRowModel = { left: '', verdictText: '', verdict: null, leftTip: '', verdictTip: '' };
+  const empty: PaceRowModel = { left: '', verdictText: '', verdict: null, hue: null, leftTip: '', verdictTip: '' };
   if (!reader || !counts) return empty;
   const need = readTimeSeconds(counts, reader, input.useLay);
   const out = { ...empty };
@@ -125,6 +146,7 @@ export function paceRowModel(input: PaceRowInput): PaceRowModel {
     const { verdict, deltaSec } = paceVerdict(clockSec, need);
     const off = verdict === 'on-time' ? '' : ` ${deltaSec < 0 ? '−' : '+'}${formatSeconds(Math.abs(deltaSec))}`;
     out.verdict = verdict;
+    out.hue = paceHue(deltaSec, need);
     out.verdictText = VERDICT_LABEL[verdict] + off;
     out.verdictTip =
       `${reader.name} needs ${formatSeconds(need)} for what's left; ` +
@@ -222,9 +244,11 @@ export function mountTimerPace(getTarget: () => PaceTarget | null): void {
     if (model.verdict) {
       pace.dataset['verdict'] = model.verdict;
       row.dataset['verdict'] = model.verdict;
+      row.style.setProperty('--pmd-pace-hue', String(Math.round(model.hue ?? PACE_HUE_GREEN)));
     } else {
       delete pace.dataset['verdict'];
       delete row.dataset['verdict'];
+      row.style.removeProperty('--pmd-pace-hue');
     }
     // Custom tooltips only: assigning `title` on every tick (these change
     // each second) would put the native tooltip back beside ours.

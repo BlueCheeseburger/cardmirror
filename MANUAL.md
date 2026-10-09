@@ -1635,8 +1635,10 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   see the numbers behind it. **Fit time left inside the timer** (right below that
   setting) puts the text in a small line under the timer's digits, inside the same
   box, instead of in a row of its own: the ribbon keeps its normal height, and the
-  a small dot before the time shows the verdict: green for on time, red for too
-  slow, blue for too fast (hover the text for the words and numbers).
+  a small dot before the time shows the verdict on a sliding scale: green when
+  you're on pace, shading through yellow and orange to red the further behind you
+  are, and through teal to blue the further ahead (hover the text for the words
+  and numbers).
 
 - **Pop the timer out** *(desktop)*. The **⇱** button moves the timer into a
   small floating window that stays on top of every app — handy for keeping
