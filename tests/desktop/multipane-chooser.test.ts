@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildChooserPrompt,
   readChooserResponse,
+  sortChooserEntries,
 } from '../../apps/desktop/src/multipane-chooser.js';
 
 const LABELS = ['Aff Case · Untitled', '2NR Blocks'];
@@ -62,5 +63,24 @@ describe('multi-pane window chooser', () => {
     expect(buttons).toEqual(['Only workspace', 'New Window', 'Cancel']);
     expect(cancelId).toBe(2);
     expect(readChooserResponse(2, 1, { withCancel: true })).toEqual({ kind: 'cancel' });
+  });
+});
+
+describe('sortChooserEntries', () => {
+  it('orders windows alphabetically, docs within a window too, ties by id', () => {
+    const out = sortChooserEntries([
+      { id: 3, label: 'Zeta · Alpha' },
+      { id: 1, label: 'beta' },
+      { id: 2, label: 'Alpha · Zeta' },
+    ]);
+    expect(out.map((e) => e.id)).toEqual([2, 3, 1]);
+    expect(out[0]!.label).toBe('Alpha · Zeta');
+  });
+  it('sorts numbers naturally', () => {
+    const out = sortChooserEntries([
+      { id: 1, label: 'Doc 10' },
+      { id: 2, label: 'Doc 2' },
+    ]);
+    expect(out.map((e) => e.id)).toEqual([2, 1]);
   });
 });

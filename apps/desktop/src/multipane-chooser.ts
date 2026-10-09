@@ -49,3 +49,25 @@ export function readChooserResponse(
   if (opts.withCancel && response === labelCount + 1) return { kind: 'cancel' };
   return { kind: 'new-window' };
 }
+
+const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+
+/** Windows in a stable, alphabetical order for the chooser, so a window
+ *  keeps the same number key between openings (muscle memory). A label
+ *  lists the window's docs joined by " · "; the docs are sorted within it
+ *  too, so opening or reordering docs inside a window doesn't reshuffle
+ *  the list. Ties break on the window id. */
+export function sortChooserEntries<T extends { label: string; id: number }>(
+  entries: T[],
+): T[] {
+  const normalized = entries.map((e) => ({
+    ...e,
+    label: e.label
+      .split(' · ')
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .sort(collator.compare)
+      .join(' · ') || e.label,
+  }));
+  return normalized.sort((a, b) => collator.compare(a.label, b.label) || a.id - b.id);
+}

@@ -12448,6 +12448,29 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   height: 26px;
   flex: 0 0 26px;
 }
+.pmd-pane-chip-path {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
+  margin-left: 6px;
+  font-size: 0.62rem;
+  color: var(--pmd-c-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Keep the file's own folder and name visible: clip from the left. */
+  direction: rtl;
+  text-align: left;
+}
+.pmd-pane-chip-name:has(+ .pmd-pane-chip-path:not([hidden])) {
+  flex: 0 1 auto;
+}
+.pmd-pane-chip-name + .pmd-pane-chip-path:not([hidden]) {
+  flex: 1 1 0;
+}
+.pmd-pane-chip-path[hidden] {
+  display: none;
+}
 .pmd-pane-chip-name {
   flex: 1 1 auto;
   white-space: nowrap;
