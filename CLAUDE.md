@@ -71,33 +71,27 @@ local dev-only convenience scripts, not part of the automated release
 pipeline, so leaving them doesn't reintroduce Lite into releases. Don't
 add the upload step back to `release.yml` without the user asking again.
 
-## Never build on `ubuntu-latest` in this repo — dropped from CI and releases
+## Linux releases are back — build them on `ubuntu-latest` from now on
 
-The user asked (2026-09-15) to never build on `ubuntu-latest` anywhere in
-this repo, after noticing it was the slowest leg of a release (it alone
-ran the full test suite in `release.yml`, adding ~4 minutes the other
-platforms didn't pay). Removed from both workflows' matrices:
-`release.yml`'s `build` job is now macOS + Windows only (no more Linux
-`.AppImage`/`.pacman` installers, and the release build no longer runs
-tests at all — PR CI already covers that before merge); `ci.yml`'s `test`
-job is now macOS + Windows only, with `check:links` (previously
-ubuntu-gated) moved to run on `macos-latest` instead so it isn't silently
-lost. Net effect: macOS is now the only platform running the FULL test
-suite on every PR (Windows stays scoped to `tests/desktop`) — a real
-coverage reduction, accepted knowingly, not an oversight. `prepare-release`
-and `publish-release` (the two glue jobs that only shell out to `gh`, no
-app build) are untouched — still `ubuntu-latest`, since that's not what
-"build" meant here. Don't re-add an `ubuntu-latest` build/test leg to
-either workflow without the user asking again.
+The user asked (2026-10-09): "add linux releases from now on unless i
+tell you not to." That reverses the 2026-09-15 decision (and the
+2026-09-23 / 09-24 doc and config removals) to drop Linux. Standing
+instruction: **every release ships Linux installers too, until the user
+says to stop.** Don't drop them again on your own.
 
-**Docs too (2026-09-23):** the user asked not to include Linux versions
-at all — no Linux install section in `README.md` (not even
-build-from-source steps), no Linux bullets in its *Run from source*, and no
-Linux build/update notes in `MANUAL.md`. Don't add Linux install or build
-instructions back without the user asking. The `linux` and `pacman`
-electron-builder blocks in `apps/desktop/package.json` (and the
-`-c.linux.*` flags in `dist:lite`) were deleted too (2026-09-24), at the
-user's request.
+What that means in the repo:
+- `release.yml`'s `build` matrix is macOS + Windows + `ubuntu-latest`.
+  The Linux leg builds the `.AppImage` and the Arch `.pacman` through the
+  `linux` / `pacman` electron-builder blocks restored in
+  `apps/desktop/package.json` (and `dist:lite`'s `-c.linux.*` flags).
+  `prepare-release` / `publish-release` were always `ubuntu-latest`.
+- The release build itself still runs **no tests**, as since 2026-09-15 —
+  PR CI covers that. `ci.yml`'s `test` job is **still macOS + Windows
+  only**: the user asked for Linux *releases*, not a Linux CI leg, so don't
+  re-add one without being asked (it was the slow leg).
+- `README.md` has a Linux install section again and `MANUAL.md`'s install
+  line names Linux. The *Run from source* Linux bullets are back too.
+- Still no CardMirror Lite builds (see above).
 
 ## Upstream is redesigning multi-window — ask before resolving it
 
@@ -134,8 +128,8 @@ Info.plist UTI fix that touched the same array. `.cmir` stays in the
 shared array (its own extension, no default-app collision risk);
 `.docx` is per-platform now — `mac.extendInfo.CFBundleDocumentTypes`
 declares it directly (see the next section), the `linux` build config
-(which used to declare it too) was deleted on 2026-09-24 since this fork
-builds no Linux packages, and
+declares it too (deleted 2026-09-24, restored 2026-10-09 with Linux
+releases; Linux has no shared-default-ProgId hazard), and
 `win.fileAssociations` MUST stay empty for docx — Windows already gets
 it, done safely, from `installer.nsh`.
 
@@ -312,10 +306,10 @@ macOS checks `latest-mac.yml` and downloads the `.zip` (not the
 in-app "Check for Updates" 404s for every existing install — this
 happened for real across v1.6.0-bcb.1 through .3 before being caught
 and fixed on .3 (confirmed live: `latest-mac.yml` and `latest.yml`
-both resolve on the v1.6.0-bcb.3 release). Only the Linux/Lite/
-AppImage/pacman assets are safe to drop when trimming to mac+Windows —
-the zip+yml trio for the platforms you ARE keeping is load-bearing,
-not cruft.
+both resolve on the v1.6.0-bcb.3 release). `latest-linux.yml` is the
+same for the Linux AppImage's updater. The `.pacman` file and Lite assets
+are the only ones safe to drop — the zip+yml set for the platforms you
+ARE keeping is load-bearing, not cruft.
 
 ## Cutting releases: when, and which version number
 
@@ -359,9 +353,11 @@ upstream version the fork is synced to.
 3. Run `release.yml` by `workflow_dispatch` on `main` with the `tag`
    input (`vX.Y.Z-bcb.N`).
 4. When the build finishes, check the release is live (not a draft)
-   with all 8 assets: the `.dmg`, mac `.zip`, `.exe` and their three
-   `.blockmap`s, plus `latest-mac.yml` and `latest.yml` (see the
-   sections below).
+   with all 8 mac/Windows assets — the `.dmg`, mac `.zip`, `.exe` and
+   their three `.blockmap`s, plus `latest-mac.yml` and `latest.yml` (see
+   the sections below) — AND the Linux ones: `cardmirror-X.AppImage`, the
+   Arch `.pacman`, and `latest-linux.yml` (plus an AppImage `.blockmap` if
+   electron-builder emits one).
 5. Never delete older releases.
 
 ## Standing permission: publish releases live, don't leave them as drafts
