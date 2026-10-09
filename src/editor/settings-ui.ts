@@ -5490,8 +5490,8 @@ function buildTimerPositionEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-theme-editor';
   const options: { value: Settings['timerPosition']; label: string }[] = [
-    { value: 'left', label: 'Beside the right-hand buttons' },
-    { value: 'right', label: 'Far right' },
+    { value: 'beside', label: 'Beside the right-hand buttons' },
+    { value: 'far-left', label: 'Far left' },
   ];
   for (const o of options) {
     const btn = document.createElement('button');

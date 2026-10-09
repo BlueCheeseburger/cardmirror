@@ -8,6 +8,16 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **The timer position setting's other choice is now "Far left".** Settings →
+  Appearance → Timer display still defaults to "Beside the right-hand
+  buttons"; the second option used to be "Far right" and is now the timer's
+  original spot at the far left of the ribbon. Anyone who had picked "Far
+  right" is back on the default.
+
 ## 1.15.0-bcb.1 — 2026-10-09
 
 ### Changed

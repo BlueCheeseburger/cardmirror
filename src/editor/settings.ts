@@ -849,12 +849,12 @@ export interface Settings {
    *  Color-blind users can pick 'text'; minimalist users can pick
    *  'color' to drop the redundant A:/N: prefix. */
   timerPrepLabel: 'text' | 'color' | 'both';
-  /** Which edge of the ribbon the timer panel occupies when shown.
-   *  'left' (default) renders it just left of the right-hand stack
-   *  (shortcuts / settings / timer / home), to the right of the comments
-   *  buttons; 'right' moves it past that stack via flex order (see
-   *  html.pmd-timer-right in style.css). */
-  timerPosition: 'left' | 'right';
+  /** Where the timer panel sits in the ribbon when shown. 'beside'
+   *  (default) renders it just left of the right-hand stack (shortcuts /
+   *  settings / timer / home), to the right of the comments buttons;
+   *  'far-left' puts it at the left edge, where it originally lived, via
+   *  flex order (see html.pmd-timer-far-left in style.css). */
+  timerPosition: 'beside' | 'far-left';
   /** When read mode is toggled (either direction), scroll the
    *  editor to the very top of the doc and place the cursor at
    *  the start. Default off — toggling read mode keeps the
@@ -1964,7 +1964,7 @@ const DEFAULTS: Settings = {
   timerCompact: false,
   timerLeftUnderTimer: false,
   timerPrepLabel: 'both',
-  timerPosition: 'left',
+  timerPosition: 'beside',
   jumpToDocTopOnReadModeToggle: false,
   findResultsExpanded: false,
   findRememberLastQuery: false,
@@ -3648,7 +3648,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'timerPosition',
     label: 'Timer position in the ribbon',
     description:
-      'Where the timer panel sits in the ribbon when shown: beside the right-hand buttons (default) or at the far right edge.',
+      'Where the timer panel sits in the ribbon when shown: beside the right-hand buttons (default) or at the far left edge, where it used to be.',
     kind: 'timerPosition',
     category: 'appearance',
     section: 'Timer display',
@@ -4666,8 +4666,8 @@ export const CYCLABLE_SETTINGS: readonly CyclableSetting[] = [
   {
     key: 'timerPosition',
     values: [
-      { value: 'left', label: 'Left' },
-      { value: 'right', label: 'Right' },
+      { value: 'beside', label: 'Beside the right-hand buttons' },
+      { value: 'far-left', label: 'Far left' },
     ],
   },
   {
@@ -5123,7 +5123,7 @@ function sanitize(s: Settings): Settings {
       s.timerPrepLabel === 'text' || s.timerPrepLabel === 'color'
         ? s.timerPrepLabel
         : 'both',
-    timerPosition: s.timerPosition === 'right' ? 'right' : 'left',
+    timerPosition: s.timerPosition === 'far-left' ? 'far-left' : 'beside',
     jumpToDocTopOnReadModeToggle: !!s.jumpToDocTopOnReadModeToggle,
     findResultsExpanded: !!s.findResultsExpanded,
     findRememberLastQuery:
