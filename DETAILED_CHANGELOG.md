@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.3 — 2026-10-09
 
 ### Fixed: the time under the timer follows the lay toggle in three-pane mode (`timer-pace.ts`, `index.ts`, `multi-pane-shell.ts`)
 
