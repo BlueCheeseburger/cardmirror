@@ -2,15 +2,29 @@
 
 ## End-of-response: flag anything outstanding the user hasn't answered
 
-The user asked (2026-09-09) that every response end with a divider
-(`---`) followed by an "Outstanding" list whenever something is
+The user asked (2026-09-09) that a response end with a divider
+(`---`) followed by an "Outstanding" list when something is
 outstanding — a question you asked that they haven't answered, a
 decision you flagged as needing their input, a choice you offered
 (e.g. "want me to do X or Y?") that they moved past without picking.
 Keep each item short: what you asked, and why it's still open. Omit
 the divider and section entirely when nothing is outstanding — don't
-manufacture one. This applies to every response from here on, not
-just this session; check before ending each one.
+manufacture one.
+
+**Refined (2026-10-09): don't repeat it.** The user got a screenful of
+identical "Outstanding" blocks, one after every automated notification
+wake. Rules:
+- Put the list on a response **once**, the first time you finish
+  responding to a user message, not on every follow-up turn.
+- A turn that only reads a notification and finds nothing new (a
+  subscription confirmation, a merged/closed event, a CI result you're
+  still waiting on, a stop-hook nudge) gets **no** Outstanding section.
+  Say what happened in a line, or nothing, and stop.
+- Put it back only when something actually changed that the user needs
+  to see: CI passed and you're about to merge or release, a new blocker
+  or question came up, or an item was resolved or added. The turn where
+  CI goes green and you merge is the right place to restate what's still
+  open.
 
 ## When a release syncs in upstream changes, give it a separate "From upstream" section
 
