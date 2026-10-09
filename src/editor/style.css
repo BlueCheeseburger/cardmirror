@@ -17173,6 +17173,19 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The indexed file's path: its own tiny line under the title and file name. */
+.pmd-card-preview-heading-has-path {
+  flex-wrap: wrap;
+  row-gap: 0.1rem;
+}
+.pmd-card-preview-path {
+  flex: 0 0 100%;
+  font-size: 0.6rem;
+  line-height: 1.2;
+  color: var(--pmd-c-text-muted);
+  opacity: 0.85;
+  overflow-wrap: anywhere;
+}
 .pmd-card-preview-subtitle {
   flex: 0 0 auto;
   white-space: nowrap;
@@ -17791,6 +17804,45 @@ body.pmd-multi-doc #collab-chip {
 }
 .pmd-doc-diff-hidden-view {
   display: none;
+}
+
+/* Outline entries coloured by how their section differs: green = added,
+   red = removed, yellow = part of it differs. A left stripe plus a faint
+   tint, so a selected entry (blue) still reads on top. */
+.pmd-doc-diff-outline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+  margin: 0 0.75rem 0.4rem;
+  font-size: 0.7rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-doc-diff-outline-key::before {
+  content: '';
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.3rem;
+  border-radius: 2px;
+  vertical-align: baseline;
+}
+.pmd-doc-diff-outline-key-add::before { background: var(--pmd-c-success); }
+.pmd-doc-diff-outline-key-remove::before { background: var(--pmd-c-error); }
+.pmd-doc-diff-outline-key-partial::before { background: #eab308; }
+.pmd-doc-diff-nav .pmd-nav-item[data-diff='add'] {
+  border-left-color: var(--pmd-c-success);
+  background: var(--pmd-c-success-soft);
+}
+.pmd-doc-diff-nav .pmd-nav-item[data-diff='remove'] {
+  border-left-color: var(--pmd-c-error);
+  background: var(--pmd-c-error-bg);
+}
+.pmd-doc-diff-nav .pmd-nav-item[data-diff='partial'] {
+  border-left-color: #eab308;
+  background: rgba(234, 179, 8, 0.2);
+}
+.pmd-doc-diff-nav .pmd-nav-item[data-diff].pmd-nav-item-selected {
+  box-shadow: inset 0 0 0 1px var(--pmd-c-drop);
 }
 
 /* The diff table itself — one row per paired line, two cells (left /

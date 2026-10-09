@@ -264,6 +264,25 @@ describe('Compare documents — the outline rails', () => {
     expect(navItems('right').map(navLabel)).toEqual(['First tag']);
   });
 
+  it('colours outline entries: red for removed, green for added, none for unchanged', async () => {
+    await runCompare(
+      multiCardBytes([
+        ['Zebra stripes', 'gone entirely'],
+        ['Shared tag', 'same body'],
+      ]),
+      multiCardBytes([
+        ['Mango smoothie', 'arrived later'],
+        ['Shared tag', 'same body'],
+      ]),
+    );
+    const byLabel = (side: 'left' | 'right', label: string): HTMLElement | undefined =>
+      navItems(side).find((el) => navLabel(el).includes(label));
+    expect(byLabel('left', 'Zebra stripes')?.dataset['diff']).toBe('remove');
+    expect(byLabel('right', 'Mango smoothie')?.dataset['diff']).toBe('add');
+    expect(byLabel('left', 'Shared tag')?.dataset['diff']).toBeUndefined();
+    expect(byLabel('right', 'Shared tag')?.dataset['diff']).toBeUndefined();
+  });
+
   it('clicking an outline entry scrolls the matching diff row into view', async () => {
     await runCompare(
       multiCardBytes([

@@ -28,7 +28,18 @@ import { fromDocxFull } from '../import/index.js';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { NavigationPanel } from './nav-panel.js';
-import { extractDiffLines, diffLines, toDiffRows, summarize, wordDiff, DiffTooLargeError, type DiffRow } from './doc-diff.js';
+import {
+  extractDiffLines,
+  diffLines,
+  toDiffRows,
+  summarize,
+  wordDiff,
+  DiffTooLargeError,
+  cellMark,
+  outlineDiffStatuses,
+  type DiffRow,
+  type LineMark,
+} from './doc-diff.js';
 import { planMerge, buildMerged, type MergePlan, type MergeChoice } from './doc-merge.js';
 import { serializeNative } from '../native/index.js';
 import { toDocx } from '../export/index.js';
@@ -72,6 +83,10 @@ class DocDiffModal {
    *  always the first. Rebuilt on every `renderResults`. */
   private leftRowsByText = new Map<string, HTMLElement[]>();
   private rightRowsByText = new Map<string, HTMLElement[]>();
+  /** Same keying as the row maps: each line's diff mark, per occurrence, so
+   *  the outline can colour its entries green / red / yellow. */
+  private leftMarksByText = new Map<string, LineMark[]>();
+  private rightMarksByText = new Map<string, LineMark[]>();
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -362,6 +377,8 @@ class DocDiffModal {
     this.destroyNavViews();
     this.leftRowsByText = new Map();
     this.rightRowsByText = new Map();
+    this.leftMarksByText = new Map();
+    this.rightMarksByText = new Map();
 
     const info = document.createElement('div');
     const names = document.createElement('div');
@@ -444,6 +461,16 @@ class DocDiffModal {
     title.className = 'pmd-doc-diff-outline-title';
     title.textContent = name;
     rail.appendChild(title);
+    const legend = document.createElement('div');
+    legend.className = 'pmd-doc-diff-outline-legend';
+    const key = (cls: string, label: string): HTMLElement => {
+      const item = document.createElement('span');
+      item.className = `pmd-doc-diff-outline-key pmd-doc-diff-outline-key-${cls}`;
+      item.textContent = label;
+      return item;
+    };
+    legend.append(key(side === 'left' ? 'remove' : 'add', side === 'left' ? 'Removed' : 'Added'), key('partial', 'Partly changed'));
+    rail.appendChild(legend);
     const navHost = document.createElement('div');
     navHost.className = 'pmd-doc-diff-nav';
     const mount = document.createElement('div');
@@ -463,8 +490,23 @@ class DocDiffModal {
     this.navViews.push(view);
     const nav = new NavigationPanel(navHost, { readOnly: true, onClose: () => {} });
     nav.attach(view);
+    // Colour each entry by how its section differs. The panel rebuilds its
+    // rows on every collapse / search / level change, so repaint whenever
+    // the list changes rather than once.
+    const statuses = outlineDiffStatuses(doc, side === 'left' ? this.leftMarksByText : this.rightMarksByText);
+    const paint = (): void => {
+      for (const li of navHost.querySelectorAll<HTMLElement>('li.pmd-nav-item[data-pos]')) {
+        const status = li.classList.contains('pmd-nav-item-window') ? undefined : statuses.get(Number(li.dataset['pos']));
+        if (status) li.dataset['diff'] = status;
+        else delete li.dataset['diff'];
+      }
+    };
+    const observer = new MutationObserver(paint);
+    observer.observe(navHost, { childList: true, subtree: true });
+    paint();
     const baseDestroy = view.destroy.bind(view);
     view.destroy = () => {
+      observer.disconnect();
       nav.destroy();
       baseDestroy();
     };
@@ -551,6 +593,11 @@ class DocDiffModal {
       const list = rowsByText.get(key);
       if (list) list.push(el);
       else rowsByText.set(key, [el]);
+      const marksByText = side === 'left' ? this.leftMarksByText : this.rightMarksByText;
+      const mark = cellMark(cell) ?? 'equal';
+      const marks = marksByText.get(key);
+      if (marks) marks.push(mark);
+      else marksByText.set(key, [mark]);
     }
     return el;
   }
