@@ -6,8 +6,8 @@ name: Release
 #   1. `prepare-release` (one runner) creates an empty draft on
 #      GitHub Releases for the tag. Idempotent — if a draft already
 #      exists (e.g., a re-triggered run), it's a no-op.
-#   2. `build` (macOS + Windows matrix) builds desktop installers and
-#      uploads them to the draft via electron-builder's GitHub provider.
+#   2. `build` (macOS + Windows + Linux matrix) builds desktop installers
+#      and uploads them to the draft via electron-builder's GitHub provider.
 #
 # The two-stage shape avoids the matrix-race we hit on alpha.2:
 # without a pre-existing draft, three matrix jobs concurrently
@@ -24,12 +24,11 @@ name: Release
 # This fork does not build or publish the CardMirror Lite variant —
 # every release is the standard app only (fork decision, 2026-09-07).
 #
-# This fork also does not build or publish Linux installers, and the
-# release build no longer runs the test suite — ubuntu-latest was the
-# only platform doing either (fork decision, 2026-09-15; see CLAUDE.md).
-# PR CI (ci.yml) still runs the full suite on macOS + Windows before
-# anything reaches `main`, so the release build itself no longer re-runs
-# it.
+# This fork builds and publishes Linux installers again (AppImage and
+# Arch .pacman) as of 2026-10-09 — the user reversed the 2026-09-15
+# decision to drop ubuntu-latest; see CLAUDE.md. The release build itself
+# still doesn't run the test suite: PR CI (ci.yml) runs it on macOS +
+# Windows before anything reaches `main`.
 
 on:
   push:
@@ -169,14 +168,12 @@ jobs:
   build:
     name: Build & publish (${{ matrix.os }})
     needs: prepare-release
-    # This fork does not build or publish Linux installers (fork decision,
-    # 2026-09-15 — see CLAUDE.md). ubuntu-latest was also the only leg that
-    # ran the release build's own test pass; PR CI (ci.yml) already runs
-    # the full suite on macOS + Windows before anything reaches `main`, so
-    # dropping it here isn't a coverage gap, just a redundant re-run.
+    # Linux (AppImage + .pacman) is back in the matrix (user request,
+    # 2026-10-09 — see CLAUDE.md). Release builds don't run tests; PR CI
+    # (ci.yml) covers macOS + Windows before anything reaches `main`.
     strategy:
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest, windows-latest, ubuntu-latest]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -191,6 +188,14 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+
+      - name: Install Linux packaging tools
+        # electron-builder's `.pacman` target shells out to `bsdtar` (fpm's
+        # .MTREE step) and fails with exit 127 without it — confirmed by
+        # building in a sandbox that lacked it. Cheap and idempotent, so
+        # install it explicitly rather than relying on the runner image.
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
 
       - name: Install root dependencies
         run: npm ci
