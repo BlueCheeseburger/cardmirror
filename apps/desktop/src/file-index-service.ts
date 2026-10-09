@@ -59,8 +59,8 @@ const core = createFileIndexCore({
   },
 });
 
-// Card taglines inside the indexed files (`f c <words>`): built lazily on the
-// first such search, kept fresh from the same listing.
+// Card taglines inside the indexed files (`q` my cards): started at app launch
+// (`configure`), kept fresh from the same listing.
 const taglines = createTaglineIndex({
   dataDir,
   listFiles: (scope) => core.visibleFiles(scope),
@@ -77,9 +77,17 @@ interface Request {
 async function handle(req: Request): Promise<unknown> {
   switch (req.op) {
     case 'configure': {
-      const { roots } = req.args as { roots: string[] };
+      const { roots, exclusions, formats } = req.args as {
+        roots: string[];
+        exclusions?: string[];
+        formats?: 'both' | 'cmir' | 'docx';
+      };
       await core.configure(roots);
-      void taglines.refresh(roots).catch(() => {});
+      // The app start passes the filters too: start the card-tagline build now
+      // so the first card search doesn't wait on it. (Older callers send roots
+      // only and keep the old refresh-if-already-wanted behaviour.)
+      if (exclusions && formats) void taglines.start({ roots, exclusions, formats }).catch(() => {});
+      else void taglines.refresh(roots).catch(() => {});
       return;
     }
     case 'taglineQuery':

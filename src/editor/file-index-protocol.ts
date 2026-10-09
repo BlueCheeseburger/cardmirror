@@ -78,7 +78,7 @@ export type LocateCurrentFileResult =
   | { ok: true; location: FileBrowseLocation }
   | { ok: false; reason: LocateCurrentFileFailure };
 
-/** One card-tagline hit (`f c <words>`). */
+/** One card-tagline hit (`q` my cards). */
 export type { TaglineRow } from './tagline-search.js';
 
 export interface TaglineQueryParams {

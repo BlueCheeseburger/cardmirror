@@ -1,7 +1,7 @@
 /**
- * Card-tagline search (`f c <words>` in Search Everything) — pure logic.
+ * Card-tagline search (`q` my cards in Search Everything) — pure logic.
  *
- * `f` searches the files already in the file index; `f c` goes one level
+ * `f` searches the files already in the file index; `q` goes one level
  * down and searches the taglines of the cards INSIDE those files. The
  * desktop's file-index service keeps a persisted per-file list of taglines
  * (built in the background, refreshed when a file's mtime changes); this

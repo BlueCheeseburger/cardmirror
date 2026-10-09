@@ -10,6 +10,33 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **Compare documents: the outlines are color-coded.** Each outline entry on
+  the left and right now shows how its section differs: **red** where it was
+  removed, **green** where it was added, and **yellow** where part of it
+  differs and part doesn't (an edited line, or a heading whose cards changed).
+  A small key sits under each outline's title.
+- **Search Everything works on every screen.** The home screen has a **Search**
+  button beside Settings, and the shortcut now opens the palette over Compare,
+  Convert, Learn and the other full-screen tools too. Where there's no open
+  document to insert into, picking a card opens it as a **new document**
+  instead of dropping it into a document you can't see (a new window on
+  desktop, a slot in three-pane mode, the current tab in a browser).
+- **Right-click a card to read it in Search Everything.** Quick Card, dropzone
+  and file-card rows now preview the full card on right-click, as Logos rows
+  already did. A card from your files names the file it came from and shows the
+  file's path in very small text.
+- **`q` is now "my cards".** It searches your Quick Cards (badge **QUICK**) *and*
+  the cards inside your indexed files (badge **CARD**). The old `f c` prefix is
+  gone — `f` is file names only. Logos (`g`) stays the cards from the web.
+
+### Changed
+
+- **Cards in your files are indexed when the app opens**, not the first time you
+  search for one, so `q` has them ready right away instead of making you wait
+  for the first pass.
+
 ### Fixed
 
 - **Hiding the update chip with the × no longer leaves you with no way to

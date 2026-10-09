@@ -1,5 +1,5 @@
 /**
- * Tagline index core: the background build under `f c`. Real temp dirs for
+ * Tagline index core: the background build under `q`. Real temp dirs for
  * persistence; a fake parser and listing so the crawl order, incremental
  * refresh, pruning, cap and scope handling can be checked directly.
  */
@@ -142,5 +142,22 @@ describe('tagline index core', () => {
     const r = await ask(idx, 'heg', { ...scope, exclusions: ['/r/New'] });
     expect(r.rows.map((x) => x.text)).toEqual(['Heg decline causes war']);
     expect(r.status.files).toBe(2);
+  });
+
+  it('start() builds the index with no query (app launch), so the first search is already full', async () => {
+    const idx = make();
+    await idx.start(scope);
+    await idx.idle();
+    expect(parsed.length).toBe(3); // every listed file crawled before anyone searched
+    const res = await ask(idx, 'heg');
+    expect(res.rows.length).toBeGreaterThan(0);
+    expect(res.status.indexed).toBe(3);
+  });
+
+  it('start() with no roots does nothing', async () => {
+    const idx = make();
+    await idx.start({ roots: [], exclusions: [], formats: 'both' });
+    await idx.idle();
+    expect(parsed).toEqual([]);
   });
 });
