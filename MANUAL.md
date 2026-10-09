@@ -52,7 +52,7 @@ they're described.
 
 ### Installing CardMirror
 
-Download the desktop app for Windows or macOS from this fork's
+Download the desktop app for Windows, macOS or Linux (AppImage, or `.pacman` for Arch) from this fork's
 [Releases page](https://github.com/BlueCheeseburger/cardmirror/releases).
 This fork doesn't publish CardMirror Lite builds. The
 [live web preview](https://cardmirror.app/) is the upstream project's hosted

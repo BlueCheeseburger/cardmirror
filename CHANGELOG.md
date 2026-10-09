@@ -8,10 +8,14 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.2 — 2026-10-09
 
 ### Added
 
+- **Linux installers are back.** Releases now include the `cardmirror-x.x.x.AppImage`
+  (any modern distro; it updates itself from this fork's releases) and the
+  Arch `.pacman` package alongside the macOS and Windows downloads. The
+  README's Linux install section and the manual's install line are back too.
 - **Merge two documents into one new file (fork).** In Compare documents, after
   comparing two files, **Merge into new file…** combines them: shared lines
   appear once, lines only one document has are kept, and a line edited

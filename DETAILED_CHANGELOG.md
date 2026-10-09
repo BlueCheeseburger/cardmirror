@@ -10,7 +10,11 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.2 — 2026-10-09
+
+### Added: Linux releases again (`release.yml`, `apps/desktop/package.json`, `README.md`, `MANUAL.md`, `CLAUDE.md`)
+
+Requested directly ("add linux releases from now on unless i tell you not to"), reversing the 2026-09-15 / 09-23 / 09-24 removals. `release.yml`'s build matrix gains `ubuntu-latest` (plus an explicit `libarchive-tools` install: the `.pacman` target needs `bsdtar`, and a local build without it failed at fpm's `.MTREE` step with exit 127; the AppImage built fine here). The `linux` and `pacman` electron-builder blocks and `dist:lite`'s `-c.linux.*` flags are restored verbatim from before `ecd0af0c`. `ci.yml` is unchanged: still macOS + Windows, because the request was for releases, not a Linux CI leg. README gets its Linux install section (AppImage self-updates; pacman does not) and the *Run from source* Linux bullets back; MANUAL's install line names Linux. `CLAUDE.md` records the standing instruction and the extra release assets (`.AppImage`, `.pacman`, `latest-linux.yml`).
 
 ### Added: merge two documents (`doc-merge.ts`, `doc-diff-ui.ts`)
 
