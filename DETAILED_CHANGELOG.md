@@ -10,6 +10,20 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: merge two documents (`doc-merge.ts`, `doc-diff-ui.ts`)
+
+With no common ancestor the merge can't tell a deletion from an insertion, so
+it takes the union: `planMerge` runs the same line diff as Compare, keeps
+shared lines once and one-sided lines as they are, and treats a remove/add
+pair the side-by-side view would show as one edited line as a conflict
+(default: first document's version; per-conflict choice of first, second or
+both). `buildMerged` rebuilds the document from the original nodes, so
+formatting survives; a line from a card joins the card it lands in, and only
+a card's tag starts a new one. Empty paragraphs are dropped, and comments and
+footnotes aren't carried over.
+
 ## 1.15.0-bcb.1 — 2026-10-09
 
 ### Changed: ribbon hide order and timer placement (`index.ts`, `index.html`, `style.css`)

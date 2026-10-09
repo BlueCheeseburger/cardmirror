@@ -17743,9 +17743,12 @@ body.pmd-multi-doc #collab-chip {
 
 .pmd-doc-diff-outline {
   flex: 0 0 auto;
-  width: 240px;
-  overflow-y: auto;
-  padding: 0.6rem 0;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 0.6rem;
   font-size: 0.8rem;
 }
 .pmd-doc-diff-outline-left {
@@ -17763,33 +17766,27 @@ body.pmd-multi-doc #collab-chip {
   letter-spacing: 0.02em;
   overflow-wrap: anywhere;
 }
-.pmd-doc-diff-outline-empty {
-  margin: 0 0.75rem;
-  color: var(--pmd-c-text-faint);
-  font-style: italic;
+.pmd-doc-diff-nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
-.pmd-doc-diff-outline-entry {
-  display: block;
+.pmd-doc-diff-nav .pmd-nav-panel {
   width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: 0.25rem 0.75rem;
-  color: var(--pmd-c-text);
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  height: 100%;
+  min-height: 0;
+  position: static;
+  display: flex;
+  flex-direction: column;
+  border-right: none;
 }
-.pmd-doc-diff-outline-entry:hover {
-  background: var(--pmd-c-hover);
+.pmd-doc-diff-nav .pmd-nav-close,
+.pmd-doc-diff-nav .pmd-nav-resize-handle {
+  display: none;
 }
-.pmd-doc-diff-outline-entry:disabled {
-  color: var(--pmd-c-text-faint);
-  cursor: default;
-}
-.pmd-doc-diff-outline-entry:disabled:hover {
-  background: none;
+.pmd-doc-diff-hidden-view {
+  display: none;
 }
 
 /* The diff table itself — one row per paired line, two cells (left /
@@ -17879,4 +17876,34 @@ ins.pmd-doc-diff-word {
     border-right: none;
     border-bottom: 1px solid var(--pmd-c-divider);
   }
+}
+
+/* Merge into new file (Compare documents → Merge) */
+.pmd-doc-merge-body {
+  justify-content: flex-start;
+  align-items: stretch;
+}
+.pmd-doc-merge-conflict {
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.35));
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  margin: 0.6rem 0;
+  max-width: 60rem;
+}
+.pmd-doc-merge-version {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.15rem 0;
+}
+.pmd-doc-merge-label {
+  flex: 0 0 9rem;
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pmd-doc-merge-choices {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.4rem;
 }
