@@ -12,8 +12,11 @@ describe('chooserHtml', () => {
     const html = chooserHtml({ message: 'Open "<x>" in:', labels: ['A & B'], withCancel: true, dark: true });
     expect(html).toContain('A &amp; B');
     expect(html).toContain('Open &quot;&lt;x&gt;&quot; in:');
-    expect(html).toContain('id="new" data-pick="1"');
+    expect(html).toContain('class="row new" data-pick="1"');
+    expect(html).toContain('<kbd>0</kbd>');
     expect(html).toContain('data-pick="2" type="button">Cancel');
+    // New window row comes before the first window row.
+    expect(html.indexOf('row new')).toBeLessThan(html.indexOf('data-pick="0"'));
     expect(html).toContain('data-theme="dark"');
   });
   it('Esc maps to New Window without Cancel', () => {
