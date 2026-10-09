@@ -3267,8 +3267,9 @@ How things look. None of these change the file — only your view (see
 
 **Timer display**
 
-- **Timer position in the ribbon** — which edge of the ribbon the timer
-  panel sits on when shown: the far left (default) or the far right.
+- **Timer position in the ribbon** — where the timer panel sits when
+  shown: beside the right-hand buttons (default) or at the far left of the
+  ribbon, where it used to be.
 - **Prep button label style** — how the Aff / Neg prep buttons are
   marked: text (A: / N:), color, or both.
 - **Compact timer layout** — drop the 9 / 6 / 3 presets and collapse the

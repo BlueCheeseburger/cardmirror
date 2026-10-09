@@ -4073,10 +4073,10 @@ function applyDistinguishShading(on: boolean): void {
   else document.documentElement.removeAttribute('data-shading-cue');
 }
 
-/** Timer panel edge: html class consumed by style.css — 'right'
- *  moves #timer-panel past the ribbon's right stack via flex order. */
-function applyTimerPosition(pos: 'left' | 'right'): void {
-  document.documentElement.classList.toggle('pmd-timer-right', pos === 'right');
+/** Timer panel placement: html class consumed by style.css — 'far-left'
+ *  moves #timer-panel before the ribbon's left section via flex order. */
+function applyTimerPosition(pos: 'beside' | 'far-left'): void {
+  document.documentElement.classList.toggle('pmd-timer-far-left', pos === 'far-left');
 }
 
 /** Nav-pane analytic italics: an html class (same pattern as
@@ -4557,7 +4557,7 @@ function initRibbonResizer(): void {
     }
     if (rightLeft - leftRight - centerWidth < overflowBuffer) return true;
     // Backstop: whatever the gap arithmetic says, content wider than the
-    // ribbon is overflowing (e.g. the timer far right, outside the gap).
+    // ribbon is overflowing (e.g. the timer far left, outside the gap).
     return ribbon.scrollWidth > ribbon.clientWidth + 1;
   };
   let reflowing = false;

@@ -10,6 +10,12 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: `timerPosition` values are `beside` | `far-left` (`settings.ts`, `settings-ui.ts`, `index.ts`, `style.css`)
+
+The setting's second choice moved from the far right to the timer's original far-left spot (`html.pmd-timer-far-left`, flex `order: -1`, separator on its right). The stored values were renamed from `left` | `right` to `beside` | `far-left` because the old `left` had been redefined to mean "beside the right-hand buttons"; anything stored that isn't `far-left` now reads as `beside`.
+
 ## 1.15.0-bcb.1 — 2026-10-09
 
 ### Changed: ribbon hide order and timer placement (`index.ts`, `index.html`, `style.css`)

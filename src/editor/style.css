@@ -13911,14 +13911,18 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
 html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='on-time'] { color: #81c784; }
 html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-slow'] { color: #ef9a9a; }
 html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-fast'] { color: #90caf9; }
-/* "Timer position in the ribbon" = Far right (timerPosition setting,
-   html class set by applyTimerPosition). Flex order moves the panel
-   past every other ribbon section — .ribbon-center's flex-grow keeps
-   it pinned to the edge — and the separator flips sides. */
-html.pmd-timer-right #timer-panel {
-  order: 99;
-  /* Last in the ribbon: no right-hand buttons to make room for. */
-  margin-right: 0;
+/* "Timer position in the ribbon" = Far left (timerPosition setting, html
+   class set by applyTimerPosition): where the timer originally lived. Flex
+   order puts it before every other ribbon section and the separator flips
+   to its right side. */
+html.pmd-timer-far-left #timer-panel {
+  order: -1;
+  margin-left: 0;
+  padding-left: 0;
+  border-left: none;
+  margin-right: 0.4rem;
+  padding-right: 0.4rem;
+  border-right: 1px solid var(--pmd-c-border-soft);
 }
 
 /* The timer's pace row is reserved (timer showing + "live read time for
