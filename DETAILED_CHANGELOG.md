@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.2.1 — 2026-10-09
 
 ### Added: Compare documents outline colors (`doc-diff.ts`, `doc-diff-ui.ts`, `style.css`)
 
