@@ -62,6 +62,7 @@ import {
   type ReadAloudCounts,
 } from './word-count.js';
 import { TYPE_TO_LEVEL, sectionEndFromHeading } from './headings.js';
+import { getTimerState } from './timer-state.js';
 
 export interface EnclosingContainer {
   label: 'Card' | 'Analytic' | 'Block';
@@ -352,15 +353,35 @@ export function remainingReadCounts(
   return countRemaining(state.doc, Math.min(from, state.doc.content.size));
 }
 
+/** The read-aloud words in the whole document, counted the same way as
+ *  the unread ones (so the two are comparable). Null when the feature is off. */
+export function wholeReadCounts(state: EditorState): ReadAloudCounts | null {
+  if (!settings.get('liveRemainingReadTime')) return null;
+  return countRemaining(state.doc, 0);
+}
+
+/** Whether the time left to read is shown under the ribbon timer (the
+ *  `timerLeftUnderTimer` setting) rather than in the bottom bar: the
+ *  setting is on, so is the "left" feature itself, and the timer panel is
+ *  actually in this window's ribbon. A hidden or popped-out timer shows
+ *  nothing, so the bottom bar keeps the readout rather than losing it. */
+export function leftShownUnderTimer(): boolean {
+  if (!settings.get('timerLeftUnderTimer') || !settings.get('liveRemainingReadTime')) return false;
+  const timer = getTimerState();
+  return timer.visible && !timer.poppedOut;
+}
+
 /** The readout tail for what's still unread ("Left · Amy: 6:31 · Ben:
- *  5:44"), or null when the feature is off. Times only — no word count,
- *  like the whole-document side. Callers join it after the container
- *  segment with " | ". */
+ *  5:44"), or null when the feature is off — or when it's shown under the
+ *  ribbon timer instead (`leftShownUnderTimer`). Times only — no word
+ *  count, like the whole-document side. Callers join it after the
+ *  container segment with " | ". */
 export function remainingReadSegment(
   state: EditorState,
   useLay = false,
   view: EditorView | null = null,
 ): string | null {
+  if (leftShownUnderTimer()) return null;
   const counts = remainingReadCounts(state, view);
   if (!counts) return null;
   const parts = ['Left'];

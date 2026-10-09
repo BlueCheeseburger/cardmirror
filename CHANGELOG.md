@@ -10,12 +10,38 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Changed
+
+- **Narrow windows hide the comments buttons first.** The comment / note /
+  flashcard / AI button cluster now goes before the cite, emphasis, underline
+  and clear-styles buttons do.
+- **The timer sits beside the right-hand buttons**, to the right of the
+  comments buttons and left of shortcuts / settings (Settings → Timer still
+  offers "Far right"). It lines up with the other buttons at the top of the
+  ribbon, and the ribbon is a little taller while the line under the timer is
+  available, so nothing moves when the clock starts or stops.
+
 ### Added
+
+- **Pace verdict for short speech docs (fork):** when the speech doc reads at least 2 minutes shorter than the speech length, the Too slow / On time / Too fast line judges your pace against the doc's own length instead of the full clock, so a short file no longer reads "Too fast" the whole speech.
+- **Pace indicator under the timer.** With "live read time for what is left to
+  read" on, a line under the timer says "On time", "Too slow" or "Too fast"
+  (and by how much) while the speech clock is counting down, comparing the time
+  left on the clock with the first reader's time for what's still unread. It
+  only shows for the first reader, and only while the speech clock runs, not
+  for prep or the stopwatch.
+- **Show the time left under the timer instead of the bottom bar.** A new
+  setting (Settings → Appearance → Timer display) moves the first reader's
+  "Left" time from the bottom bar to the same line under the timer, shown
+  whenever the timer is open, even with the clock stopped. If the timer is
+  hidden or popped out, the bottom bar shows it as before.
 
 - **In-app window chooser.** The "Open … in:" / "New document in:" picker for
   files opened from Finder or the Dock is now a CardMirror-styled window (light
-  and dark) instead of a native macOS sheet. Each window lists its docs one per
-  line; arrows + Enter, 1–9, and Esc work.
+  and dark) instead of a native macOS sheet. "New window" is its own dashed row
+  at the top (key 0); the windows below are always in alphabetical order so
+  their number keys (1–9) stay the same between openings. Each window lists its
+  docs one per line; arrows + Enter and Esc work too.
 
 - **Same-name docs show their path.** When two open docs in a window share a
   name, including one stacked behind another in the same pane, each pane's
@@ -27,12 +53,23 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   still update from Settings → General → About this install. It comes back
   at the next launch, or when the update reaches a new stage (downloaded,
   ready).
-
 - **Search card taglines inside your files: `f c <words>`.** In Search Everything,
   `f` searches your files by name; `f c` searches the taglines of the cards
   inside those same files. Enter inserts the whole card at your cursor and Tab
   opens its file. The first search builds the tagline list in the background
   (the bar shows its progress); after that only changed files are re-read.
+
+### Fixed
+
+- **The right-hand buttons no longer get pushed off the window by the timer.**
+  The ribbon counted the timer's own margin as free space, so with the timer
+  open it could run wider than the window without hiding any buttons first.
+  It now hides them in the usual order, comments first.
+- **One divider, not two, to the left of the timer.** An empty custom-buttons
+  area was still drawing its own divider next to the timer's.
+- **Hovering the timer's "Too slow / Too fast" no longer shows two tooltips.**
+  The timer rewrote its tooltip every second, which brought the system
+  tooltip back beside CardMirror's own.
 
 ## 1.14.0-bcb.1 — 2026-10-05
 
