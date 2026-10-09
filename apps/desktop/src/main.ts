@@ -1627,6 +1627,11 @@ ipcMain.handle(
     if (opts.siblingHandle && path.resolve(target) === path.resolve(opts.siblingHandle)) {
       return 'collision';
     }
+    // The export's name can also be a doc that is open right now (an
+    // earlier export kept open to review, a same-named file in the fixed
+    // folder). Overwriting it silently would swap its content out from
+    // under its tab — defer to the Save As dialog, which refuses it.
+    if (openElsewhere(target, opts.siblingHandle ?? undefined)) return 'collision';
     await saveNewDoc(target, bytesToBuffer(bytes), { mkdir: true });
     return { name: path.basename(target), handle: target };
   },

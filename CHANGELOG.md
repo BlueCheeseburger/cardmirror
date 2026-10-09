@@ -10,6 +10,22 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Fixed
+
+- **Save / Save As could write one document's content over another document's
+  file.** If you switched to a different document while a save was starting
+  (a Save As picker open, a slow permission prompt), the save was committed
+  to whichever document you had switched to: the wrong tab took the new file
+  name and path, and its next save replaced the file the first document had
+  just written. Saves, Save As, Rename and the conflicted-copy save now stay
+  with the document they started from, and a save that finds you have moved
+  to another document before it begins stops with a message and writes
+  nothing.
+- **Send Doc and similar silent exports no longer overwrite a document that
+  is open.** When the export's name matches a document already open in any
+  window, you get the Save As dialog (which refuses to replace an open
+  document) instead of a silent overwrite.
+
 ### Changed
 
 - **The timer position setting's other choice is now "Far left".** Settings →
