@@ -586,6 +586,11 @@ button {
 :root {
   --nav-width: 300px;
   --ribbon-height: 4rem;
+  /* Two 1.45rem button rows + the 2px gap between them: the height every
+     ribbon button stack (and the timer's two button rows) occupies. */
+  --ribbon-stack-h: calc(2.9rem + 2px);
+  /* The line under the timer (time left / pace verdict). */
+  --pmd-pace-row-h: 0.85rem;
   --status-bar-height: 1.8rem;
   /* Per-pane footer (word count + Σ + open button) in multi-doc mode.
      A shared var so the footer's min-height and anything that has to
@@ -1886,6 +1891,10 @@ body.pmd-multi-doc #autosave-btn { display: none; }
   border-left: 1px solid var(--pmd-c-border-soft);
 }
 .ribbon-doc-ops-panel.hidden { display: none; }
+/* `display: grid` above beats the UA `[hidden]` rule, so an empty custom-
+   buttons panel (hidden, no children) still drew its 15px stub: a stray
+   divider just left of the timer's own. */
+.ribbon-doc-ops-panel[hidden] { display: none; }
 /* Three-pane workspace toggle — a single-button .ribbon-button-stack,
    given the same left divider as its doc-ops-panel-family neighbors
    (view-ops-panel / comments-ops-panel) so it reads as its own group
@@ -13828,29 +13837,49 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
   margin-left: 0.4rem;
   padding-left: 0.4rem;
   border-left: 1px solid var(--pmd-c-border-soft);
+  /* Room before the right-hand buttons, matching the 0.8rem the divider
+     takes on the left (0.4rem margin + 0.4rem padding). */
+  margin-right: 0.8rem;
   align-items: stretch;
   box-sizing: border-box;
   font-family: var(--pmd-ui-font);
 }
 .pmd-timer-panel[hidden] { display: none; }
-/* Pace row: the speech doc's "Left" times under the timer, with the
-   on-time / too-slow / too-fast indicator to their right. A third grid
-   row (small type) so the ribbon keeps its height. */
+/* Pace row: the first reader's time left (when "Show time left under the
+   timer" is on) on the left, and the on-time / too-slow / too-fast verdict
+   on the right while the speech clock runs. A third grid row of fixed height
+   — its space is reserved whenever it could show, so the clock starting or
+   stopping never shifts the ribbon. */
 .pmd-timer-panel.pmd-timer-has-left {
-  grid-template-rows: repeat(2, auto) auto;
+  grid-template-rows: repeat(2, auto) var(--pmd-pace-row-h);
 }
 #timer-panel .pmd-timer-left-row {
   grid-row: 3;
   grid-column: 1 / -1;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  min-width: 0;
+  /* Contributes no width to the panel's columns: a long reader name must
+     not widen the timer (and push the right-hand buttons off screen) —
+     the text truncates instead. */
+  contain: inline-size;
   font-size: 0.68rem;
-  line-height: 0.9rem;
+  line-height: var(--pmd-pace-row-h);
   white-space: nowrap;
   color: var(--pmd-c-text-muted);
 }
+#timer-panel .pmd-timer-left-times,
+#timer-panel .pmd-timer-pace {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* In a tight row the reader's name gives way first; the verdict keeps its
+   room, and stays right-aligned even with no time-left text beside it. */
+#timer-panel .pmd-timer-left-times { flex: 0 1 auto; }
+#timer-panel .pmd-timer-pace { flex: 0 0 auto; max-width: 100%; margin-left: auto; }
 #timer-panel .pmd-timer-left-row[hidden] { display: none; }
 #timer-panel .pmd-timer-pace { font-weight: 600; }
 #timer-panel .pmd-timer-pace[data-verdict='on-time'] { color: #2e7d32; }
@@ -13865,6 +13894,32 @@ html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-fast'] { 
    it pinned to the edge — and the separator flips sides. */
 html.pmd-timer-right #timer-panel {
   order: 99;
+  /* Last in the ribbon: no right-hand buttons to make room for. */
+  margin-right: 0;
+}
+
+/* The timer's pace row is reserved (timer showing + "live read time for
+   what is left" on; timer-pace.ts toggles the class). The ribbon is a fixed
+   height, so make it taller by the row and align every section to the top
+   at the SAME inset the 4rem ribbon centers its button stacks with: the
+   timer's two button rows then line up with every other button and keep
+   their distance from the window's top edge, with the pace row hanging
+   below. (Centering instead would leave the 3-row timer jammed against the
+   top while the other stacks sit lower.) */
+html.pmd-ribbon-pace-row {
+  --ribbon-height: 4.8rem;
+}
+html.pmd-ribbon-pace-row #ribbon {
+  align-items: flex-start;
+  padding-top: calc((4rem - var(--ribbon-stack-h)) / 2);
+}
+/* Sections without a full stack of their own (the doc-name chip's) still
+   center against the button rows. */
+html.pmd-ribbon-pace-row #ribbon > .ribbon-section {
+  min-height: var(--ribbon-stack-h);
+}
+html.pmd-ribbon-pace-row #timer-panel {
+  align-self: flex-start;
 }
 
 /* `#ribbon` prefix is required to beat the generic `#ribbon

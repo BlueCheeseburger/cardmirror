@@ -37,7 +37,7 @@ import {
   type DiskBadgeDeps,
   type PaneDiskBadgeHandle,
 } from './disk-conflict.js';
-import { getTimerState } from './timer-state.js';
+import { getTimerState, subscribeTimer } from './timer-state.js';
 import { EditorView } from 'prosemirror-view';
 import { setViewDocPath } from './transclusion-doc-path.js';
 import { Node as PMNode } from 'prosemirror-model';
@@ -1919,6 +1919,13 @@ class MultiPaneShell {
     if (!settings.get('navPaneVisible')) {
       for (const id of SLOT_IDS) this.slots[id].navHidden = true;
     }
+
+    // The footers' "Left" readout moves under the ribbon timer (and back)
+    // as the timer is shown, hidden or popped out.
+    subscribeTimer(() => {
+      if (!settings.get('timerLeftUnderTimer')) return;
+      for (const id of SLOT_IDS) this.slots[id].refreshWordCount();
+    });
 
     this.unsubscribeSettings = settings.subscribe((s) => {
       if (s.multiDocLayoutMode !== this.layoutMode) {

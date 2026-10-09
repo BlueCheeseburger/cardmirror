@@ -4541,13 +4541,23 @@ function initRibbonResizer(): void {
       }
     }
     // The timer panel sits in the gap between the two sections, so it
-    // takes room from it (when it's shown there rather than far right).
+    // takes room from it (when it's shown there rather than far right) —
+    // its margins too: counting them as free space let a margin wider than
+    // the buffer hide a real overflow, pushing the right-hand buttons off
+    // the window with nothing hidden.
     const timerEl = document.getElementById('timer-panel');
     if (timerEl && timerEl.offsetWidth > 0) {
       const r = timerEl.getBoundingClientRect();
-      if (r.left >= leftRight - 1 && r.right <= rightLeft + 1) centerWidth += r.width;
+      if (r.left >= leftRight - 1 && r.right <= rightLeft + 1) {
+        const cs = getComputedStyle(timerEl);
+        centerWidth +=
+          r.width + (parseFloat(cs.marginLeft) || 0) + (parseFloat(cs.marginRight) || 0);
+      }
     }
-    return rightLeft - leftRight - centerWidth < overflowBuffer;
+    if (rightLeft - leftRight - centerWidth < overflowBuffer) return true;
+    // Backstop: whatever the gap arithmetic says, content wider than the
+    // ribbon is overflowing (e.g. the timer far right, outside the gap).
+    return ribbon.scrollWidth > ribbon.clientWidth + 1;
   };
   let reflowing = false;
   function reflow(): void {
@@ -4708,6 +4718,11 @@ mountTimerPace(() => {
   const speech = getSpeechDocResolver().getSpeechView();
   const target = speech ?? view;
   return target ? { view: target, useLay: laySpeakingOn } : null;
+});
+// The bottom bar's "Left" readout moves under the ribbon timer (and back)
+// as the timer is shown, hidden or popped out.
+subscribeTimer(() => {
+  if (settings.get('timerLeftUnderTimer')) refreshWordCount({ selectionOnly: true });
 });
 // Audible timer alerts — this window competes for the shared audio-
 // owner lock (the pop-out wins while it exists). No-op while the

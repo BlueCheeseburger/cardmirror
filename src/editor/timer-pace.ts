@@ -1,17 +1,31 @@
 /**
- * Pace row under the ribbon timer: when "live remaining read time" is on,
- * the speech document's "Left" times show below the timer, with an
- * indicator to their right saying whether the clock and the reading agree:
- * on time, too slow (the time left on the clock is less than the first
- * reader needs for what is still unread), or too fast (you'd finish with
- * time to spare).
+ * Pace row under the ribbon timer, for the first reader only:
+ *
+ *   - the time they have LEFT to read (the speech document's unread words),
+ *     when "Show time left under the timer" is on; and
+ *   - while the SPEECH clock is actually running, a verdict saying whether
+ *     the clock and the reading agree — on time, too slow (the time left on
+ *     the clock is less than they need for what is still unread) or too
+ *     fast (they'd finish with time to spare).
+ *
+ * Both need "live read time for what is left to read" on (the unread
+ * words come from it). The row's space is reserved whenever it could show
+ * (see `reserved`), so starting or stopping the clock never moves the
+ * ribbon.
  */
 
 import type { EditorView } from 'prosemirror-view';
 import { settings } from './settings.js';
-import { remainingReadCounts } from './live-read-time.js';
-import { readTimeSeconds } from './word-count.js';
-import { getTimerState, getVisibleRemainingMs, isStopwatch, subscribeTimer } from './timer-state.js';
+import { remainingReadCounts, wholeReadCounts } from './live-read-time.js';
+import { readTimeSeconds, type ReadAloudCounts, type ReaderRates } from './word-count.js';
+import {
+  getTimerState,
+  getVisibleRemainingMs,
+  isStopwatch,
+  subscribeTimer,
+  type TimerState,
+} from './timer-state.js';
+import { setElementTooltip } from './ribbon-tooltips.js';
 
 /** M:SS. */
 export function formatSeconds(total: number): string {
@@ -46,6 +60,94 @@ const VERDICT_LABEL: Record<PaceVerdict, string> = {
   'too-fast': 'Too fast',
 };
 
+/** Is the speech clock counting down right now? Not paused, not a prep
+ *  clock, not the count-up stopwatch — the only state the verdict means
+ *  anything in. */
+export function speechCountdownRunning(s: TimerState): boolean {
+  return s.running && s.mode === 'speech' && !isStopwatch(s);
+}
+
+/** A speech doc that reads at least this much faster than the clock is
+ *  judged against its own length rather than the clock (see `paceRowModel`). */
+export const SHORT_DOC_SLACK_SEC = 120;
+
+export interface PaceRowModel {
+  /** "Reader 1 9:50" (or "—" with no usable rate); '' when it isn't shown. */
+  left: string;
+  /** "Too slow −9:50"; '' unless the speech clock is counting down. */
+  verdictText: string;
+  verdict: PaceVerdict | null;
+  /** Tooltip for the left time; '' when `left` is. */
+  leftTip: string;
+  /** Tooltip for the verdict; '' when `verdictText` is. */
+  verdictTip: string;
+}
+
+export interface PaceRowInput {
+  /** The first reader (the only one this row shows), if there is one. */
+  reader: (ReaderRates & { name: string }) | undefined;
+  /** Unread read-aloud words, or null when they can't be counted. */
+  counts: ReadAloudCounts | null;
+  useLay: boolean;
+  /** "Show time left under the timer". */
+  showLeft: boolean;
+  speechCountdownRunning: boolean;
+  /** Seconds on the speech clock. */
+  clockSec: number;
+  /** Unread-from-the-top counts for the whole doc, and the length the
+   *  speech clock was armed with (seconds; 0 if unknown). */
+  totalCounts?: ReadAloudCounts | null;
+  speechTotalSec?: number;
+}
+
+/** What the pace row says. Pure, so the rules are testable without a DOM. */
+export function paceRowModel(input: PaceRowInput): PaceRowModel {
+  const { reader, counts } = input;
+  const empty: PaceRowModel = { left: '', verdictText: '', verdict: null, leftTip: '', verdictTip: '' };
+  if (!reader || !counts) return empty;
+  const need = readTimeSeconds(counts, reader, input.useLay);
+  const out = { ...empty };
+  if (input.showLeft) {
+    out.left = `${reader.name} ${need === null ? '—' : formatSeconds(need)}`;
+    out.leftTip = `${reader.name}'s read time for what's left in the speech document`;
+  }
+  if (input.speechCountdownRunning && need !== null) {
+    // A doc far shorter than the speech would read "Too fast" the whole way.
+    // When it is at least SHORT_DOC_SLACK_SEC shorter, compare the pace
+    // instead: take the spare time off the clock, as if the speech were
+    // exactly as long as the doc.
+    let clockSec = input.clockSec;
+    const total = input.totalCounts ? readTimeSeconds(input.totalCounts, reader, input.useLay) : null;
+    const speechTotal = input.speechTotalSec ?? 0;
+    if (total !== null && speechTotal > 0 && speechTotal - total >= SHORT_DOC_SLACK_SEC) {
+      clockSec -= speechTotal - total;
+    }
+    const { verdict, deltaSec } = paceVerdict(clockSec, need);
+    const off = verdict === 'on-time' ? '' : ` ${deltaSec < 0 ? '−' : '+'}${formatSeconds(Math.abs(deltaSec))}`;
+    out.verdict = verdict;
+    out.verdictText = VERDICT_LABEL[verdict] + off;
+    out.verdictTip =
+      `${reader.name} needs ${formatSeconds(need)} for what's left; ` +
+      `${formatSeconds(clockSec)} on the clock` +
+      (clockSec !== input.clockSec ? ' (not counting the time the speech has to spare).' : '.');
+  }
+  return out;
+}
+
+/** Whether the pace row's space is reserved in the ribbon: the timer
+ *  panel is showing in this window's ribbon and the feature behind the row
+ *  ("live read time for what is left") is on. Deliberately NOT tied to the
+ *  clock running or a document being open, so the ribbon holds one height
+ *  while the feature is available. */
+export function paceRowReserved(): boolean {
+  const s = getTimerState();
+  return s.visible && !s.poppedOut && settings.get('liveRemainingReadTime');
+}
+
+/** Class on <html> while the row's space is reserved: the ribbon grows by
+ *  the row's height and its contents align to the top (see style.css). */
+export const PACE_ROW_HTML_CLASS = 'pmd-ribbon-pace-row';
+
 export interface PaceTarget {
   view: EditorView;
   useLay: boolean;
@@ -68,44 +170,33 @@ export function mountTimerPace(getTarget: () => PaceTarget | null): void {
   panel.appendChild(row);
 
   function update(): void {
+    const reserved = paceRowReserved();
+    document.documentElement.classList.toggle(PACE_ROW_HTML_CLASS, reserved);
+    panel!.classList.toggle('pmd-timer-has-left', reserved);
+    row.hidden = !reserved;
+    if (!reserved) return;
+
     const state = getTimerState();
-    const target = state.visible ? getTarget() : null;
+    const target = getTarget();
     const counts = target ? remainingReadCounts(target.view.state, target.view) : null;
-    if (!target || !counts) {
-      row.hidden = true;
-      panel!.classList.remove('pmd-timer-has-left');
-      return;
-    }
-    const readers = settings.get('readers').slice(0, 2);
-    const secs = readers.map((r) => readTimeSeconds(counts, r, target.useLay));
-    if (secs.every((s) => s === null)) {
-      row.hidden = true;
-      panel!.classList.remove('pmd-timer-has-left');
-      return;
-    }
-    times.textContent = readers
-      .map((r, i) => `${r.name} ${secs[i] === null ? '—' : formatSeconds(secs[i]!)}`)
-      .join(' · ');
-    times.title = 'Read time left in the speech document';
-    // Pace follows the first reader and the speech clock (not prep, not
-    // the count-up stopwatch).
-    const need = secs[0];
-    if (need !== null && need !== undefined && state.mode === 'speech' && !isStopwatch(state)) {
-      const clock = getVisibleRemainingMs(state) / 1000;
-      const { verdict, deltaSec } = paceVerdict(clock, need);
-      const off = verdict === 'on-time' ? '' : ` ${deltaSec < 0 ? '−' : '+'}${formatSeconds(Math.abs(deltaSec))}`;
-      pace.textContent = VERDICT_LABEL[verdict] + off;
-      pace.dataset['verdict'] = verdict;
-      pace.title =
-        `${readers[0]!.name} needs ${formatSeconds(need)} for what's left; ` +
-        `${formatSeconds(clock)} on the clock.`;
-    } else {
-      pace.textContent = '';
-      delete pace.dataset['verdict'];
-      pace.title = '';
-    }
-    row.hidden = false;
-    panel!.classList.add('pmd-timer-has-left');
+    const model = paceRowModel({
+      reader: settings.get('readers')[0],
+      counts,
+      useLay: target?.useLay ?? false,
+      showLeft: settings.get('timerLeftUnderTimer'),
+      speechCountdownRunning: speechCountdownRunning(state),
+      clockSec: getVisibleRemainingMs(state) / 1000,
+      totalCounts: target && speechCountdownRunning(state) ? wholeReadCounts(target.view.state) : null,
+      speechTotalSec: state.speechTotalMs / 1000,
+    });
+    times.textContent = model.left;
+    pace.textContent = model.verdictText;
+    if (model.verdict) pace.dataset['verdict'] = model.verdict;
+    else delete pace.dataset['verdict'];
+    // Custom tooltips only: assigning `title` on every tick (these change
+    // each second) would put the native tooltip back beside ours.
+    setElementTooltip(times, model.leftTip);
+    setElementTooltip(pace, model.verdictTip);
   }
 
   subscribeTimer(update);

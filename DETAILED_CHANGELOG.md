@@ -20,16 +20,65 @@ Upstream release details are in the sections below under
 overflow check subtracts its width when it sits in that gap. The `timerPosition`
 'left' value now means this spot; 'right' (far right) is unchanged.
 
-### Added: timer pace row (`timer-pace.ts`)
+### Added: timer pace row (`timer-pace.ts`, `live-read-time.ts`, `settings.ts`)
 
 `mountTimerPace` appends `#timer-left-row` to the timer panel (a third grid row,
-small type, so the ribbon keeps its height). It shows the speech document's (or
-the focused document's) "Left" read times for the first two readers, and a
-verdict comparing the speech clock with reader 1's time: `paceVerdict` returns
-on-time within max(5 s, 3 %) either way, too-slow when the clock has less than
-needed, too-fast when it has more. Hidden for prep clocks, the count-up
-stopwatch, or when live remaining read time is off. Refreshes on timer-state
-and settings changes and once a second (the clock and scrolling don't notify).
+small type). It is for the FIRST reader only. `paceRowModel` (pure, tested)
+decides what it says: the reader's time left (`readTimeSeconds` over
+`remainingReadCounts` for the speech document, or the focused one), shown only
+when the new `timerLeftUnderTimer` setting is on; and a verdict comparing the
+speech clock with that time — `paceVerdict` returns on-time within max(5 s,
+3 %) either way, too-slow when the clock has less than needed, too-fast when it
+has more — shown only while `speechCountdownRunning` (running, speech mode, not
+the count-up stopwatch; paused or prep shows nothing). Both need
+`liveRemainingReadTime`. Refreshes on timer-state and settings changes and once
+a second (the clock and scrolling don't notify).
+
+**Setting.** `timerLeftUnderTimer` (Settings → Appearance → Timer display,
+`dependsOn: 'liveRemainingReadTime'`, default off). While `leftShownUnderTimer()`
+holds — the setting and `liveRemainingReadTime` are on and the timer panel is in
+this window's ribbon (visible, not popped out) — `remainingReadSegment` returns
+null, so the single-doc bar and every three-pane footer drop their "Left"
+segment. Hiding or popping out the timer brings it back, so the readout is never
+lost. `index.ts` and `multi-pane-shell.ts` subscribe to the timer state to
+refresh the bar/footers on those changes.
+
+**Reserved space.** The ribbon is a fixed `--ribbon-height` (4rem) and its
+button stacks center in it, so the old 3-row timer panel (two button rows plus
+the pace row) overflowed and sat jammed against the window's top while the other
+buttons kept their inset. `paceRowReserved()` (timer in this ribbon + the "left"
+feature on, deliberately not tied to the clock or a document) toggles
+`html.pmd-ribbon-pace-row`: `--ribbon-height` grows to 4.8rem, `#ribbon` aligns
+its contents to the top at the same inset the 4rem ribbon centers its stacks
+with (`(4rem - --ribbon-stack-h) / 2`), and the panel is `align-self:
+flex-start`. The timer's two button rows then line up with every other stack,
+and the third row, a fixed `--pmd-pace-row-h`, hangs below. Reserving by
+availability, not by what is showing, means starting or stopping the clock never
+moves the ribbon or the document under it. The row has `contain: inline-size`,
+so a long reader name truncates instead of widening the panel.
+
+**Tooltips.** The row used to assign `title` on every update, text that changes
+each second. The app's tooltip controller (`ribbon-tooltips.ts`) moves a native
+`title` into its own tooltip on first hover, so the next update put the native
+one back and both showed. The row now uses the new `setElementTooltip`, which
+sets only the custom text (and updates a visible tip in place). `timer-ui.ts`
+likewise writes the big display's `title` only when it changes (it ran every
+250 ms while the clock runs).
+
+### Fixed: ribbon overflow and a stray divider with the timer open (`index.ts`, `style.css`)
+
+`initRibbonResizer`'s overflow test measured the free gap between the left and
+right sections minus the timer's width, but not the timer's margins, so the
+timer's 0.4rem left margin (more than the 4px buffer) read as free room. With
+the timer open the ribbon could be wider than the window (scrollWidth 1534 in
+1280) with nothing hidden, pushing the right-hand buttons off screen. The
+timer's footprint now includes its margins, and a `scrollWidth > clientWidth`
+backstop catches anything the gap arithmetic misses. The timer also gets
+`margin-right: 0.8rem` (0 in far-right placement) so the right-hand buttons are
+no longer flush against it. Separately, `.ribbon-doc-ops-panel { display: grid }`
+beat the UA `[hidden]` rule, so the empty `#custom-ribbon-panel` still drew a
+15px stub with its own `border-left` next to the timer's: a second divider.
+`.ribbon-doc-ops-panel[hidden]` now hides it.
 
 ### Added: dismiss × on the update chip (`update-chip.ts`, `style.css`)
 
