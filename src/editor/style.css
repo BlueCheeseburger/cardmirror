@@ -13914,7 +13914,7 @@ html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-fast'] { 
 /* "Fit time left inside the timer": the same row rides over the timer's own
    box, bottom-aligned under the digits. No third grid row and no taller
    ribbon (timer-pace.ts leaves the reserve class off); the digits shift up to
-   make room, and the verdict is only the text's colour. */
+   make room, and the verdict is a coloured dot before the time. */
 #timer-panel .pmd-timer-left-row.pmd-timer-left-inline {
   grid-column: 2;
   grid-row: 1 / span 2;
@@ -13931,17 +13931,30 @@ html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-fast'] { 
 }
 #timer-panel .pmd-timer-left-row.pmd-timer-left-inline .pmd-timer-left-times { pointer-events: auto; overflow: visible; }
 #timer-panel .pmd-timer-left-row.pmd-timer-left-inline .pmd-timer-pace { display: none; }
-#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='on-time'] { color: #2e7d32; }
-#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-slow'] { color: #c62828; }
-#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-fast'] { color: #1565c0; }
-html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='on-time'] { color: #81c784; }
-html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-slow'] { color: #ef9a9a; }
-html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-fast'] { color: #90caf9; }
+/* The verdict is a small dot before the time. Its slot is always there
+   (transparent with no verdict) so the text doesn't shift sideways when the
+   clock starts or stops. */
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline .pmd-timer-left-times::before {
+  content: '';
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.42rem;
+  margin-right: 0.25rem;
+  border-radius: 50%;
+  vertical-align: baseline;
+  background: transparent;
+}
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='on-time'] .pmd-timer-left-times::before { background: #2e7d32; }
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-slow'] .pmd-timer-left-times::before { background: #c62828; }
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-fast'] .pmd-timer-left-times::before { background: #1565c0; }
+html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='on-time'] .pmd-timer-left-times::before { background: #81c784; }
+html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-slow'] .pmd-timer-left-times::before { background: #ef9a9a; }
+html[data-theme='dark'] #timer-panel .pmd-timer-left-row.pmd-timer-left-inline[data-verdict='too-fast'] .pmd-timer-left-times::before { background: #90caf9; }
 #timer-panel.pmd-timer-has-left-inline .pmd-timer-display {
   align-items: flex-start;
   padding-top: 0.28rem;
   padding-bottom: 0.7rem;
-  min-width: 4.2rem; /* wide enough for "Left 10:00" */
+  min-width: 4.8rem; /* wide enough for the dot and "Left 10:00" */
 }
 
 /* "Timer position in the ribbon" = Far left (timerPosition setting, html
