@@ -7,7 +7,18 @@
 
 import { describe, it, expect } from 'vitest';
 import { schema, newHeadingId } from '../../src/schema/index.js';
-import { extractDiffLines, diffLines, toDiffRows, summarize, diffDocs, wordDiff, DiffTooLargeError } from '../../src/editor/doc-diff.js';
+import {
+  extractDiffLines,
+  diffLines,
+  toDiffRows,
+  summarize,
+  diffDocs,
+  wordDiff,
+  DiffTooLargeError,
+  cellMark,
+  outlineDiffStatuses,
+  type LineMark,
+} from '../../src/editor/doc-diff.js';
 import type { Node as PMNode } from 'prosemirror-model';
 
 function card(tagText: string, bodyText: string): PMNode {
@@ -303,5 +314,60 @@ describe('diffDocs', () => {
       { type: 'remove', text: 'Old body' },
       { type: 'add', text: 'New body' },
     ]);
+  });
+});
+
+
+describe('outlineDiffStatuses — outline colours', () => {
+  /** Run the same pipeline the dialog does and return, for each side, the
+   *  colour of each card's tag keyed by tag text. */
+  function statusesByTag(a: PMNode, b: PMNode): { left: Record<string, string>; right: Record<string, string> } {
+    const rows = toDiffRows(diffDocs(a, b));
+    const marks = (side: 'left' | 'right'): Map<string, LineMark[]> => {
+      const m = new Map<string, LineMark[]>();
+      for (const row of rows) {
+        const cell = row[side];
+        const mark = cellMark(cell);
+        if (!mark) continue;
+        const key = cell.text.trim();
+        m.set(key, [...(m.get(key) ?? []), mark]);
+      }
+      return m;
+    };
+    const read = (doc: PMNode, m: Map<string, LineMark[]>): Record<string, string> => {
+      const out: Record<string, string> = {};
+      const st = outlineDiffStatuses(doc, m);
+      doc.descendants((node, pos) => {
+        if (node.type.name === 'tag' && st.has(pos)) out[node.textContent] = st.get(pos)!;
+        return true;
+      });
+      return out;
+    };
+    return { left: read(a, marks('left')), right: read(b, marks('right')) };
+  }
+
+  it('a removed card is red on the left; an added card is green on the right; unchanged cards are uncoloured', () => {
+    const a = docOf(card('Shared', 'same body'), card('Zebra stripes', 'gone entirely'));
+    const b = docOf(card('Shared', 'same body'), card('Mango smoothie', 'arrived later'));
+    const { left, right } = statusesByTag(a, b);
+    expect(left['Shared']).toBeUndefined();
+    expect(right['Shared']).toBeUndefined();
+    expect(left['Zebra stripes']).toBe('remove');
+    expect(right['Mango smoothie']).toBe('add');
+  });
+
+  it('a card whose body was edited but whose tag is unchanged is yellow on both sides', () => {
+    const a = docOf(card('Tag', 'the quick brown fox jumps over the lazy dog'));
+    const b = docOf(card('Tag', 'the quick brown cat jumps over the lazy dog'));
+    const { left, right } = statusesByTag(a, b);
+    expect(left['Tag']).toBe('partial');
+    expect(right['Tag']).toBe('partial');
+  });
+
+  it('identical documents colour nothing', () => {
+    const a = docOf(card('Tag', 'body'));
+    const { left, right } = statusesByTag(a, docOf(card('Tag', 'body')));
+    expect(left).toEqual({});
+    expect(right).toEqual({});
   });
 });

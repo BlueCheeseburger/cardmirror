@@ -13,6 +13,7 @@
  */
 
 import type { Node as PMNode } from 'prosemirror-model';
+import { collectHeadings } from './headings.js';
 
 export type DiffLineType = 'equal' | 'add' | 'remove';
 
@@ -398,4 +399,71 @@ export function summarize(lines: readonly DiffLine[]): DiffSummary {
 /** Convenience: extract + diff two docs in one call. */
 export function diffDocs(a: PMNode, b: PMNode): DiffLine[] {
   return diffLines(extractDiffLines(a), extractDiffLines(b));
+}
+
+
+/** How one line (or a whole outline section) differs on its own side.
+ *  `partial` is "some of it": an edited line that shares words with its
+ *  pair, or a section holding both changed and unchanged lines. */
+export type LineMark = 'equal' | 'add' | 'remove' | 'partial';
+export type OutlineDiff = 'add' | 'remove' | 'partial';
+
+/** The mark for one side of a diff row; null for the blank filler cell. */
+export function cellMark(cell: DiffCell): LineMark | null {
+  if (cell.type === 'blank') return null;
+  if (cell.type === 'equal') return 'equal';
+  const segs = cell.segments;
+  if (segs && segs.some((s) => s.changed) && segs.some((s) => !s.changed && s.text.trim() !== '')) {
+    return 'partial';
+  }
+  return cell.type;
+}
+
+/**
+ * Colour for each outline (navigation panel) entry of one side's document:
+ * `add` (the whole section is new), `remove` (the whole section is gone),
+ * `partial` (part of it differs, part doesn't), absent (identical). A
+ * heading's section runs to the next heading of the same or a higher level,
+ * so a block whose cards were edited reads `partial` even when its own title
+ * is unchanged. `marksByText` holds, per trimmed line text, the mark of each
+ * occurrence in document order (a repeated line is told apart by its place).
+ * Keyed by the heading's document position, which is what the panel's rows
+ * carry as `data-pos`.
+ */
+export function outlineDiffStatuses(
+  doc: PMNode,
+  marksByText: ReadonlyMap<string, readonly LineMark[]>,
+): Map<number, OutlineDiff> {
+  const lines: { pos: number; mark: LineMark }[] = [];
+  const seen = new Map<string, number>();
+  doc.descendants((node, pos) => {
+    if (!node.isTextblock) return true;
+    const text = node.textContent.trim();
+    if (text !== '') {
+      const occurrence = seen.get(text) ?? 0;
+      seen.set(text, occurrence + 1);
+      lines.push({ pos, mark: marksByText.get(text)?.[occurrence] ?? 'equal' });
+    }
+    return false;
+  });
+  const entries = collectHeadings(doc, { skipCite: true });
+  const out = new Map<number, OutlineDiff>();
+  entries.forEach((entry, i) => {
+    let end = doc.content.size;
+    for (let j = i + 1; j < entries.length; j++) {
+      if (entries[j]!.level <= entry.level) {
+        end = entries[j]!.pos;
+        break;
+      }
+    }
+    let status: OutlineDiff | 'equal' | null = null;
+    for (const line of lines) {
+      if (line.pos < entry.pos || line.pos >= end) continue;
+      if (status === null) status = line.mark;
+      else if (status !== line.mark) status = 'partial';
+      if (status === 'partial') break;
+    }
+    if (status && status !== 'equal') out.set(entry.pos, status);
+  });
+  return out;
 }
