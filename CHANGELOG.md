@@ -69,6 +69,11 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Fixed
 
+- **Save As can no longer overwrite another open document.** Saving a doc
+  under the name of a file that's open as a different document (any pane or
+  window) is now refused with a message, instead of replacing that file and
+  its open tab's contents.
+
 - **Reloading a document keeps it the speech document.** Reload From Disk
   (Mod-R) used to drop the speech-document marker.
 

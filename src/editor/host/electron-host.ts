@@ -290,7 +290,7 @@ interface ElectronAPI {
   writeFileAtPath(
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean; grantRead?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean; selfPath?: string },
   ): Promise<'collision' | void>;
   bulkCompress(
     dir: string,
@@ -970,7 +970,7 @@ export class ElectronHost implements Host {
   async writeFileAtPath(
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean; grantRead?: boolean },
+    opts?: { failIfExists?: boolean; grantRead?: boolean; selfPath?: string },
   ): Promise<'collision' | void> {
     return await api().writeFileAtPath(filePath, bytes, opts);
   }
