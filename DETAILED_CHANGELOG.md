@@ -31,7 +31,7 @@ Esc / ✕ / closing always report `labels.length + 1` (Cancel) whether or not th
 The rows, `createLiveViewFrom`, `createLinkedCopyFrom` and `creatorGuardMessage` (and their tests) are gone. The underlying commands (`insertSelfRef`, `insertInDocCopy`) are untouched and still reachable from the palette/ribbon.
 
 ### Added: key hints and a ✕ on the slot picker; ✕ on the window chooser (`multi-pane-shell.ts`, `multipane-chooser-ui.ts`, `style.css`)
-`promptForSlot` already took 1/2/3 (and 4 for New window) but showed nothing; each choice now carries a `.pmd-route-kbd` badge, and `.pmd-route-x` closes it like Cancel/Esc. The Electron window chooser's page gets a `.x` that picks the same index Esc does.
+`promptForSlot` took 1/2/3 but showed nothing; New window (when the host can spawn one) is now the dashed top row on key 0 (it used to be a bottom row on 4), matching the desktop window chooser; each choice now carries a `.pmd-route-kbd` badge, and `.pmd-route-x` closes it like Cancel/Esc. The Electron window chooser's page gets a `.x` that picks the same index Esc does.
 
 ### Fixed: window chooser height (`multipane-chooser-ui.ts`)
 The BrowserWindow height was a row-count guess that overshot, leaving a blank band under the last row. The page now exposes `naturalHeight()` and `ready-to-show` resizes the window to it (capped at 560px; longer lists scroll) before showing.

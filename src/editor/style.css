@@ -13184,19 +13184,18 @@ body.pmd-pane-dragging * {
   justify-content: flex-end;
 }
 
-/* "New window" option in the slot picker — a full-width row below the
-   three slot buttons, set off with a top divider since it's a different
-   kind of choice (spawn elsewhere) rather than a fourth slot. */
+/* "New window" option in the slot picker — a full-width dashed row ABOVE the
+   three slot buttons (key 0), like the desktop window chooser's, since it's a
+   different kind of choice (spawn elsewhere) rather than a fourth slot. */
 .pmd-route-btn-new-window {
   width: 100%;
-  border-top: 1px solid var(--pmd-c-border-soft);
-  border-left: none;
-  border-right: none;
-  border-bottom: none;
-  border-radius: 0;
-  padding-top: 0.6rem;
+  flex: none;
+  border-style: dashed;
   background: transparent;
+  text-align: left;
+  padding: 0.55rem 2.2rem 0.55rem 0.8rem;
 }
+.pmd-route-btn-new-window strong { color: var(--pmd-c-accent); }
 .pmd-route-btn-new-window:hover {
   background: var(--pmd-c-hover);
 }
