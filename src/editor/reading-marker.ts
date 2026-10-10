@@ -15,6 +15,7 @@
 
 import { TextSelection } from 'prosemirror-state';
 import type { Command, EditorState, Transaction } from 'prosemirror-state';
+import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 import { closeHistory } from 'prosemirror-history';
 import { schema } from '../schema/index.js';
@@ -140,4 +141,90 @@ export function toggleReadingMarker(view: EditorView, now: Date = new Date()): b
   if (!tr) return false;
   view.dispatch(tr);
   return true;
+}
+
+// ------------------------------------------------------------ whole cards
+
+/** The doc-level cards that overlap any of `ranges`, with their positions. */
+function cardsInRanges(
+  doc: PMNode,
+  ranges: readonly { from: number; to: number }[],
+): { pos: number; node: PMNode }[] {
+  const out: { pos: number; node: PMNode }[] = [];
+  doc.forEach((child, offset) => {
+    if (child.type.name !== 'card') return;
+    const end = offset + child.nodeSize;
+    if (ranges.some((r) => offset < r.to && end > r.from)) out.push({ pos: offset, node: child });
+  });
+  return out;
+}
+
+function cardHasMarker(card: PMNode): boolean {
+  let found = false;
+  card.descendants((n) => {
+    if (found) return false;
+    if (isMarkerText(n)) found = true;
+    return !found;
+  });
+  return found;
+}
+
+/** What a "mark the card(s)" action would do over `ranges`: `'mark'` while any
+ *  card in them has no marker yet, `'unmark'` once every one has one, `null`
+ *  when no card is in range. Exported for the outline's context menu. */
+export function cardMarkAction(
+  state: EditorState,
+  ranges: readonly { from: number; to: number }[],
+): 'mark' | 'unmark' | null {
+  const cards = cardsInRanges(state.doc, ranges);
+  if (cards.length === 0) return null;
+  return cards.every((c) => cardHasMarker(c.node)) ? 'unmark' : 'mark';
+}
+
+/** Build (don't dispatch) the transaction for a heading's "Mark card(s)" row:
+ *  every card in `ranges` that has no reading marker gets a red "Marked h:mm"
+ *  run at the end of its last body paragraph (a body paragraph is added when
+ *  the card has none), which is what makes it a marked card for Save Marked
+ *  Cards. When every card already has one, the markers are removed instead.
+ *  One transaction, one undo step. Null when nothing is in range. */
+export function buildMarkCardsTransaction(
+  state: EditorState,
+  ranges: readonly { from: number; to: number }[],
+  now: Date = new Date(),
+): Transaction | null {
+  const fontColor = schema.marks['font_color'];
+  const cardBody = schema.nodes['card_body'];
+  if (!fontColor || !cardBody) return null;
+  const action = cardMarkAction(state, ranges);
+  if (!action) return null;
+  const cards = cardsInRanges(state.doc, ranges);
+  const tr = state.tr;
+  const markerNode = (): PMNode =>
+    schema.text(`Marked ${formatMarkerTime(now)}`, [fontColor.create({ color: READING_MARKER_COLOR })]);
+  // Back to front, so earlier positions stay valid as later cards change.
+  for (const { pos, node } of [...cards].reverse()) {
+    if (action === 'unmark') {
+      const spans: { from: number; to: number }[] = [];
+      node.descendants((n, p) => {
+        if (isMarkerText(n)) spans.push({ from: pos + 1 + p, to: pos + 1 + p + n.nodeSize });
+      });
+      for (const sp of spans.reverse()) tr.delete(sp.from, sp.to);
+      continue;
+    }
+    if (cardHasMarker(node)) continue;
+    let target: { end: number } | null = null;
+    let fallback: { end: number } | null = null;
+    node.forEach((child, offset) => {
+      const end = pos + 1 + offset + child.nodeSize - 1; // end of the child's content
+      if (child.type.name === 'card_body') target = { end };
+      else if (child.type.name === 'cite_paragraph') fallback = { end };
+    });
+    const at = (target ?? fallback) as { end: number } | null;
+    if (at) tr.insert(at.end, markerNode());
+    else tr.insert(pos + node.nodeSize - 1, cardBody.create(null, markerNode()));
+  }
+  if (!tr.docChanged) return null;
+  tr.setMeta(READING_MARKER_META, true);
+  closeHistory(tr);
+  return tr;
 }

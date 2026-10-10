@@ -12,6 +12,12 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: outline right-click "Mark card(s)" / "Unmark…" (`reading-marker.ts`, `nav-panel.ts`)
+`cardMarkAction` / `buildMarkCardsTransaction` work on the doc-level cards overlapping the heading ranges (`headingRanges(contextTargets(entry))`, so multi-select works). Each unmarked card gets the usual red `font_color` "Marked h:mm" run at the end of its last `card_body` (else last cite paragraph, else a new `card_body` is appended), which is exactly what `countMarkedCards` / Save Marked Cards look for. The row is one toggle: `mark` while any card lacks a marker, `unmark` once all have one (deletes every marker run in them). One transaction with `READING_MARKER_META` (so read mode permits it) and `closeHistory`. Analytic units aren't cards and are skipped.
+
+### Removed: "Create live view / linked copy of heading" outline rows (`nav-panel.ts`)
+The rows, `createLiveViewFrom`, `createLinkedCopyFrom` and `creatorGuardMessage` (and their tests) are gone. The underlying commands (`insertSelfRef`, `insertInDocCopy`) are untouched and still reachable from the palette/ribbon.
+
 ### Added: key hints and a ✕ on the slot picker; ✕ on the window chooser (`multi-pane-shell.ts`, `multipane-chooser-ui.ts`, `style.css`)
 `promptForSlot` already took 1/2/3 (and 4 for New window) but showed nothing; each choice now carries a `.pmd-route-kbd` badge, and `.pmd-route-x` closes it like Cancel/Esc. The Electron window chooser's page gets a `.x` that picks the same index Esc does.
 

@@ -7,6 +7,8 @@ import {
   readingMarkerRunAt,
   buildInsertReadingMarkerTransaction,
   buildToggleReadingMarkerTransaction,
+  buildMarkCardsTransaction,
+  cardMarkAction,
   READING_MARKER_COLOR,
   READING_MARKER_META,
   READ_MODE_DRAG_META,
@@ -182,5 +184,58 @@ describe('read-mode undo/redo is bounded to markers', () => {
     expect(markerText(s.doc)).toBeNull();
     s = dispatchCmd(s, readModeAwareRedo);
     expect(markerText(s.doc)).not.toBeNull();
+  });
+});
+
+describe('marking whole cards (outline right-click)', () => {
+  const countMarkers = (doc: any): number => {
+    let n = 0;
+    doc.descendants((x: any) => { if (x.isText && x.text?.startsWith('Marked ')) n++; return true; });
+    return n;
+  };
+  const all = (doc: any) => [{ from: 0, to: doc.content.size }];
+
+  it('marks every unmarked card at the end of its last body paragraph, in one transaction', () => {
+    const doc = makeDoc(card(tag('A'), cardBody('a1'), cardBody('a2')), card(tag('B'), cardBody('b1')));
+    const state = EditorState.create({ doc });
+    expect(cardMarkAction(state, all(doc))).toBe('mark');
+    const tr = buildMarkCardsTransaction(state, all(doc), NOW)!;
+    expect(tr.getMeta(READING_MARKER_META)).toBe(true);
+    const next = state.apply(tr).doc;
+    expect(countMarkers(next)).toBe(2);
+    const a = next.child(0);
+    expect(a.child(2).textContent).toBe('a2Marked 7:32');
+    expect(a.child(1).textContent).toBe('a1');
+    expect(next.child(1).child(1).textContent).toBe('b1Marked 7:32');
+  });
+
+  it('only touches cards in range, and skips ones that already have a marker', () => {
+    const doc = makeDoc(card(tag('A'), cardBody('a1')), card(tag('B'), cardBody('b1')));
+    let state = EditorState.create({ doc });
+    const firstOnly = [{ from: 0, to: doc.child(0).nodeSize }];
+    state = state.apply(buildMarkCardsTransaction(state, firstOnly, NOW)!);
+    expect(countMarkers(state.doc)).toBe(1);
+    const tr = buildMarkCardsTransaction(state, all(state.doc), NOW)!;
+    expect(countMarkers(state.apply(tr).doc)).toBe(2);
+  });
+
+  it('unmarks when every card in range already has a marker', () => {
+    const doc = makeDoc(card(tag('A'), cardBody('a1')), card(tag('B'), cardBody('b1')));
+    let state = EditorState.create({ doc });
+    state = state.apply(buildMarkCardsTransaction(state, all(doc), NOW)!);
+    expect(cardMarkAction(state, all(state.doc))).toBe('unmark');
+    state = state.apply(buildMarkCardsTransaction(state, all(state.doc), NOW)!);
+    expect(countMarkers(state.doc)).toBe(0);
+    expect(state.doc.child(0).child(1).textContent).toBe('a1');
+  });
+
+  it('adds a body paragraph to a card that has none, and does nothing with no card in range', () => {
+    const doc = makeDoc(card(tag('A')));
+    const state = EditorState.create({ doc });
+    const next = state.apply(buildMarkCardsTransaction(state, all(doc), NOW)!).doc;
+    expect(next.child(0).childCount).toBe(2);
+    expect(next.child(0).child(1).type.name).toBe('card_body');
+    expect(cardMarkAction(state, [])).toBeNull();
+    expect(buildMarkCardsTransaction(state, [], NOW)).toBeNull();
   });
 });
