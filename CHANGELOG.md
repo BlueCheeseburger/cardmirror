@@ -8,47 +8,39 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.4 — 2026-10-10
 
-### Fixed
-- **The on-time / too-slow / too-fast indicator and "Left" now work in Reading
-  view.** They counted from a spot pages away and never changed as you turned
-  pages; they now follow the page in view.
-- **Time left, the indicator, auto-scroll and read mode's scroll-pinning all use
-  the line you're actually reading** — about a third of the way down the window
-  — instead of the very top edge.
-
-### Added
-- **Auto-scroll works in Reading view.** It turns the pages, giving each as long
-  as it takes to read aloud at your first reader's rate. Flipping a page yourself
-  stops it.
 ### Added
 - **Right-click a heading → Mark card.** Drops a red "Marked h:mm" reading marker
   at the end of the card (or **Mark N cards**, or **Mark cards under heading** on a
   Pocket, Hat or Block), so those cards count as marked for Save Marked Cards.
   When they're all marked the row reads **Unmark…** and removes the markers. One
   undo step.
+- **Auto-scroll works in Reading view.** It turns the pages, giving each as long
+  as it takes to read aloud at your first reader's rate. Flipping a page yourself
+  stops it.
 - **Key hints and a close button on the pane chooser.** The "Open … into…" picker
   now shows the key for each choice and has an ✕ in the top-right corner. New
   window sits on top as **0**, like the window chooser, with the panes as 1, 2, 3.
   The window chooser got the same ✕.
-
-### Removed
-- **Create live view of heading** and **Create linked copy of heading** are gone
-  from the outline's right-click menu (the commands are still in the Search
-  palette and ribbon).
+- **A named window lists its documents.** In the "Open … in:" window chooser, a
+  window with a custom name shows every document it holds in tiny grey text under
+  the name.
 
 ### Changed
+- **Time left, the on-time indicator, auto-scroll and read mode's scroll-pinning
+  use the line you're actually reading** — about a third of the way down the
+  window — instead of the very top edge.
 - **Fit time left inside the timer is off by default again** (it was on in
   1.15.0-bcb.3.1). Turn it on in Settings → Appearance → Timer display. Its text
   is smaller now and is clipped to the timer's box instead of spilling past it.
 - **Esc now does what the ✕ does** in the window chooser: it cancels, even when
   the chooser has no Cancel button (an OS-opened file you dismiss is not opened).
-- **A named window lists its documents.** In the "Open … in:" window chooser, a
-  window with a custom name shows every document it holds in tiny grey text under
-  the name.
 
 ### Fixed
+- **The on-time / too-slow / too-fast indicator and "Left" now work in Reading
+  view.** They counted from a spot pages away and never changed as you turned
+  pages; they now follow the page in view.
 - **Read mode no longer shows text that was highlighted with white.** "Highlight
   with White" (Mod-F11) erases highlighting, but read mode still counted it as
   highlighted, so erased text showed up (and counted toward read time). It is
@@ -57,6 +49,11 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   brackets like [L].
 - **The window chooser no longer has empty space at the bottom.** It sizes itself
   to its rows.
+
+### Removed
+- **Create live view of heading** and **Create linked copy of heading** are gone
+  from the outline's right-click menu (the commands are still in the Search
+  palette and ribbon).
 
 ## 1.15.0-bcb.3.1 — 2026-10-09
 
