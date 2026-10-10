@@ -25,7 +25,23 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   from the outline's right-click menu (the commands are still in the Search
   palette and ribbon).
 
+### Changed
+- **Fit time left inside the timer is off by default again** (it was on in
+  1.15.0-bcb.3.1). Turn it on in Settings → Appearance → Timer display. Its text
+  is smaller now and is clipped to the timer's box instead of spilling past it.
+- **Esc now does what the ✕ does** in the window chooser: it cancels, even when
+  the chooser has no Cancel button (an OS-opened file you dismiss is not opened).
+- **A named window lists its documents.** In the "Open … in:" window chooser, a
+  window with a custom name shows every document it holds in tiny grey text under
+  the name.
+
 ### Fixed
+- **Read mode no longer shows text that was highlighted with white.** "Highlight
+  with White" (Mod-F11) erases highlighting, but read mode still counted it as
+  highlighted, so erased text showed up (and counted toward read time). It is
+  hidden now, like any other unhighlighted text.
+- **The filename chip no longer clips the bottom of letters** like g and y, or
+  brackets like [L].
 - **The window chooser no longer has empty space at the bottom.** It sizes itself
   to its rows.
 

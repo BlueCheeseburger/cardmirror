@@ -24,6 +24,10 @@ const CHOOSER_MAX_HEIGHT = 560;
 export interface ChooserHtmlOptions {
   message: string;
   labels: string[];
+  /** Parallel to `labels`: every doc in that window, shown as a tiny grey
+   *  line under the name (given for named windows, whose label is just the
+   *  name). null / absent → nothing extra. */
+  details?: (string[] | null)[];
   withCancel: boolean;
   dark: boolean;
 }
@@ -48,8 +52,10 @@ export function chooserHtml(opts: ChooserHtmlOptions): string {
       const docs = splitLabel(label)
         .map((d) => `<span class="doc">${esc(d)}</span>`)
         .join('');
+      const detail = opts.details?.[i];
+      const sub = detail && detail.length > 0 ? `<span class="sub">${esc(detail.join(' · '))}</span>` : '';
       const key = i < 9 ? `<kbd>${i + 1}</kbd>` : '';
-      return `<button class="row" data-pick="${i}" type="button"><span class="docs">${docs}</span>${key}</button>`;
+      return `<button class="row" data-pick="${i}" type="button"><span class="docs">${docs}${sub}</span>${key}</button>`;
     })
     .join('');
   const newIdx = opts.labels.length;
@@ -83,13 +89,14 @@ h1{margin:0;padding-right:26px;font-size:15px;font-weight:700;line-height:1.3;wo
 .plus{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:1px dashed var(--accent);color:var(--accent);font-size:15px;line-height:1}
 .docs{display:flex;flex-direction:column;gap:2px;min-width:0}
 .doc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{color:var(--muted);font-size:10px;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
 kbd{font:11px ui-monospace,Menlo,Consolas,monospace;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:0 5px;background:var(--bg)}
 .actions{display:flex;justify-content:flex-end;gap:8px;padding-top:2px}
 .btn{font:inherit;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg-soft);color:var(--text);cursor:pointer}
 .btn:hover{background:var(--hover)}
 </style></head><body>
 <div class="wrap" id="wrap">
-<button class="x" data-pick="${opts.withCancel ? newIdx + 1 : newIdx}" type="button" aria-label="Close" title="Close (Esc)">&times;</button>
+<button class="x" data-pick="${newIdx + 1}" type="button" aria-label="Close" title="Close (Esc)">&times;</button>
 <h1 class="drag">${esc(opts.message)}</h1>
 <div class="list" id="list">${newRow}${rows}</div>
 ${cancel}
@@ -102,7 +109,7 @@ function mark(){items.forEach(function(r,i){r.classList.toggle('sel',i===sel)});
 function pick(n){location.href='${CHOOSER_SCHEME}'+n;}
 document.addEventListener('click',function(e){var b=e.target.closest('[data-pick]');if(b)pick(b.getAttribute('data-pick'));});
 document.addEventListener('keydown',function(e){
- if(e.key==='Escape'){pick(${opts.withCancel ? newIdx + 1 : newIdx});return;}
+ if(e.key==='Escape'){pick(${newIdx + 1});return;}
  if(e.key==='Enter'){pick(items[sel].getAttribute('data-pick'));return;}
  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();sel=(sel+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;mark();return;}
  if(e.key==='0'){pick(${newIdx});return;}
@@ -118,9 +125,12 @@ function naturalHeight(){var w=document.getElementById('wrap');var h=w.style.hei
 export function showChooserWindow(opts: {
   message: string;
   labels: string[];
+  details?: (string[] | null)[];
   withCancel: boolean;
 }): Promise<number> {
-  const escapeIndex = opts.labels.length + (opts.withCancel ? 1 : 0);
+  // Esc, the ✕ and closing the window all mean Cancel, whether or not a
+  // Cancel button is drawn (index `labels.length + 1`).
+  const escapeIndex = opts.labels.length + 1;
   return new Promise<number>((resolve) => {
     // Opens at a guess, then ready-to-show resizes to the page's measured
     // height so there's no dead space under the last row.

@@ -328,6 +328,9 @@ interface ElectronAPI {
    *  single-pane) so the OS "Open with…" path can reuse a multi-pane
    *  window's slot picker instead of spawning a blank window. */
   registerMultipane(isMultiPane: boolean): Promise<void>;
+  /** Report the filenames open in this window so the "which window?"
+   *  chooser can list them under a named window. */
+  reportWindowDocs(names: string[]): Promise<void>;
   /** Main forwards an OS-opened file (absolute path) to this window
    *  when it's an existing multi-pane workspace. Returns unsubscribe. */
   onExternalOpen(handler: (payload: { path: string }) => void): () => void;
@@ -1097,6 +1100,10 @@ export class ElectronHost implements Host {
     // Tolerate an older preload (no channel) — main just won't reuse
     // this window for OS opens, falling back to spawn-a-window.
     await api().registerMultipane?.(isMultiPane);
+  }
+
+  async reportWindowDocs(names: string[]): Promise<void> {
+    await api().reportWindowDocs?.(names);
   }
 
   onExternalOpen(handler: (payload: { path: string }) => void): () => void {

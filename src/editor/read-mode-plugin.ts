@@ -42,6 +42,7 @@ import { changedRange, expandToTopLevel } from './decoration-range.js';
 import { isSyncOrigin } from './sync-origin.js';
 import { NORMALIZER_META } from './normalizer-guard.js';
 import { settings } from './settings.js';
+import { isBlankHighlightColor } from '../schema/marks.js';
 import {
   toggleReadingMarker,
   isReadingMarkerColor,
@@ -223,7 +224,10 @@ function isReadKept(child: PMNode, markNames: readonly string[]): boolean {
   const keepShading = settings.get('readModeShowBackground');
   return child.marks.some(
     (m) =>
-      markNames.includes(m.type.name) ||
+      (markNames.includes(m.type.name) &&
+        // A white / "none" highlight is an erased one — it paints nothing,
+        // so it must not keep the text visible in read mode.
+        !(m.type.name === 'highlight' && isBlankHighlightColor(m.attrs['color']))) ||
       (keepShading && m.type.name === 'shading') ||
       (m.type.name === 'font_color' && isReadingMarkerColor(m.attrs['color'] as string)),
   );

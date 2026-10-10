@@ -1967,7 +1967,7 @@ const DEFAULTS: Settings = {
   timerSoundVolume: 70,
   timerCompact: false,
   timerLeftUnderTimer: false,
-  timerLeftInline: true,
+  timerLeftInline: false,
   timerPrepLabel: 'both',
   timerPosition: 'beside',
   jumpToDocTopOnReadModeToggle: false,
@@ -3692,7 +3692,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'timerLeftInline',
     label: 'Fit time left inside the timer',
     description:
-      "On by default. Puts the \"Left\" time in a small line under the timer's digits, inside the same box, instead of in a separate row beneath the timer. The ribbon keeps its normal height and nothing is squeezed. While the speech clock runs, a small dot before the time shades from red (well behind) through green (on pace) to blue (well ahead); hover the text for the numbers. Needs \"Show time left under the timer\".",
+      "Off by default. Puts the \"Left\" time in a small line under the timer's digits, inside the same box, instead of in a separate row beneath the timer. The ribbon keeps its normal height and nothing is squeezed. While the speech clock runs, a small dot before the time shades from red (well behind) through green (on pace) to blue (well ahead); hover the text for the numbers. Needs \"Show time left under the timer\".",
     kind: 'toggle',
     category: 'appearance',
     section: 'Timer display',

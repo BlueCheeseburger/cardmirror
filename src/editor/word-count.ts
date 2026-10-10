@@ -25,6 +25,7 @@
  */
 
 import type { Node as PMNode } from 'prosemirror-model';
+import { isBlankHighlightColor } from '../schema/marks.js';
 
 /** Read-aloud words split by which speed they're read at. */
 export interface ReadAloudCounts {
@@ -104,14 +105,18 @@ function readAloudBucket(node: PMNode, parent: PMNode): 'body' | 'other' | null 
     // it (underline/emphasis exclude cite_mark in the schema, so such
     // runs can never carry the cite style). Cite-styled runs stay at
     // tag speed; unmarked filler isn't read at all.
-    const hasHighlight = node.marks.some((m) => m.type.name === 'highlight');
+    const hasHighlight = node.marks.some(
+      (m) => m.type.name === 'highlight' && !isBlankHighlightColor(m.attrs['color']),
+    );
     const hasShading = node.marks.some((m) => m.type.name === 'shading');
     if (hasHighlight && !hasShading) return 'body';
     return node.marks.some((m) => m.type.name === 'cite_mark') ? 'other' : null;
   }
   if (node.marks.some((m) => m.type.name === 'cite_mark')) return 'other';
   if (parentType === 'card_body' || parentType === 'paragraph' || parentType === 'undertag') {
-    const hasHighlight = node.marks.some((m) => m.type.name === 'highlight');
+    const hasHighlight = node.marks.some(
+      (m) => m.type.name === 'highlight' && !isBlankHighlightColor(m.attrs['color']),
+    );
     const hasShading = node.marks.some((m) => m.type.name === 'shading');
     return hasHighlight && !hasShading ? 'body' : null;
   }
