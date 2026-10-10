@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.4 — 2026-10-10
 
 ### Fixed: the reading line is a third of the way down, not the top edge; indicator and "Left" work in Reading view (`reading-line.ts`, `live-read-time.ts`, `auto-scroll.ts`, `scroll-anchor.ts`)
 `readingLineOffset(viewportH, scrolledPx)` = `min(h/3, scrolled)`: the line eases down from the top over the first third of scrolling (at scroll 0 nothing has been read yet) and sits a third down thereafter. `scrollAnchorPos` (feeds `remainingReadCounts`, so "Left" and the pace verdict/dot), the auto-scroll sampler window, and `captureViewportAnchor` (read-mode / zoom pinning, which now pins the first kept text to the reading line) all use it. In Reading view the editor is a wide strip scrolled sideways, so the old "middle of the text column at the top" hit-test resolved a position pages away and "Left" never moved on a flip; `scrollAnchorPos` now probes the first column of the page in view at a third of the way down. Verified in the browser build with a 40-card doc: Left went 8:09 -> 6:19 -> 4:36 -> 2:53 over three page flips.
