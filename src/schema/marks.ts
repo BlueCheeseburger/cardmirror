@@ -54,6 +54,17 @@ export function colorBand(hex: string): 'dark' | 'light' {
 }
 
 /**
+ * True for a highlight color that paints nothing visible on a page: `white`
+ * (what "Highlight with White", Mod-F11, applies to erase highlighting) and
+ * `none`. Text carrying one reads as unhighlighted, so read mode and the
+ * read-time count must not treat it as read-aloud text.
+ */
+export function isBlankHighlightColor(color: unknown): boolean {
+  const c = String(color ?? '').toLowerCase();
+  return c === 'white' || c === 'none';
+}
+
+/**
  * Perceived-luminance band for each OOXML named highlight color.
  * Mirrors the per-color CSS rules at `.pmd-highlight[data-highlight=...]`
  * — `light` backgrounds get black text, `dark` backgrounds get white.

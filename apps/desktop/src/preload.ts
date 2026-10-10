@@ -434,6 +434,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  which windows can take a file into their slot picker. */
   registerMultipane: (isMultiPane: boolean) =>
     ipcRenderer.invoke('host:register-multipane', isMultiPane),
+  /** Report the filenames open in this window (multi-pane) so main's
+   *  "which window?" chooser can list them under a named window. */
+  reportWindowDocs: (names: string[]) => ipcRenderer.invoke('host:window-docs', names),
   /** Main forwards an OS-opened file (path) to an existing multi-pane
    *  window so it routes through the slot picker instead of spawning a
    *  blank window. Returns an unsubscribe. */

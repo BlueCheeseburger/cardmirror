@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: `timerLeftInline` back to default off; inline text shrunk and clipped to the box (`settings.ts`, `style.css`)
+The 1.15.0-bcb.3.1 default-on turned out to be confusing. The inline row is 0.5rem with a 0.36rem dot and `max-width: calc(100% - 0.3rem)` (ellipsis on the text) so a wider clock like "Left 159:37" can't spill past the timer's border.
+
+### Changed: window chooser Esc = ✕ = Cancel, and a named window lists its docs (`multipane-chooser-ui.ts`, `main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`)
+Esc / ✕ / closing always report `labels.length + 1` (Cancel) whether or not the Cancel button is drawn, and `pickMultiPaneTarget` decodes with the cancel slot always on; `openExternalFile` returns on `'cancel'` (previously a dismissed OS-open fell through to "New window"). Main keeps `windowDocs` (filenames per window, reported by the renderer from `updateWindowTitle` via `host:window-docs`) and passes `details` for windows that have a name (`windowNames`), rendered as `.sub` (10px grey, clamped to two lines).
+
+### Fixed: white highlight counted as read-aloud text (`schema/marks.ts`, `read-mode-plugin.ts`, `word-count.ts`)
+`applyHighlightWhite` (Mod-F11, "erase highlight") stores a real `highlight` mark with `color: 'white'`; read mode and the read-time count keyed on the mark alone, so erased text stayed visible in read mode and was counted. `isBlankHighlightColor` (`white` / `none`) now excludes it in `isReadKept` (which also feeds `isReadModeKeptText` and so the Read Doc conversions) and in `readAloudBucket`.
+
+### Fixed: filename chip / pane chip name clipped descenders (`style.css`)
+`.pmd-doc-name-chip-text` and `.pmd-pane-chip-name` clip their text (overflow hidden for the ellipsis) under the ribbon's tight line-height; both get `line-height: 1.5`.
+
 ### Added: outline right-click "Mark card(s)" / "Unmark…" (`reading-marker.ts`, `nav-panel.ts`)
 `cardMarkAction` / `buildMarkCardsTransaction` work on the doc-level cards overlapping the heading ranges (`headingRanges(contextTargets(entry))`, so multi-select works). Each unmarked card gets the usual red `font_color` "Marked h:mm" run at the end of its last `card_body` (else last cite paragraph, else a new `card_body` is appended), which is exactly what `countMarkedCards` / Save Marked Cards look for. The row is one toggle: `mark` while any card lacks a marker, `unmark` once all have one (deletes every marker run in them). One transaction with `READING_MARKER_META` (so read mode permits it) and `closeHistory`. Analytic units aren't cards and are skipped.
 

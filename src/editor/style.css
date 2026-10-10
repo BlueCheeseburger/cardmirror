@@ -1568,6 +1568,10 @@ body:not(.pmd-multi-doc):not(.pmd-multi-window) #speech-stack { display: none; }
 .pmd-doc-name-chip-text {
   overflow: hidden;
   text-overflow: ellipsis;
+  /* The box clips its text, so it must be tall enough for the descenders
+     (g, y, p) and the brackets in names like "[L] Stocks DA.docx"; the
+     ribbon's tight line-height shaved them off. */
+  line-height: 1.5;
 }
 /* Visibility cascade:
    - Off by default — the setting class on <html> is absent, so this
@@ -12486,6 +12490,8 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--pmd-c-text);
+  /* Clipped text needs room for descenders and brackets. */
+  line-height: 1.5;
 }
 
 /* ── Chip drag: move a doc between slots ─────────────────────────
@@ -13961,13 +13967,18 @@ html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-fast'] { 
   display: block;
   contain: none;
   line-height: 1;
-  font-size: 0.56rem;
+  font-size: 0.5rem;
   font-weight: 600;
   padding-bottom: 0.2rem;
   pointer-events: none;
   z-index: 1;
+  /* Never wider than the timer's own box (a grid item's percentage resolves
+     against its grid area): longer text, like "Left 159:37", is clipped with
+     an ellipsis rather than spilling past the border. */
+  max-width: calc(100% - 0.3rem);
+  white-space: nowrap;
 }
-#timer-panel .pmd-timer-left-row.pmd-timer-left-inline .pmd-timer-left-times { pointer-events: auto; overflow: visible; }
+#timer-panel .pmd-timer-left-row.pmd-timer-left-inline .pmd-timer-left-times { pointer-events: auto; display: block; overflow: hidden; text-overflow: ellipsis; }
 #timer-panel .pmd-timer-left-row.pmd-timer-left-inline .pmd-timer-pace { display: none; }
 /* The verdict is a small dot before the time. Its slot is always there
    (transparent with no verdict) so the text doesn't shift sideways when the
@@ -13975,9 +13986,9 @@ html[data-theme='dark'] #timer-panel .pmd-timer-pace[data-verdict='too-fast'] { 
 #timer-panel .pmd-timer-left-row.pmd-timer-left-inline .pmd-timer-left-times::before {
   content: '';
   display: inline-block;
-  width: 0.42rem;
-  height: 0.42rem;
-  margin-right: 0.25rem;
+  width: 0.36rem;
+  height: 0.36rem;
+  margin-right: 0.2rem;
   border-radius: 50%;
   vertical-align: baseline;
   background: transparent;

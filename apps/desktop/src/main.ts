@@ -310,6 +310,11 @@ const multiPaneWindows = new Set<number>();
  *  when the window closes. */
 const windowNames = new Map<number, string>();
 
+/** Filenames of every doc open in a multi-pane window, reported by its
+ *  renderer whenever they change. The "which window?" chooser lists them
+ *  under a window that has a custom name (its title is then just the name). */
+const windowDocs = new Map<number, string[]>();
+
 /** Every live multi-pane window, candidates for receiving an
  *  externally-opened file. */
 function liveMultiPaneWindows(): BrowserWindow[] {
@@ -342,11 +347,9 @@ type MultiPaneChoice =
  *  multiple multi-pane windows are in play. Zero candidates resolves to
  *  `new-window` (nothing open can take it).
  *
- *  `withCancel` adds an explicit Cancel button and makes Esc mean
- *  cancel. The OS-open path leaves it off: a file the OS handed us has
- *  to land somewhere, so a dismissed dialog still spawns a window.
- *  New Document passes it — dismissing that dialog should create
- *  nothing at all.
+ *  `withCancel` draws an explicit Cancel button. Esc and the ✕ cancel
+ *  either way (an OS-handed file that's dismissed is simply not opened;
+ *  a dismissed New Document creates nothing).
  *
  *  `autoRouteOnlyTo` restricts the silent single-candidate shortcut to
  *  one window id. New Document passes the REQUESTING window: with a
@@ -371,9 +374,19 @@ async function pickMultiPaneTarget(
     candidates.map((win) => ({ win, id: win.id, label: labelForChooser(win) })),
   );
   const labels = sorted.map((e) => e.label);
-  const layout = { withCancel: opts.withCancel === true };
-  const response = await showChooserWindow({ message, labels, withCancel: layout.withCancel });
-  const parsed = readChooserResponse(response, labels.length, layout);
+  // A named window's label is only its name — list its docs underneath.
+  const details = sorted.map((e) =>
+    windowNames.has(e.id) ? (windowDocs.get(e.id) ?? null) : null,
+  );
+  // The chooser's Esc and ✕ always report Cancel (a Cancel BUTTON is drawn
+  // only with `withCancel`), so decode with the cancel slot always on.
+  const response = await showChooserWindow({
+    message,
+    labels,
+    details,
+    withCancel: opts.withCancel === true,
+  });
+  const parsed = readChooserResponse(response, labels.length, { withCancel: true });
   if (parsed.kind === 'window') return { kind: 'window', win: sorted[parsed.index]!.win };
   return parsed.kind === 'cancel' ? { kind: 'cancel' } : { kind: 'new-window' };
 }
@@ -471,6 +484,8 @@ async function openExternalFile(filePath: string): Promise<void> {
   // (whichever copy closes first then releases the shared claim).
   if (focusExistingOwner(filePath)) return;
   const choice = await pickMultiPaneTarget(`Open "${path.basename(filePath)}" in:`);
+  // Esc / ✕ on the chooser: the user changed their mind.
+  if (choice.kind === 'cancel') return;
   // Hand off to the existing workspace — it reads the path and shows
   // its slot picker. Bring it forward so the picker is visible. A
   // window that closed while the chooser was up falls through to the
@@ -662,6 +677,7 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
     skipCloseConfirm.delete(win.id);
     multiPaneWindows.delete(win.id);
     windowNames.delete(win.id);
+    windowDocs.delete(win.id);
     // A lone floating timer must not outlive the last document
     // window (it would block `window-all-closed` from ever firing
     // on Windows / Linux).
@@ -2181,6 +2197,17 @@ ipcMain.handle('host:get-initial-doc', async (event) => {
 // The renderer reports its workspace mode at boot (and re-reports on
 // the reload a mode toggle triggers) so the OS-open path knows which
 // windows can take a file into their slot picker.
+// The renderer reports the filenames open in its workspace (title updates)
+// so the window chooser can list them under a named window.
+ipcMain.handle('host:window-docs', async (event, names: unknown) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return;
+  const list = Array.isArray(names)
+    ? names.filter((n): n is string => typeof n === 'string' && n.length > 0)
+    : [];
+  windowDocs.set(win.id, list);
+});
+
 ipcMain.handle('host:register-multipane', async (event, isMultiPane: boolean) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return;

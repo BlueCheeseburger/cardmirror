@@ -8907,6 +8907,11 @@ function updateWindowTitle(): void {
   syncRepresentedFile(focused.handle);
   if (currentWindowName) {
     document.title = currentWindowName;
+    if (multiDocActive && multiDocGetAllFilenames) {
+      void getElectronHost()?.reportWindowDocs(
+        multiDocGetAllFilenames().filter((n): n is string => !!n).map(displayFilename),
+      );
+    }
   } else if (multiDocActive && multiDocGetAllFilenames) {
     const names = multiDocGetAllFilenames()
       .filter((n): n is string => !!n)
@@ -8914,6 +8919,7 @@ function updateWindowTitle(): void {
     document.title = names.length > 0
       ? `${names.join(' · ')} — CardMirror`
       : 'CardMirror';
+    void getElectronHost()?.reportWindowDocs(names);
   } else {
     document.title = focused.filename
       ? `${displayFilename(focused.filename)} — CardMirror`
