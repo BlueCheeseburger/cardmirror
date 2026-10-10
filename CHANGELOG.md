@@ -11,9 +11,19 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 ## Unreleased
 
 ### Added
+- **Right-click a heading → Mark card.** Drops a red "Marked h:mm" reading marker
+  at the end of the card (or **Mark N cards**, or **Mark cards under heading** on a
+  Pocket, Hat or Block), so those cards count as marked for Save Marked Cards.
+  When they're all marked the row reads **Unmark…** and removes the markers. One
+  undo step.
 - **Key hints and a close button on the pane chooser.** The "Open … into…" picker
   now shows the key for each choice (1, 2, 3, and 4 for New window) and has an ✕
   in the top-right corner. The window chooser got the same ✕.
+
+### Removed
+- **Create live view of heading** and **Create linked copy of heading** are gone
+  from the outline's right-click menu (the commands are still in the Search
+  palette and ribbon).
 
 ### Fixed
 - **The window chooser no longer has empty space at the bottom.** It sizes itself

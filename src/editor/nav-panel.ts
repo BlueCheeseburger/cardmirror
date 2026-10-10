@@ -22,12 +22,11 @@ import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js
 import { isCutInPlaceDoc, markCutInPlace } from './cut-in-place.js';
 import { showToast } from './toast.js';
 import { countReadAloudSplit, formatReadTimeFor, type ReadAloudCounts } from './word-count.js';
+import { cardMarkAction, buildMarkCardsTransaction } from './reading-marker.js';
 import { cardHighlightAction, rehighlightRanges, unhighlightRanges } from './card-highlight-toggle.js';
 import { isAnyOverlayOpen } from './overlay-stack.js';
 import { setManualShadowSelection } from './similar-selection-plugin.js';
 import {
-  insertSelfRef,
-  insertInDocCopy,
   selfRefSelectionPos,
 } from './self-transclusion-commands.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
@@ -2725,6 +2724,7 @@ export class NavigationPanel {
     const highlight = this.view
       ? cardHighlightAction(this.view.state, this.headingRanges(targets))
       : null;
+    const cardMark = this.view ? cardMarkAction(this.view.state, this.headingRanges(targets)) : null;
     // Search results: only what leaves the document as it is.
     const items: ContextMenuItem[] = this.searchResultsShown()
       ? [
@@ -2773,21 +2773,15 @@ export class NavigationPanel {
             },
           ] as ContextMenuItem[])
         : []),
-      // Creators — deliberately NOT multi-select aware: a live view or
-      // linked copy mirrors ONE section, so these always act on the
-      // clicked row alone, whatever the selection is.
-      ...(entry.id != null && !entry.windowed
+      // One row, two states (like Unhighlight): drops a reading marker into
+      // every card under the heading(s), which makes them "marked cards" for
+      // Save Marked Cards; once they all have one it removes them again.
+      ...(cardMark
         ? ([
-            { kind: 'separator' },
             {
               kind: 'item',
-              label: 'Create live view of heading',
-              action: () => this.createLiveViewFrom(entry),
-            },
-            {
-              kind: 'item',
-              label: 'Create linked copy of heading',
-              action: () => this.createLinkedCopyFrom(entry),
+              label: `${cardMark === 'unmark' ? 'Unmark' : 'Mark'} ${cardsOnly ? (n > 1 ? `${n} cards` : 'card') : `cards under ${what}`}`,
+              action: () => this.toggleHeadingMark(entry),
             },
           ] as ContextMenuItem[])
         : []),
@@ -2930,51 +2924,6 @@ export class NavigationPanel {
     return merged;
   }
 
-  /** The self-containment guard the section picker enforces via
-   *  guardPos, for the menu creators: the EDITOR cursor is the
-   *  insertion point, and it must sit outside the mirrored section —
-   *  a window can't live inside what it mirrors. Null = fine;
-   *  otherwise the toast to show. */
-  private creatorGuardMessage(entry: HeadingEntry, what: string): string | null {
-    if (!this.view) return 'No document.';
-    const range = this.computeHeadingRange(entry);
-    if (!range || range.to <= range.from) return `This heading has no content to ${what}.`;
-    const at = this.view.state.selection.from;
-    if (at >= range.from && at <= range.to) {
-      return `Put the cursor where the ${what} should go — outside this section — first.`;
-    }
-    return null;
-  }
-
-  /** Insert a read-only live view of this heading's section at the
-   *  editor cursor (same insertion the picker command performs; the
-   *  clicked nav row replaces the pick). */
-  private createLiveViewFrom(entry: HeadingEntry): void {
-    if (!this.view || entry.id == null) return;
-    const blocked = this.creatorGuardMessage(entry, 'live view');
-    if (blocked) {
-      showToast(blocked);
-      return;
-    }
-    if (!insertSelfRef(this.view, entry.id)) {
-      showToast('Couldn\u2019t create a live view of this heading.');
-    }
-  }
-
-  /** Insert an editable in-doc linked copy of this heading's section
-   *  at the editor cursor. */
-  private createLinkedCopyFrom(entry: HeadingEntry): void {
-    if (!this.view || entry.id == null) return;
-    const blocked = this.creatorGuardMessage(entry, 'linked copy');
-    if (blocked) {
-      showToast(blocked);
-      return;
-    }
-    // insertInDocCopy surfaces its own error toasts (shared zone
-    // error messages) on failure.
-    insertInDocCopy(this.view, entry.id);
-  }
-
   /** Shrink the text under the heading(s) — the same Shrink the Card menu
    *  and Mod-8 run, over each heading's whole range, all in ONE
    *  transaction (one undo step). Runs on a scratch state per range so the
@@ -3015,6 +2964,14 @@ export class NavigationPanel {
         ? rehighlightRanges(ranges)
         : unhighlightRanges(ranges);
     cmd(view.state, view.dispatch.bind(view));
+  }
+
+  /** Mark (or unmark) every card under the heading(s) with a reading marker. */
+  private toggleHeadingMark(entry: HeadingEntry): void {
+    const view = this.view;
+    if (!view) return;
+    const tr = buildMarkCardsTransaction(view.state, this.headingRanges(this.contextTargets(entry)));
+    if (tr) view.dispatch(tr);
   }
 
   private selectHeadingAndContents(entry: HeadingEntry): void {

@@ -382,11 +382,10 @@ mirrors Word's Navigation Pane, but does more:
   **multi-selection** runs the action on *every* selected heading —
   Cut and Copy stitch a scattered selection together in document
   order, so it pastes as if the sections had been dragged next to
-  each other first, and a multi-Delete is a single undo step. The
-  menu also offers **Create live view of heading** and **Create
-  linked copy of heading**, which drop a [live view or linked
-  copy](#10-live-views-and-linked-copies) of that section at your
-  cursor — no picker needed, since the clicked heading *is* the pick.
+  each other first, and a multi-Delete is a single undo step.
+  (To drop a [live view or linked copy](#10-live-views-and-linked-copies)
+  of a heading, use the commands in the Search palette or the ribbon; the
+  right-click menu no longer has them.)
   **(Fork)** Two more rows act on everything under the heading: **Shrink**
   runs the same Shrink as the Card menu (Mod-8) over it, and
   **Unhighlight** strips the highlighting from it. On a card they read
@@ -396,6 +395,11 @@ mirrors Word's Navigation Pane, but does more:
   unhighlight is still in the undo history (close and reopen the document,
   or undo it, and it's gone). Both are one undo step and follow a
   multi-selection like Cut and Copy do.
+  **Mark card** (or *Mark N cards*, or *Mark cards under heading* on a
+  Pocket, Hat or Block) drops a red "Marked h:mm" reading marker at the end
+  of each card under the heading, so those cards count as marked for
+  **Save Marked Cards**. Once every card there has one the row reads
+  **Unmark…** and removes them. One undo step.
   *(Fork)* The bottom of the menu shows how long your first two readers
   take to read the heading and everything under it, one reader per line
   (all selected headings together, for a multi-selection). The times use
