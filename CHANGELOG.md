@@ -8,6 +8,17 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+- **Key hints and a close button on the pane chooser.** The "Open … into…" picker
+  now shows the key for each choice (1, 2, 3, and 4 for New window) and has an ✕
+  in the top-right corner. The window chooser got the same ✕.
+
+### Fixed
+- **The window chooser no longer has empty space at the bottom.** It sizes itself
+  to its rows.
+
 ## 1.15.0-bcb.3.1 — 2026-10-09
 
 ### Fixed

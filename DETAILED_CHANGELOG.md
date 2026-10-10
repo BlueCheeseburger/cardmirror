@@ -10,6 +10,14 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: key hints and a ✕ on the slot picker; ✕ on the window chooser (`multi-pane-shell.ts`, `multipane-chooser-ui.ts`, `style.css`)
+`promptForSlot` already took 1/2/3 (and 4 for New window) but showed nothing; each choice now carries a `.pmd-route-kbd` badge, and `.pmd-route-x` closes it like Cancel/Esc. The Electron window chooser's page gets a `.x` that picks the same index Esc does.
+
+### Fixed: window chooser height (`multipane-chooser-ui.ts`)
+The BrowserWindow height was a row-count guess that overshot, leaving a blank band under the last row. The page now exposes `naturalHeight()` and `ready-to-show` resizes the window to it (capped at 560px; longer lists scroll) before showing.
+
 ## 1.15.0-bcb.3.1 — 2026-10-09
 
 ### Fixed: inline time-left widened the timer and tripped the ribbon's overflow cascade (`style.css`)

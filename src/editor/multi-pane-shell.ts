@@ -3850,13 +3850,28 @@ class MultiPaneShell {
         resolve(choice);
       };
       const dialog = document.createElement('div');
-      dialog.className = 'pmd-route-dialog';
+      dialog.className = 'pmd-route-dialog pmd-slot-picker';
       const header = document.createElement('div');
       header.className = 'pmd-route-header';
       // `heading` for callers where "Open X into…" is the wrong verb —
       // a new document isn't being opened from anywhere.
       header.textContent = opts.heading ?? `Open ${filename} into…`;
       dialog.appendChild(header);
+      // A close ✕ in the top-right (same outcome as Cancel / Esc).
+      const closeX = document.createElement('button');
+      closeX.type = 'button';
+      closeX.className = 'pmd-route-x';
+      closeX.setAttribute('aria-label', 'Close');
+      closeX.title = 'Close (Esc)';
+      closeX.textContent = '×';
+      closeX.addEventListener('click', () => finish(null));
+      dialog.appendChild(closeX);
+      const keyHint = (key: string): HTMLElement => {
+        const kbd = document.createElement('kbd');
+        kbd.className = 'pmd-route-kbd';
+        kbd.textContent = key;
+        return kbd;
+      };
       const row = document.createElement('div');
       row.className = 'pmd-route-buttons';
       for (const id of SLOT_IDS) {
@@ -3869,6 +3884,7 @@ class MultiPaneShell {
             ? '(empty)'
             : `${slot.visible?.filename ?? ''}${slot.stack.length > 1 ? ` (+${slot.stack.length - 1})` : ''}`;
         btn.innerHTML = `<strong>${id.replace('slot', 'Slot ')}</strong><br><span>${stackLabel}</span>`;
+        btn.appendChild(keyHint(String(SLOT_IDS.indexOf(id) + 1)));
         btn.addEventListener('click', () => finish(id));
         row.appendChild(btn);
       }
@@ -3879,6 +3895,7 @@ class MultiPaneShell {
         newWindowBtn.className = 'pmd-route-btn pmd-route-btn-new-window';
         newWindowBtn.innerHTML =
           '<strong>New window</strong><br><span>Open in a fresh three-pane workspace</span>';
+        newWindowBtn.appendChild(keyHint('4'));
         newWindowBtn.addEventListener('click', () => finish('new-window'));
         dialog.appendChild(newWindowBtn);
       }
