@@ -49,6 +49,13 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Typecheck desktop main process
+        # The root typecheck only reaches the desktop files the tests import;
+        # the release build compiles ALL of apps/desktop/src with this exact
+        # command (build:main), so a duplicate identifier in main.ts passed CI
+        # and then failed every release leg (1.15.0-bcb.4, 2026-10-10).
+        run: npx tsc -p apps/desktop/tsconfig.json --noEmit
+
       - name: Check doc links
         # Pure-markdown check with no OS-dependent behavior, so one runner
         # is enough — the other would just repeat it. Was ubuntu-latest
