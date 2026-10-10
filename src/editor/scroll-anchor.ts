@@ -26,6 +26,7 @@
  */
 import type { EditorView } from 'prosemirror-view';
 import { nearestScroller } from './precise-scroll.js';
+import { readingLineOffset } from './reading-line.js';
 import { firstReadKeptPos, nearestReadKeptPos } from './read-mode-plugin.js';
 
 export interface ViewportAnchor {
@@ -75,14 +76,23 @@ export function captureViewportAnchor(
       return null;
     }
   };
-  const topHit = hitAt(scrollerRect.top + 1);
+  // The line anchored is the one being READ — a third of the way down the
+  // window (reading-line.ts) — and it is pinned back to that same screen y.
+  const readingY =
+    scrollerRect.top +
+    1 +
+    readingLineOffset(
+      scrollerRect.bottom - scrollerRect.top,
+      Math.max(0, scrollerRect.top - domRect.top),
+    );
+  const topHit = hitAt(readingY);
   if (!topHit) return null;
 
   if (opts.readMode) {
     // Anchor to the FIRST content that survives read mode, scanning down
-    // from the viewport top; if the whole viewport collapses, the nearest
-    // kept content in either direction. Pin it TO the viewport top — the
-    // hidden content above it collapses away, so it rises to the top.
+    // from the reading line; if the whole viewport collapses, the nearest
+    // kept content in either direction. Pin it TO the reading line — the
+    // hidden content above it collapses away, so it rises to that line.
     const doc = view.state.doc;
     const botHit = hitAt(scrollerRect.bottom - 1);
     const to = botHit ? Math.max(topHit.pos, botHit.pos) : doc.content.size;
@@ -90,7 +100,7 @@ export function captureViewportAnchor(
       firstReadKeptPos(doc, topHit.pos, to) ??
       nearestReadKeptPos(doc, topHit.pos) ??
       topHit.pos;
-    return { view, scroller, pos, topBefore: scrollerRect.top };
+    return { view, scroller, pos, topBefore: readingY };
   }
 
   // Zoom: nothing hides, so anchor to the exact viewport-top position and

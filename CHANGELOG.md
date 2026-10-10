@@ -10,6 +10,18 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Fixed
+- **The on-time / too-slow / too-fast indicator and "Left" now work in Reading
+  view.** They counted from a spot pages away and never changed as you turned
+  pages; they now follow the page in view.
+- **Time left, the indicator, auto-scroll and read mode's scroll-pinning all use
+  the line you're actually reading** — about a third of the way down the window
+  — instead of the very top edge.
+
+### Added
+- **Auto-scroll works in Reading view.** It turns the pages, giving each as long
+  as it takes to read aloud at your first reader's rate. Flipping a page yourself
+  stops it.
 ### Added
 - **Right-click a heading → Mark card.** Drops a red "Marked h:mm" reading marker
   at the end of the card (or **Mark N cards**, or **Mark cards under heading** on a

@@ -1481,7 +1481,9 @@ with everything that isn't read aloud already hidden, the scroll
 speed tracks your actual delivery pace almost exactly — a hands-free
 teleprompter for practicing a speech. Any manual scroll, wheel, touch,
 or click hands control straight back to you and stops it; running out
-of document does too. Switching focus to another pane (in the
+of document does too. In **Reading view** (the book) there is nothing to scroll, so it turns the pages
+instead, giving each page as long as it takes to read aloud at your first reader's
+rate; flipping a page yourself stops it. Switching focus to another pane (in the
 multi-doc workspace) also stops it — it never keeps scrolling somewhere
 you're not looking.
 
@@ -1579,12 +1581,13 @@ order. In the three-pane workspace each pane follows its own read mode.
 A third readout — **what's left to read** — is available and **off by
 default**: turn on **Settings → General → "Live read time for what is
 left to read"** and the bar appends everything still ahead of where
-you are **scrolled to** — from the line at the top of the window to the
-end of the document — with each reader's time for it: `Doc · Amy: 8:12 | Card: 42 · Amy: 0:31 | Left
+you are **scrolled to** — from the line you're reading, about a third of the way
+down the window, to the end of the document — with each reader's time for it: `Doc · Amy: 8:12 | Card: 42 · Amy: 0:31 | Left
 · Amy: 5:20`. Only read-aloud text counts, same as every other readout,
 so trimming highlights lowers it. It follows the scroll, not the cursor
-(a speaker reads from the top of the screen, and the caret is wherever
-you last clicked), and updates as you scroll. It's cheap on large files
+(a speaker reads about a third of the way down the screen, and the caret is
+wherever you last clicked), and updates as you scroll. In Reading view it counts
+from the page in view. It's cheap on large files
 too: CardMirror keeps a running total per section of the document, so a
 new position only re-counts the card or paragraph it lands in.
 

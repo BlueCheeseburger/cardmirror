@@ -87,13 +87,21 @@ afterEach(() => {
 });
 
 describe('scrollAnchorPos', () => {
-  it('asks for the line just under the top edge of the window when the doc is scrolled', () => {
-    // The editor's top is 500px above the window's: the top edge is mid-document.
+  it('asks for the line a third of the way down the window when the doc is scrolled', () => {
+    // The editor's top is 500px above the window's: the window is mid-document,
+    // so the reading line sits the full third (600 / 3 = 200px) below its top.
     const { view, asked } = fakeView({ scroller: rect(100, 600), editor: rect(-400, 2000, 50, 700), hit: 42 });
     expect(scrollAnchorPos(view)).toBe(42);
     expect(asked).toHaveLength(1);
-    expect(asked[0]!.top).toBe(106);
+    expect(asked[0]!.top).toBe(100 + 6 + 200);
     expect(asked[0]!.left).toBe(400); // the middle of the text column
+  });
+
+  it('eases the line down from the top over the first third of scrolling', () => {
+    // Scrolled only 60px: nothing much has been read, so the line is 60px down.
+    const { view, asked } = fakeView({ scroller: rect(100, 600), editor: rect(40, 2000, 50, 700), hit: 7 });
+    scrollAnchorPos(view);
+    expect(asked[0]!.top).toBe(100 + 6 + 60);
   });
 
   it('anchors to the editor top when the document starts inside the window', () => {
@@ -107,6 +115,37 @@ describe('scrollAnchorPos', () => {
     expect(scrollAnchorPos(lone)).toBeNull();
     expect(scrollAnchorPos(fakeView({ scroller: rect(0, 0), editor: rect(0, 0, 0, 0), hit: 5 }).view)).toBeNull();
     expect(scrollAnchorPos(fakeView({ scroller: rect(0, 600), editor: rect(0, 900), hit: null }).view)).toBeNull();
+  });
+});
+
+describe('scrollAnchorPos in Reading view', () => {
+  it('aims at the first column of the page in view, a third of the way down', async () => {
+    const { applyReaderViewToTarget, readerControllerFor } = await import('../../src/editor/reader-view.js');
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const dom = document.createElement('div');
+    dom.className = 'ProseMirror';
+    host.appendChild(dom);
+    const asked: Array<{ left: number; top: number }> = [];
+    const view = {
+      dom,
+      state: { tr: { setMeta() { return {}; } } },
+      setProps() {},
+      dispatch() {},
+      posAtCoords: (c: { left: number; top: number }) => {
+        asked.push(c);
+        return { pos: 11, inside: 11 };
+      },
+    } as unknown as EditorView;
+    host.style.overflowY = 'auto';
+    host.getBoundingClientRect = () => rect(0, 600, 0, 900);
+    dom.getBoundingClientRect = () => rect(0, 600, -2000, 9000); // a wide strip scrolled sideways
+    applyReaderViewToTarget(host, view, true);
+    expect(readerControllerFor(view)).not.toBeNull();
+    expect(scrollAnchorPos(view)).toBe(11);
+    expect(asked[0]!.top).toBe(200);
+    expect(asked[0]!.left).toBeLessThan(150); // the first column, not the strip's middle
+    applyReaderViewToTarget(host, view, false);
   });
 });
 

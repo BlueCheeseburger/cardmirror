@@ -179,3 +179,39 @@ describe('startAutoScroll / stopAutoScroll (lifecycle)', () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('reading line', () => {
+  it('readingLineOffset eases down from the top to a third of the window', async () => {
+    const { readingLineOffset } = await import('../../src/editor/reading-line.js');
+    expect(readingLineOffset(600, 0)).toBe(0);
+    expect(readingLineOffset(600, 80)).toBe(80);
+    expect(readingLineOffset(600, 5000)).toBe(200);
+  });
+});
+
+describe('Reading view pages', () => {
+  it('pageReadSeconds times the words between the first column top and the last column bottom', async () => {
+    const { pageReadSeconds } = await import('../../src/editor/auto-scroll.js');
+    const words = Array.from({ length: 30 }, (_, i) => `w${i}`).join(' ');
+    const doc = schema.nodes['doc']!.createChecked(null, [
+      schema.nodes['card']!.createChecked(null, [
+        schema.nodes['tag']!.create({ id: newHeadingId() }, schema.text('t')),
+        schema.nodes['card_body']!.create(null, schema.text(words, [schema.marks['highlight']!.create({ color: 'yellow' })])),
+      ]),
+    ]);
+    const { scroller, editorDom } = makeScroller({ scrollHeight: 600, clientHeight: 600 });
+    const size = doc.content.size;
+    const view = {
+      dom: editorDom,
+      state: { doc },
+      posAtCoords: (c: { left: number; top: number }) => ({ pos: c.top < 100 ? 0 : size, inside: 0 }),
+    } as unknown as EditorView;
+    // 30 highlighted body words (+1 tag word) at 60 wpm (1 word/s) ≈ 31 s.
+    const s = pageReadSeconds(view, scroller, { wpm: 60 });
+    expect(s).toBeGreaterThan(29);
+    expect(s).toBeLessThan(33);
+    // A page that can't be measured falls back to a steady 20 s.
+    const blind = { ...view, posAtCoords: () => null } as unknown as EditorView;
+    expect(pageReadSeconds(blind, scroller, { wpm: 60 })).toBe(20);
+  });
+});
