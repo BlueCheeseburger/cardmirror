@@ -18,6 +18,9 @@ import { BrowserWindow, nativeTheme } from 'electron';
 
 export const CHOOSER_SCHEME = 'cm-chooser:';
 
+/** Tallest the chooser window gets; a longer list scrolls inside it. */
+const CHOOSER_MAX_HEIGHT = 560;
+
 export interface ChooserHtmlOptions {
   message: string;
   labels: string[];
@@ -62,9 +65,11 @@ export function chooserHtml(opts: ChooserHtmlOptions): string {
 :root[data-theme="dark"]{--bg:#1a1a1a;--bg-soft:#222;--border:#3a3a3a;--text:#e6e6e6;--muted:#9a9a9a;--hover:#333;--accent:#5a8fff;--accent-soft:rgba(90,143,255,.18)}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none}
-.wrap{display:flex;flex-direction:column;height:100%;border:1px solid var(--border);padding:14px 16px 12px;gap:10px}
+.wrap{position:relative;display:flex;flex-direction:column;height:100%;border:1px solid var(--border);padding:14px 16px 12px;gap:10px}
+.x{all:unset;box-sizing:border-box;position:absolute;top:8px;right:10px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:5px;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;-webkit-app-region:no-drag}
+.x:hover{color:var(--text);background:var(--hover)}
 .drag{-webkit-app-region:drag}
-h1{margin:0;font-size:15px;font-weight:700;line-height:1.3;word-break:break-word}
+h1{margin:0;padding-right:26px;font-size:15px;font-weight:700;line-height:1.3;word-break:break-word}
 .list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0;flex:1}
 .row{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft);cursor:pointer}
 .row:hover{background:var(--hover)}
@@ -83,7 +88,8 @@ kbd{font:11px ui-monospace,Menlo,Consolas,monospace;color:var(--muted);border:1p
 .btn{font:inherit;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg-soft);color:var(--text);cursor:pointer}
 .btn:hover{background:var(--hover)}
 </style></head><body>
-<div class="wrap">
+<div class="wrap" id="wrap">
+<button class="x" data-pick="${opts.withCancel ? newIdx + 1 : newIdx}" type="button" aria-label="Close" title="Close (Esc)">&times;</button>
 <h1 class="drag">${esc(opts.message)}</h1>
 <div class="list" id="list">${newRow}${rows}</div>
 ${cancel}
@@ -103,6 +109,7 @@ document.addEventListener('keydown',function(e){
  if(/^[1-9]$/.test(e.key)&&Number(e.key)<=items.length-1){pick(Number(e.key)-1);}
 });
 mark();
+function naturalHeight(){var w=document.getElementById('wrap');var h=w.style.height;w.style.height='auto';var n=Math.ceil(w.getBoundingClientRect().height);w.style.height=h;return n;}
 </script></body></html>`;
 }
 
@@ -115,11 +122,13 @@ export function showChooserWindow(opts: {
 }): Promise<number> {
   const escapeIndex = opts.labels.length + (opts.withCancel ? 1 : 0);
   return new Promise<number>((resolve) => {
+    // Opens at a guess, then ready-to-show resizes to the page's measured
+    // height so there's no dead space under the last row.
     const rows = Math.min(opts.labels.length, 6);
     const lines = opts.labels.slice(0, 6).reduce((n, l) => n + splitLabel(l).length, 0);
     const win = new BrowserWindow({
       width: 460,
-      height: Math.min(560, 150 + rows * 22 + lines * 18),
+      height: Math.min(CHOOSER_MAX_HEIGHT, 150 + rows * 22 + lines * 18),
       frame: false,
       resizable: false,
       minimizable: false,
@@ -148,8 +157,19 @@ export function showChooserWindow(opts: {
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.on('closed', () => finish(escapeIndex));
     win.once('ready-to-show', () => {
-      win.center();
-      win.show();
+      void win.webContents
+        .executeJavaScript('naturalHeight()')
+        .then((h: unknown) => {
+          if (typeof h === 'number' && h > 0 && !win.isDestroyed()) {
+            win.setContentSize(460, Math.min(CHOOSER_MAX_HEIGHT, h));
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (win.isDestroyed()) return;
+          win.center();
+          win.show();
+        });
     });
     const html = chooserHtml({ ...opts, dark: nativeTheme.shouldUseDarkColors });
     void win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);

@@ -23,4 +23,13 @@ describe('chooserHtml', () => {
     const html = chooserHtml({ message: 'm', labels: ['A', 'B'], withCancel: false, dark: false });
     expect(html).toContain("if(e.key==='Escape'){pick(2)");
   });
+  it('has a close X in the corner that does what Esc does', () => {
+    const withCancel = chooserHtml({ message: 'm', labels: ['A'], withCancel: true, dark: false });
+    expect(withCancel).toContain('class="x" data-pick="2"');
+    const noCancel = chooserHtml({ message: 'm', labels: ['A', 'B'], withCancel: false, dark: false });
+    expect(noCancel).toContain('class="x" data-pick="2"');
+  });
+  it('can report its natural height so the window fits the rows', () => {
+    expect(chooserHtml({ message: 'm', labels: ['A'], withCancel: false, dark: false })).toContain('function naturalHeight()');
+  });
 });
