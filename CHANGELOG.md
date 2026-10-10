@@ -17,8 +17,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   When they're all marked the row reads **Unmark…** and removes the markers. One
   undo step.
 - **Key hints and a close button on the pane chooser.** The "Open … into…" picker
-  now shows the key for each choice (1, 2, 3, and 4 for New window) and has an ✕
-  in the top-right corner. The window chooser got the same ✕.
+  now shows the key for each choice and has an ✕ in the top-right corner. New
+  window sits on top as **0**, like the window chooser, with the panes as 1, 2, 3.
+  The window chooser got the same ✕.
 
 ### Removed
 - **Create live view of heading** and **Create linked copy of heading** are gone

@@ -3872,6 +3872,16 @@ class MultiPaneShell {
         kbd.textContent = key;
         return kbd;
       };
+      if (offerNewWindow) {
+        const newWindowBtn = document.createElement('button');
+        newWindowBtn.type = 'button';
+        newWindowBtn.className = 'pmd-route-btn pmd-route-btn-new-window';
+        newWindowBtn.innerHTML =
+          '<strong>New window</strong><br><span>Open in a fresh three-pane workspace</span>';
+        newWindowBtn.appendChild(keyHint('0'));
+        newWindowBtn.addEventListener('click', () => finish('new-window'));
+        dialog.appendChild(newWindowBtn);
+      }
       const row = document.createElement('div');
       row.className = 'pmd-route-buttons';
       for (const id of SLOT_IDS) {
@@ -3889,16 +3899,6 @@ class MultiPaneShell {
         row.appendChild(btn);
       }
       dialog.appendChild(row);
-      if (offerNewWindow) {
-        const newWindowBtn = document.createElement('button');
-        newWindowBtn.type = 'button';
-        newWindowBtn.className = 'pmd-route-btn pmd-route-btn-new-window';
-        newWindowBtn.innerHTML =
-          '<strong>New window</strong><br><span>Open in a fresh three-pane workspace</span>';
-        newWindowBtn.appendChild(keyHint('4'));
-        newWindowBtn.addEventListener('click', () => finish('new-window'));
-        dialog.appendChild(newWindowBtn);
-      }
       const cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.className = 'pmd-route-cancel';
@@ -3907,7 +3907,8 @@ class MultiPaneShell {
       dialog.appendChild(cancel);
       overlay.appendChild(dialog);
       document.body.appendChild(overlay);
-      // Esc cancels; 1 / 2 / 3 pick the corresponding slot. Skips
+      // Esc cancels; 1 / 2 / 3 pick the corresponding slot; 0 is New window
+      // (same keys as the desktop window chooser). Skips
       // chords with modifiers so e.g. Ctrl+1 keeps its slot-focus
       // meaning even if a picker is open.
       // Capture-phase + swallow (see installModalKeys): the picker
@@ -3928,7 +3929,7 @@ class MultiPaneShell {
           finish(SLOT_IDS[idx]!);
           return true;
         }
-        if (offerNewWindow && e.key === '4') {
+        if (offerNewWindow && e.key === '0') {
           finish('new-window');
           return true;
         }
