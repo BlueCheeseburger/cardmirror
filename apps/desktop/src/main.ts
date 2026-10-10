@@ -313,7 +313,7 @@ const windowNames = new Map<number, string>();
 /** Filenames of every doc open in a multi-pane window, reported by its
  *  renderer whenever they change. The "which window?" chooser lists them
  *  under a window that has a custom name (its title is then just the name). */
-const windowDocs = new Map<number, string[]>();
+const windowDocFilenames = new Map<number, string[]>();
 
 /** Every live multi-pane window, candidates for receiving an
  *  externally-opened file. */
@@ -376,7 +376,7 @@ async function pickMultiPaneTarget(
   const labels = sorted.map((e) => e.label);
   // A named window's label is only its name — list its docs underneath.
   const details = sorted.map((e) =>
-    windowNames.has(e.id) ? (windowDocs.get(e.id) ?? null) : null,
+    windowNames.has(e.id) ? (windowDocFilenames.get(e.id) ?? null) : null,
   );
   // The chooser's Esc and ✕ always report Cancel (a Cancel BUTTON is drawn
   // only with `withCancel`), so decode with the cancel slot always on.
@@ -677,7 +677,7 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
     skipCloseConfirm.delete(win.id);
     multiPaneWindows.delete(win.id);
     windowNames.delete(win.id);
-    windowDocs.delete(win.id);
+    windowDocFilenames.delete(win.id);
     // A lone floating timer must not outlive the last document
     // window (it would block `window-all-closed` from ever firing
     // on Windows / Linux).
@@ -2205,7 +2205,7 @@ ipcMain.handle('host:window-docs', async (event, names: unknown) => {
   const list = Array.isArray(names)
     ? names.filter((n): n is string => typeof n === 'string' && n.length > 0)
     : [];
-  windowDocs.set(win.id, list);
+  windowDocFilenames.set(win.id, list);
 });
 
 ipcMain.handle('host:register-multipane', async (event, isMultiPane: boolean) => {
