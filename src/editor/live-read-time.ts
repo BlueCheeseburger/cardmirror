@@ -21,7 +21,7 @@
  * read-aloud words from where the document is SCROLLED to (the line at
  * the top edge of what's on screen) to the end of the doc, same
  * predicate, same per-reader times. It follows the scroll, not the
- * cursor: a speaker reads from the top of the screen, and the caret is
+ * cursor: a speaker reads from about a third of the way down the screen, and the caret is
  * usually wherever they last clicked or typed. With no scroller to
  * measure (a hidden pane) it falls back to the cursor. Off by default:
  * it's a speech-prep readout, not something every user wants in the bar.
@@ -53,6 +53,8 @@ import type { EditorState } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 import { nearestScroller } from './precise-scroll.js';
+import { readingLineOffset, READING_LINE_FRACTION } from './reading-line.js';
+import { readerControllerFor, READER_EDGE_W } from './reader-view.js';
 import { settings, type ReaderConfig } from './settings.js';
 import {
   countReadAloudSplit,
@@ -299,27 +301,44 @@ function countRemaining(doc: PMNode, pos: number): ReadAloudCounts {
   return { body: partial.body + rest.body, other: partial.other + rest.other };
 }
 
-/** The document position at the top edge of what's scrolled into view in
- *  `view`'s scroller: the line a speaker is reading from. Null when it
- *  can't be measured (no scroller, a hidden or zero-size pane, a layout
- *  without hit-testing). */
+/** The document position of the line a speaker is reading in `view`: about a
+ *  third of the way down the visible document (see `reading-line.ts`), not its
+ *  top edge. In Reading view (paged, scrolled sideways) it is the first column
+ *  of the current page, a third of the way down. Null when it can't be
+ *  measured (no scroller, a hidden or zero-size pane, a layout without
+ *  hit-testing). */
 export function scrollAnchorPos(view: EditorView): number | null {
   const scroller = nearestScroller(view.dom);
   if (!scroller) return null;
   const s = scroller.getBoundingClientRect();
   const e = view.dom.getBoundingClientRect();
   if (s.height === 0 || e.width === 0) return null;
-  // Just under the top edge of the visible part of the document — the
-  // editor's own top when it starts inside the window (scrolled to the
-  // very top, or a short doc), the window's top edge otherwise — and in
-  // the middle of the text column.
-  const top = Math.max(s.top, e.top) + 6;
-  const left = Math.min(Math.max(e.left + e.width / 2, s.left + 1), s.right - 1);
-  try {
-    return view.posAtCoords({ left, top })?.pos ?? null;
-  } catch {
+  const hitAt = (left: number, top: number): number | null => {
+    try {
+      return view.posAtCoords({ left, top })?.pos ?? null;
+    } catch {
+      return null;
+    }
+  };
+  if (readerControllerFor(view)) {
+    // Reading view: the editor is a wide strip scrolled sideways, so its
+    // middle is pages away. The page being read is the one in the window;
+    // aim at its first column (clear of the flip lanes at the edges).
+    const top = s.top + s.height * READING_LINE_FRACTION;
+    for (const dx of [READER_EDGE_W + 14, READER_EDGE_W + 60, READER_EDGE_W + 120, s.width * 0.3]) {
+      const pos = hitAt(Math.min(s.left + dx, s.right - 1), top);
+      if (pos !== null) return pos;
+    }
     return null;
   }
+  // The reading line, a third down the visible part of the document: measured
+  // from the editor's own top when it starts inside the window (scrolled to
+  // the very top, or a short doc), the window's top edge otherwise — and in
+  // the middle of the text column.
+  const scrolled = Math.max(0, s.top - e.top);
+  const top = Math.max(s.top, e.top) + 6 + readingLineOffset(s.height, scrolled);
+  const left = Math.min(Math.max(e.left + e.width / 2, s.left + 1), s.right - 1);
+  return hitAt(left, top);
 }
 
 /** Call `refresh` (at most every 100 ms, trailing) while `scroller`

@@ -576,6 +576,16 @@ export class ReaderController {
     this.goTo(this.page + dir);
   }
 
+  /** 0-based index of the page in view. */
+  currentPage(): number {
+    return this.page;
+  }
+
+  /** Total pages (as of the last layout). */
+  pageTotal(): number {
+    return this.pages;
+  }
+
   goTo(page: number, opts: { animate?: boolean } = {}): void {
     if (!this.strip()) return;
     const clamped = Math.max(0, Math.min(this.pages - 1, page));
