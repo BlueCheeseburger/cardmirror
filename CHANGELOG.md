@@ -8,6 +8,13 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+- The README's logo has a transparent background (and a white-wordmark version
+  for dark mode), and the pace indicator is #2 in its list of the fork's biggest
+  features.
+
 ## 1.15.0-bcb.4 — 2026-10-10
 
 ### Added

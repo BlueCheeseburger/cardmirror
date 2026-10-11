@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="./logo.png" alt="CardMirror" width="280" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./logo-dark.png">
+    <img src="./logo.png" alt="CardMirror" width="280" />
+  </picture>
 </p>
 
 # CardMirror
@@ -18,31 +21,35 @@
 >    and drop it on the slot you want, empty ones included; right-click the
 >    chip to move a doc — unsaved edits and all — to a different window
 >    entirely. (main)
-> 2. **Per-pane cloud-sync badge** — in a multi-pane workspace, each pane
+> 2. **On-time / too-slow / too-fast pace indicator** — with the speech
+>    clock running, the timer compares the time left on the clock with how
+>    long the rest of your doc takes to read aloud at your pace and shows
+>    whether you're on time, too slow or too fast (words under the timer, or
+>    a small dot that shades from red through green to blue), plus the time
+>    left to read. It works in read mode and Reading view, and counts from
+>    the line you're actually reading, a third of the way down the screen.
+>    (main)
+> 3. **Per-pane cloud-sync badge** — in a multi-pane workspace, each pane
 >    shows its own Dropbox/OneDrive/Google Drive/iCloud sync status in its
 >    own footer, instead of one shared pill that left it ambiguous which
 >    pane it was reporting on. (main)
-> 3. **Logos card search** — type `g ` in Search Everything to search
+> 4. **Logos card search** — type `g ` in Search Everything to search
 >    Logos's index of open-source round-doc cards (college and high school
 >    policy) and insert a full card, cite and formatting intact, at your
 >    cursor; it can condense, shrink and recolor each one as it lands. (main)
-> 4. **Google Gemini** as a third AI provider, alongside Anthropic Claude
+> 5. **Google Gemini** as a third AI provider, alongside Anthropic Claude
 >    and OpenRouter. (main)
-> 5. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
+> 6. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
 >    text and speeding through everything else. (main)
-> 6. **Documents follow the file** — a clean document updates by itself
+> 7. **Documents follow the file** — a clean document updates by itself
 >    when another device saves it (Dropbox, OneDrive, Google Drive,
 >    iCloud), and Reload From Disk (Mod-R) pulls in the file on demand,
 >    keeping your outline as it was. (main)
-> 7. **Autosave for `.docx` files**, not just `.cmir` — plus a time-boxed,
+> 8. **Autosave for `.docx` files**, not just `.cmir` — plus a time-boxed,
 >    logged fallback for the zip worker and a ribbon button that
 >    distinguishes "saving" from "paused" (e.g. a doc with a live view Word
 >    can't hold open). (main)
-> 8. **Compare documents** — a "Compare" card on the home screen picks two
->    `.cmir`/`.docx` files and shows a read-only, side-by-side line diff of
->    their text, with the changed words in an edited line struck through or
->    underlined, and an outline on each side to jump to a heading. (main)
 
 CardMirror is a debate text editor focused on high school and college
 policy debate. It's a standalone
