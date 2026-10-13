@@ -83,6 +83,12 @@ describe('smart quotes plugin', () => {
     expect(bodyText(typeAtBodyEnd('em—', '"').view.state.doc)).toBe('em—“'); // em-dash → open
   });
 
+  it('a digit typed after an opening single quote flips it to an apostrophe', () => {
+    settings.set('smartQuotes', true);
+    expect(bodyText(typeAtBodyEnd('Smith ‘', '2').view.state.doc)).toBe('Smith ’2'); // cite year
+    expect(typeAtBodyEnd('a “', '2').ret).toBe(false); // double quotes untouched
+  });
+
   it('does nothing when the setting is off', () => {
     settings.set('smartQuotes', false);
     const { ret, view } = typeAtBodyEnd('hello', '"');
