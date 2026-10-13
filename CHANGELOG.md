@@ -11,6 +11,14 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 ## Unreleased
 
 ### Changed
+- **Home screen top row: New document, Open…, Compare documents.** The "New speech
+  document" card is gone from the home screen (New Speech Document is still in the
+  ribbon and the command bar), and Compare moved up from the bottom row into the
+  third slot. The number keys follow: 1 New document, 2 Open, 3 Compare, then the
+  utility tiles.
+- Compare documents is #3 in the README's list of the fork's biggest features.
+
+### Changed
 - The README's logo has a transparent background (and a white-wordmark version
   for dark mode), and the pace indicator is #2 in its list of the fork's biggest
   features.

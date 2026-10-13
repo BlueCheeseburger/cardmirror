@@ -29,27 +29,29 @@
 >    left to read. It works in read mode and Reading view, and counts from
 >    the line you're actually reading, a third of the way down the screen.
 >    (main)
-> 3. **Per-pane cloud-sync badge** — in a multi-pane workspace, each pane
+> 3. **Compare documents** — the home screen's top row has a "Compare
+>    documents" card: pick two `.cmir`/`.docx` files and see a read-only,
+>    side-by-side line diff of their text, with the changed words in an
+>    edited line struck through or underlined, and an outline on each side
+>    (green for added, red for removed, yellow for partly changed) to jump
+>    to a heading. (main)
+> 4. **Per-pane cloud-sync badge** — in a multi-pane workspace, each pane
 >    shows its own Dropbox/OneDrive/Google Drive/iCloud sync status in its
 >    own footer, instead of one shared pill that left it ambiguous which
 >    pane it was reporting on. (main)
-> 4. **Logos card search** — type `g ` in Search Everything to search
+> 5. **Logos card search** — type `g ` in Search Everything to search
 >    Logos's index of open-source round-doc cards (college and high school
 >    policy) and insert a full card, cite and formatting intact, at your
 >    cursor; it can condense, shrink and recolor each one as it lands. (main)
-> 5. **Google Gemini** as a third AI provider, alongside Anthropic Claude
+> 6. **Google Gemini** as a third AI provider, alongside Anthropic Claude
 >    and OpenRouter. (main)
-> 6. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
+> 7. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
 >    text and speeding through everything else. (main)
-> 7. **Documents follow the file** — a clean document updates by itself
+> 8. **Documents follow the file** — a clean document updates by itself
 >    when another device saves it (Dropbox, OneDrive, Google Drive,
 >    iCloud), and Reload From Disk (Mod-R) pulls in the file on demand,
 >    keeping your outline as it was. (main)
-> 8. **Autosave for `.docx` files**, not just `.cmir` — plus a time-boxed,
->    logged fallback for the zip worker and a ribbon button that
->    distinguishes "saving" from "paused" (e.g. a doc with a live view Word
->    can't hold open). (main)
 
 CardMirror is a debate text editor focused on high school and college
 policy debate. It's a standalone

@@ -32,7 +32,6 @@ function makeCallbacks(): HomeScreenCallbacks & {
 } {
   return {
     newDoc: vi.fn(),
-    newSpeechDoc: vi.fn(),
     open: vi.fn(),
     openRecent: vi.fn(),
     manageQuickCards: vi.fn(),

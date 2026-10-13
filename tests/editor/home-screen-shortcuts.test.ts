@@ -12,7 +12,6 @@ import { pushOverlay, popOverlay } from '../../src/editor/overlay-stack.js';
 function makeCallbacks(): HomeScreenCallbacks & { newDoc: ReturnType<typeof vi.fn> } {
   return {
     newDoc: vi.fn(),
-    newSpeechDoc: vi.fn(),
     open: vi.fn(),
     openRecent: vi.fn(),
     manageQuickCards: vi.fn(),
@@ -78,7 +77,6 @@ describe('home-screen shortcuts reflow around the gated Compress tile', () => {
     document.body.innerHTML = '';
     const cb = {
       newDoc: vi.fn(),
-      newSpeechDoc: vi.fn(),
       open: vi.fn(),
       openRecent: vi.fn(),
       manageQuickCards: vi.fn(),
@@ -95,28 +93,33 @@ describe('home-screen shortcuts reflow around the gated Compress tile', () => {
     return cb;
   }
 
-  it('Compress gated OFF: key 6 runs Compare, key 7 runs Manage quick cards (numbers close the gap)', () => {
-    // Runners: 1 New, 2 New speech, 3 Open, 4 Clean, 5 Convert, 6 Compare, 7 Quick Cards.
+  it('Compress gated OFF: key 3 runs Compare, key 6 runs Manage quick cards (numbers close the gap)', () => {
+    // Runners: 1 New, 2 Open, 3 Compare, 4 Clean, 5 Convert, 6 Quick Cards.
     const cb = mountWith({}); // no bulkCompress supplied
-    press('6');
+    press('3');
     expect(cb.compareDocuments).toHaveBeenCalledTimes(1);
+    expect(cb.manageQuickCards).not.toHaveBeenCalled();
+    press('6');
+    expect(cb.manageQuickCards).toHaveBeenCalledTimes(1);
+  });
+
+  it('Compress gated ON: key 6 runs Compress, key 7 runs Manage quick cards', () => {
+    const bulkCompress = vi.fn();
+    const cb = mountWith({ bulkCompress });
+    press('6');
+    expect(bulkCompress).toHaveBeenCalledTimes(1);
     expect(cb.manageQuickCards).not.toHaveBeenCalled();
     press('7');
     expect(cb.manageQuickCards).toHaveBeenCalledTimes(1);
   });
 
-  it('Compress gated ON: key 6 runs Compress, key 7 runs Compare, key 8 runs Manage quick cards', () => {
-    const bulkCompress = vi.fn();
-    const cb = mountWith({ bulkCompress });
-    press('6');
-    expect(bulkCompress).toHaveBeenCalledTimes(1);
-    expect(cb.compareDocuments).not.toHaveBeenCalled();
-    expect(cb.manageQuickCards).not.toHaveBeenCalled();
-    press('7');
-    expect(cb.compareDocuments).toHaveBeenCalledTimes(1);
-    expect(cb.manageQuickCards).not.toHaveBeenCalled();
-    press('8');
-    expect(cb.manageQuickCards).toHaveBeenCalledTimes(1);
+  it('the top row is New document, Open, Compare documents (no New speech document)', () => {
+    mountWith({});
+    const titles = Array.from(document.querySelectorAll('.pmd-home-actions .pmd-home-action')).map(
+      (b) => b.querySelector('span')?.textContent,
+    );
+    expect(titles.slice(0, 3)).toEqual(['New document', 'Open…', 'Compare documents']);
+    expect(document.body.textContent).not.toContain('New speech document');
   });
 });
 
@@ -124,7 +127,7 @@ describe('Settings tile (2026-09-21)', () => {
   it('renders its own labeled group beside Learn and runs on key 9', () => {
     document.body.innerHTML = '';
     const openSettings = vi.fn();
-    const cb: HomeScreenCallbacks = { newDoc: vi.fn(), newSpeechDoc: vi.fn(), open: vi.fn(), openRecent: vi.fn(), manageQuickCards: vi.fn(), compareDocuments: vi.fn(), clean: vi.fn(), bulkConvert: vi.fn(), openSettings };
+    const cb: HomeScreenCallbacks = { newDoc: vi.fn(), open: vi.fn(), openRecent: vi.fn(), manageQuickCards: vi.fn(), compareDocuments: vi.fn(), clean: vi.fn(), bulkConvert: vi.fn(), openSettings };
     homeScreen.mount(document.body, cb);
     homeScreen.show();
     try {
@@ -135,23 +138,23 @@ describe('Settings tile (2026-09-21)', () => {
       expect(tile.textContent).toContain('Settings');
       tile.click();
       expect(openSettings).toHaveBeenCalledTimes(1);
-      // Runners: 1 New, 2 New speech, 3 Open, 4 Clean, 5 Convert, 6 Compare, 7 Quick Cards, 8 Review all, 9 Manage flashcards, 0 Settings.
-      press('0');
+      // Runners: 1 New, 2 Open, 3 Compare, 4 Clean, 5 Convert, 6 Quick Cards, 7 Review all, 8 Manage flashcards, 9 Settings.
+      press('9');
       expect(openSettings).toHaveBeenCalledTimes(2);
     } finally {
       homeScreen.hide();
     }
   });
 
-  it('is absent, and 0 does nothing, when no callback is supplied', () => {
+  it('is absent, and 9 does nothing, when no callback is supplied', () => {
     document.body.innerHTML = '';
-    const cb: HomeScreenCallbacks = { newDoc: vi.fn(), newSpeechDoc: vi.fn(), open: vi.fn(), openRecent: vi.fn(), manageQuickCards: vi.fn(), compareDocuments: vi.fn() };
+    const cb: HomeScreenCallbacks = { newDoc: vi.fn(), open: vi.fn(), openRecent: vi.fn(), manageQuickCards: vi.fn(), compareDocuments: vi.fn() };
     homeScreen.mount(document.body, cb);
     homeScreen.show();
     try {
       const titles = Array.from(document.querySelectorAll('.pmd-home-labeled .pmd-home-section-title')).map((h) => h.textContent);
       expect(titles).not.toContain('Settings');
-      press('0');
+      press('9');
     } finally {
       homeScreen.hide();
     }
