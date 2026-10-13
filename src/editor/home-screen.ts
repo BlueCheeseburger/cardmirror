@@ -4,7 +4,7 @@
  * A full-window view shown when the app launches without a
  * document, when the last open doc is closed, or via the Home
  * affordance in the chrome. Offers the primary entry points —
- * New document, New speech document, Open — plus recently opened
+ * New document, Open, Compare documents — plus recently opened
  * files, utility groups (Clean / Convert / Compress / Quick
  * Cards), and the Learn section (spaced-repetition review).
  *
@@ -61,7 +61,6 @@ import { showToast } from './toast.js';
 
 export interface HomeScreenCallbacks {
   newDoc: () => void;
-  newSpeechDoc: () => void;
   open: () => void;
   /** Reopen a recent file in-place. The renderer reads the
    *  handle, mounts the doc, and prunes the entry on failure. */
@@ -80,8 +79,8 @@ export interface HomeScreenCallbacks {
   /** Open the Quick Cards manage overlay. */
   manageQuickCards: () => void;
   /** Open the Settings panel. Rendered as its own labeled group in the
-   *  slot beside Learn (the last tile, so number key 0 in the normal
-   *  desktop layout, after Compare); omitted → no tile. Until 2026-09-21 the home screen
+   *  slot beside Learn (the last tile, so number key 9 in the normal
+   *  desktop layout); omitted → no tile. Until 2026-09-21 the home screen
    *  reached Settings only through the command bar. */
   openSettings?: () => void;
   /** Wire the home screen's update button (same states and click
@@ -217,13 +216,12 @@ class HomeScreen {
     // (referenced just below when building their cards).
     const runners: Array<() => void> = [
       () => this.callbacks?.newDoc(),
-      () => this.callbacks?.newSpeechDoc(),
       () => this.callbacks?.open(),
+      () => this.callbacks?.compareDocuments(),
     ];
     if (callbacks.clean) runners.push(() => this.callbacks?.clean?.());
     if (callbacks.bulkConvert) runners.push(() => this.callbacks?.bulkConvert?.());
     if (callbacks.bulkCompress) runners.push(() => this.callbacks?.bulkCompress?.());
-    runners.push(() => this.callbacks?.compareDocuments());
     runners.push(() => this.callbacks?.manageQuickCards());
     runners.push(() => {
       if (learnStore.totalCount({ kind: 'all' }) > 0) {
@@ -242,14 +240,17 @@ class HomeScreen {
       this.actionCard('New document', 'Create a new document.', this.actionRunners[0]!),
     );
     actions.appendChild(
-      this.actionCard(
-        'New speech document',
-        'Create a new document and designate it as the speech doc.',
-        this.actionRunners[1]!,
-      ),
+      this.actionCard('Open…', 'Browse for a .cmir or .docx file.', this.actionRunners[1]!),
     );
+    // Compare — line-by-line text diff of two picked files. Works the same on
+    // every host (no folder-recursive I/O involved), so it's always rendered,
+    // unlike Clean/Convert/Compress below.
     actions.appendChild(
-      this.actionCard('Open…', 'Browse for a .cmir or .docx file.', this.actionRunners[2]!),
+      this.actionCard(
+        'Compare documents',
+        'See a line-by-line diff between two .cmir or .docx files.',
+        this.actionRunners[2]!,
+      ),
     );
     inner.appendChild(actions);
 
@@ -330,10 +331,9 @@ class HomeScreen {
 
     // Utilities — below Recent. Each is its own labeled group (heading
     // + button) sitting side by side in a card-width grid. Order:
-    // Clean, Convert, Compress (gated), Compare, Quick Cards, Learn —
-    // the same order as the number-key runners above, so the two stay
-    // in sync and reflow together: with Compress gated off, Compare
-    // takes its slot and the shortcuts renumber.
+    // Clean, Convert, Compress (gated), Quick Cards, Learn — the same order
+    // as the number-key runners above, so the two stay in sync and reflow
+    // together: with Compress gated off, the shortcuts renumber.
     const qcSection = document.createElement('section');
     qcSection.className = 'pmd-home-qc-section';
     const qcGrid = document.createElement('div');
@@ -387,19 +387,6 @@ class HomeScreen {
         ),
       );
     }
-    // Compare — line-by-line text diff of two picked files. Works the
-    // same on every host (no folder-recursive I/O involved), so it's
-    // always rendered, unlike Clean/Convert/Compress above.
-    qcGrid.appendChild(
-      labeledGroup(
-        'Compare',
-        this.actionCard(
-          'Compare documents',
-          'See a line-by-line diff between two .cmir or .docx files.',
-          () => this.callbacks?.compareDocuments(),
-        ),
-      ),
-    );
     qcGrid.appendChild(
       labeledGroup(
         'Quick Cards',
@@ -506,8 +493,8 @@ class HomeScreen {
     // inputs to conflict with, but still ignore the chord variants so a
     // stray modifier doesn't fire an action unexpectedly.
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    // 0 is the tenth runner (it follows 9 on the number row) — Compare
-    // pushes Settings to tenth in the usual desktop layout.
+    // 0 is the tenth runner (it follows 9 on the number row), kept for any
+    // layout that grows past nine tiles.
     const idx = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '0': 9 }[e.key];
     if (idx === undefined) return;
     const run = this.actionRunners[idx];

@@ -19,7 +19,6 @@ import {
 function makeCallbacks(): HomeScreenCallbacks & { reopenWorkspace: ReturnType<typeof vi.fn> } {
   return {
     newDoc: vi.fn(),
-    newSpeechDoc: vi.fn(),
     open: vi.fn(),
     openRecent: vi.fn(),
     manageQuickCards: vi.fn(),

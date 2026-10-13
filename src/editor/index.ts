@@ -7844,17 +7844,6 @@ const homeCallbacks: HomeScreenCallbacks = {
     // landed on a text line).
     view?.focus();
   },
-  newSpeechDoc: () => {
-    if (multiDocActive) {
-      homeScreen.hide();
-      multiDocNewSpeechDocument?.();
-      return;
-    }
-    void (async () => {
-      const created = await createSpeechDocInPlace();
-      if (created) homeScreen.hide();
-    })();
-  },
   open: () => {
     if (multiDocActive) {
       // runOpenFlow's multi-pane branch picks a file then routes
@@ -8653,38 +8642,6 @@ async function openRecentInPlace(recent: RecentFile): Promise<void> {
         : `Failed to load: ${err instanceof Error ? err.message : err}`,
     );
   }
-}
-
-/** Build + mount a new speech doc in THIS window (home-screen
- *  flow). Prompts for the speech name like the ribbon's New Speech,
- *  but mounts in-place rather than spawning a window. Returns true
- *  when a doc was created (false on cancel). */
-async function createSpeechDocInPlace(): Promise<boolean> {
-  const speechName = await promptForText({
-    message: 'Which speech? (e.g. 1NC, 2AC Round 3 vs Hogwarts)',
-    placeholder: '1NC',
-    okLabel: 'Create',
-  });
-  if (!speechName) return false;
-  const format = settings.get('defaultSpeechDocFormat');
-  const filename = formatSpeechFilename(speechName, format);
-  const docNode = settings.get('includeSpeechDocPocket')
-    ? makeSpeechBlankDoc(filename.replace(/\.(cmir|docx)$/i, ''))
-    : makeNewDocBody();
-  void clearCurrentJournal();
-  mountView(docNode);
-  currentDocFilename = null;
-  setCurrentDocHandle(null);
-  currentDocFormat = null;
-  currentDocUid = newSessionDocUid();
-  currentDocId = null; // new doc → minted on first save
-  markCurrentDocClean();
-  syncSingleDocSpeechRegistration();
-  markNonPristineStarter();
-  updateWindowTitle();
-  // Mark this new doc as the speech doc for the session.
-  getSpeechDocResolver().setSpeechByUid(currentDocUid);
-  return true;
 }
 
 /** Strip the known extensions off a filename so the Save-As dialog

@@ -2686,11 +2686,12 @@ and headings instead of importing flat text.
 
 ### Comparing two documents
 
-**(fork)** **Compare**, on the Home screen, shows how two documents differ:
+**(fork)** **Compare documents**, the third card in the Home screen's top row
+(after New document and Open), shows how two documents differ:
 this season's file against last season's, your partner's edit against
 yours, or a file before and after cutting.
 
-1. Click **Compare** (or press its number key on the Home screen), then
+1. Click **Compare documents** (or press **3** on the Home screen), then
    **Choose…** a `.cmir` or `.docx` file for **First document** and
    **Second document**.
 2. Click **Compare**. The comparison opens full-screen: the first file on
