@@ -10,6 +10,14 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Fixed
+- **Paced auto-scroll no longer stops partway down the document.** On dense
+  highlighted text the pace is a fraction of a pixel per frame, and the browser
+  rounds every scroll step down to a whole pixel, so the scroll silently stalled
+  (the button still read as on). It now carries the fractional steps itself. The
+  slowest pace is also lower, so a slow reader on dense text isn't scrolled
+  faster than they read.
+
 ### Changed
 - **Home screen top row: New document, Open…, Compare documents.** The "New speech
   document" card is gone from the home screen (New Speech Document is still in the

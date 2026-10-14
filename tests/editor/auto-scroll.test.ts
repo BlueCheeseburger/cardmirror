@@ -63,7 +63,7 @@ describe('velocityFromWindow (pure pacing math)', () => {
 
   it('clamps to the floor for an extremely dense window', () => {
     const counts: ReadAloudCounts = { body: 100000, other: 0 };
-    expect(velocityFromWindow(counts, READER, 300)).toBe(12); // MIN
+    expect(velocityFromWindow(counts, READER, 300)).toBe(3); // MIN
   });
 
   it('clamps to the ceiling for an implausibly fast reader', () => {

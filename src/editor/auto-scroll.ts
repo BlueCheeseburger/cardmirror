@@ -45,10 +45,12 @@ const SAMPLE_WINDOW_PX = 220;
 const RESAMPLE_INTERVAL_MS = 300;
 
 /** Floor and ceiling on scroll speed, px/sec. The floor keeps a
- *  dense highlighted stretch from crawling to an apparent stop; the
+ *  dense highlighted stretch from crawling to an apparent stop (kept low so
+ *  slow readers on dense text aren't scrolled faster than they read; the tick
+ *  accumulates sub-pixel steps itself, so a slow pace still moves); the
  *  ceiling keeps a long unhighlighted (zero read-aloud) run from
  *  whipping past as an unreadable blur. */
-const MIN_VELOCITY_PX_S = 12;
+const MIN_VELOCITY_PX_S = 3;
 const MAX_VELOCITY_PX_S = 900;
 
 /** Used when a sample can't resolve real content — the very start or
@@ -58,6 +60,10 @@ const FALLBACK_VELOCITY_PX_S = 60;
 interface RunningState {
   view: EditorView;
   velocity: number;
+  /** Our own unrounded scroll position, and what the scroller read back after
+   *  the last write (to spot outside movement). */
+  pos: number;
+  applied: number;
   lastFrameTime: number;
   lastSampleTime: number;
   rafId: number;
@@ -172,7 +178,15 @@ export function startAutoScroll(view: EditorView, reader: ReaderRates, onStop: (
       state.velocity = sampleAutoScrollVelocity(view, scroller, reader);
       state.lastSampleTime = t;
     }
-    scroller.scrollTop += state.velocity * dt;
+    // Keep the position as a float of our own. A browser rounds every
+    // `scrollTop` write to whole (physical) pixels, so `scrollTop += 0.2` per
+    // frame (a dense stretch paces at ~12 px/s) read back unchanged and the
+    // scroll silently stalled. If something else moved the scroller (layout
+    // shift, cv:auto cards materializing) adopt its position instead.
+    if (Math.abs(scroller.scrollTop - state.applied) > 1.5) state.pos = scroller.scrollTop;
+    state.pos += state.velocity * dt;
+    scroller.scrollTop = state.pos;
+    state.applied = scroller.scrollTop;
     if (scroller.scrollTop >= scroller.scrollHeight - scroller.clientHeight - 1) {
       state.stop();
       return;
@@ -183,6 +197,8 @@ export function startAutoScroll(view: EditorView, reader: ReaderRates, onStop: (
   const state: RunningState = {
     view,
     velocity: FALLBACK_VELOCITY_PX_S,
+    pos: scroller.scrollTop,
+    applied: scroller.scrollTop,
     lastFrameTime: performance.now(),
     lastSampleTime: 0, // forces an immediate sample on the first frame
     rafId: 0,
@@ -276,6 +292,8 @@ function startPagedAutoScroll(
   const state: RunningState = {
     view,
     velocity: 0,
+    pos: 0,
+    applied: 0,
     lastFrameTime: 0,
     lastSampleTime: 0,
     rafId: 0,
