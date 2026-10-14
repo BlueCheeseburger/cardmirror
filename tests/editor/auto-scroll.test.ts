@@ -215,3 +215,39 @@ describe('Reading view pages', () => {
     expect(pageReadSeconds(blind, scroller, { wpm: 60 })).toBe(20);
   });
 });
+
+describe('auto-scroll behaviors found in testing', () => {
+  it('paces at the lay rate when asked, and keeps a steady default for an unset lay rate', () => {
+    const counts: ReadAloudCounts = { body: 15, other: 0 };
+    const reader = { wpm: 60, layWpm: 30 };
+    // flow: 15 words at 1 word/s = 15 s -> 300px/15s = 20 px/s; lay is half speed -> 10 px/s.
+    expect(velocityFromWindow(counts, reader, 300, false)).toBe(20);
+    expect(velocityFromWindow(counts, reader, 300, true)).toBe(10);
+    expect(velocityFromWindow(counts, { wpm: 60 }, 300, true)).toBe(60); // lay not set up: FALLBACK, not the cap
+  });
+
+  it('Escape and the scroll keys hand control back; ordinary typing does not', () => {
+    const { scroller, editorDom } = makeScroller({ scrollHeight: 2000, clientHeight: 500 });
+    void scroller;
+    for (const key of ['Escape', 'PageDown', 'End']) {
+      __resetAutoScrollForTests();
+      const view = makeView(editorDom);
+      const onStop = vi.fn();
+      expect(startAutoScroll(view, { wpm: 200 }, onStop)).toBe(true);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      expect(onStop, key).toHaveBeenCalledTimes(1);
+    }
+    __resetAutoScrollForTests();
+    const onStop = vi.fn();
+    startAutoScroll(makeView(editorDom), { wpm: 200 }, onStop);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', ctrlKey: true, bubbles: true }));
+    expect(onStop).not.toHaveBeenCalled();
+  });
+
+  it('refuses to start when the reader is already at the end of the document', () => {
+    const { scroller, editorDom } = makeScroller({ scrollHeight: 2000, clientHeight: 500 });
+    Object.defineProperty(scroller, 'scrollTop', { value: 1500, writable: true, configurable: true });
+    expect(startAutoScroll(makeView(editorDom), { wpm: 200 }, vi.fn())).toBe(false);
+  });
+});
