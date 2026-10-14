@@ -57,6 +57,9 @@ const MAX_VELOCITY_PX_S = 900;
  *  end of the doc, or a window with nothing under it yet. */
 const FALLBACK_VELOCITY_PX_S = 60;
 
+/** Longest frame gap the scroll step will honor, in seconds. */
+const MAX_FRAME_DT_S = 0.1;
+
 interface RunningState {
   view: EditorView;
   velocity: number;
@@ -102,8 +105,12 @@ export function velocityFromWindow(
   counts: ReadAloudCounts,
   reader: ReaderRates,
   windowPx: number,
+  useLay = false,
 ): number {
-  const seconds = readTimeSeconds(counts, reader);
+  const seconds = readTimeSeconds(counts, reader, useLay);
+  // A lay rate that isn't set up yet can't pace anything: keep a steady
+  // default rather than skimming at the cap as if nothing were read aloud.
+  if (seconds === null) return FALLBACK_VELOCITY_PX_S;
   // No read-aloud words in this window (unhighlighted filler, a bare
   // heading) — nothing to pace against, so skim through at the cap
   // rather than stall waiting for content that isn't there.
@@ -118,6 +125,7 @@ export function sampleAutoScrollVelocity(
   view: EditorView,
   scroller: HTMLElement,
   reader: ReaderRates,
+  useLay = false,
 ): number {
   const scRect = scroller.getBoundingClientRect();
   const editorRect = view.dom.getBoundingClientRect();
@@ -138,7 +146,7 @@ export function sampleAutoScrollVelocity(
   if (to <= from) return FALLBACK_VELOCITY_PX_S;
 
   const counts = countReadAloudSplit(view.state.doc, from, to);
-  return velocityFromWindow(counts, reader, bottomY - topY);
+  return velocityFromWindow(counts, reader, bottomY - topY, useLay);
 }
 
 /**
@@ -151,17 +159,40 @@ export function sampleAutoScrollVelocity(
  * `stopAutoScroll()` call — so callers can reset a toggle button's
  * pressed state without tracking the reason themselves.
  */
-export function startAutoScroll(view: EditorView, reader: ReaderRates, onStop: () => void): boolean {
+export interface AutoScrollOptions {
+  /** Whether the document is on the lay speaking rate right now. Asked on
+   *  every sample, so flipping the toggle mid-run changes the pace at once. */
+  useLay?: () => boolean;
+}
+
+/** Keys that mean "I'm driving the scroll now" — they hand control back. */
+const SCROLL_INTERRUPT_KEYS = new Set([
+  'Escape', 'PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown',
+]);
+
+export function startAutoScroll(
+  view: EditorView,
+  reader: ReaderRates,
+  onStop: () => void,
+  opts: AutoScrollOptions = {},
+): boolean {
+  const lay = (): boolean => opts.useLay?.() ?? false;
   if (running) return false;
   const scroller = nearestScroller(view.dom as HTMLElement);
   if (!scroller) return false;
   // Reading view is paged and scrolls sideways: there is no vertical scroll to
   // pace, so it turns the pages at the pace the page in view takes to read.
-  if (readerControllerFor(view)) return startPagedAutoScroll(view, scroller, reader, onStop);
-  if (scroller.scrollHeight - scroller.clientHeight < 2) return false; // nothing to scroll
+  if (readerControllerFor(view)) return startPagedAutoScroll(view, scroller, reader, onStop, lay);
+  const maxTop = scroller.scrollHeight - scroller.clientHeight;
+  // Nothing to scroll: the document fits, or the reader is already at its end.
+  if (maxTop < 2 || scroller.scrollTop >= maxTop - 1) return false;
 
   let stopped = false;
   const onManualInterrupt = (): void => state.stop();
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (SCROLL_INTERRUPT_KEYS.has(e.key)) state.stop();
+  };
 
   const tick = (t: number): void => {
     if (stopped) return;
@@ -172,10 +203,18 @@ export function startAutoScroll(view: EditorView, reader: ReaderRates, onStop: (
       state.stop();
       return;
     }
-    const dt = (t - state.lastFrameTime) / 1000;
+    // Reading view was switched on mid-run: there's no vertical scroll left to
+    // pace, so hand back rather than spin a loop that moves nothing.
+    if (readerControllerFor(view)) {
+      state.stop();
+      return;
+    }
+    // A hitch or a backgrounded tab leaves a huge gap between frames; cap it
+    // so the scroll doesn't leap that far in one step.
+    const dt = Math.min((t - state.lastFrameTime) / 1000, MAX_FRAME_DT_S);
     state.lastFrameTime = t;
     if (t - state.lastSampleTime >= RESAMPLE_INTERVAL_MS) {
-      state.velocity = sampleAutoScrollVelocity(view, scroller, reader);
+      state.velocity = sampleAutoScrollVelocity(view, scroller, reader, lay());
       state.lastSampleTime = t;
     }
     // Keep the position as a float of our own. A browser rounds every
@@ -209,11 +248,13 @@ export function startAutoScroll(view: EditorView, reader: ReaderRates, onStop: (
       scroller.removeEventListener('wheel', onManualInterrupt);
       scroller.removeEventListener('touchstart', onManualInterrupt);
       scroller.removeEventListener('pointerdown', onManualInterrupt);
+      document.removeEventListener('keydown', onKey, true);
       if (running === state) running = null;
       onStop();
     },
   };
   running = state;
+  document.addEventListener('keydown', onKey, true);
   // Any manual scroll input hands control back to the reader — auto-scroll
   // never fights a deliberate scroll, wheel flick, or touch/click.
   scroller.addEventListener('wheel', onManualInterrupt, { passive: true });
@@ -229,24 +270,47 @@ export function pageReadSeconds(
   view: EditorView,
   scroller: HTMLElement,
   reader: ReaderRates,
+  useLay = false,
 ): number {
   const sc = scroller.getBoundingClientRect();
-  const topY = sc.top + 8;
-  const bottomY = sc.bottom - 8;
-  const firstX = Math.min(sc.left + READER_EDGE_W + 14, sc.right - 1);
-  const lastX = Math.max(sc.right - READER_EDGE_W - 14, sc.left + 1);
+  const ed = view.dom.getBoundingClientRect();
+  // Probe inside the editor's own box (the host has padding above and below the
+  // text that hit-tests to nothing), across the page's width, near its top and
+  // bottom edges. The page's words run from the earliest position found at the
+  // top to the latest found at the bottom.
+  const topY = Math.max(sc.top, ed.top) + 6;
+  const botY = Math.min(sc.bottom, ed.bottom) - 6;
+  const left = sc.left + READER_EDGE_W + 14;
+  const right = sc.right - READER_EDGE_W - 14;
+  const xs = [0, 0.25, 0.5, 0.75, 1].map((f) => left + (right - left) * f);
+  const hit = (x: number, y: number): number | null => {
+    try {
+      return view.posAtCoords({ left: x, top: y })?.pos ?? null;
+    } catch {
+      return null;
+    }
+  };
   let a: number | null = null;
   let b: number | null = null;
-  try {
-    a = view.posAtCoords({ left: firstX, top: topY })?.pos ?? null;
-    b = view.posAtCoords({ left: lastX, top: bottomY })?.pos ?? null;
-  } catch {
-    /* unmeasurable page */
+  for (const y of [topY, topY + 30, topY + 70]) {
+    for (const x of xs) {
+      const pos = hit(x, y);
+      if (pos !== null) a = a === null ? pos : Math.min(a, pos);
+    }
+    if (a !== null) break;
+  }
+  for (const y of [botY, botY - 30, botY - 70]) {
+    for (const x of xs) {
+      const pos = hit(x, y);
+      if (pos !== null) b = b === null ? pos : Math.max(b, pos);
+    }
+    if (b !== null) break;
   }
   if (a === null || b === null || a === b) return PAGE_FALLBACK_S;
   const counts = countReadAloudSplit(view.state.doc, Math.min(a, b), Math.max(a, b));
-  const seconds = readTimeSeconds(counts, reader);
-  if (!seconds || seconds <= 0) return PAGE_MIN_S; // nothing read aloud here: skim past
+  const seconds = readTimeSeconds(counts, reader, useLay);
+  if (seconds === null) return PAGE_FALLBACK_S;
+  if (seconds <= 0) return PAGE_MIN_S; // nothing read aloud here: skim past
   return clamp(seconds, PAGE_MIN_S, PAGE_MAX_S);
 }
 
@@ -262,13 +326,14 @@ function startPagedAutoScroll(
   scroller: HTMLElement,
   reader: ReaderRates,
   onStop: () => void,
+  lay: () => boolean,
 ): boolean {
   const rc = readerControllerFor(view);
   if (!rc || rc.pageTotal() < 2 || rc.currentPage() >= rc.pageTotal() - 1) return false; // nothing to turn
   let stopped = false;
   const onManualInterrupt = (): void => state.stop();
   const onKey = (e: KeyboardEvent): void => {
-    if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', ' ', 'Home', 'End'].includes(e.key)) state.stop();
+    if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', ' ', 'Home', 'End', 'Escape'].includes(e.key)) state.stop();
   };
   const schedule = (): void => {
     if (stopped) return;
@@ -276,7 +341,7 @@ function startPagedAutoScroll(
       state.stop();
       return;
     }
-    const seconds = pageReadSeconds(view, scroller, reader);
+    const seconds = pageReadSeconds(view, scroller, reader, lay());
     state.timerId = setTimeout(() => {
       if (stopped) return;
       const ctl = readerControllerFor(view);

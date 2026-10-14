@@ -2015,9 +2015,17 @@ const ribbonContext: RibbonContext = {
     }
     if (!view) return;
     const reader = settings.get('readers')[0] ?? { name: 'Reader 1', wpm: 200 };
-    const started = startAutoScroll(view, reader, () => refreshAutoScrollBtn());
+    const started = startAutoScroll(view, reader, () => refreshAutoScrollBtn(), {
+      // Pace at the lay rate while the document is on the lay speaking toggle
+      // (per pane in three-pane mode), like the read-time readouts do.
+      useLay: () => {
+        const v = view;
+        if (!v) return false;
+        return multiDocActive && multiDocLaySpeakingForView ? multiDocLaySpeakingForView(v) : laySpeakingOn;
+      },
+    });
     if (!started) {
-      showToast('Nothing to auto-scroll — this document already fits on screen.');
+      showToast('Nothing to auto-scroll — the document fits on screen, or you\u2019re already at the end.');
     }
     refreshAutoScrollBtn();
   },

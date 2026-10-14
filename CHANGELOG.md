@@ -11,6 +11,16 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 ## Unreleased
 
 ### Fixed
+- **Auto-scroll follows the lay-speaking toggle.** It always paced at the flow
+  rate; it now uses the lay rate while the document is on lay speaking (per pane
+  in three-pane mode), and changes pace the moment you flip the toggle.
+- **Auto-scroll in Reading view really paces each page.** Page timing fell back
+  to a flat 20 seconds because the page couldn't be measured; each page now gets
+  the time its own words take to read.
+- **Escape, PageUp/PageDown, Home, End and the up/down arrows stop auto-scroll**
+  (they fought it before). Entering Reading view mid-run stops it, a long pause
+  in the app (a backgrounded tab) no longer makes it leap, and starting it at the
+  very end of the document tells you so instead of silently doing nothing.
 - **Paced auto-scroll no longer stops partway down the document.** On dense
   highlighted text the pace is a fraction of a pixel per frame, and the browser
   rounds every scroll step down to a whole pixel, so the scroll silently stalled
