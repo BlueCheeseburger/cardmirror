@@ -16,7 +16,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   ribbon and the command bar), and Compare moved up from the bottom row into the
   third slot. The number keys follow: 1 New document, 2 Open, 3 Compare, then the
   utility tiles.
-- Compare documents is #3 in the README's list of the fork's biggest features.
+- Compare documents is #3 and Autosave for `.docx` files is #4 in the README's list of the fork's biggest features.
 
 ### Changed
 - The README's logo has a transparent background (and a white-wordmark version
