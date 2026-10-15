@@ -38,6 +38,16 @@ IPC (`cloudRelativePath` on the preload / `ElectronHost`, optional so older main
 resolve null). Tests: `tests/desktop/cloud-roots.test.ts`,
 `tests/editor/disk-conflict-pane-badge.test.ts`.
 
+### Changed: releases are no longer flagged pre-release (`.github/workflows/release.yml`, `web-download.ts`, `CLAUDE.md`)
+
+The "Ensure draft release exists" step used to pass `--prerelease` for any tag
+with a `-` after the version (every `vX.Y.Z-bcb.N`). It now creates the release
+with no flag, and a re-run of an existing release passes `--prerelease=false`.
+Effective from the next release; published ones are untouched. The updaters need
+nothing: `electron-updater` already allows prereleases whenever the running
+version has a prerelease component, and the web download button uses the
+`/releases` list endpoint.
+
 ### Changed: prefix hint retires after a successful search (`quick-card-search-ui.ts`)
 
 The `.pmd-qcs-empty-hint` line shows in the empty no-prefix state until

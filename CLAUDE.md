@@ -275,24 +275,28 @@ electron-builder's actual default template, not a repo-side override
 README wording to match what really ships. Next session touching
 README.md or a release: fix this.
 
-## The update checker's prerelease behavior is fine — don't "fix" it
+## Releases are NOT marked pre-release — publish every `-bcb.N` tag as a normal release
 
-Every tag this fork cuts (`vX.Y.Z-bcb.N`) gets auto-flagged
-`prerelease: true` by `release.yml` (any tag with a `-` after the
-version). That's fine, not a bug: `apps/desktop`'s `electron-updater`
-(`AppUpdater.js`) defaults `allowPrerelease` to `true` whenever the
-*currently running* version itself has a prerelease component, which
-is always true here since every installed build is `X.Y.Z-bcb.N` — so
-the desktop auto-updater does pick up prerelease-marked releases, not
-just full releases. Its channel-matching logic treats `bcb` as a
-custom channel and correctly matches new `-bcb.N` tags against the
-currently-running `-bcb.N` version. `src/editor/web-download.ts:24-27`
-already documents the same fact for the web edition's download-button
-API call (deliberately hits the `/releases` list endpoint, not
-`/releases/latest`, because `/releases/latest` returns nothing when
-every release is prerelease). Net: it's safe to ship an important fix
-as a normal `-bcb.N` prerelease tag — no need to find a way to mark a
-release "not prerelease" to make sure users get it.
+The user said (2026-10-15): "start marking new releases with none, instead of
+with pre-release." Until `v1.15.0-bcb.5`, `release.yml` flagged every tag with
+a `-` after the version (all of ours, `vX.Y.Z-bcb.N`) as `prerelease: true`.
+It no longer does: the "Ensure draft release exists" step creates the release
+with no `--prerelease` flag, and re-runs of an existing release pass
+`--prerelease=false` so one flagged earlier gets un-flagged. From
+`v1.15.0-bcb.6` on, releases show no "Pre-release" badge and `/releases/latest`
+resolves to the newest one. Don't re-add the flag. `v1.15.0-bcb.5` and older
+stay as published (still flagged pre-release) unless the user asks to change a
+specific one; never delete a release to do it.
+
+Why this is safe for the updaters (checked 2026-10-15):
+- The desktop `electron-updater` (`AppUpdater.js`) defaults `allowPrerelease` to
+  `true` whenever the *currently running* version has a prerelease component,
+  which every installed build does (`X.Y.Z-bcb.N`). So it picks up
+  pre-release-flagged and normal releases alike, and its channel matching treats
+  `bcb` as a custom channel and still matches new `-bcb.N` tags against the
+  running `-bcb.N` version. The tag format doesn't change, only the GitHub flag.
+- `src/editor/web-download.ts` deliberately hits the `/releases` *list*
+  endpoint, newest first, so it works whether or not releases are flagged.
 
 ## When trimming release assets, the .zip + .yml files are NOT optional
 
@@ -352,7 +356,8 @@ upstream version the fork is synced to.
 2. Once CI is green, merge.
 3. Run `release.yml` by `workflow_dispatch` on `main` with the `tag`
    input (`vX.Y.Z-bcb.N`).
-4. When the build finishes, check the release is live (not a draft)
+4. When the build finishes, check the release is live (not a draft, and not
+   flagged pre-release — see the section above)
    with all 8 mac/Windows assets — the `.dmg`, mac `.zip`, `.exe` and
    their three `.blockmap`s, plus `latest-mac.yml` and `latest.yml` (see
    the sections below) — AND the Linux ones: `cardmirror-X.AppImage`, the

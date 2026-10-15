@@ -141,27 +141,21 @@ jobs:
         # uploads to open drafts). The publish-release job at the
         # end re-publishes it live once all builds succeed.
         #
-        # Pre-release detection: SemVer treats any tag with a `-`
-        # after the version (e.g., `v0.1.0-alpha.3`, `v1.2.0-rc.1`,
-        # `v0.1.0-beta`) as a pre-release. Pass `--prerelease` so
-        # GitHub flags it accordingly in the Releases UI and
-        # auto-update consumers know not to treat it as stable.
-        # Stable tags (`v1.0.0`) skip the flag.
+        # Not a pre-release: every tag (including `vX.Y.Z-bcb.N`) is published
+        # as a normal release — the Releases UI shows no "Pre-release" badge and
+        # `/releases/latest` resolves to it. (Through v1.15.0-bcb.5 a `-` after
+        # the version meant `--prerelease`; the user asked to stop, 2026-10-15.)
+        # A re-run of an existing release passes `--prerelease=false` so one
+        # that was flagged earlier gets un-flagged.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.resolve.outputs.tag }}"
-          # The tag is `vX.Y.Z[-prerelease]`; check for `-` after `v`.
-          PRERELEASE_FLAG=""
-          if [[ "${TAG#v}" == *-* ]]; then
-            PRERELEASE_FLAG="--prerelease"
-            echo "Detected pre-release tag $TAG — applying --prerelease."
-          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --draft --notes-file release-notes.md $PRERELEASE_FLAG
+            gh release edit "$TAG" --draft --prerelease=false --notes-file release-notes.md
             echo "Re-drafted existing release $TAG and refreshed notes."
           else
-            gh release create "$TAG" --draft --title "$TAG" --notes-file release-notes.md $PRERELEASE_FLAG
+            gh release create "$TAG" --draft --title "$TAG" --notes-file release-notes.md
             echo "Created draft release $TAG."
           fi
 
