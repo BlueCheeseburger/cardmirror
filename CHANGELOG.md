@@ -21,7 +21,15 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **Marked Doc in Save As says how many cards are marked** ("3 cards marked", or
   "no cards marked"), beside its name.
 
+- **Minimize a pane with Alt.** In three-pane mode, hold Alt and a pane's expand
+  button turns into a minimize button; clicking it takes the pane out of the
+  layout so the others share its width. A **"1 hidden"** chip appears in the
+  status bar (hover for which pane); click it to bring the pane back.
+  Reveal All Slots and Mod-1/2/3 still bring hidden panes back.
+
 ### Changed
+- **The Hide button on each pane's title bar is gone**, along with its setting
+  ("Show a Hide button on each slot") — minimizing is Alt + the expand button.
 - **Save As: the Format choice moved to the bottom**, below the previously saved
   locations — it's set once and rarely touched, so it no longer sits above the
   choices you make every time.
