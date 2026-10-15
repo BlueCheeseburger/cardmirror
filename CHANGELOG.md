@@ -8,6 +8,25 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+- **Number keys on the "Save your current document before creating a new one?"
+  dialog** — 1 Save, 2 Don't save, shown in a badge on each button, like the
+  "Save before closing?" dialog.
+- **Number keys in Save As.** Each save choice (As-Is, Send Doc, Read Doc, Marked
+  Doc, Custom Save) shows its number, 1–5, in a badge at the right edge of its
+  row, and pressing the number picks it. While the cursor is still in the Name
+  field, use Alt+number so digits can still be typed in the name.
+- **Marked Doc in Save As says how many cards are marked** ("3 cards marked", or
+  "no cards marked"), beside its name.
+
+### Changed
+- **Save As: the Format choice moved to the bottom**, below the previously saved
+  locations — it's set once and rarely touched, so it no longer sits above the
+  choices you make every time.
+- The "Choose location when saving" row now says "Opens the system file dialog."
+
 ## 1.15.0-bcb.5.1 — 2026-10-15
 
 ### Added

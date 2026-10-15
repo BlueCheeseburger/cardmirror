@@ -2788,15 +2788,16 @@ bottom of the dialog.
 - **Name** — the file name. A `/` or any other character your file system
   can't use in a name becomes a hyphen, so `R3 2NC (redo 9/17/26)` saves
   as one file rather than a set of folders.
-- **Format** — CardMirror native (`.cmir`) or Microsoft Word (`.docx`).
-  Switching updates the name's extension.
-- **Save** — what goes in the copy:
+- **Save** — what goes in the copy. Each choice has its number (1–5) at the
+  right edge: press it to pick that choice, or Alt+number while the cursor is
+  still in the Name field:
   - **As-Is** (the default) — the whole document.
   - **Send Doc** — a clean copy with comments, analytics, and undertags
     stripped, for the judge or opponent (optionally with a `SEND_`
     filename prefix).
   - **Read Doc** — the read-mode view of the document.
-  - **Marked Doc** — only the cards you marked.
+  - **Marked Doc** — only the cards you marked. The dialog says how many
+    cards that is, beside the name.
   - **Custom Save** — shows checkboxes under it so you choose exactly what
     to include: comments, analytics, undertags, **Freeze card numbers as
     text** or **Remove card numbers** (one or the other; neither keeps live
@@ -2804,11 +2805,13 @@ bottom of the dialog.
     by default).
 - **Save in a previously saved location** **(desktop only)** — a
   collapsible list (it remembers whether you left it open). The first row,
-  **Choose location when saving**, is the default and opens the usual file
+  **Choose location when saving**, is the default and opens the system file
   dialog. Below it are the folders you've saved into, most recent first —
   up to five, plus any you've pinned with the ☆ (pinned folders stay at the
   top and never drop off). Select a folder and Save As writes straight
   into it, no file dialog.
+- **Format** — CardMirror native (`.cmir`) or Microsoft Word (`.docx`), last
+  because it's usually left alone. Switching updates the name's extension.
 
 Send and Marked Docs **freeze their card numbers**: every numbered heading
 gets its number written in as plain text, in your display format, and the

@@ -10585,6 +10585,25 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   font-weight: 500;
 }
 
+/* Save-mode rows reserve room at the right for their key badge. */
+.pmd-save-as-mode-row {
+  position: relative;
+  padding-right: 2rem;
+}
+.pmd-save-as-radio-row-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.pmd-save-as-marked-count {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-save-as-marked-count-none {
+  font-style: italic;
+}
 .pmd-save-as-radio-row-blurb {
   font-size: 0.78rem;
   color: var(--pmd-c-text-muted);
