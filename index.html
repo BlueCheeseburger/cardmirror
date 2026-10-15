@@ -122,13 +122,6 @@
             <button id="font-size-picker-btn" class="ribbon-color-arrow" type="button" title="Font size"
                     aria-haspopup="true" aria-expanded="false"><span class="pmd-icon pmd-icon-chevron-down" aria-hidden="true"></span></button>
           </div>
-          <!-- 3rd column: increment/decrement font size of selection. -->
-          <button id="font-size-up-btn" class="ribbon-font-size-step" type="button"
-                  title="Increase font size" aria-label="Increase font size"
-                  ><span>A</span><span class="ribbon-font-size-step-arrow ribbon-font-size-step-up-arrow pmd-icon pmd-icon-chevron-up" aria-hidden="true"></span></button>
-          <button id="font-size-down-btn" class="ribbon-font-size-step" type="button"
-                  title="Decrease font size" aria-label="Decrease font size"
-                  ><span>A</span><span class="ribbon-font-size-step-arrow pmd-icon pmd-icon-chevron-down" aria-hidden="true"></span></button>
         </div>
         <!-- Document/card-level utility menus. "Doc" holds doc-wide
              operations (Verbatim's Doc menu — standardize highlighting
@@ -183,16 +176,14 @@
                   aria-pressed="false" title="Paste Text (F2) — paste the clipboard as unformatted text">T</button>
         </div>
         <div id="view-ops-panel" class="ribbon-doc-ops-panel ribbon-doc-ops-panel-2col" role="group" aria-label="View tools">
-          <!-- 2×2: read mode / auto-scroll on top, reading view / nav-pane
-               toggle below. Word-count selection summary lives on the
+          <!-- Read mode / auto-scroll on top, nav-pane toggle below. Word-count
+               selection summary lives on the
                status bar (next to the live read-aloud counter) since they
                answer the same family of question. -->
           <button id="read-mode-btn" class="ribbon-doc-ops-btn" type="button"
                   title="Read mode" aria-label="Read mode"><span class="pmd-icon pmd-icon-read-mode" aria-hidden="true"></span></button>
           <button id="auto-scroll-btn" class="ribbon-doc-ops-btn" type="button"
                   title="Auto-scroll (paced to reading speed)" aria-label="Auto-scroll"><span class="pmd-icon pmd-icon-auto-scroll" aria-hidden="true"></span></button>
-          <button id="reader-view-btn" class="ribbon-doc-ops-btn" type="button"
-                  title="Reading view" aria-label="Reading view"><span class="pmd-icon pmd-icon-book" aria-hidden="true"></span></button>
           <button id="nav-pane-toggle-btn" class="ribbon-doc-ops-btn" type="button"
                   aria-pressed="true" title="Show / hide the navigation pane"
                   aria-label="Toggle nav pane"><span class="pmd-icon pmd-icon-nav-toggle" aria-hidden="true"></span></button>
@@ -240,24 +231,10 @@
              panel to disappear in the ribbon's narrow cascade. -->
         <div id="custom-ribbon-panel" class="ribbon-doc-ops-panel ribbon-doc-ops-panel-3col" role="group" aria-label="Custom buttons" hidden></div>
       </div>
-      <div class="ribbon-section ribbon-center">
-        <!-- Active doc filename chip. Opt-in via Settings →
-             Appearance → "Show doc name in ribbon" (default off),
-             gated by `html.pmd-doc-name-chip-on`. Even when on, the
-             chip is auto-hidden in multi-pane mode (each per-pane
-             chip already shows its slot's filename) and when the
-             active doc has no filename yet. The ribbon resizer
-             will hide it after the formatting panel when the
-             ribbon runs out of horizontal room. -->
-        <!-- Starts `hidden` — the chip shouldn't appear (even as an
-             empty pill) until JS confirms there's a filename to put
-             in it. `updateWindowTitle` toggles `[hidden]` on / off
-             based on the active filename; the setting class on <html>
-             gates the chip behind the user opt-in. -->
-        <div id="doc-name-chip" class="pmd-doc-name-chip" title="" hidden>
-          <span class="pmd-doc-name-chip-text" id="doc-name-chip-text"></span>
-        </div>
-      </div>
+      <!-- Spacer between the two button clusters (the timer panel can sit
+           here). The document's name lives in the blue title bar below the
+           ribbon (`#doc-header`, doc-header.ts), not here. -->
+      <div class="ribbon-section ribbon-center"></div>
       <!-- Timer panel — mounted by `timer-ui.ts`. Hidden until the
            user toggles it via the ⏱ button in the right stack
            (per-window transient setting). Sits just LEFT of the right
@@ -293,10 +270,9 @@
       </div>
     </header>
     <div id="nav-panel"></div>
-    <div id="speech-doc-banner" hidden>
-      <span class="pmd-speech-doc-banner-icon pmd-icon pmd-icon-mic" aria-hidden="true"></span>
-      <span class="pmd-speech-doc-banner-label">Speech document</span>
-    </div>
+    <!-- Blue title bar over the document (one-document-per-window layout only;
+         three-pane mode has one on every pane). Built by doc-header.ts. -->
+    <div id="doc-header" hidden></div>
     <main id="app">
       <!-- Inner flex row wrapping the editor + comments column.
            Lives INSIDE #app rather than #app itself owning the
@@ -329,6 +305,10 @@
       <div id="word-count-display" class="status-segment" title="Read-aloud word count and read time">
         <button id="word-count-text" type="button" class="pmd-wc-toggle">—</button>
       </div>
+      <!-- Where the document's file lives (cloud provider or this computer):
+           the same badge each pane carries in three-pane mode. Click shows the
+           file in its folder, drag shares it, right-click copies its path. -->
+      <div id="status-file-badge" class="status-segment"></div>
       <!-- Cursor-position color readout. Visible only when at
            least one of the highlight / shading display overrides
            is on; reports the ACTUAL stored colors at the cursor
@@ -345,7 +325,7 @@
       <!-- Search Everything: one-click entry to the quick-card search
            palette (same as the ribbon's search button / its shortcut). -->
       <button id="status-search-btn" class="status-segment" type="button"
-              title="Search Everything">Search</button>
+              title="Search Everything" aria-label="Search Everything"><span class="pmd-icon pmd-icon-search" aria-hidden="true"></span></button>
       <div class="status-spacer"></div>
       <!-- Update chip (install-on-confirm): hidden until the desktop main
            process reports a staged or available update. Clicking installs
@@ -360,9 +340,6 @@
         <span id="zoom-pct">100%</span>
         <button id="zoom-in-btn" type="button" aria-label="Zoom in"><span class="pmd-icon pmd-icon-plus" aria-hidden="true"></span></button>
       </div>
-      <!-- CardMirror mark: drag handle for the focused document's file
-           (file-drag-mark.ts). Hidden until the desktop host wires it. -->
-      <button id="file-drag-mark" type="button" hidden aria-label="CardMirror"></button>
     </div>
     <script type="module" src="/src/editor/index.ts"></script>
   </body>

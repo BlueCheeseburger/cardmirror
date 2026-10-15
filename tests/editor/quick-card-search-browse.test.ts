@@ -71,6 +71,20 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
+describe('palette prefix hint', () => {
+  it('the empty state says the prefix letter goes before what you type', async () => {
+    openPalette();
+    await settle();
+    const hint = document.querySelector('.pmd-qcs-empty-hint');
+    expect(hint?.textContent).toContain('letter first');
+    // The legend itself is untouched, and the hint is gone once typing starts.
+    expect(empty()).toContain('f files');
+    type('heg');
+    await settle();
+    expect(document.querySelector('.pmd-qcs-empty-hint')).toBeNull();
+  });
+});
+
 describe('palette folder browse', () => {
   it('a bare "/" is a prefix in progress: a hint, no rows, no everything-search flash', async () => {
     openPalette();

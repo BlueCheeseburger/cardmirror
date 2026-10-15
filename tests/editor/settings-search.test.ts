@@ -65,7 +65,7 @@ describe('compileSettingsQuery', () => {
 
   it('drops filler words when something more specific is typed', () => {
     const m = compileSettingsQuery('customize toolbar');
-    expect(m('Show doc name in ribbon')).toBe(true);
+    expect(m('Ribbon tooltips')).toBe(true);
     expect(m('Custom dash')).toBe(false);
   });
 

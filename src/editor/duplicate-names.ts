@@ -8,15 +8,19 @@
  * name; unique names stay clean.
  */
 
+import { stripKnownExtension } from './doc-rename.js';
+
 export interface NamedDoc {
   uid: string;
   filename: string;
   handle: unknown;
 }
 
-/** Case-insensitive, matching how the OS treats names on Windows/macOS. */
+/** Case-insensitive, matching how the OS treats names on Windows/macOS. The
+ *  extension is left out because the chip leaves it out: `x.docx` beside
+ *  `x.cmir` both read "x", so they need the path hint as much as two `x.docx`. */
 function nameKey(filename: string): string {
-  return filename.trim().toLowerCase();
+  return stripKnownExtension(filename.trim()).toLowerCase();
 }
 
 /** uid → path to show, for every doc whose name is shared with another

@@ -589,6 +589,67 @@ describe('importer — marks from rPr', () => {
     expect(sh!.attrs['color']).toBe('D2D2D2');
   });
 
+  describe('a shading fill that repeats the highlight colour', () => {
+    const names = (marks: readonly { type: { name: string } }[]): string[] => marks.map((m) => m.type.name);
+
+    it('drops the shading and keeps the highlight (highlight first)', () => {
+      const marks = importInline('<w:highlight w:val="cyan"/><w:shd w:val="clear" w:color="auto" w:fill="00FFFF"/>');
+      expect(names(marks)).toContain('highlight');
+      expect(names(marks)).not.toContain('shading');
+      expect(marks.find((m) => m.type.name === 'highlight')!.attrs['color']).toBe('cyan');
+    });
+
+    it('drops the shading when it comes first too', () => {
+      const marks = importInline('<w:shd w:val="clear" w:color="auto" w:fill="00FFFF"/><w:highlight w:val="cyan"/>');
+      expect(names(marks)).toContain('highlight');
+      expect(names(marks)).not.toContain('shading');
+    });
+
+    it('compares the colours case-insensitively', () => {
+      const marks = importInline('<w:highlight w:val="cyan"/><w:shd w:val="clear" w:color="auto" w:fill="00ffff"/>');
+      expect(names(marks)).not.toContain('shading');
+    });
+
+    it.each([
+      ['yellow', 'FFFF00'], ['green', '00FF00'], ['magenta', 'FF00FF'], ['blue', '0000FF'], ['red', 'FF0000'],
+      ['darkBlue', '000080'], ['darkCyan', '008080'], ['darkGreen', '008000'], ['darkMagenta', '800080'],
+      ['darkRed', '800000'], ['darkYellow', '808000'], ['darkGray', '808080'], ['lightGray', 'C0C0C0'],
+      ['black', '000000'],
+    ])('treats %s as %s', (name, hex) => {
+      const marks = importInline(`<w:highlight w:val="${name}"/><w:shd w:val="clear" w:color="auto" w:fill="${hex}"/>`);
+      expect(names(marks)).toContain('highlight');
+      expect(names(marks)).not.toContain('shading');
+    });
+
+    it('keeps a shading fill that differs from the highlight (the D2D2D2 protected text)', () => {
+      const marks = importInline('<w:highlight w:val="cyan"/><w:shd w:val="clear" w:color="auto" w:fill="D2D2D2"/>');
+      expect(names(marks)).toContain('highlight');
+      expect(names(marks)).toContain('shading');
+    });
+
+    it('keeps shading on a run with no highlight at all', () => {
+      const marks = importInline('<w:shd w:val="clear" w:color="auto" w:fill="00FFFF"/>');
+      expect(names(marks)).toContain('shading');
+    });
+
+    it('counts a card whose words carry both as read aloud', () => {
+      const xml = bodyXml(`
+        <w:p><w:pPr><w:pStyle w:val="Heading4"/></w:pPr><w:r><w:t>Tag</w:t></w:r></w:p>
+        <w:p><w:r><w:rPr><w:highlight w:val="cyan"/><w:shd w:val="clear" w:color="auto" w:fill="00FFFF"/></w:rPr><w:t>these cyan words are read aloud</w:t></w:r></w:p>
+      `);
+      const doc = importDoc(xml);
+      let shaded = 0;
+      let highlighted = 0;
+      doc.descendants((node) => {
+        if (!node.isText) return;
+        if (node.marks.some((m) => m.type.name === 'shading')) shaded++;
+        if (node.marks.some((m) => m.type.name === 'highlight')) highlighted++;
+      });
+      expect(highlighted).toBe(1);
+      expect(shaded).toBe(0);
+    });
+  });
+
   it('recognizes 6-pt ¶ as Verbatim pilcrow (pilcrow_marker, not font_size)', () => {
     // A run that's just a ¶ glyph at 6pt: Verbatim's pilcrow encoding.
     // The importer should swap the font_size:12 mark for the non-

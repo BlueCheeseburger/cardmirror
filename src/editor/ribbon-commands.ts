@@ -4635,9 +4635,9 @@ export type RibbonCommandId =
   | 'convertCardsToReadMode'
   | 'toggleReadMode'
   | 'toggleAutoScroll'
-  | 'toggleReaderView'
   | 'openContainingFolder'
   | 'reloadFromDisk'
+  | 'printDocument'
   | 'saveWorkspace'
   | 'reopenWorkspace'
   | 'arrangeWindows'
@@ -4910,9 +4910,9 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'convertCardsToReadMode',
   'toggleReadMode',
   'toggleAutoScroll',
-  'toggleReaderView',
   'openContainingFolder',
   'reloadFromDisk',
+  'printDocument',
   'saveWorkspace',
   'reopenWorkspace',
   'arrangeWindows',
@@ -5130,9 +5130,9 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   convertCardsToReadMode: 'Convert Cards to Read Mode',
   toggleReadMode: 'Toggle Read Mode',
   toggleAutoScroll: 'Toggle Auto-Scroll (Paced to Reading Speed)',
-  toggleReaderView: 'Toggle Reading View',
   openContainingFolder: 'Open Containing Folder',
   reloadFromDisk: 'Reload From Disk',
+  printDocument: 'Print…',
   saveWorkspace: 'Save Workspace',
   reopenWorkspace: 'Reopen Last Workspace',
   arrangeWindows: 'Arrange Windows',
@@ -5335,7 +5335,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   setNavDepth3: ['nav depth', 'navigation depth', 'outline level', 'level 3', 'blocks'],
   setNavDepth4: ['nav depth', 'navigation depth', 'outline level', 'level 4', 'tags'],
   convertCardsToReadMode: ['zap card', 'zap cards'],
-  toggleReadMode: ['show read mode', 'hide read mode', 'invisibility mode'],
+  toggleReadMode: ['show read mode', 'hide read mode', 'invisibility mode', 'reading view', 'reading mode', 'reader view'],
   toggleAutoScroll: [
     'auto scroll',
     'autoscroll',
@@ -5345,8 +5345,8 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
     'start scrolling',
     'stop scrolling',
   ],
-  toggleReaderView: ['reading view', 'reader view', 'paginated view', 'read view', 'book view', 'columns'],
   reloadFromDisk: ['reload', 'refresh', 'revert', 'revert to saved', 'discard changes', 'refresh from disk', 'reload document', 'reload file'],
+  printDocument: ['print', 'print document', 'print speech doc', 'print speech', 'printer', 'paper', 'hard copy', 'pdf'],
   openContainingFolder: ['reveal in finder', 'show in folder', 'show in explorer', 'reveal file', 'file location', 'containing folder'],
   saveWorkspace: ['save session', 'save open documents', 'remember open documents', 'save tabs'],
   reopenWorkspace: ['restore session', 'reopen session', 'open previous session', 'reopen last session', 'restore workspace', 'reopen documents', 'reopen tabs'],
@@ -5554,12 +5554,15 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   convertCardsToReadMode: '',
   toggleReadMode: '',
   toggleAutoScroll: '',
-  toggleReaderView: '',
   openContainingFolder: '',
   // Reload the document from its file. Cmd/Ctrl+R: nothing else in the app
   // uses it (the View > Reload menu item deliberately has no accelerator). A
   // document with unsaved edits asks before discarding them.
   reloadFromDisk: 'Mod-r',
+  // Print the active document through the OS print dialog. Cmd/Ctrl+P is
+  // Insert Received Card, so Print takes Mod-Alt-p, which moved Insert
+  // Received Card at End of Doc to Mod-Alt-Shift-p.
+  printDocument: 'Mod-Alt-p',
   saveWorkspace: '',
   reopenWorkspace: '',
   arrangeWindows: '',
@@ -5645,7 +5648,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   sendToStarred: '',
   sendToRecipient: '',
   insertReceivedAtCursor: 'Mod-p',
-  insertReceivedAtEnd: 'Mod-Alt-p',
+  insertReceivedAtEnd: 'Mod-Alt-Shift-p',
   previewReceived: '',
   selectCurrentHeading: 'Alt-a',
   deleteCurrentHeading: '',
@@ -5836,10 +5839,11 @@ export interface RibbonContext {
   openWordCountDialog: () => void;
   toggleReadMode: () => void;
   toggleAutoScroll: () => void;
-  toggleReaderView: () => void;
   openContainingFolder: () => void;
   /** Replace the active document with what's saved on disk. */
   reloadFromDisk: () => void;
+  /** Print the active document (read mode and all) via the OS print dialog. */
+  printDocument: () => void;
   saveWorkspace: () => void;
   reopenWorkspace: () => void;
   /** Arrange Windows: speech doc on one side, everything else on the
@@ -6068,9 +6072,9 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   openWordCountDialog: () => {},
   toggleReadMode: () => {},
   toggleAutoScroll: () => {},
-  toggleReaderView: () => {},
   openContainingFolder: () => {},
   reloadFromDisk: () => {},
+  printDocument: () => {},
   saveWorkspace: () => {},
   reopenWorkspace: () => {},
   arrangeWindows: () => {},
@@ -6353,12 +6357,6 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         ctx.toggleAutoScroll();
         return true;
       };
-    case 'toggleReaderView':
-      return (_state, dispatch) => {
-        if (!dispatch) return true;
-        ctx.toggleReaderView();
-        return true;
-      };
     case 'openContainingFolder':
       return (_state, dispatch) => {
         if (!dispatch) return true;
@@ -6369,6 +6367,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.reloadFromDisk();
+        return true;
+      };
+    case 'printDocument':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.printDocument();
         return true;
       };
     case 'saveWorkspace':

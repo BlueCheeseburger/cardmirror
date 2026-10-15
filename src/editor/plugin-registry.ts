@@ -172,6 +172,7 @@ export function registerPluginDefinition(
   if (!def || typeof def !== 'object') return { ok: false, error: 'bad definition' };
   if (typeof def.id !== 'string' || !def.id) return { ok: false, error: 'missing plugin id' };
   if (!PLUGIN_ID_RE.test(def.id)) return { ok: false, error: `invalid plugin id "${def.id}"` };
+  if (def.id === USER_COMMANDS_OWNER) return { ok: false, error: `plugin id "${def.id}" is reserved` };
   if (typeof def.name !== 'string' || !def.name) return { ok: false, error: 'missing plugin name' };
   if (def.apiVersion !== PLUGIN_API_VERSION) {
     return {
@@ -366,11 +367,68 @@ export function pluginDefaultKey(id: string): string | string[] | null {
   return commands.get(id)?.cmd.defaultKey ?? null;
 }
 
+/** Owner id of the commands the app itself generates from user config (today:
+ *  the Custom styles). They ride the plugin command chokepoints — palette,
+ *  keybindings, custom ribbon buttons — without being a plugin: no bundle, no
+ *  api object, no row in the Plugins list, and (unlike `installPluginRegistry`,
+ *  which is desktop-and-plugins-enabled only) available on every host. */
+const USER_COMMANDS_OWNER = 'user-commands';
+
+export interface UserCommandDef {
+  id: string;
+  label: string;
+  keywords?: readonly string[];
+  run: () => void;
+}
+
+let userCommandsChangedHook: (() => void) | null = null;
+
+/** Called after `setUserCommands` changes the set — the host rebuilds live
+ *  keymaps and the custom ribbon buttons, as for a plugin registration. */
+export function onUserCommandsChanged(cb: (() => void) | null): void {
+  userCommandsChangedHook = cb;
+}
+
+/** Replace the app-generated command set wholesale. Ids must not collide with
+ *  a plugin's (callers namespace theirs). Returns the ids that were removed, so
+ *  the caller can purge their key overrides / custom buttons. */
+export function setUserCommands(defs: readonly UserCommandDef[]): string[] {
+  const next = new Map(defs.map((d) => [d.id, d]));
+  const removed: string[] = [];
+  for (const [id, entry] of [...commands.entries()]) {
+    if (entry.pluginId !== USER_COMMANDS_OWNER) continue;
+    if (!next.has(id)) removed.push(id);
+    commands.delete(id);
+  }
+  for (const d of defs) {
+    if (commands.has(d.id)) continue; // never shadow a plugin command
+    commands.set(d.id, {
+      pluginId: USER_COMMANDS_OWNER,
+      cmd: { id: d.id, label: d.label, keywords: d.keywords, run: () => d.run() },
+    });
+  }
+  try {
+    userCommandsChangedHook?.();
+  } catch (err) {
+    console.error('[plugins] onUserCommandsChanged hook failed:', err);
+  }
+  return removed;
+}
+
 /** Run a plugin command by id. Never throws: sync and async failures
  *  both log and toast with the plugin's name. */
 export function runPluginCommand(id: string): boolean {
   const entry = commands.get(id);
   if (!entry) return false;
+  if (entry.pluginId === USER_COMMANDS_OWNER) {
+    try {
+      void entry.cmd.run(undefined as never);
+    } catch (err) {
+      console.error(`[commands] ${id} failed:`, err);
+      showToast(`${entry.cmd.label} failed — ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return true;
+  }
   const plugin = plugins.get(entry.pluginId);
   if (!plugin) return false;
   const report = (err: unknown): void => {
@@ -398,5 +456,6 @@ export function resetPluginRegistryForTests(): void {
   commands.clear();
   makeApi = null;
   commandsChangedHook = null;
+  userCommandsChangedHook = null;
   if (typeof window !== 'undefined') delete window.__registerCardMirrorPlugin;
 }

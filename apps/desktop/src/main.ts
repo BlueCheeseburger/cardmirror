@@ -840,13 +840,24 @@ ipcMain.handle('host:show-item-in-folder', (_event, handle: unknown) => {
   shell.showItemInFolder(handle);
 });
 
-/** Native drag of a saved document out of the window — the status-bar
- *  CardMirror mark (renderer: file-drag-mark.ts), the cross-platform twin
- *  of the macOS title-bar proxy icon. `startDrag` has to run in response
+/** Print the calling window's page through the OS print dialog. The
+ *  renderer has already swapped the page for a print-only copy of the
+ *  document (print-doc.ts); `printBackground` keeps highlighting and
+ *  shading. Resolves false when the user cancels or the job fails. */
+ipcMain.handle('host:print-window', (event) => {
+  return new Promise<boolean>((resolve) => {
+    event.sender.print({ silent: false, printBackground: true }, (success) => resolve(success));
+  });
+});
+
+/** Native drag of a saved document out of the window — the blue document
+ *  bar, a pane chip dragged out of the window, or the footer file badge
+ *  (renderer: file-drag.ts), the cross-platform twin of the macOS
+ *  title-bar proxy icon. `startDrag` has to run in response
  *  to the renderer's own dragstart, hence `on` + `send` rather than
  *  `handle`. The path is the doc's handle (absolute on desktop); anything
  *  else, or a file that no longer exists, is ignored. The drag image is
- *  the mark itself — Windows refuses a drag without a real icon. */
+ *  the CardMirror mark icon — Windows refuses a drag without a real icon. */
 ipcMain.on('host:drag-file-out', (event, payload: unknown) => {
   const p = payload as { path?: unknown; iconDataUrl?: unknown } | null;
   const file = typeof p?.path === 'string' ? p.path : '';
@@ -3200,6 +3211,11 @@ function buildMenu(): Menu {
         label: 'Save As…',
         accelerator: menuAccelerator('saveAs'),
         click: () => dispatchMenuCommand('saveAs'),
+      },
+      {
+        label: 'Print…',
+        accelerator: menuAccelerator('printDocument'),
+        click: () => dispatchMenuCommand('printDocument'),
       },
       { type: 'separator' },
       {
