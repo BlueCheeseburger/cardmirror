@@ -34,7 +34,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   ribbon and the command bar), and Compare moved up from the bottom row into the
   third slot. The number keys follow: 1 New document, 2 Open, 3 Compare, then the
   utility tiles.
-- Compare documents is #3 and Autosave for `.docx` files is #4 in the README's list of the fork's biggest features.
+- The README's list of the fork's eight biggest features is reordered: multi-window workspace, pace indicator, paced auto-scroll, Compare and merge documents, `.docx` autosave, Logos card search, search your own cards (`q`), redesigned Save As.
 
 ### Changed
 - The README's logo has a transparent background (and a white-wordmark version
@@ -885,62 +885,29 @@ same layout mode. You can toggle the three-pane layout per window
 from the ribbon, and opening a fourth document while all three slots
 are full now offers "New window" alongside the slot picker.
 
-### 2. Per-pane cloud-sync badge
+### 2. On-time / too-slow / too-fast pace indicator
 
-In a multi-pane workspace, each pane has its own cloud-sync status
-badge in that pane's own footer — instead of one shared pill in the
-window corner that only ever reflected whichever pane was focused,
-making it ambiguous which document it was reporting on. The badge
-shows the provider's own icon (Dropbox / OneDrive / Google Drive /
-iCloud), drops the text label while fully synced, and keeps a short
-label only for "changed on disk" and "conflicted copy" states.
+With the speech clock running, the timer compares the time left on the clock
+with how long the rest of your document takes to read aloud at your pace and
+shows whether you are on time, too slow or too fast — as words under the timer,
+or as a small dot that shades from red through green to blue — plus the time
+left to read. It works in read mode and Reading view, follows the lay-speaking
+toggle (per pane in three-pane mode), and counts from the line you are actually
+reading, a third of the way down the screen, not the top edge. An option fits
+the time left inside the timer box.
 
-### 3. Logos card search
-
-Type `g` and a space in Search Everything to search Logos, a card search
-engine over the round docs college and high school policy teams
-open-source on opencaselist. Enter inserts the full card — cite,
-underlining and highlighting intact — at your cursor, and right-click
-previews it first. Settings → Editing → Cards from Logos can condense,
-shrink and recolor every card as it lands.
-
-### 4. Google Gemini as a third AI provider
-
-Google Gemini is available alongside Anthropic Claude and OpenRouter
-as a third AI provider option in this fork. Select it in AI
-settings the same way you'd choose any other provider.
-
-### 5. Paced auto-scroll
+### 3. Paced auto-scroll
 
 A hands-free teleprompter mode that scrolls the document at your
 actual reading pace, automatically slowing for dense highlighted
 text and speeding through everything else. Toggle it from the
 ribbon's auto-scroll button.
 
-### 6. Settings search
+It also works in Reading view (it turns the pages, giving each as long as its
+words take to read), follows the lay-speaking toggle, and stops on Escape, the
+scroll keys or any manual scroll.
 
-A search bar next to the "Settings" title searches every setting's
-name and description across every tab at once. Matches are
-highlighted in yellow and only the matching rows are shown while
-you're typing, grouped by tab. Clear the box to go back to normal
-browsing. (Replaced by upstream's Settings search in the 1.14.0 sync.)
-
-### 7. Window naming
-
-Right-click anywhere on the ribbon to name (or rename) the window.
-A named window shows that name as its title bar instead of the
-document filename — useful for telling windows apart at a glance
-("Speech Doc", "Research"). The name persists across mode-switch
-reloads and clears with "Clear Window Name."
-
-### 8. Autosave for .docx files
-
-Autosave now covers Word documents, not just .cmir files — with a
-time-boxed, logged fallback for the zip worker and a ribbon button
-that distinguishes "saving" from "paused" (e.g. a doc with a live
-view that Word can't hold open).
-
-### 9. Compare documents
+### 4. Compare and merge documents
 
 A "Compare" card on the home screen picks two `.cmir`/`.docx` files and
 shows a full-screen, line-by-line diff of their text, side by side, with
@@ -949,6 +916,53 @@ outline on each side to jump straight to a heading. When a line was
 edited rather than replaced, just the changed words are struck through
 on the left and underlined on the right. Neither file is
 opened as your working document — the diff is read-only.
+
+From the same screen, **Merge** combines the two files into one new document:
+lines both share are kept once, lines only one has are kept as they are, and an
+edited line is a conflict you resolve by choosing the first file's version, the
+second's or both.
+
+### 5. Autosave for .docx files
+
+Autosave now covers Word documents, not just .cmir files — with a
+time-boxed, logged fallback for the zip worker and a ribbon button
+that distinguishes "saving" from "paused" (e.g. a doc with a live
+view that Word can't hold open).
+
+### 6. Logos card search
+
+Type `g` and a space in Search Everything to search Logos, a card search
+engine over the round docs college and high school policy teams
+open-source on opencaselist. Enter inserts the full card — cite,
+underlining and highlighting intact — at your cursor, and right-click
+previews it first. Settings → Editing → Cards from Logos can condense,
+shrink and recolor every card as it lands.
+
+### 7. Search your own cards
+
+`q ` in Search Everything searches your Quick Cards (badge **QUICK**) and the
+cards inside your indexed files (badge **CARD**) at once. Right-click any result
+to read the full card first; a card from a file names the file and shows its path
+in small text. Cards in your files are indexed when the app opens, so results are
+ready right away, and the palette also works on screens with no open document —
+picking a card there opens it as a new document.
+
+### 8. Redesigned Save As
+
+Save As is a list you select from, not buttons that save the instant you click
+them. Pick a mode — As-Is, Send Doc, Read Doc, Marked Doc or Custom Save (its
+options show inline) — and a location (a remembered folder, or "Choose location
+when saving"), then press Save As and both apply together. You can look at what
+a mode does without committing to it.
+
+### Also in this fork
+
+Smaller additions, not ranked:
+
+- **Per-pane cloud-sync badge.** In a multi-pane workspace, each pane has its own cloud-sync status badge in that pane's own footer — instead of one shared pill in the window corner that only ever reflected whichever pane was focused, making it ambiguous which document it was reporting on. The badge shows the provider's own icon (Dropbox / OneDrive / Google Drive / iCloud), drops the text label while fully synced, and keeps a short label only for "changed on disk" and "conflicted copy" states.
+- **Google Gemini as a third AI provider.** Google Gemini is available alongside Anthropic Claude and OpenRouter as a third AI provider option in this fork. Select it in AI settings the same way you'd choose any other provider.
+- **Window naming.** Right-click anywhere on the ribbon to name (or rename) the window. A named window shows that name as its title bar instead of the document filename — useful for telling windows apart at a glance ("Speech Doc", "Research"). The name persists across mode-switch reloads and clears with "Clear Window Name."
+- **Settings search.** A search bar next to the "Settings" title searches every setting's name and description across every tab at once. Matches are highlighted in yellow and only the matching rows are shown while you're typing, grouped by tab. Clear the box to go back to normal browsing. (Replaced by upstream's Settings search in the 1.14.0 sync.)
 
 ---
 
