@@ -1,5 +1,6 @@
 /**
- * The blank document New creates — exactly one empty paragraph, shared
+ * The blank document New creates — exactly one empty line (a plain
+ * paragraph, or the user's "Default text style": Analytic by default), shared
  * by single-pane and the three-pane shell so the two modes cannot
  * drift. Pocket seeding is a speech-doc-only, setting-gated affordance
  * (`makeSpeechBlankDoc` behind "Seed new speech docs with a Pocket
@@ -11,11 +12,45 @@ import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorState } from 'prosemirror-state';
 import { undoDepth } from 'prosemirror-history';
 import { schema } from '../schema/index.js';
+import { newHeadingId } from '../schema/ids.js';
+import { settings } from './settings.js';
+
+/** The empty top-level block a new doc starts with, in the user's "Default
+ *  text style". An analytic is always anchored by an `analytic_unit`; the
+ *  others are bare doc-level blocks. */
+export function makeStyledBlock(): PMNode {
+  switch (settings.get('defaultTextStyle')) {
+    case 'normal':
+      return schema.nodes['paragraph']!.create();
+    case 'undertag':
+      return schema.nodes['undertag']!.create();
+    default:
+      return schema.nodes['analytic_unit']!.createChecked(null, [
+        schema.nodes['analytic']!.create({ id: newHeadingId() }),
+      ]);
+  }
+}
 
 export function makeBlankDoc(): PMNode {
-  return schema.nodes['doc']!.createChecked(null, [
-    schema.nodes['paragraph']!.create(),
-  ]);
+  return schema.nodes['doc']!.createChecked(null, [makeStyledBlock()]);
+}
+
+/** True when `block` is an empty block `makeBlankDoc` can produce, whatever
+ *  default style was in force when it was made. */
+function isBlankSeedBlock(block: PMNode): boolean {
+  if (block.type === schema.nodes['analytic_unit']) {
+    return block.childCount === 1 && block.firstChild!.type === schema.nodes['analytic'] && block.firstChild!.content.size === 0;
+  }
+  return (
+    (block.type === schema.nodes['paragraph'] || block.type === schema.nodes['undertag']) &&
+    block.content.size === 0
+  );
+}
+
+/** Offset from a seed block's start to the caret position inside its text:
+ *  an `analytic_unit` wraps its analytic, so the text sits one level deeper. */
+export function seedCursorOffset(block: PMNode): number {
+  return block.type === schema.nodes['analytic_unit'] ? 2 : 1;
 }
 
 /** True when `state` is still exactly what New made: one empty
@@ -26,7 +61,6 @@ export function makeBlankDoc(): PMNode {
 export function isUntouchedBlank(state: EditorState): boolean {
   const doc = state.doc;
   if (doc.childCount !== 1) return false;
-  const only = doc.firstChild!;
-  if (only.type !== schema.nodes['paragraph'] || only.content.size !== 0) return false;
+  if (!isBlankSeedBlock(doc.firstChild!)) return false;
   return undoDepth(state) === 0;
 }

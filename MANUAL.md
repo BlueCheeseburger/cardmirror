@@ -235,7 +235,7 @@ fork's own additions; upstream CardMirror doesn't have them.
   its source, or an editable **linked copy** you refresh — from this document or
   another file.
 - **[Read mode that locks the keyboard](#8-reading-and-delivering-a-speech)**
-  — a non-destructive reading view at the podium that stray keystrokes
+  — a non-destructive way to read at the podium that stray keystrokes
   can't edit, with a reading-position marker for stopping mid-card.
 - **[Read-time word counts](#read-time-estimates)** — the status bar shows
   how long the visible (or selected) text takes to read, per reader, not
@@ -984,9 +984,11 @@ saved it on another machine, the pill turns amber and says how long
 ago. Nothing pops up, so a conflict never interrupts a speech; the pill
 waits until read mode and the timer pop-out are off.
 
-**(fork)** In the [multi-doc workspace](#7-the-multi-doc-workspace), each
-pane shows its own cloud status in its own footer instead of one shared
-pill, so it's always clear which document a warning is about. While a file
+The badge sits at the bottom of the document in a single window and in each
+pane's footer in the [multi-doc workspace](#7-the-multi-doc-workspace), so
+it's always clear which document a warning is about; a file that isn't in a
+synced folder shows a computer icon instead of a service. **(fork)**
+Each pane shows its own cloud status instead of one shared pill, so it's always clear which document a warning is about. While a file
 is fully synced the badge is just the service's icon (Dropbox, OneDrive,
 Google Drive, or iCloud); it adds a short label when the file changed on
 disk or was saved as a conflicted copy. Clicking it offers the same choices
@@ -1337,6 +1339,10 @@ workspace while another shows a single document.
   document stays where it was. **(Desktop only.)**
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is.
+- **(fork)** **Hover a title chip** and a greyed microphone appears at its left;
+  click it to make that document the active speech doc (click again to clear).
+  A single window has the same blue bar above its one document, with the same
+  buttons minus Expand and the slot number.
 
 ### Multiple workspaces
 
@@ -1373,8 +1379,8 @@ set back as one entry, next to your recently opened files.
   the document's filename ("Speech Doc", "Research"). Right-click again
   for **Rename Window…** or **Clear Window Name**. The name survives
   switching the window between single and three-pane layouts.
-- **Rename a document**: double-click its name in the ribbon's doc-name
-  chip or a pane's title chip, type the new name, and press **Enter** (or
+- **Rename a document**: double-click its name in the document bar
+  or a pane's title chip (shown without `.docx` / `.cmir`), type the new name, and press **Enter** (or
   click away). **Esc** cancels. This renames the real file on disk: it
   stays in the same folder and keeps its format (use Save As to change
   format), and an existing file with that name is never overwritten.
@@ -1481,41 +1487,10 @@ with everything that isn't read aloud already hidden, the scroll
 speed tracks your actual delivery pace almost exactly — a hands-free
 teleprompter for practicing a speech. Any manual scroll, wheel, touch,
 or click hands control straight back to you and stops it; running out
-of document does too. In **Reading view** (the book) there is nothing to scroll, so it turns the pages
-instead, giving each page as long as it takes to read aloud at your first reader's
-rate; flipping a page yourself stops it. Switching focus to another pane (in the
+of document does too. Escape, Page Up/Down, Home, End and the up/down arrows
+stop it as well. Switching focus to another pane (in the
 multi-doc workspace) also stops it — it never keeps scrolling somewhere
 you're not looking.
-
-### Reading view
-
-Click the **book** in the ribbon (or bind a key to *Toggle Reading
-View*) to flip the document into Word-style full-screen pages: one to
-three columns sized from the pane's width, flipped a whole screen at a
-time. It's built for reading a speech without scrolling — every flip
-lands on a clean page boundary, and tags and cites are kept with the
-first line of their card so nothing strands at a column bottom.
-
-Flipping: **←/→**, **PgUp/PgDn**, **Space / Shift-Space**, one
-mouse-wheel click (or one trackpad swipe), or the click zones at the
-left and right edges. **Home/End** jump to the first and last page,
-and the indicator at the bottom shows where you are. The navigation
-pane stays available — clicking an entry lands on the page containing
-it.
-
-Like read mode, reading view locks editing; dropping a
-[reading marker](#read-mode) is the only edit allowed (drag-and-drop
-is disabled entirely here). The two combine well: read mode strips the
-document down to what's read aloud, and reading view paginates
-whatever is showing — together they're a teleprompter. Reading view is
-per-document in the [multi-doc workspace](#7-the-multi-doc-workspace),
-so stack your speech docs in one slot, flip each into reading view as
-you finish prepping it, and full-screen the slot when you stand up.
-
-The maximum-text-width accessibility cap bounds the column width, and
-page flips animate by default — **Reduce animations in reading view**
-(Settings → Accessibility) or the global reduce-motion preference
-makes them instant.
 
 ### Read-time estimates
 
@@ -1586,8 +1561,7 @@ down the window, to the end of the document — with each reader's time for it: 
 · Amy: 5:20`. Only read-aloud text counts, same as every other readout,
 so trimming highlights lowers it. It follows the scroll, not the cursor
 (a speaker reads about a third of the way down the screen, and the caret is
-wherever you last clicked), and updates as you scroll. In Reading view it counts
-from the page in view. It's cheap on large files
+wherever you last clicked), and updates as you scroll. It's cheap on large files
 too: CardMirror keeps a running total per section of the document, so a
 new position only re-counts the card or paragraph it lands in.
 
@@ -1793,6 +1767,23 @@ Save Send Doc. It keeps cards only (analytics and headings are dropped); if noth
 it does nothing and tells you so. Card numbers are frozen into the saved copy as text (see
 [Send Doc](#16-saving-and-file-formats)), so the marked cards keep the numbers they had.
 
+### Printing
+
+**(Fork)** **Print…** (default **Mod-Alt-P**, rebindable; also File → Print… on
+macOS, the File group in the ribbon, and the command palette) prints the document
+you're working in through your computer's own print dialog — pick the printer or
+"Save as PDF", paper size, copies and page range there. The paper copy is the
+document as it looks on screen: highlighting, underlining, emphasis boxes and card
+numbers print, headings stay with the card under them, and a card that fits on a
+page isn't split across two. A document in the dark theme prints in light colors on
+white. **Read mode** prints what read mode shows, so turning it on first gives you
+a condensed read-aloud copy (just tags, cites and highlighted text); if read mode
+is hiding everything, nothing opens and you get a notice instead. In the
+multi-doc workspace it prints the focused pane's document. In a browser the
+browser's own print dialog opens, and its File → Print menu prints the same way.
+(Mod-P itself is Insert Received Card, and Insert Received Card at End of doc
+moved to **Mod-Alt-Shift-P** to make room.)
+
 ---
 
 ## 9. Collaboration
@@ -1886,7 +1877,7 @@ row:
 - Inserted cards fold in the nav pane to your current outline depth
   instead of arriving fully expanded.
 - **Mod-P** inserts the most recently received card at the cursor, and
-  **Mod-Alt-P** appends it, without opening the pill (both rebindable).
+  **Mod-Alt-Shift-P** appends it, without opening the pill (both rebindable).
 - **Preview Received Card** opens the most recent one in the preview
   without inserting it — unbound by default; give it a key under
   Settings → Keyboard shortcuts. The preview's **Read mode** button shows
@@ -2756,13 +2747,17 @@ versions.
   never overwrites a file that changed underneath it; it pauses and tells
   you to use Save to review, and the amber **Changed on disk** pill offers
   the same choices. **(Desktop only.)**
-- **Drag the file out of the app (desktop).** The CardMirror mark in the
-  bottom-right corner of the status bar stands for the focused document's
-  file: drag it into Slack, Mail, Teams, Finder or Explorer to share the
-  file itself, or click it to show the file in its folder. It's dimmed
-  until the document has been saved, since what travels is the file on
-  disk (save first to include your latest edits). In the three-pane
-  workspace it follows the focused document.
+- **Drag the file out of the app, or copy its path (desktop).** The **file
+  badge** at the bottom of the document stands for its file: a cloud-provider
+  icon when it lives in Dropbox, OneDrive, Google Drive or iCloud, a **computer
+  icon** when it's only on this computer. Drag it into Slack, Mail, Teams,
+  Finder or Explorer to share the file itself, click it to show the file in its
+  folder, or right-click it for **Copy file path**. Dragging the blue document
+  bar out of the window shares the file the same way, and right-clicking the
+  ribbon or the document bar also offers **Copy file path**. It's absent until
+  the document has been saved, since what travels is the file on disk (save
+  first to include your latest edits). In the three-pane workspace each pane
+  has its own badge.
 
 - **Saved Word files carry an invisible CardMirror marker.** A .docx
   saved here names CardMirror and its version in the file's standard
@@ -3142,6 +3137,9 @@ file search scans, and how much version history to keep.
 - **Seed new speech docs with a Pocket heading** — when on, New Speech
   Document opens with a Pocket carrying the speech's name; off starts
   blank.
+- **Default text style** — the style a new document's first line starts in:
+  **Analytic** (the default), **Clear** (a plain paragraph) or **Undertag**.
+  Affects new documents only, never files you open.
 
 **Send / Read / Marked docs**
 
@@ -3227,12 +3225,13 @@ How things look. None of these change the file — only your view (see
   document tracks whichever theme the chrome is currently showing.
 - **Icon style** — modern line icons (default) or classic glyphs;
   interface only.
-- **Show doc name in ribbon** — show the active filename as a pill in the
-  ribbon's center, handy when the title bar is hidden. Off by default;
-  hidden in multi-pane (each pane shows its own chip).
 - **Show undo / redo buttons** — a stacked Undo / Redo button pair at the
   far left of the ribbon, before the file buttons. Off by default —
   undo/redo always work by keyboard either way.
+- **Show extra formatting buttons** — the general word-processor buttons
+  (Table, Insert image, superscript, subscript, strikethrough and the
+  card-numbering buttons) are hidden by default; turn this on to show them.
+  Their commands and shortcuts work either way.
 - **Ribbon tooltips** — what a hovered ribbon button shows: both, label
   only, shortcut only, or none.
 
@@ -3350,6 +3349,18 @@ Typing helpers and the behavior of the cutting and condense commands
 - **Custom autocorrect** — your own replace-as-you-type entries, with
   duplicate-entry refusal and clash warnings against the other typing
   aids; Backspace right after reverts to what you typed. Off by default.
+
+**Custom styles**
+
+- **Custom styles** — your own named character styles. Each is a dropdown:
+  pick bold, italic, strikethrough, super/subscript, a text colour, a
+  highlight, a font and a size, and watch the live sample. **Edit as JSON**
+  shows the whole list as raw JSON (a list of `{ "name", "format" }`, with
+  format keys `bold`, `italic`, `strikethrough`, `superscript`, `subscript`,
+  `color`, `highlight`, `font`, `size`) so you can paste styles between
+  machines. Every style is a **Style: …** command: run it from the command bar,
+  bind a key in Keyboard shortcuts, or add it as a custom ribbon button.
+  Running it on text that already has all of it removes it again. Up to 24.
 
 **New paragraph on Enter**
 
@@ -3554,12 +3565,7 @@ use the Control key show as **⌃** and Command shortcuts as **⌘**.
 - **Maximum text width** — cap how wide the document text column gets,
   so reading doesn't require sweeping your eyes across the whole
   screen. Off by default; when on, choose whether the column sits
-  centered or pinned to the left or right edge. In
-  [reading view](#reading-view) it caps the column width instead.
-- **Reduce animations in reading view** — make
-  [reading view's](#reading-view) page flips instant instead of
-  animated. Off by default; the global reduce-motion preference also
-  flattens them.
+  centered or pinned to the left or right edge.
 - **Screen reader support** *(desktop)* — let screen readers and other
   assistive technology read CardMirror. **Off by default**: a current Chromium
   bug crashes the window (white screen, lost work) while building the
@@ -3700,7 +3706,7 @@ these to extend the selection.
 | `` ` `` / Alt-`` ` `` | Send to speech at cursor / at end |
 | Mod-`` ` `` | Send to dropzone |
 | *(unbound)* | Send to the starred recipient / group — bind it in Settings |
-| Mod-P / Mod-Alt-P | Insert most recently received card at cursor / at end of doc |
+| Mod-P / Mod-Alt-Shift-P | Insert most recently received card at cursor / at end of doc |
 | Mod-Shift-N | Add note to selection |
 | Mod-Shift-Q | Ask AI about selection |
 | Mod-Shift-X | Format cite from selection (AI) |
@@ -3715,6 +3721,7 @@ these to extend the selection.
 | Mod-S / Mod-Shift-S | Save / Save As |
 | Mod-Alt-S | Save Send Doc |
 | Mod-Alt-M | Save Marked Cards |
+| Mod-Alt-P | Print… |
 | Mod-= / Mod-- | Zoom in / out |
 | Mod-Alt-= / Mod-Alt-- / Mod-Alt-0 | Interface scale up / down / reset (desktop) |
 
@@ -3846,7 +3853,7 @@ documented in the repository README and reference docs.
 - **Pilcrow** — the small ¶ that marks an original paragraph break in a
   condensed card.
 - **Shrink** — cycle a card's un-underlined text through smaller sizes.
-- **Read mode** — a non-destructive reading view that hides non-read-aloud
+- **Read mode** — a non-destructive way to read a doc that hides non-read-aloud
   content and locks editing.
 - **Read-aloud content** — Tags, Cites, Analytics, and highlighted text:
   what read mode keeps and read-time counts.

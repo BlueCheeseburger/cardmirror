@@ -32,6 +32,8 @@ import { showToast } from './toast.js';
 import { settings } from './settings.js';
 import type { CloudProvider } from './host/types.js';
 import type { AutoApplyOutcome } from './disk-auto-apply.js';
+import { installFileDragSource, type FileDragHost } from './file-drag.js';
+import { installFileContextMenu } from './file-path-menu.js';
 
 export type DiskBadgeState = 'local' | 'synced' | 'changed' | 'kept-copy';
 export type ClaimResult = 'fresh' | 'journaled' | 'changed' | 'unknown';
@@ -46,6 +48,12 @@ export interface DocDiskInfo {
 }
 
 const byHandle = new Map<string, DocDiskInfo>();
+
+/** What a path nobody registered counts as: a plain file on this machine. */
+const LOCAL_INFO: DocDiskInfo = { provider: null, state: 'local', changedAt: null, copyOf: null };
+
+/** The tail every resting tooltip shares. */
+const BADGE_HINT = 'Click to show the file in its folder · drag to share it · right-click to copy its path.';
 
 const PROVIDER_LABEL: Record<CloudProvider, string> = {
   dropbox: 'Dropbox',
@@ -240,6 +248,9 @@ export interface DiskBadgeDeps {
    *  withheld (it would replace the shared document under everyone). */
   isSessionHost: (handle: string) => boolean;
   reveal: (handle: string) => void;
+  /** The host that can start a native drag of the file (the desktop host);
+   *  null / absent where files can't be handed to other apps. */
+  dragHost?: () => FileDragHost | null;
   /** Replaces the doc from disk, discarding unsaved edits (no prompt). */
   reloadFromDisk: (handle: string) => Promise<void>;
   keepMineAsCopy: (handle: string) => Promise<void>;
@@ -308,6 +319,13 @@ const CLOUD_SVG =
   'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M7 18.5h11a4 4 0 0 0 .6-7.95A6.5 6.5 0 0 0 6.2 9.3 4.6 4.6 0 0 0 7 18.5z"/></svg>';
 
+/** A computer — what the badge shows for a file that lives on this machine
+ *  rather than in a cloud-synced folder. Same stroke style as the cloud. */
+const COMPUTER_SVG =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/></svg>';
+
 /** Compact, brand-colored provider marks for the per-pane badge (see
  *  `createPaneDiskBadge`) — small enough to sit in a pane footer next
  *  to the word-count/copresence/save controls, and identifiable at a
@@ -334,8 +352,14 @@ const PROVIDER_ICON: Record<CloudProvider, string> = {
 };
 
 /** Create the tray + pill once (in `opts.parent`, default the body). */
-export function installDiskBadge(deps: DiskBadgeDeps, opts?: { parent?: HTMLElement }): void {
+export function installDiskBadge(
+  deps: DiskBadgeDeps,
+  opts?: { parent?: HTMLElement; headless?: boolean },
+): void {
   badgeDeps = deps;
+  // Headless: the window shows the footer badge (`createPaneDiskBadge`) instead
+  // of this corner tray; it only needs the deps (Reload From Disk reads them).
+  if (opts?.headless) return;
   if (badgeEl) return;
   const parent = opts?.parent ?? document.body;
   trayEl = document.createElement('div');
@@ -451,7 +475,7 @@ async function resolveBadgeClick(
     'isSessionHost' | 'isDirty' | 'reveal' | 'reloadFromDisk' | 'keepMineAsCopy' | 'overwrite' | 'openOriginal'
   >,
 ): Promise<void> {
-  if (info.state === 'synced') {
+  if (info.state === 'synced' || info.state === 'local') {
     deps.reveal(handle);
     return;
   }
@@ -556,8 +580,8 @@ export interface PaneDiskBadgeHandle {
  *  end — callers appending after the word-count span, which is
  *  `flex: 1 1 auto` and pushes everything after it to the row's right
  *  edge, get the same right-aligned placement the footer's other
- *  controls already use). Hidden (zero footprint) for a local file,
- *  same as the single-doc tray badge. */
+ *  controls already use). Hidden (zero footprint) only for a document
+ *  with no file yet; a file on this machine shows a computer. */
 export function createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement): PaneDiskBadgeHandle {
   const root = document.createElement('button');
   root.type = 'button';
@@ -586,21 +610,26 @@ export function createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement): P
   function render(): void {
     if (deps.isSuppressed()) return;
     const { handle, name } = deps.getActive();
-    const info = handle ? byHandle.get(handle) : null;
-    if (!info || info.state === 'local') {
+    // No path, no badge: an unsaved document (or a web file handle) has no file
+    // to show, share or copy. A document on this machine reads as a computer.
+    if (!handle) {
       root.hidden = true;
       root.removeAttribute('data-state');
       stopClock();
       return;
     }
+    const info = byHandle.get(handle) ?? LOCAL_INFO;
     root.hidden = false;
     root.setAttribute('data-state', info.state);
-    icon.innerHTML = info.provider ? PROVIDER_ICON[info.provider] : CLOUD_SVG;
+    icon.innerHTML =
+      info.state === 'local' ? COMPUTER_SVG : info.provider ? PROVIDER_ICON[info.provider] : CLOUD_SVG;
     const provider = info.provider ? PROVIDER_LABEL[info.provider] : 'a synced folder';
     let text = '';
     let title = '';
-    if (info.state === 'synced') {
-      title = `In ${provider} · as of last sync. Click to reveal the file.`;
+    if (info.state === 'local') {
+      title = `On this computer. ${BADGE_HINT}`;
+    } else if (info.state === 'synced') {
+      title = `In ${provider} · as of last sync. ${BADGE_HINT}`;
     } else if (info.state === 'changed') {
       const when = info.changedAt ? relativeTime(info.changedAt) : '';
       text = when;
@@ -622,10 +651,20 @@ export function createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement): P
   async function onClick(): Promise<void> {
     const { handle, name } = deps.getActive();
     if (!handle) return;
-    const info = byHandle.get(handle);
-    if (!info) return;
-    await resolveBadgeClick(handle, name, info, deps);
+    await resolveBadgeClick(handle, name, byHandle.get(handle) ?? LOCAL_INFO, deps);
   }
+
+  // The badge is also the file's handle: drag it into another app to share the
+  // saved file, right-click it to copy the path.
+  const disposeDrag = installFileDragSource(
+    root,
+    () => deps.getActive().handle,
+    () => deps.dragHost?.() ?? null,
+  );
+  const disposeMenu = installFileContextMenu(root, {
+    getPath: () => deps.getActive().handle,
+    reveal: (path) => deps.reveal(path),
+  });
 
   paneRefreshListeners.add(render);
   render();
@@ -636,6 +675,8 @@ export function createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement): P
     destroy: () => {
       paneRefreshListeners.delete(render);
       stopClock();
+      disposeDrag();
+      disposeMenu();
       root.remove();
     },
   };

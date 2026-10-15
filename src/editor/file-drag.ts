@@ -1,24 +1,25 @@
 /**
- * The CardMirror mark in the status bar's bottom-right corner: a drag
- * handle for the focused document's file. Drag it into Slack, Mail,
+ * Handing a document's FILE to another app by dragging: the cloud / computer
+ * badge in each pane's footer (and the single window's footer) and the blue
+ * title bar over the document are drag handles. Drop one into Slack, Mail,
  * Teams, Finder or Explorer and the OS receives the saved file — the
- * cross-platform counterpart of the macOS title-bar proxy icon (which
- * Windows and Linux lack). A click reveals the file in the file manager.
+ * cross-platform counterpart of the macOS title-bar proxy icon (which Windows
+ * and Linux lack).
  *
- * Desktop only: the web build has no file paths, so the mark stays
- * hidden there (and on a packaged shell too old to start a native drag).
- * Dimmed while the focused doc has no file on disk — untitled, a
- * recovered draft, the home screen — because what travels is the file
- * as saved.
+ * Desktop only: the web build has no file paths, so nothing is draggable there
+ * (and on a packaged shell too old to start a native drag). What travels is the
+ * file as saved, so a document with no file on disk has nothing to hand out.
  *
- * The drag itself is Electron's `webContents.startDrag`, which must be
- * triggered from the renderer's own `dragstart` (see `host:drag-file-out`
- * in main.ts); the mark image doubles as the drag icon (Windows insists
- * on one).
+ * The drag itself is Electron's `webContents.startDrag`, requested over IPC
+ * (`host:drag-file-out` in main.ts) while the mouse button is still down: from
+ * the element's own `dragstart` (`installFileDragSource`), or — for a pane's
+ * title bar, whose own pointer drag moves the document between panes — once
+ * that gesture leaves the window (`startNativeFileDrag`). The folder mark below
+ * doubles as the drag icon (Windows insists on one).
  */
 
 /** The folder mark from logo.png, wordmark cropped off, background
- *  transparent, 48px — the status-bar glyph and the drag icon. Recipe
+ *  transparent, 48px — the drag icon. Recipe
  *  (Pillow): bounding box by color SATURATION so the black wordmark
  *  never counts, flood-fill the white corners to transparent, drop any
  *  leftover grey, square canvas, LANCZOS to 48px. */
@@ -32,55 +33,37 @@ export interface FileDragHost {
   showItemInFolder?(path: string): Promise<void>;
 }
 
-export interface FileDragMarkState {
-  hidden: boolean;
-  /** Shown but dimmed and inert: no file on disk to hand out. */
-  inert: boolean;
-  title: string;
+/** The absolute path a document handle stands for on desktop, or null when it
+ *  has no file on disk (untitled, a recovered draft) or isn't a path (a web
+ *  file handle). */
+export function filePathOf(handle: unknown): string | null {
+  return typeof handle === 'string' && handle.length > 0 ? handle : null;
 }
 
-export const DRAG_TITLE = 'Drag to share this file · Click to show it in its folder';
-export const INERT_TITLE = 'Save the document to share its file from here';
-
-/** Pure: what the mark should show for a host + the focused doc's handle
- *  (the absolute path on desktop; null when there is no file). */
-export function fileDragMarkState(host: FileDragHost | null, handle: unknown): FileDragMarkState {
-  if (!host || !host.canDragFileOut()) return { hidden: true, inert: true, title: '' };
-  const path = typeof handle === 'string' && handle.length > 0 ? handle : null;
-  return path
-    ? { hidden: false, inert: false, title: DRAG_TITLE }
-    : { hidden: false, inert: true, title: INERT_TITLE };
+/** Start the OS-level drag of `path`. False when this host can't. */
+export function startNativeFileDrag(host: FileDragHost | null, path: string | null): boolean {
+  if (!host || !path || !host.canDragFileOut()) return false;
+  host.dragFileOut(path, FILE_MARK_DATA_URL);
+  return true;
 }
 
-/** Wire the mark element. Returns the sync function the window-title
- *  path calls with the focused doc's handle on every identity change. */
-export function installFileDragMark(
+/** Make `el` hand its document's file to other apps when dragged. `getPath`
+ *  is asked at drag time, so it always reflects the current document; with no
+ *  path (or no desktop host) the drag is simply refused. Returns a disposer. */
+export function installFileDragSource(
   el: HTMLElement,
+  getPath: () => string | null,
   getHost: () => FileDragHost | null,
-): (handle: unknown) => void {
-  let currentPath: string | null = null;
-  el.style.backgroundImage = `url("${FILE_MARK_DATA_URL}")`;
+): () => void {
   el.draggable = true;
-  el.addEventListener('dragstart', (e) => {
+  const onDragStart = (e: DragEvent): void => {
     // Electron: cancel the DOM drag and start the native one from here.
     e.preventDefault();
-    const host = getHost();
-    if (!host || !currentPath) return;
-    host.dragFileOut(currentPath, FILE_MARK_DATA_URL);
-  });
-  el.addEventListener('click', () => {
-    const host = getHost();
-    if (!host || !currentPath) return;
-    void host.showItemInFolder?.(currentPath);
-  });
-  return (handle: unknown): void => {
-    const state = fileDragMarkState(getHost(), handle);
-    currentPath = state.hidden || state.inert ? null : (handle as string);
-    el.hidden = state.hidden;
-    if (state.inert) el.dataset['inert'] = 'true';
-    else delete el.dataset['inert'];
-    el.title = state.title;
-    el.setAttribute('aria-label', state.title || 'CardMirror');
-    el.setAttribute('aria-disabled', state.inert ? 'true' : 'false');
+    startNativeFileDrag(getHost(), getPath());
+  };
+  el.addEventListener('dragstart', onDragStart);
+  return () => {
+    el.removeEventListener('dragstart', onDragStart);
+    el.draggable = false;
   };
 }

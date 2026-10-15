@@ -43,6 +43,7 @@ import {
   type StyleMap,
 } from '../ooxml/styles.js';
 import { buildLegacyHeadingMap, isUnambiguousLegacy, legacyRole } from '../ooxml/legacy-styles.js';
+import { highlightNameToHex } from '../ooxml/highlight-colors.js';
 
 /**
  * The importer's paragraph-level intermediate: phase (a) turns docx
@@ -1060,6 +1061,22 @@ function parseRPr(rPr: XmlNode, styles?: StyleMap): ParsedRPr {
     // identically (the style already displays italic), so this loses
     // nothing visible — the same accepted trade as underline above.
     marks.push(schema.marks['italic']!.create());
+  }
+
+  // Some producers write BOTH <w:highlight w:val="cyan"/> and a <w:shd> fill of
+  // that same colour on one run. That is a plain highlight, but a shading mark
+  // beside it reads as "protected, not read aloud" (word-count's readAloudBucket
+  // treats highlight + shading as reference text), so the words counted as 0.
+  // Decided here, after the whole rPr is parsed, because the two elements can
+  // appear in either order. A fill that differs from the highlight (the D2D2D2
+  // protected-highlight sentinel, say) is genuine shading and stays.
+  const highlightMark = marks.find((m) => m.type.name === 'highlight');
+  const shadingMark = marks.find((m) => m.type.name === 'shading');
+  if (highlightMark && shadingMark) {
+    const hex = highlightNameToHex(String(highlightMark.attrs['color']));
+    if (hex && hex.toLowerCase() === String(shadingMark.attrs['color']).toLowerCase()) {
+      marks.splice(marks.indexOf(shadingMark), 1);
+    }
   }
 
   return { marks };

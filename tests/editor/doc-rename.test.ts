@@ -10,7 +10,25 @@ import {
   resolveRenameFilename,
   installInlineRename,
   isInlineRenaming,
+  stripKnownExtension,
+  docDisplayName,
 } from '../../src/editor/doc-rename.js';
+
+describe('names in the chrome carry no extension', () => {
+  it('strips .cmir / .docx, in any case, and nothing else', () => {
+    expect(stripKnownExtension('Case Neg Cards v. Single Payer.docx')).toBe('Case Neg Cards v. Single Payer');
+    expect(stripKnownExtension('1NC.DOCX')).toBe('1NC');
+    expect(stripKnownExtension('draft.cmir')).toBe('draft');
+    expect(stripKnownExtension('notes.txt')).toBe('notes.txt');
+    expect(stripKnownExtension('v. Single Payer')).toBe('v. Single Payer');
+    expect(stripKnownExtension('plain')).toBe('plain');
+  });
+
+  it('docDisplayName is the name without its extension', () => {
+    expect(docDisplayName('Case Neg Cards v. Single Payer.docx')).toBe('Case Neg Cards v. Single Payer');
+    expect(docDisplayName('Untitled')).toBe('Untitled');
+  });
+});
 
 describe('resolveRenameFilename', () => {
   it('keeps the current extension when the user types none', () => {
@@ -88,22 +106,31 @@ describe('installInlineRename', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
     el = document.createElement('span');
-    el.textContent = '1nc.docx';
+    el.textContent = '1nc';
     document.body.appendChild(el);
     commit = vi.fn();
     restore = vi.fn(() => {
-      el.textContent = '1nc.docx';
+      el.textContent = '1nc';
     });
-    installInlineRename(el, { currentName: () => '1nc.docx', commit, restore });
+    installInlineRename(el, { currentName: () => '1nc', commit, restore });
   });
 
-  it('swaps in a field seeded with the current name, basename selected', () => {
+  it('swaps in a field seeded with the name (no extension), all of it selected', () => {
     dblclick();
     const input = field()!;
-    expect(input.value).toBe('1nc.docx');
-    // The extension stays out of the selection so typing doesn't eat it.
+    expect(input.value).toBe('1nc');
     expect([input.selectionStart, input.selectionEnd]).toEqual([0, 3]);
     expect(isInlineRenaming(el)).toBe(true);
+  });
+
+  it('selects the whole name even when it contains dots', () => {
+    document.body.innerHTML = '';
+    const dotted = document.createElement('span');
+    document.body.appendChild(dotted);
+    installInlineRename(dotted, { currentName: () => 'Case v. Single Payer', commit: vi.fn(), restore: vi.fn() });
+    dotted.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    const input = dotted.querySelector('input')!;
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 'Case v. Single Payer'.length]);
   });
 
   it('commits on Enter, with the typed text, exactly once', () => {
@@ -142,7 +169,7 @@ describe('installInlineRename', () => {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(commit).not.toHaveBeenCalled();
     expect(restore).toHaveBeenCalled();
-    expect(el.textContent).toBe('1nc.docx');
+    expect(el.textContent).toBe('1nc');
     input.dispatchEvent(new FocusEvent('blur'));
     expect(commit).not.toHaveBeenCalled();
   });

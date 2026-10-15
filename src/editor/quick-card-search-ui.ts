@@ -2871,6 +2871,21 @@ class QuickCardSearchUI {
         empty.textContent = this.emptyText;
       }
       this.resultsEl.appendChild(empty);
+      // The prefixes above are easy to misread as things to type AFTER the
+      // search words; say which way round they go. A sibling of the list, so
+      // the list's own text stays exactly the prefix legend.
+      if (this.emptyText.startsWith('Type to search everything · ')) {
+        const hint = document.createElement('div');
+        hint.className = 'pmd-qcs-empty-hint';
+        hint.append(
+          'Type the letter first, then a space, then what you want — e.g. ',
+          Object.assign(document.createElement('code'), { textContent: 'f heg bad' }),
+          ' searches your files, ',
+          Object.assign(document.createElement('code'), { textContent: 'c bold' }),
+          ' finds commands.',
+        );
+        this.resultsEl.appendChild(hint);
+      }
       return;
     }
     this.results.forEach((r, i) => {

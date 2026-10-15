@@ -16,6 +16,7 @@ import { getHost } from './host/index.js';
 import { isLiteBuild } from './lite.js';
 import { DEFAULT_SPEECH_FILENAME_TEMPLATE } from './speech-filename-default.js';
 import { ctrlOrCmdWord } from './platform.js';
+import { sanitizeCustomStyles, type CustomStyle } from './custom-styles-model.js';
 
 /** Body-text zoom bounds (percent). The live per-window / per-pane zoom AND the
  *  default-open zoom setting all clamp to these — one source of truth so
@@ -384,6 +385,14 @@ export type EnterAfterStyle =
   | 'analytic'
   | 'undertag';
 
+/** Style a brand-new document's first (empty) line starts in. 'normal' is the
+ *  plain paragraph (the Clear style). */
+export type DefaultTextStyle = 'normal' | 'analytic' | 'undertag';
+const DEFAULT_TEXT_STYLE_VALUES: readonly DefaultTextStyle[] = ['normal', 'analytic', 'undertag'];
+function sanitizeDefaultTextStyle(v: unknown): DefaultTextStyle {
+  return DEFAULT_TEXT_STYLE_VALUES.includes(v as DefaultTextStyle) ? (v as DefaultTextStyle) : 'analytic';
+}
+
 /** Separator glyph that trails a card-numbering number/letter (display-only).
  *  `period` = ".", `paren` = ")", `dash` = " -", `colon` = ":", `emdash` = "—",
  *  `endash` = "–", `doublehyphen` = "--", `triplehyphen` = "---",
@@ -645,19 +654,16 @@ export interface Settings {
    *  Resolves to the `data-icons` attribute on the document
    *  root, consumed by `icons.css`. */
   iconSet: 'modern' | 'classic';
-  /** Show a pill in the center of the ribbon displaying the
-   *  active doc's filename. Off by default — the OS title bar
-   *  carries this info on most platforms. Useful when the
-   *  title bar is hidden, unstyled, or non-existent (tiling
-   *  window managers without decorations, frameless windows,
-   *  embedded web edition). Single-doc only; multi-pane shows
-   *  per-pane chips regardless of this setting. */
-  showDocNameChip: boolean;
   /** Whether the ribbon shows a vertically stacked Undo / Redo button
    *  pair at the far left (right of the timer panel when that's on
    *  the left, left of the file buttons). Off by default — undo/redo
    *  always work by keyboard; this is a mouse-first affordance. */
   showUndoRedoButtons: boolean;
+  /** Whether the ribbon shows the general word-processor formatting buttons
+   *  that aren't debate-specific: Table, Insert image, superscript, subscript,
+   *  strikethrough, and the card-numbering cluster. Off by default; the
+   *  commands behind them stay in the palette and on their shortcuts. */
+  showExtraFormattingButtons: boolean;
   /** Whether to check for updates automatically (desktop only).
    *  ON by default since 2026-07-27 (opt-OUT — was opt-in; the fleet
    *  wasn't converging and old builds dominated relay traffic). The
@@ -692,10 +698,6 @@ export interface Settings {
    *  reduced. Resolved into a `data-motion` attribute on the
    *  document root; CSS rules in `style.css` consume it. */
   reduceMotion: 'auto' | 'on' | 'off';
-  /** Skip the reading view's page-flip animation regardless of the
-   *  global reduceMotion resolution (mid-speech readers who want
-   *  instant flips without flattening every other animation). */
-  readerReduceMotion: boolean;
   /** Accessibility: remap the meaning-carrying hues (annotation
    *  accents, voice-mode dots, timer Aff/Neg, search matches, category
    *  chips) onto the Okabe-Ito colorblind-safe palette. Resolved into
@@ -895,6 +897,7 @@ export interface Settings {
    *  empty paragraph — for users who'd rather title their speeches
    *  inline. */
   includeSpeechDocPocket: boolean;
+  defaultTextStyle: DefaultTextStyle;
   /** Whether to show the cite preview on hover in the nav pane. */
   showCitePreview: boolean;
   /** Whether computed card numbers (the auto-numbering skeleton) render. Numbers
@@ -1584,6 +1587,8 @@ export interface Settings {
   /** Up to 10 user-configured custom buttons, shown to the right of the
    *  comments buttons on the ribbon (empty = the section is hidden). */
   ribbonCustomButtons: RibbonCustomButton[];
+  /** User-defined character styles (Settings → Editing → Custom styles). */
+  customStyles: CustomStyle[];
   /** User-defined "press a key → type this text" macros. */
   keyboardMacros: KeyboardMacro[];
   /** Display name attached to new comments authored locally. */
@@ -1927,13 +1932,12 @@ const DEFAULTS: Settings = {
   theme: 'system',
   docTheme: 'light',
   iconSet: 'modern',
-  showDocNameChip: false,
   showUndoRedoButtons: false,
+  showExtraFormattingButtons: false,
   checkForUpdatesOnLaunch: true,
   updateChecksPausedUntil: 0,
   commentsColumnWidth: 320,
   reduceMotion: 'auto',
-  readerReduceMotion: false,
   colorVisionFriendly: false,
   annotationShapes: false,
   distinguishShading: true,
@@ -1976,6 +1980,7 @@ const DEFAULTS: Settings = {
   findLastQuery: '',
   findCategoryOrder: ['heading', 'tag', 'analytic', 'undertag', 'cite', 'other'],
   includeSpeechDocPocket: true,
+  defaultTextStyle: 'analytic',
   showCitePreview: true,
   showCardNumbering: true,
   showNumberingButtons: true,
@@ -2122,6 +2127,7 @@ const DEFAULTS: Settings = {
   acronymPatterns: [],
   ribbonKeyOverrides: {},
   ribbonCustomButtons: [],
+  customStyles: [],
   keyboardMacros: [],
   commentAuthor: 'You',
   commentAuthorInitials: '',
@@ -2311,6 +2317,7 @@ export interface SettingMeta {
     | 'createReferenceDelimiter'
     | 'keybindings'
     | 'ribbonCustomButtons'
+    | 'customStyles'
     | 'text'
     | 'folder'
     | 'folderList'
@@ -2325,6 +2332,7 @@ export interface SettingMeta {
     | 'speechDocFormat'
     | 'speechFilenameTemplate'
     | 'saveFormat'
+    | 'defaultTextStyle'
     | 'docTypeFormat'
     | 'numberingExport'
     | 'formattingGapClass'
@@ -2842,6 +2850,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     mobile: true,
   },
   {
+    key: 'defaultTextStyle',
+    label: 'Default text style',
+    description:
+      "The style a new document's first line starts in, so typing straight away lands in it. Analytic is the default; pick Clear for a plain paragraph or Undertag for undertag text. Applies to New, new speech documents without a Pocket heading, and blank opens — never to files you open.",
+    kind: 'defaultTextStyle',
+    category: 'files',
+    section: 'New documents',
+    aliases: ['default style', 'new doc style', 'starting style', 'analytic default', 'blank doc style'],
+  },
+  {
     key: 'includeSpeechDocPocket',
     label: 'Seed new speech docs with a Pocket heading',
     description:
@@ -3166,15 +3184,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['animations', 'disable animations'],
   },
   {
-    key: 'readerReduceMotion',
-    label: 'Reduce animations in reading view',
-    description:
-      'Page flips in the reading view snap instantly instead of sliding. Use this if the flip animation ever stutters while you are reading a speech; the global Reduce motion setting also disables it.',
-    kind: 'toggle',
-    category: 'accessibility',
-    aliases: ['reading view animation', 'page flip animation', 'reader animations'],
-  },
-  {
     key: 'disableCursorBlink',
     label: 'Steady text cursor (no blinking)',
     description:
@@ -3377,15 +3386,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Theme & chrome',
   },
   {
-    key: 'showDocNameChip',
-    label: 'Show doc name in ribbon',
-    description:
-      "Off by default. When on, the active document's filename appears as a pill in the center of the ribbon — useful when the OS title bar is hidden, unstyled, or non-existent (tiling window managers, frameless windows, web embeds). Hidden in multi-pane mode because each per-pane chip already shows its slot's filename.",
-    kind: 'toggle',
-    category: 'appearance',
-    section: 'Theme & chrome',
-  },
-  {
     key: 'showUndoRedoButtons',
     label: 'Show undo / redo buttons',
     description:
@@ -3394,6 +3394,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'appearance',
     section: 'Theme & chrome',
     aliases: ['undo button', 'redo button', 'undo redo'],
+  },
+  {
+    key: 'showExtraFormattingButtons',
+    label: 'Show extra formatting buttons',
+    description:
+      'Off by default. When on, the ribbon also shows the general word-processor buttons that aren\u2019t specific to debate: Table, Insert image, superscript, subscript, strikethrough, and the card numbering buttons (number, substructure, restart, show/hide). Their commands and shortcuts work either way, and from the command palette.',
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Theme & chrome',
+    aliases: ['table button', 'image button', 'superscript', 'subscript', 'strikethrough button', 'numbering buttons', 'extra buttons', 'word processor buttons'],
   },
   {
     key: 'ribbonTooltipMode',
@@ -3571,10 +3581,11 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'showNumberingButtons',
     label: 'Show numbering buttons in the ribbon',
     description:
-      'Show the ribbon cluster for numbering (number, substructure, restart, and show/hide). On by default; turning it off hides only the buttons — your numbering and its display are untouched.',
+      'Show the ribbon cluster for numbering (number, substructure, restart, and show/hide). Needs “Show extra formatting buttons” (Appearance) to be on. Turning it off hides only the buttons — your numbering and its display are untouched.',
     kind: 'toggle',
     category: 'appearance',
     section: 'Card numbering',
+    dependsOn: 'showExtraFormattingButtons',
     aliases: ['numbering buttons', 'numbering ribbon', 'numbering cluster'],
   },
   {
@@ -3808,6 +3819,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'editing',
     section: 'New paragraph on Enter',
     aliases: ['enter behavior', 'return key', 'new paragraph', 'enter after pocket', 'enter after hat', 'enter after block', 'enter after tag', 'enter after analytic', 'enter after undertag'],
+  },
+  {
+    key: 'customStyles',
+    label: 'Custom styles',
+    description:
+      'Your own named character styles — pick the formatting (bold, italic, text colour, highlight, font, size…) from a dropdown, or edit the whole list as raw JSON. Each one is a command you can run from the command bar ("Style: …"), bind to a key in Keyboard shortcuts, or put on the ribbon as a custom button. Running a style on text that already has all of it removes it again.',
+    kind: 'customStyles',
+    category: 'editing',
+    section: 'Custom styles',
+    aliases: ['custom style', 'character style', 'user style', 'own style', 'formatting preset', 'macro'],
   },
   {
     key: 'paragraphIntegrity',
@@ -4998,7 +5019,6 @@ function sanitize(s: Settings): Settings {
     navSearchContent: s.navSearchContent === true,
     navFollowCursor: s.navFollowCursor !== false,
     dragInteractions: s.dragInteractions !== false,
-    readerReduceMotion: s.readerReduceMotion === true,
     // Default-on: preserve `false` only when explicitly set so the
     // onboarding shows up for new installs and survives upgrades
     // from before this setting existed.
@@ -5068,8 +5088,8 @@ function sanitize(s: Settings): Settings {
     // Default-on (modern): only an explicit `'classic'` reverts to the
     // original emoji/text glyphs (survives upgrades from before this existed).
     iconSet: s.iconSet === 'classic' ? 'classic' : 'modern',
-    showDocNameChip: !!s.showDocNameChip,
     showUndoRedoButtons: !!s.showUndoRedoButtons,
+    showExtraFormattingButtons: s.showExtraFormattingButtons === true,
     checkForUpdatesOnLaunch: !!s.checkForUpdatesOnLaunch,
     updateChecksPausedUntil:
       Number.isFinite(Number(s.updateChecksPausedUntil)) && Number(s.updateChecksPausedUntil) > 0
@@ -5152,6 +5172,7 @@ function sanitize(s: Settings): Settings {
     findCategoryOrder: sanitizeFindCategoryOrder(s.findCategoryOrder),
     includeSpeechDocPocket:
       s.includeSpeechDocPocket === false ? false : true,
+    defaultTextStyle: sanitizeDefaultTextStyle(s.defaultTextStyle),
     showCitePreview: !!s.showCitePreview,
     showCardNumbering: s.showCardNumbering === false ? false : true,
     showNumberingButtons: s.showNumberingButtons === false ? false : true,
@@ -5479,6 +5500,7 @@ function sanitize(s: Settings): Settings {
       : DEFAULTS.acronymPatterns,
     ribbonKeyOverrides: sanitizeRibbonKeyOverrides(s.ribbonKeyOverrides),
     ribbonCustomButtons: sanitizeRibbonCustomButtons(s.ribbonCustomButtons),
+    customStyles: sanitizeCustomStyles(s.customStyles),
     keyboardMacros: sanitizeKeyboardMacros(s.keyboardMacros),
     commentAuthor:
       typeof s.commentAuthor === 'string' && s.commentAuthor.length > 0

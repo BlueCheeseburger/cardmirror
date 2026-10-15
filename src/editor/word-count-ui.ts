@@ -3,7 +3,7 @@
  *
  * Shows the read-aloud word count for the current selection (or the
  * full doc if nothing is selected) plus read-time estimates for every
- * configured reader.
+ * configured reader — flow, and lay too once any reader has a lay speed.
  */
 
 import type { EditorView } from 'prosemirror-view';
@@ -122,11 +122,15 @@ class WordCountModal {
       return;
     }
 
+    // Lay columns appear once ANY reader has a lay speed; a reader without one
+    // reads "—" there (never their flow time — see readTimeSeconds).
+    const anyLay = readers.some((r) => Number.isFinite(r.layWpm) && (r.layWpm as number) > 0);
     const table = document.createElement('table');
     table.className = 'pmd-wc-table';
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
-    for (const h of ['Reader', 'WPM', 'Time']) {
+    const heads = anyLay ? ['Reader', 'Flow WPM', 'Flow time', 'Lay WPM', 'Lay time'] : ['Reader', 'WPM', 'Time'];
+    for (const h of heads) {
       const th = document.createElement('th');
       th.textContent = h;
       trh.appendChild(th);
@@ -134,21 +138,34 @@ class WordCountModal {
     thead.appendChild(trh);
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
+    const cell = (tr: HTMLTableRowElement, text: string, numeric: boolean, title?: string): void => {
+      const td = document.createElement('td');
+      td.textContent = text;
+      if (numeric) td.className = 'pmd-wc-numeric';
+      if (title) td.title = title;
+      tr.appendChild(td);
+    };
     for (const r of readers) {
       const tr = document.createElement('tr');
-      const tdName = document.createElement('td');
-      tdName.textContent = r.name;
-      tr.appendChild(tdName);
-      const tdWpm = document.createElement('td');
+      cell(tr, r.name, false);
       // Two-rate readers show both: "200 / 260" = body / tags·cites.
-      tdWpm.textContent = r.tagWpm != null ? `${r.wpm} / ${r.tagWpm}` : String(r.wpm);
-      if (r.tagWpm != null) tdWpm.title = 'card bodies / tags, analytics & cites';
-      tdWpm.className = 'pmd-wc-numeric';
-      tr.appendChild(tdWpm);
-      const tdTime = document.createElement('td');
-      tdTime.textContent = formatReadTimeFor(counts, r);
-      tdTime.className = 'pmd-wc-numeric';
-      tr.appendChild(tdTime);
+      cell(
+        tr,
+        r.tagWpm != null ? `${r.wpm} / ${r.tagWpm}` : String(r.wpm),
+        true,
+        r.tagWpm != null ? 'card bodies / tags, analytics & cites' : undefined,
+      );
+      cell(tr, formatReadTimeFor(counts, r), true);
+      if (anyLay) {
+        const hasLay = Number.isFinite(r.layWpm) && (r.layWpm as number) > 0;
+        cell(
+          tr,
+          !hasLay ? '—' : r.layTagWpm != null ? `${r.layWpm} / ${r.layTagWpm}` : String(r.layWpm),
+          true,
+          hasLay && r.layTagWpm != null ? 'card bodies / tags, analytics & cites' : undefined,
+        );
+        cell(tr, formatReadTimeFor(counts, r, true), true);
+      }
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);

@@ -11,6 +11,7 @@
 
 import { positionFloatingMenu } from './context-menu-position.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
+import type { FileMenuItem } from './file-path-menu.js';
 
 export interface MoveMenuCandidate {
   id: number;
@@ -28,6 +29,9 @@ export interface MoveMenuOptions {
   /** The user picked a destination: an existing window's id, or
    *  'new-window'. */
   onPick: (target: number | 'new-window') => void;
+  /** Extra rows under the move rows, e.g. "Copy file path". They're listed
+   *  even where the doc can't be moved (expand mode). */
+  extraItems?: () => readonly FileMenuItem[];
 }
 
 let openMenuEl: HTMLElement | null = null;
@@ -76,27 +80,39 @@ export async function openMoveMenu(x: number, y: number, opts: MoveMenuOptions):
   // showing a menu for a pane that's no longer in a movable state —
   // clicking an item in it would act on whatever's focused NOW, not
   // what the user actually right-clicked.
-  if (!opts.canMove()) return;
+  const movable = opts.canMove();
+  const extras = opts.extraItems?.() ?? [];
+  if (!movable && extras.length === 0) return;
 
   const menu = document.createElement('div');
   menu.className = 'pmd-nav-context-menu';
 
-  const addItem = (label: string, action: () => void): void => {
+  const addItem = (label: string, action: () => void, extra?: { disabled?: boolean; title?: string }): void => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'pmd-nav-context-item';
     btn.textContent = label;
-    btn.addEventListener('click', () => {
-      closeMoveMenu();
-      action();
-    });
+    if (extra?.title) btn.title = extra.title;
+    if (extra?.disabled) {
+      btn.disabled = true;
+    } else {
+      btn.addEventListener('click', () => {
+        closeMoveMenu();
+        action();
+      });
+    }
     menu.appendChild(btn);
   };
 
-  for (const c of candidates) {
-    addItem(`Move to “${c.label}”`, () => opts.onPick(c.id));
+  if (movable) {
+    for (const c of candidates) {
+      addItem(`Move to “${c.label}”`, () => opts.onPick(c.id));
+    }
+    addItem('Move to New Window', () => opts.onPick('new-window'));
   }
-  addItem('Move to New Window', () => opts.onPick('new-window'));
+  for (const item of extras) {
+    addItem(item.label, item.action, { disabled: item.disabled ?? false, ...(item.title ? { title: item.title } : {}) });
+  }
 
   document.body.appendChild(menu);
   positionFloatingMenu(menu, x, y);
@@ -118,7 +134,7 @@ export async function openMoveMenu(x: number, y: number, opts: MoveMenuOptions):
 export function installMoveMenuTrigger(el: HTMLElement, opts: MoveMenuOptions): () => void {
   const onContextMenu = (e: MouseEvent): void => {
     if (e.defaultPrevented) return;
-    if (!opts.canMove()) return;
+    if (!opts.canMove() && (opts.extraItems?.() ?? []).length === 0) return;
     e.preventDefault();
     void openMoveMenu(e.clientX, e.clientY, opts);
   };

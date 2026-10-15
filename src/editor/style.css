@@ -1296,15 +1296,12 @@ button {
    the fixed-position ribbon or status bar. Without this, hitting
    Enter near the bottom of the viewport lands the caret under the
    status bar; the symmetric problem hides it behind the ribbon
-   when navigating up. `:has()` covers the speech-banner case
-   where an extra strip is pinned below the ribbon — the effective
-   top occlusion grows by the banner's height. */
+   when navigating up. (The single-document window's title bar sits
+   below the ribbon too, but `#app` starts under it, so the scroller's
+   own box already excludes it.) */
 html {
   scroll-padding-top: var(--ribbon-height);
   scroll-padding-bottom: var(--status-bar-height);
-}
-html:has(body.pmd-speech-banner-visible) {
-  scroll-padding-top: calc(var(--ribbon-height) + var(--speech-banner-height));
 }
 
 #ribbon {
@@ -1544,47 +1541,6 @@ body:not(.pmd-multi-doc):not(.pmd-multi-window) #speech-stack { display: none; }
   margin-left: 0.2rem;
 }
 
-/* Active-doc filename chip. Lives in the ribbon-center section
-   so it sits in the blank space between the comments-toggle
-   (left of center) and the settings button (right of center).
-   Opt-in via Settings → Appearance; CSS-gated below.
-   `max-width` caps a long filename so the chip doesn't shove the
-   right-side controls; ellipsis-truncates with the full name in
-   the `title` tooltip. */
-.pmd-doc-name-chip {
-  display: inline-flex;
-  align-items: center;
-  max-width: 22rem;
-  padding: 0.25rem 0.7rem;
-  border: 1px solid var(--pmd-c-border-soft);
-  border-radius: 999px;
-  background: var(--pmd-c-surface);
-  color: var(--pmd-c-text-secondary);
-  font-size: 0.8rem;
-  font-weight: 500;
-  user-select: text;
-  white-space: nowrap;
-}
-.pmd-doc-name-chip-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  /* The box clips its text, so it must be tall enough for the descenders
-     (g, y, p) and the brackets in names like "[L] Stocks DA.docx"; the
-     ribbon's tight line-height shaved them off. */
-  line-height: 1.5;
-}
-/* Visibility cascade:
-   - Off by default — the setting class on <html> is absent, so this
-     `!important` rule force-hides the chip and the ribbon resizer
-     can't override it back on. The chip also takes no layout space,
-     which keeps the resizer's overflow math accurate.
-   - On + no filename (untitled / fresh doc) — JS sets [hidden].
-   - On + filename + multi-pane — the body class hides it because
-     each per-pane chip already shows the slot's filename.
-   - On + filename + single-doc — visible (the normal case). */
-html:not(.pmd-doc-name-chip-on) #doc-name-chip { display: none !important; }
-.pmd-doc-name-chip[hidden] { display: none; }
-
 /* Cloud pill (disk-conflict.ts): one per window, in its own tray at the
    editor's bottom-RIGHT corner — the mirror of `.pmd-pill-tray` (Send /
    Receive / Dropzone, bottom-left) and the same pill family. Shown only
@@ -1647,49 +1603,48 @@ html.pmd-disk-pill-active body:not(.pmd-multi-doc) #editor .ProseMirror {
 html.pmd-disk-pill-active .pmd-pane-cloud-pill-anchored .pmd-pane-editor .ProseMirror {
   padding-bottom: 4.5rem;
 }
-body.pmd-multi-doc #doc-name-chip { display: none; }
 
-/* Speech-doc banner. Shown in single-doc multi-window mode when THIS
-   window holds the speech doc designation — the obvious visual
-   counterpart to the per-pane chip indicator the multi-pane shell
-   uses. Positioned as a fixed strip below the ribbon so it never
-   competes with the editor for layout space; the
-   `pmd-speech-banner-visible` body class shifts #app down by the
-   banner's height. Multi-pane mode has its own per-pane indicator,
-   so this banner is suppressed when the multi-doc body class is
-   present. */
+/* The single-document window's blue title bar (doc-header.ts) — the same chip
+   every pane carries in three-pane mode, as a fixed strip under the ribbon.
+   `#app` and the comments column start below it. Hidden in three-pane mode
+   (each pane has its own), on the home screen, and in the mobile shell. When
+   this window's document is the speech doc the bar turns amber, like a pane's. */
 :root {
-  --speech-banner-height: 28px;
+  --doc-header-height: 26px;
 }
-#speech-doc-banner {
+#doc-header {
   position: fixed;
   top: var(--ribbon-height);
   left: var(--nav-width);
   right: 0;
-  height: var(--speech-banner-height);
+  height: var(--doc-header-height);
   z-index: 150;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0 1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--pmd-c-speech-text);
-  background: var(--pmd-c-speech-bg);
-  border-bottom: 1px solid var(--pmd-c-speech-border);
+  box-shadow: inset 0 3px 0 0 var(--pmd-c-accent);
 }
-#speech-doc-banner[hidden] { display: none; }
-.pmd-speech-doc-banner-icon { font-size: 1rem; line-height: 1; }
-/* Single-doc only — multi-doc never shows the speech banner (see
-   `body.pmd-multi-doc #speech-doc-banner { display: none }` below).
-   `#app` is `position: fixed` in single-doc, so the banner offsets
-   its top edge rather than using `margin-top`. */
-body.pmd-speech-banner-visible:not(.pmd-multi-doc) #app {
-  top: calc(var(--ribbon-height) + var(--speech-banner-height));
+#doc-header[hidden] { display: none; }
+#doc-header .pmd-pane-chip {
+  flex: 1 1 auto;
+  min-width: 0;
 }
-/* Multi-pane uses per-pane chips for the same purpose — suppress
-   the banner there to avoid a redundant indicator. */
-body.pmd-multi-doc #speech-doc-banner { display: none; }
+body.pmd-nav-hidden #doc-header { left: 0; }
+/* The recovery sidebar sits between the outline and the editor. */
+body.pmd-recovery-active:not(.pmd-multi-doc) #doc-header {
+  left: calc(var(--nav-width) + var(--pmd-recovery-width));
+}
+body.pmd-multi-doc #doc-header,
+body.pmd-mobile #doc-header,
+html.pmd-home-active #doc-header {
+  display: none !important;
+}
+/* Single-doc only: `#app` is `position: fixed`, so the bar offsets its top edge
+   rather than using `margin-top`. */
+body:not(.pmd-multi-doc):not(.pmd-mobile) #app {
+  top: calc(var(--ribbon-height) + var(--doc-header-height));
+}
+/* Autosave only means something where the host can write in place; the pane
+   chip's button hides with the ribbon's when it can't (see below). */
+body:not(.pmd-inplace-save) #doc-header .pmd-pane-chip-autosave { display: none; }
 
 /* Host-gated ribbon buttons.
    - The Paste Text button (T) is the browser edition's clickable
@@ -1742,8 +1697,9 @@ body.pmd-multi-doc #autosave-btn { display: none; }
   border-left: 1px solid var(--pmd-c-border-soft);
 }
 
-/* Cite panel — sits to the right of the formatting panel, separated
-   by the same divider. 2-row grid (column-flow) so it matches the
+/* Cite panel — sits right next to the formatting panel with no divider
+   between them (they read as one block of style buttons; every other
+   panel keeps its divider). 2-row grid (column-flow) so it matches the
    formatting panel's height and lines up its top row. Two columns:
    col 1 = Cite/Underline, col 2 = Emphasis (with the second slot
    reserved for future inline-mark buttons). */
@@ -1754,9 +1710,8 @@ body.pmd-multi-doc #autosave-btn { display: none; }
   grid-auto-flow: column;
   gap: 2px 3px;
   align-content: center;
-  padding-left: 0.5rem;
-  margin-left: 0.25rem;
-  border-left: 1px solid var(--pmd-c-border-soft);
+  padding-left: 0;
+  margin-left: 0.4rem;
 }
 
 .ribbon-cite-panel.hidden { display: none; }
@@ -1978,6 +1933,12 @@ body.pmd-multi-doc #autosave-btn { display: none; }
 html.pmd-numbering-hidden #numbering-panel {
   display: none !important;
 }
+/* Table / image / super- / subscript / strikethrough are hidden unless
+   `showExtraFormattingButtons` is on (the numbering cluster above follows
+   it too). Same `!important` reason as the numbering rule. */
+html.pmd-extra-format-hidden #format-menu-panel {
+  display: none !important;
+}
 
 /* Editable font-size control inside the color panel — sits in the
    4th cell of the 2×2 grid alongside the three color controls.
@@ -2020,32 +1981,6 @@ html.pmd-numbering-hidden #numbering-panel {
    the default color. */
 .ribbon-font-size-control.pmd-font-size-direct .ribbon-font-size-input {
   color: var(--pmd-c-error);
-}
-
-/* Increment / decrement font-size buttons — third column of the
-   color panel, stacked. Match the doc-ops button size so the column
-   widths read uniformly across the ribbon. */
-#ribbon .ribbon-font-size-step {
-  width: 1.75rem;
-  height: 1.45rem;
-  font-size: 0.7rem;
-  line-height: 1;
-  letter-spacing: -0.05em;
-}
-
-/* Both step-button arrows: small gap between the A and the arrow
-   glyph so they don't read as one combined character. */
-.ribbon-font-size-step-arrow {
-  margin-left: 0.15rem;
-}
-
-/* The ▴ glyph sits high in the line box while ▾ sits low, yet the
-   natural position reads best alongside the row's other dropdown
-   ▾s. The explicit `translateY(0)` marks that as a deliberate
-   "no shift" rather than a missing override. */
-.ribbon-font-size-step-up-arrow {
-  display: inline-block;
-  transform: translateY(0);
 }
 
 /* Dropdown popup — preset pt sizes, styled like the color picker. */
@@ -2452,18 +2387,25 @@ body:not(.pmd-multi-doc) #app {
   font-variant-numeric: tabular-nums;
 }
 
-/* Status-bar Search Everything button: neutral outlined pill that
-   fills on hover, opening the quick-card search palette. */
+/* Status-bar Search Everything button: a magnifier in a neutral outlined
+   pill that fills on hover, opening the quick-card search palette. */
 #status-search-btn {
   cursor: pointer;
   font-family: inherit;
   font-size: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: 1px solid var(--pmd-c-text-secondary);
   border-radius: 999px;
-  padding: 0 0.6rem;
+  padding: 0 0.55rem;
   line-height: 1.4;
   color: var(--pmd-c-text-secondary);
+}
+#status-search-btn .pmd-icon {
+  width: 0.95rem;
+  height: 0.95rem;
 }
 #status-search-btn:hover {
   color: #fff;
@@ -2572,39 +2514,6 @@ body:not(.pmd-multi-doc) #app {
   gap: 0.4rem;
 }
 
-/* Bottom-right CardMirror mark: drag handle for the focused document's
-   file (file-drag-mark.ts sets the image). The same button chrome as
-   the zoom buttons beside it (keep in sync with `.zoom-controls button`),
-   the mark drawn inside at 80%; the grab cursor and the tooltip say what
-   it does. Dimmed like a disabled zoom button while there is no file on
-   disk. */
-#file-drag-mark {
-  flex: 0 0 auto;
-  width: 1.15rem;
-  height: 1.15rem;
-  margin-left: 0.4rem;
-  padding: 0;
-  background: var(--pmd-c-bg);
-  background-position: center;
-  background-size: 80%;
-  background-repeat: no-repeat;
-  border: 1px solid var(--pmd-c-border);
-  border-radius: 3px;
-  cursor: grab;
-}
-#file-drag-mark:hover {
-  background-color: var(--pmd-c-hover);
-}
-#file-drag-mark:active {
-  cursor: grabbing;
-}
-#file-drag-mark[data-inert] {
-  opacity: 0.4;
-  cursor: default;
-}
-#file-drag-mark[hidden] {
-  display: none;
-}
 .zoom-controls button {
   font-family: inherit;
   background: var(--pmd-c-bg);
@@ -4330,14 +4239,23 @@ body.pmd-override-shading [data-shading] {
    plain descendant combinator — cheaper than the previous per-color
    `:has()` chain, and no per-`.pmd-underline` recalc blowup on cv:auto
    cards. A run wholly INSIDE a band already inherits the band's `color`,
-   so its underline is band-coloured for free (currentColor). */
-:is(.pmd-underline, .pmd-emphasis, #editor.pmd-cite-underlined .pmd-cite)
+   so its underline is band-coloured for free (currentColor).
+
+   The underlined-cite alternative is listed twice — `#editor.…` for the
+   single-doc editor and `html.… .pmd-pane-editor` for panes — because the
+   flag is a class on `#editor` there and only on <html> in the multi-pane
+   shell. Dropping the pane copy made underlined cites lose their line over
+   highlighted / shaded words in panes (and ignore the underline thickness)
+   while looking right in single-doc mode. */
+:is(.pmd-underline, .pmd-emphasis, #editor.pmd-cite-underlined .pmd-cite,
+    html.pmd-cite-underlined .pmd-pane-editor .pmd-cite)
   :is([data-highlight-band="light"], [data-shading-band="light"]) {
   text-decoration: underline;
   text-decoration-thickness: var(--pmd-underline-size, auto);
   text-decoration-color: var(--pmd-c-band-fg-light);
 }
-:is(.pmd-underline, .pmd-emphasis, #editor.pmd-cite-underlined .pmd-cite)
+:is(.pmd-underline, .pmd-emphasis, #editor.pmd-cite-underlined .pmd-cite,
+    html.pmd-cite-underlined .pmd-pane-editor .pmd-cite)
   :is([data-highlight-band="dark"], [data-shading-band="dark"]) {
   text-decoration: underline;
   text-decoration-thickness: var(--pmd-underline-size, auto);
@@ -4517,7 +4435,6 @@ body.pmd-nav-hidden .pmd-nav-panel,
 body.pmd-nav-hidden .pmd-multi-nav { display: none; }
 body.pmd-nav-hidden #app,
 body.pmd-nav-hidden #status-bar { margin-left: 0; left: 0; }
-body.pmd-nav-hidden #speech-doc-banner { left: 0; }
 /* Multi-doc layout sets `#app { margin-left: var(--nav-width) }`
    with class-level specificity; override here to win. */
 body.pmd-nav-hidden.pmd-multi-doc #app { margin-left: 0; }
@@ -4577,8 +4494,7 @@ body.pmd-nav-hidden #nav-pane-pull-tab {
 html.pmd-home-active #ribbon,
 html.pmd-home-active #nav-panel,
 html.pmd-home-active #app,
-html.pmd-home-active #status-bar,
-html.pmd-home-active #speech-doc-banner {
+html.pmd-home-active #status-bar {
   display: none !important;
 }
 .pmd-home-screen {
@@ -5451,7 +5367,6 @@ body.pmd-nav-resize-active {
 .pmd-nav-level-btn-active,
 #read-mode-btn.pmd-active,
 #auto-scroll-btn.pmd-active,
-#reader-view-btn.pmd-active,
 .pmd-prompt-btn-primary,
 .pmd-clod-btn-primary,
 .pmd-recovery-sidebar-row-btn-open,
@@ -6262,8 +6177,7 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 
 #read-mode-btn.pmd-active:hover:not(:disabled),
-#auto-scroll-btn.pmd-active:hover:not(:disabled),
-#reader-view-btn.pmd-active:hover:not(:disabled) {
+#auto-scroll-btn.pmd-active:hover:not(:disabled) {
   background: var(--pmd-c-accent-hover);
 }
 
@@ -9067,8 +8981,8 @@ body:not(.pmd-multi-doc) #comments-column {
   overscroll-behavior: contain;
   z-index: 100;
 }
-body.pmd-speech-banner-visible:not(.pmd-multi-doc) #comments-column {
-  top: calc(var(--ribbon-height) + var(--speech-banner-height));
+body:not(.pmd-multi-doc):not(.pmd-mobile) #comments-column {
+  top: calc(var(--ribbon-height) + var(--doc-header-height));
 }
 /* Reserve the column's width in the editor row while it's open (the
    fixed column is out of grid flow, so the `auto` track would otherwise
@@ -10120,6 +10034,120 @@ body:has(#comments-column:not([hidden])) :is(#editor, .pmd-pane-editor) .pmd-com
   flex: 1 1 auto;
   min-width: 0;
 }
+/* Custom styles editor: one <details> dropdown per style (name + live sample in
+   the summary), a controls grid inside, and a raw-JSON mode. */
+.pmd-cs-editor,
+.pmd-cs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pmd-cs-editor {
+  margin-top: 0.4rem;
+}
+.pmd-cs-footer {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.pmd-cs-item {
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 6px;
+  background: var(--pmd-c-bg);
+}
+.pmd-cs-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  list-style-position: inside;
+}
+.pmd-cs-name {
+  flex: 0 1 auto;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pmd-cs-sample {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--pmd-c-text-secondary);
+}
+.pmd-cs-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem 0.6rem;
+  border-top: 1px solid var(--pmd-c-border);
+}
+.pmd-cs-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.pmd-cs-label {
+  flex: 0 0 6.5rem;
+  color: var(--pmd-c-text-muted);
+  font-size: 0.82rem;
+}
+.pmd-cs-controls {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
+}
+.pmd-cs-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+}
+.pmd-cs-input,
+.pmd-cs-select {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+.pmd-cs-size {
+  flex: 0 0 5rem;
+}
+.pmd-cs-color {
+  width: 2.4rem;
+  height: 1.6rem;
+  padding: 0;
+}
+.pmd-cs-unit,
+.pmd-cs-hint {
+  color: var(--pmd-c-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.pmd-cs-json {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 4px;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  resize: vertical;
+}
+.pmd-cs-error {
+  min-height: 1.2em;
+  color: var(--pmd-c-error);
+  font-size: 0.82rem;
+}
+.pmd-cs-error.pmd-cs-ok {
+  color: var(--pmd-c-text-muted);
+}
 .pmd-settings-folder-path {
   flex: 1 1 0;
   min-width: 0;
@@ -10610,12 +10638,11 @@ body.pmd-recovery-active.pmd-multi-doc #app {
 .pmd-inline-rename:focus {
   outline: none;
 }
-/* Both labels clip their own text (`overflow: hidden` + ellipsis),
+/* The label clips its own text (`overflow: hidden` + ellipsis),
    which would shave the field's border off top and bottom while it's
    mounted inside them. The marker is set only for the duration of an
    edit, so nothing else changes. */
-.pmd-pane-chip-name[data-renaming='true'],
-.pmd-doc-name-chip-text[data-renaming='true'] {
+.pmd-pane-chip-name[data-renaming='true'] {
   overflow: visible;
 }
 
@@ -11323,6 +11350,17 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   padding: 0.6rem 0.5rem;
   color: var(--pmd-c-text-muted);
   font-size: 0.82rem;
+}
+.pmd-qcs-empty-hint {
+  padding: 0 0.5rem 0.6rem;
+  color: var(--pmd-c-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.pmd-qcs-empty-hint code {
+  font-family: inherit;
+  font-weight: 700;
+  color: var(--pmd-c-text-secondary);
 }
 .pmd-qcs-empty-separator {
   color: var(--pmd-c-text-secondary);
@@ -12620,27 +12658,46 @@ body.pmd-pane-dragging * {
    after a dev reload race) every raw glyph garbles. Escapes are pure
    ASCII — immune to any decoding. The trailing space terminates the
    escape; the parser consumes it, it never renders. */
-.pmd-pane-speech .pmd-pane-chip-name::before {
-  /* The microphone OUTLINE icon (the same mask as `.pmd-icon-mic`), painted
-     in the chip's text color, instead of the 🎤 emoji. */
-  content: '';
-  display: inline-block;
-  width: 1em;
-  height: 1em;
-  margin-right: 0.3em;
-  vertical-align: -0.15em;
-  background-color: currentColor;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M19%2010v2a7%207%200%200%201-7%207m-7-9v2a7%207%200%200%200%207%207m0%200v3m-4%200h8m-4-7a3%203%200%200%201-3-3V5a3%203%200%201%201%206%200v7a3%203%200%200%201-3%203Z%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M19%2010v2a7%207%200%200%201-7%207m-7-9v2a7%207%200%200%200%207%207m0%200v3m-4%200h8m-4-7a3%203%200%200%201-3-3V5a3%203%200%201%201%206%200v7a3%203%200%200%201-3%203Z%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+/* The mic at the chip's left (chip-speech-button.ts): invisible until the
+   pointer is over the bar, then a faint ghost; fully shown, in the chip's text
+   color, on the speech doc. Space is always reserved so the name doesn't shift
+   as it appears. */
+.pmd-pane-chip-speech {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--pmd-c-text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.1s;
 }
-/* Classic icon set: the original emoji glyph. */
-:root[data-icons="classic"] .pmd-pane-speech .pmd-pane-chip-name::before {
-  content: '\1F3A4 ';
-  width: auto;
-  height: auto;
-  background: none;
-  -webkit-mask: none;
-  mask: none;
+.pmd-pane-chip:hover .pmd-pane-chip-speech,
+.pmd-pane-chip-speech:focus-visible {
+  opacity: 0.4;
+}
+.pmd-pane-chip-speech:hover {
+  opacity: 0.85;
+  color: var(--pmd-c-text-strong);
+}
+.pmd-pane-chip-speech[aria-pressed="true"] {
+  opacity: 1;
+  color: var(--pmd-c-speech-text);
+}
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-speech {
+  color: var(--pmd-c-text-on-accent);
+}
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-speech:hover {
+  color: var(--pmd-c-on-accent-hover);
+}
+@media (hover: none) {
+  /* No pointer to hover with: show the ghost always. */
+  .pmd-pane-chip-speech { opacity: 0.4; }
 }
 /* Speech-doc tint — wins over the focused-pane blue fill (user call,
    2026-09-09: the speech marking should stay visible even on the pane
@@ -13815,6 +13872,7 @@ html.pmd-undertag-bold .pmd-pane-editor .pmd-undertag-mark {
 }
 html.pmd-cite-underlined .pmd-pane-editor .pmd-cite {
   text-decoration: underline;
+  text-decoration-thickness: var(--pmd-underline-size, auto);
 }
 html.pmd-underline-bold .pmd-pane-editor .pmd-underline {
   font-weight: bold;
@@ -14898,8 +14956,7 @@ body.pmd-mobile {
 body.pmd-mobile #ribbon,
 body.pmd-mobile #nav-pane-pull-tab,
 body.pmd-mobile #comments-column,
-body.pmd-mobile #status-bar .zoom-controls,
-body.pmd-mobile #speech-doc-banner {
+body.pmd-mobile #status-bar .zoom-controls {
   display: none;
 }
 
@@ -17568,112 +17625,6 @@ body.pmd-multi-doc #collab-chip {
 }
 .pmd-notice-action-primary:hover { background: var(--pmd-c-accent-hover); }
 
-/* ---- Reading view (paginated columns) ----
- * The ProseMirror element becomes a height-capped multicolumn strip
- * (columns overflow horizontally); the host clips and native
- * scrollTo flips full pages. Everything is laid out up front —
- * content-visibility forced ON inside the strip so column math is
- * exact and flips never trigger layout (the no-hitch rule). */
-.pmd-reader-view {
-  /* The host IS the pager: a scroll container whose scrollbar is
-     hidden; flips are programmatic scrollTo (native tiled raster —
-     a translated will-change strip blew the compositing budget on
-     big docs and fell back to per-flip main-thread paint). */
-  overflow: hidden !important;
-  position: relative;
-}
-.pmd-reader-overlay-host {
-  position: relative;
-}
-:is(#editor, .pmd-pane-editor).pmd-reader-view .ProseMirror {
-  /* Exact page geometry, all JS-measured (reader-view.ts relayout):
-     the box is ONE page wide (the natural content box's width, which
-     already clears the nav pane via --pmd-reader-ml) and column-COUNT
-     divides it — never column-width, whose browser-chosen actual
-     widths would break the stride math. column-fill:auto + capped
-     height makes the extra columns overflow HORIZONTALLY past the
-     box; the host clips and translateX flips between them. */
-  column-count: var(--pmd-reader-cols, 1);
-  column-gap: var(--pmd-reader-gap, 48px);
-  column-fill: auto;
-  height: var(--pmd-reader-h, 100%);
-  width: var(--pmd-reader-page-w, 100%);
-  /* Block padding gives the columns breathing room top and bottom
-     (no clipped descenders at the fold); inline stays 0 so the
-     JS page geometry is exact. */
-  padding: 14px 0 18px;
-  box-sizing: border-box;
-  /* No transform, no will-change: flips are native scrolls of the
-     host — promoting a pages-wide strip to a compositor layer blew
-     the budget on big docs. */
-}
-.pmd-reader-view .ProseMirror.pmd-reader-no-anim,
-/* Exact column math needs everything rendered; and a tag/cite never
- * strands at a column bottom away from its first body line. */
-.pmd-reader-view .ProseMirror .pmd-card,
-.pmd-reader-view .ProseMirror .pmd-hat,
-.pmd-reader-view .ProseMirror .pmd-block {
-  content-visibility: visible;
-  contain: none;
-}
-.pmd-reader-view .ProseMirror .pmd-tag,
-.pmd-reader-view .ProseMirror .pmd-cite-para {
-  break-after: avoid-column;
-}
-/* Opaque gutters: cover the strip's column bleed on both sides of
- * the page window and host the flip buttons (a clip-path would clip
- * the buttons too). */
-.pmd-reader-gutter {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: var(--pmd-c-bg);
-  z-index: 3;
-}
-/* Word-style edge flip zones + the page indicator. */
-.pmd-reader-edge {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2.2rem;
-  border: none;
-  background: transparent;
-  color: var(--pmd-c-text-faint);
-  font-size: 1.6rem;
-  cursor: pointer;
-  z-index: 4;
-  opacity: 0;
-  transition: opacity 120ms ease, background 120ms ease;
-}
-.pmd-reader-overlay-host:hover .pmd-reader-edge { opacity: 1; }
-.pmd-reader-edge:hover { background: var(--pmd-c-hover); color: var(--pmd-c-text-strong); }
-.pmd-reader-edge-left { left: 0; }
-.pmd-reader-edge-right { right: 0; }
-.pmd-reader-edge-hidden { visibility: hidden; }
-/* Scroll-extent sentinel (reader-view.ts): keeps the host scrollable to
- * the last page's boundary when that page is short. Invisible, inert. */
-.pmd-reader-tail {
-  position: absolute;
-  top: 0;
-  width: 1px;
-  height: 1px;
-  pointer-events: none;
-  visibility: hidden;
-}
-.pmd-reader-page-indicator {
-  position: absolute;
-  bottom: 0.4rem;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.72rem;
-  color: var(--pmd-c-text-faint);
-  background: var(--pmd-c-bg);
-  padding: 0.1rem 0.5rem;
-  border-radius: 0.6rem;
-  pointer-events: none;
-  z-index: 4;
-}
-
 /* ---- Compare documents (doc-diff-ui.ts) ----
    Fullscreen page, not a centered popup (field request, 2026-09-18: the
    original bounded/centered dialog made a long diff impossible to
@@ -18061,4 +18012,90 @@ ins.pmd-doc-diff-word {
   display: flex;
   gap: 1rem;
   margin-top: 0.4rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Printing (print-doc.ts)                                            */
+/* The print command copies the active document's rendered DOM into   */
+/* #pmd-print-root and tags <html> with .pmd-printing; everything     */
+/* else on the page is hidden for paper so the content paginates      */
+/* normally instead of living inside the editor's scrollers.          */
+/* ------------------------------------------------------------------ */
+#pmd-print-root { display: none; }
+
+@page { margin: 0.6in; }
+
+@media print {
+  html.pmd-printing,
+  html.pmd-printing body {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    zoom: 1 !important;
+  }
+  html.pmd-printing body > *:not(#pmd-print-root) { display: none !important; }
+  html.pmd-printing #pmd-print-root {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff;
+    color: #000;
+  }
+  #pmd-print-root .pmd-print-doc {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+  #pmd-print-root .ProseMirror {
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  /* Cards were laid out lazily on screen; paper needs them all, in flow. */
+  #pmd-print-root .pmd-pocket,
+  #pmd-print-root .pmd-hat,
+  #pmd-print-root .pmd-block,
+  #pmd-print-root .pmd-card {
+    content-visibility: visible !important;
+    contain: none !important;
+    contain-intrinsic-size: none !important;
+  }
+  /* Keep a heading with what follows it, and a card on one page when it fits. */
+  #pmd-print-root .pmd-pocket,
+  #pmd-print-root .pmd-hat,
+  #pmd-print-root .pmd-block,
+  #pmd-print-root .pmd-tag,
+  #pmd-print-root .pmd-cite-para { break-after: avoid; }
+  #pmd-print-root .pmd-card { break-inside: avoid; }
+  /* The hover/selection rail in a card's left gutter is screen chrome. */
+  #pmd-print-root .pmd-card,
+  #pmd-print-root .pmd-analytic-unit { border-left-color: transparent !important; }
+  #pmd-print-root img, #pmd-print-root table, #pmd-print-root tr { break-inside: avoid; }
+  #pmd-print-root img { max-width: 100%; }
 }

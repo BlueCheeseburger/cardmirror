@@ -94,15 +94,14 @@ function editorBox(view: EditorView): HTMLElement {
 }
 
 /** Bottom edge (viewport y) of the fixed top chrome — the ribbon plus
- *  the speech banner when shown — so the pill never tucks behind it. */
+ *  the single-window document header when shown — so the pill never
+ *  tucks behind it. */
 function topChromeBottom(): number {
   let bottom = 0;
   const ribbon = document.getElementById('ribbon');
   if (ribbon) bottom = Math.max(bottom, ribbon.getBoundingClientRect().bottom);
-  if (document.body.classList.contains('pmd-speech-banner-visible')) {
-    const banner = document.getElementById('speech-doc-banner');
-    if (banner) bottom = Math.max(bottom, banner.getBoundingClientRect().bottom);
-  }
+  const header = document.getElementById('doc-header');
+  if (header && !header.hidden) bottom = Math.max(bottom, header.getBoundingClientRect().bottom);
   return bottom;
 }
 

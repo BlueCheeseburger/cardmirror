@@ -86,6 +86,7 @@ import { setIcon, CUSTOM_BUTTON_ICONS, type IconName } from './icons';
 import { availableRibbonCommandIds } from './ribbon-availability.js';
 import { commandLabelFor, RIBBON_COMMAND_LABELS, type RibbonCommandId, ribbonKeyStringFor, formatKeyForDisplay } from './ribbon-commands.js';
 import { settingCommandOptions } from './setting-commands.js';
+import { buildCustomStylesEditor } from './custom-styles-ui.js';
 import {
   FILE_OBJECT_KINDS,
   FILE_OBJECT_KIND_LABELS,
@@ -1074,6 +1075,14 @@ class SettingsModal {
     } else if (meta.kind === 'saveFormat') {
       row.appendChild(text);
       row.appendChild(buildSaveFormatEditor());
+      return row;
+    } else if (meta.kind === 'defaultTextStyle') {
+      row.appendChild(text);
+      row.appendChild(buildDefaultTextStyleEditor());
+      return row;
+    } else if (meta.kind === 'customStyles') {
+      row.appendChild(text);
+      row.appendChild(buildCustomStylesEditor());
       return row;
     } else if (meta.kind === 'docTypeFormat') {
       row.appendChild(text);
@@ -6141,6 +6150,38 @@ function buildSaveFormatEditor(): HTMLElement {
     input.checked = o.value === settings.get('defaultSaveFormat');
     input.addEventListener('change', () => {
       if (input.checked) settings.set('defaultSaveFormat', o.value);
+    });
+    row.appendChild(input);
+    const labelText = document.createElement('span');
+    labelText.className = 'pmd-multi-doc-layout-mode-row-label';
+    labelText.textContent = o.label;
+    row.appendChild(labelText);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+/** Style a new document's first line starts in. Same chrome as the
+ *  default-format editor above. */
+function buildDefaultTextStyleEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-multi-doc-layout-mode-editor';
+  const options: { value: Settings['defaultTextStyle']; label: string }[] = [
+    { value: 'analytic', label: 'Analytic (default)' },
+    { value: 'normal', label: 'Clear — a plain paragraph' },
+    { value: 'undertag', label: 'Undertag' },
+  ];
+  const groupName = `pmd-default-text-style-${Math.random().toString(36).slice(2, 8)}`;
+  for (const o of options) {
+    const row = document.createElement('label');
+    row.className = 'pmd-multi-doc-layout-mode-row';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = groupName;
+    input.value = o.value;
+    input.checked = o.value === settings.get('defaultTextStyle');
+    input.addEventListener('change', () => {
+      if (input.checked) settings.set('defaultTextStyle', o.value);
     });
     row.appendChild(input);
     const labelText = document.createElement('span');

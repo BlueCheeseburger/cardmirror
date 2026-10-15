@@ -42,12 +42,19 @@ afterEach(() => {
 });
 
 describe('per-pane disk badge', () => {
-  it('hidden for a local (non-cloud) file, or when nothing registered yet', () => {
+  it('hidden with no file path; a local (non-cloud) file shows a computer icon', () => {
+    const { handle_: none } = pane(null);
+    expect(none.el.hidden).toBe(true);
     const { handle_ } = pane(A);
-    expect(handle_.el.hidden).toBe(true);
+    // Nothing registered yet: still a file on this machine.
+    expect(handle_.el.hidden).toBe(false);
+    expect(handle_.el.getAttribute('data-state')).toBe('local');
     noteDocRegistered('/local/x.cmir', 'fresh', null);
     const { handle_: h2 } = pane('/local/x.cmir');
-    expect(h2.el.hidden).toBe(true);
+    expect(h2.el.hidden).toBe(false);
+    expect(h2.el.getAttribute('data-state')).toBe('local');
+    expect(h2.el.title).toContain('On this computer');
+    expect(h2.el.querySelector('.pmd-pane-disk-badge-icon')?.innerHTML).toContain('svg');
   });
 
   it('shows the provider icon with no label text while synced', () => {

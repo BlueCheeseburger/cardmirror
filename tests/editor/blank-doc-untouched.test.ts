@@ -5,17 +5,34 @@
  * history means the user has worked in the doc.
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { EditorState } from 'prosemirror-state';
 import { history } from 'prosemirror-history';
 import { schema } from '../../src/schema/index.js';
-import { isUntouchedBlank, makeBlankDoc } from '../../src/editor/blank-doc.js';
+import { isUntouchedBlank, makeBlankDoc, seedCursorOffset } from '../../src/editor/blank-doc.js';
+import { settings } from '../../src/editor/settings.js';
 
 function freshState(doc = makeBlankDoc()): EditorState {
   return EditorState.create({ doc, plugins: [history()] });
 }
 
 describe('isUntouchedBlank', () => {
+  afterEach(() => settings.set('defaultTextStyle', 'analytic'));
+
+  it('a new doc in each default text style is untouched', () => {
+    for (const style of ['normal', 'analytic', 'undertag'] as const) {
+      settings.set('defaultTextStyle', style);
+      expect(isUntouchedBlank(freshState())).toBe(true);
+    }
+  });
+
+  it('stays untouched when the default style changes after the doc was made', () => {
+    settings.set('defaultTextStyle', 'analytic');
+    const state = freshState();
+    settings.set('defaultTextStyle', 'normal');
+    expect(isUntouchedBlank(state)).toBe(true);
+  });
+
   it('a brand-new blank doc is untouched', () => {
     expect(isUntouchedBlank(freshState())).toBe(true);
   });
@@ -40,9 +57,10 @@ describe('isUntouchedBlank', () => {
 
   it('typing then deleting leaves it blank but no longer untouched', () => {
     let state = freshState();
-    state = state.apply(state.tr.insertText('x', 1));
-    state = state.apply(state.tr.delete(1, 2));
-    expect(state.doc.eq(makeBlankDoc())).toBe(true);
+    const at = seedCursorOffset(state.doc.firstChild!);
+    state = state.apply(state.tr.insertText('x', at));
+    state = state.apply(state.tr.delete(at, at + 1));
+    expect(state.doc.textContent).toBe('');
     expect(isUntouchedBlank(state)).toBe(false);
   });
 });

@@ -184,6 +184,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** Open the OS file manager at the crash-recovery journals folder. */
   openJournalsFolder: () => ipcRenderer.invoke('host:open-journals-folder'),
   showItemInFolder: (handle: string) => ipcRenderer.invoke('host:show-item-in-folder', handle),
+  /** Open the OS print dialog for this window (File → Print…). */
+  printWindow: (): Promise<boolean> => ipcRenderer.invoke('host:print-window'),
   /** Native file drag out of the window (the status-bar CardMirror
    *  mark). `send`, not `invoke`: startDrag must run in response to the
    *  renderer's dragstart, synchronously. */
