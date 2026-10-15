@@ -186,6 +186,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showItemInFolder: (handle: string) => ipcRenderer.invoke('host:show-item-in-folder', handle),
   /** Open the OS print dialog for this window (File → Print…). */
   printWindow: (): Promise<boolean> => ipcRenderer.invoke('host:print-window'),
+  /** Print a prepared HTML page of the document from a hidden window. */
+  printHtml: (html: string): Promise<boolean> => ipcRenderer.invoke('host:print-html', html),
   /** Native file drag out of the window (the status-bar CardMirror
    *  mark). `send`, not `invoke`: startDrag must run in response to the
    *  renderer's dragstart, synchronously. */

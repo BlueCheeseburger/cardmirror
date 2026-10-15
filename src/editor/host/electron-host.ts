@@ -557,6 +557,10 @@ interface ElectronAPI {
   /** Open the OS print dialog for this window's current page. Resolves
    *  true when a job was sent, false when the user cancelled or it failed. */
   printWindow?(): Promise<boolean>;
+  /** Print a self-contained HTML page of the document from a hidden window
+   *  through the OS dialog (the live window isn't touched). Same result as
+   *  `printWindow`. Absent on an older preload. */
+  printHtml?(html: string): Promise<boolean>;
   /** Native file drag out of the window (status-bar mark). Sent from the
    *  renderer's dragstart; optional so an older preload is tolerated. */
   dragFileOut?(path: string, iconDataUrl: string): void;
@@ -1570,6 +1574,11 @@ export class ElectronHost implements Host {
   /** Open the OS print dialog for this window. */
   async printWindow(): Promise<boolean> {
     return (await api().printWindow?.()) ?? false;
+  }
+
+  /** Print a prepared HTML page from a hidden window. */
+  async printHtml(html: string): Promise<boolean> {
+    return (await api().printHtml?.(html)) ?? false;
   }
   /** Whether this shell can start a native file drag (preload surface
    *  present) — the status-bar mark hides itself otherwise. */

@@ -16,6 +16,14 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   but nothing said so. Every other choice dialog that answers to number keys shows
   them too.
 
+### Fixed
+- **Printing no longer flips the window to the light theme while the print dialog
+  is open.** The desktop app now prints a separate light copy of the document from
+  a hidden window, so the window you're working in stays exactly as it was.
+- **Highlighting, shading and emphasis boxes now come out on the printed page and
+  in "Save as PDF".** On macOS the print dialog was dropping them (the PDF had the
+  underlines but no highlight colors). They're now marked to always print.
+
 ### Changed
 - **Copy file path lives on the file badge only.** Right-clicking the ribbon, the
   blue document bar or a pane's title bar no longer offers it (the ribbon and

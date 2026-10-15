@@ -18078,6 +18078,14 @@ ins.pmd-doc-diff-word {
     -webkit-user-select: text;
     user-select: text;
   }
+  /* Highlighting, shading and emphasis boxes are backgrounds and borders: print
+     them whatever the print dialog's "background graphics" setting says (the
+     macOS system dialog was dropping highlighting). */
+  #pmd-print-root,
+  #pmd-print-root * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   /* Cards were laid out lazily on screen; paper needs them all, in flow. */
   #pmd-print-root .pmd-pocket,
   #pmd-print-root .pmd-hat,

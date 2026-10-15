@@ -38,6 +38,29 @@ IPC (`cloudRelativePath` on the preload / `ElectronHost`, optional so older main
 resolve null). Tests: `tests/desktop/cloud-roots.test.ts`,
 `tests/editor/disk-conflict-pane-badge.test.ts`.
 
+### Fixed: print from a hidden window; backgrounds always print (`print-doc.ts`, `main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`, `style.css`)
+
+Desktop printing swapped the LIVE page for the print copy and removed
+`data-theme` / `data-theme-doc` while `webContents.print` held the system dialog
+open, so a dark window turned light until the dialog closed. Now
+`buildPrintHtml(view, title)` returns a complete page — the app's stylesheets
+(rules concatenated from `document.styleSheets`, relative `url()`s made
+absolute), the `<html>` attributes / classes / inline custom properties minus the
+theme (so the display settings carry over and the palette is light by
+construction), `pmd-printing`, and `#pmd-print-root` holding the cloned content —
+and `printDocument` hands it to the host (`printHtml`). `host:print-html` in
+`main.ts` writes it to a temp file, loads it in a hidden sandboxed window
+(JavaScript off), calls `print({ silent: false, printBackground: true, color:
+true })` and destroys the window and file afterwards. The live window is never
+modified. The old live-page path (`prepare` / `cleanup`, `nativePrint`) remains
+for the browser edition's `window.print()` and for an older preload.
+Separately, `-webkit-print-color-adjust: exact` / `print-color-adjust: exact` on
+`#pmd-print-root *` makes highlight, shading and emphasis backgrounds print
+whatever the dialog's background setting does — the macOS system dialog had
+produced a PDF with no highlighting. Chromium PDFs of the standalone page match
+the on-screen document with `printBackground` off. The hidden-window print call
+itself needs a real desktop build to exercise.
+
 ### Changed: releases are no longer flagged pre-release (`.github/workflows/release.yml`, `web-download.ts`, `CLAUDE.md`)
 
 The "Ensure draft release exists" step used to pass `--prerelease` for any tag

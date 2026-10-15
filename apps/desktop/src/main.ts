@@ -850,6 +850,35 @@ ipcMain.handle('host:print-window', (event) => {
   });
 });
 
+/** Print a document from a self-contained HTML page the renderer built
+ *  (print-doc.ts `buildPrintHtml`): written to a temp file, loaded in a hidden
+ *  window — light palette, no editor chrome — and printed through the OS dialog
+ *  from there, so the live window never changes while the dialog is open.
+ *  Resolves false when the user cancels or the job fails. */
+ipcMain.handle('host:print-html', async (_event, html: unknown): Promise<boolean> => {
+  if (typeof html !== 'string' || html.length === 0 || html.length > 128 * 1024 * 1024) return false;
+  const file = path.join(os.tmpdir(), `cardmirror-print-${process.pid}-${Date.now()}.html`);
+  let win: BrowserWindow | null = null;
+  try {
+    await fs.writeFile(file, html, 'utf8');
+    win = new BrowserWindow({
+      show: false,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false },
+    });
+    await win.loadFile(file);
+    const printWin = win;
+    return await new Promise<boolean>((resolve) => {
+      printWin.webContents.print({ silent: false, printBackground: true, color: true }, (success) => resolve(success));
+    });
+  } catch (err) {
+    console.error('[print] failed:', err);
+    return false;
+  } finally {
+    if (win && !win.isDestroyed()) win.destroy();
+    void fs.rm(file, { force: true }).catch(() => {});
+  }
+});
+
 /** Native drag of a saved document out of the window — the blue document
  *  bar, a pane chip dragged out of the window, or the footer file badge
  *  (renderer: file-drag.ts), the cross-platform twin of the macOS
