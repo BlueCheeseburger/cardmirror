@@ -2800,7 +2800,7 @@ bottom of the dialog.
 - **Name** — the file name. A `/` or any other character your file system
   can't use in a name becomes a hyphen, so `R3 2NC (redo 9/17/26)` saves
   as one file rather than a set of folders.
-- **Save** — what goes in the copy. Each choice has its number (1–5) at the
+- **Save** — what goes in the copy. Each choice has its number (1–6) at the
   right edge: press it to pick that choice, or Alt+number while the cursor is
   still in the Name field:
   - **As-Is** (the default) — the whole document.
