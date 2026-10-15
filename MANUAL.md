@@ -1793,6 +1793,22 @@ Save Send Doc. It keeps cards only (analytics and headings are dropped); if noth
 it does nothing and tells you so. Card numbers are frozen into the saved copy as text (see
 [Send Doc](#16-saving-and-file-formats)), so the marked cards keep the numbers they had.
 
+### Printing
+
+**(Fork)** **Print…** (default **Mod-Shift-P**, rebindable; also File → Print… on
+macOS, the File group in the ribbon, and the command palette) prints the document
+you're working in through your computer's own print dialog — pick the printer or
+"Save as PDF", paper size, copies and page range there. The paper copy is the
+document as it looks on screen: highlighting, underlining, emphasis boxes and card
+numbers print, headings stay with the card under them, and a card that fits on a
+page isn't split across two. A document in the dark theme prints in light colors on
+white. **Read mode** prints what read mode shows, so turning it on first gives you
+a condensed read-aloud copy (just tags, cites and highlighted text); if read mode
+is hiding everything, nothing opens and you get a notice instead. In the
+multi-doc workspace it prints the focused pane's document. In a browser the
+browser's own print dialog opens, and its File → Print menu prints the same way.
+(Mod-P itself is taken by Insert Received Card.)
+
 ---
 
 ## 9. Collaboration
@@ -3715,6 +3731,7 @@ these to extend the selection.
 | Mod-S / Mod-Shift-S | Save / Save As |
 | Mod-Alt-S | Save Send Doc |
 | Mod-Alt-M | Save Marked Cards |
+| Mod-Shift-P | Print… |
 | Mod-= / Mod-- | Zoom in / out |
 | Mod-Alt-= / Mod-Alt-- / Mod-Alt-0 | Interface scale up / down / reset (desktop) |
 

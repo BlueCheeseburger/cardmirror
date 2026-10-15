@@ -18062,3 +18062,89 @@ ins.pmd-doc-diff-word {
   gap: 1rem;
   margin-top: 0.4rem;
 }
+
+/* ------------------------------------------------------------------ */
+/* Printing (print-doc.ts)                                            */
+/* The print command copies the active document's rendered DOM into   */
+/* #pmd-print-root and tags <html> with .pmd-printing; everything     */
+/* else on the page is hidden for paper so the content paginates      */
+/* normally instead of living inside the editor's scrollers.          */
+/* ------------------------------------------------------------------ */
+#pmd-print-root { display: none; }
+
+@page { margin: 0.6in; }
+
+@media print {
+  html.pmd-printing,
+  html.pmd-printing body {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    zoom: 1 !important;
+  }
+  html.pmd-printing body > *:not(#pmd-print-root) { display: none !important; }
+  html.pmd-printing #pmd-print-root {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff;
+    color: #000;
+  }
+  #pmd-print-root .pmd-print-doc {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+  #pmd-print-root .ProseMirror {
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  /* Cards were laid out lazily on screen; paper needs them all, in flow. */
+  #pmd-print-root .pmd-pocket,
+  #pmd-print-root .pmd-hat,
+  #pmd-print-root .pmd-block,
+  #pmd-print-root .pmd-card {
+    content-visibility: visible !important;
+    contain: none !important;
+    contain-intrinsic-size: none !important;
+  }
+  /* Keep a heading with what follows it, and a card on one page when it fits. */
+  #pmd-print-root .pmd-pocket,
+  #pmd-print-root .pmd-hat,
+  #pmd-print-root .pmd-block,
+  #pmd-print-root .pmd-tag,
+  #pmd-print-root .pmd-cite-para { break-after: avoid; }
+  #pmd-print-root .pmd-card { break-inside: avoid; }
+  /* The hover/selection rail in a card's left gutter is screen chrome. */
+  #pmd-print-root .pmd-card,
+  #pmd-print-root .pmd-analytic-unit { border-left-color: transparent !important; }
+  #pmd-print-root img, #pmd-print-root table, #pmd-print-root tr { break-inside: avoid; }
+  #pmd-print-root img { max-width: 100%; }
+}

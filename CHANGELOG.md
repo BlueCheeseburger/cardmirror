@@ -10,6 +10,17 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+- **Print a document.** A new **Print…** command (Mod-Shift-P; File → Print… on
+  macOS, the ribbon's File group and the command palette on every platform) opens
+  your computer's print dialog for the document you're working in. It prints what
+  you see — highlighting, underlining, emphasis and card numbers — in light colors
+  on white even in the dark theme, keeps headings with their cards, and avoids
+  splitting a card across pages. In read mode it prints only what read mode
+  shows, which makes a condensed read-aloud copy; in three-pane mode it prints the
+  focused pane. In a browser it opens the browser's print dialog, and File → Print
+  there prints the same way.
+
 ### Fixed
 - **Auto-scroll follows the lay-speaking toggle.** It always paced at the flow
   rate; it now uses the lay rate while the document is on lay speaking (per pane

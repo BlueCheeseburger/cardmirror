@@ -4638,6 +4638,7 @@ export type RibbonCommandId =
   | 'toggleReaderView'
   | 'openContainingFolder'
   | 'reloadFromDisk'
+  | 'printDocument'
   | 'saveWorkspace'
   | 'reopenWorkspace'
   | 'arrangeWindows'
@@ -4913,6 +4914,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'toggleReaderView',
   'openContainingFolder',
   'reloadFromDisk',
+  'printDocument',
   'saveWorkspace',
   'reopenWorkspace',
   'arrangeWindows',
@@ -5133,6 +5135,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   toggleReaderView: 'Toggle Reading View',
   openContainingFolder: 'Open Containing Folder',
   reloadFromDisk: 'Reload From Disk',
+  printDocument: 'Print…',
   saveWorkspace: 'Save Workspace',
   reopenWorkspace: 'Reopen Last Workspace',
   arrangeWindows: 'Arrange Windows',
@@ -5347,6 +5350,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   ],
   toggleReaderView: ['reading view', 'reader view', 'paginated view', 'read view', 'book view', 'columns'],
   reloadFromDisk: ['reload', 'refresh', 'revert', 'revert to saved', 'discard changes', 'refresh from disk', 'reload document', 'reload file'],
+  printDocument: ['print', 'print document', 'print speech doc', 'print speech', 'printer', 'paper', 'hard copy', 'pdf'],
   openContainingFolder: ['reveal in finder', 'show in folder', 'show in explorer', 'reveal file', 'file location', 'containing folder'],
   saveWorkspace: ['save session', 'save open documents', 'remember open documents', 'save tabs'],
   reopenWorkspace: ['restore session', 'reopen session', 'open previous session', 'reopen last session', 'restore workspace', 'reopen documents', 'reopen tabs'],
@@ -5560,6 +5564,9 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   // uses it (the View > Reload menu item deliberately has no accelerator). A
   // document with unsaved edits asks before discarding them.
   reloadFromDisk: 'Mod-r',
+  // Print the active document through the OS print dialog. Cmd/Ctrl+P is
+  // already Insert Received Card, so this takes the Shift variant.
+  printDocument: 'Mod-Shift-p',
   saveWorkspace: '',
   reopenWorkspace: '',
   arrangeWindows: '',
@@ -5840,6 +5847,8 @@ export interface RibbonContext {
   openContainingFolder: () => void;
   /** Replace the active document with what's saved on disk. */
   reloadFromDisk: () => void;
+  /** Print the active document (read mode and all) via the OS print dialog. */
+  printDocument: () => void;
   saveWorkspace: () => void;
   reopenWorkspace: () => void;
   /** Arrange Windows: speech doc on one side, everything else on the
@@ -6071,6 +6080,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   toggleReaderView: () => {},
   openContainingFolder: () => {},
   reloadFromDisk: () => {},
+  printDocument: () => {},
   saveWorkspace: () => {},
   reopenWorkspace: () => {},
   arrangeWindows: () => {},
@@ -6369,6 +6379,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.reloadFromDisk();
+        return true;
+      };
+    case 'printDocument':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.printDocument();
         return true;
       };
     case 'saveWorkspace':

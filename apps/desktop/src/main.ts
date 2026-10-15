@@ -840,6 +840,16 @@ ipcMain.handle('host:show-item-in-folder', (_event, handle: unknown) => {
   shell.showItemInFolder(handle);
 });
 
+/** Print the calling window's page through the OS print dialog. The
+ *  renderer has already swapped the page for a print-only copy of the
+ *  document (print-doc.ts); `printBackground` keeps highlighting and
+ *  shading. Resolves false when the user cancels or the job fails. */
+ipcMain.handle('host:print-window', (event) => {
+  return new Promise<boolean>((resolve) => {
+    event.sender.print({ silent: false, printBackground: true }, (success) => resolve(success));
+  });
+});
+
 /** Native drag of a saved document out of the window — the status-bar
  *  CardMirror mark (renderer: file-drag-mark.ts), the cross-platform twin
  *  of the macOS title-bar proxy icon. `startDrag` has to run in response
@@ -3200,6 +3210,11 @@ function buildMenu(): Menu {
         label: 'Save As…',
         accelerator: menuAccelerator('saveAs'),
         click: () => dispatchMenuCommand('saveAs'),
+      },
+      {
+        label: 'Print…',
+        accelerator: menuAccelerator('printDocument'),
+        click: () => dispatchMenuCommand('printDocument'),
       },
       { type: 'separator' },
       {

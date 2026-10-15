@@ -551,6 +551,9 @@ interface ElectronAPI {
   /** Open the OS file manager at the crash-recovery journals folder. */
   openJournalsFolder(): Promise<void>;
   showItemInFolder?(handle: string): Promise<void>;
+  /** Open the OS print dialog for this window's current page. Resolves
+   *  true when a job was sent, false when the user cancelled or it failed. */
+  printWindow?(): Promise<boolean>;
   /** Native file drag out of the window (status-bar mark). Sent from the
    *  renderer's dragstart; optional so an older preload is tolerated. */
   dragFileOut?(path: string, iconDataUrl: string): void;
@@ -1553,6 +1556,11 @@ export class ElectronHost implements Host {
    *  no-ops gracefully on an older preload without the surface. */
   async showItemInFolder(handle: string): Promise<void> {
     await api().showItemInFolder?.(handle);
+  }
+
+  /** Open the OS print dialog for this window. */
+  async printWindow(): Promise<boolean> {
+    return (await api().printWindow?.()) ?? false;
   }
   /** Whether this shell can start a native file drag (preload surface
    *  present) — the status-bar mark hides itself otherwise. */

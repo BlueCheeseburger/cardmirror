@@ -10,6 +10,46 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: printing (`print-doc.ts`, `ribbon-commands.ts`, `index.ts`, `style.css`, `apps/desktop/src/main.ts`, `preload.ts`, `electron-host.ts`)
+
+The live editor sits in fixed-height scrollers, panes and a ribbon, none of
+which paginate, so `printDocument(view, { nativePrint? })` builds a throwaway
+copy instead of unwinding the layout. `buildPrintContent` deep-clones
+`view.dom` (decorations, card numbers, node views and read mode's
+`pmd-rm-hide` spans come along, so paper matches the screen), strips editing
+state (`contenteditable`, ids, `ProseMirror-focused` / `-selectednode`, gap
+cursors, trailing breaks) and wraps it in a `.pmd-pane-editor.pmd-print-doc`
+element carrying only `pmd-read-mode` from the host, so the existing
+`:is(#editor, .pmd-pane-editor) .ProseMirror` content rules apply. The copy
+goes in `#pmd-print-root`, `<html>` gets `.pmd-printing`, and the `@media
+print` block at the end of `style.css` hides every other `body` child, resets
+the scroller/height/overflow/padding rules to normal flow, turns off
+`content-visibility` / `contain` on pockets, hats, blocks and cards, hides the
+card rail (`border-left-color`), keeps headings, tags and cite lines with what
+follows (`break-after: avoid`) and cards whole where they fit
+(`break-inside: avoid`). A dark theme prints on the light palette: the
+`data-theme` / `data-theme-doc` attributes are removed for the duration and put
+back in `cleanup()`, which also runs in a `finally`, on `afterprint`, and before
+every `prepare`, so no path leaves a stale copy. An empty document, or read
+mode hiding everything (`isPrintContentEmpty`), toasts instead of opening a
+blank dialog.
+
+Desktop calls `host.printWindow()` → `host:print-window` →
+`event.sender.print({ silent: false, printBackground: true })`, i.e. Electron's
+OS dialog (no custom dialog); `printBackground` keeps highlighting. The browser
+calls `window.print()`, and `installPrintListeners` builds / removes the same
+copy around `beforeprint` / `afterprint` so File → Print in a browser is not
+the live UI. Command `printDocument` is bound to `Mod-Shift-p` (`Mod-p` is
+Insert Received Card), listed in the ribbon File group, and in
+`NATIVE_MENU_COMMANDS` plus a File → Print… item on macOS (Windows and Linux
+have no native menu bar). Checked in Chromium PDFs: single doc, dark theme,
+read mode (14 pages → 4), Reading view and three-pane (focused pane only);
+and in real Electron, where the keyboard shortcut → `webContents.print` was
+called with the expected options while the print copy was in place.
+Tests: `tests/editor/print-doc.test.ts`.
+
 ## 1.15.0-bcb.4 — 2026-10-10
 
 ### Fixed: the reading line is a third of the way down, not the top edge; indicator and "Left" work in Reading view (`reading-line.ts`, `live-read-time.ts`, `auto-scroll.ts`, `scroll-anchor.ts`)

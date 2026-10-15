@@ -125,6 +125,7 @@ import {
   isAutoScrolling,
   stopAutoScrollIfOtherView,
 } from './auto-scroll.js';
+import { printDocument, installPrintListeners } from './print-doc.js';
 import {
   captureViewportAnchor,
   restoreViewportAnchor,
@@ -1976,6 +1977,16 @@ const ribbonContext: RibbonContext = {
     }
     void reloadActiveDocFromDisk().then((ran) => {
       if (!ran) showToast('Reload From Disk isn’t available here.');
+    });
+  },
+  printDocument: () => {
+    if (!view) return;
+    const host = getElectronHost();
+    // Desktop: the OS print dialog via the main process. Browser: the
+    // browser's own. Either way it prints the focused pane's document as
+    // it looks now (read mode included).
+    void printDocument(view, host ? { nativePrint: () => host.printWindow() } : {}).then((result) => {
+      if (result === 'empty') showToast('Nothing to print — the document is empty (or read mode is hiding all of it).');
     });
   },
   openContainingFolder: () => {
@@ -4045,6 +4056,7 @@ function applyTheme(
 /** Listen for OS-level prefers-color-scheme changes so 'system'
  *  mode tracks them live. Set up once at boot. */
 const systemDarkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+installPrintListeners(() => view);
 systemDarkMedia.addEventListener('change', () => {
   // Only 'system' chrome theme tracks OS changes; a doc theme of
   // 'followApp' only moves when the chrome's effective value does, so
@@ -10581,6 +10593,7 @@ const NATIVE_MENU_COMMANDS: RibbonCommandId[] = [
   'newDocument',
   'save',
   'saveAs',
+  'printDocument',
   'toggleAutosave',
   'closeDocOrWindow',
   // Speech
