@@ -19,6 +19,8 @@ import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 import { closeHistory } from 'prosemirror-history';
 import { schema } from '../schema/index.js';
+import { cardRangesForSelection } from './card-highlight-toggle.js';
+import { getTimerState, getVisibleRemainingMs } from './timer-state.js';
 
 /** Verbatim red — the marker's text color, and the signal read mode uses
  *  to keep the marker visible. Hex without `#` (OOXML / `font_color`). */
@@ -50,6 +52,25 @@ export function formatMarkerTime(d: Date): string {
   let h = d.getHours() % 12;
   if (h === 0) h = 12;
   return `${h}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** The marker's text. While the speech timer is running it says how far
+ *  into the speech the marker was dropped ("Marked at 2:15"); otherwise it
+ *  falls back to the clock time ("Marked 7:32"). `timer` is injectable for
+ *  tests. */
+export function markerLabel(
+  now: Date = new Date(),
+  timer: ReturnType<typeof getTimerState> = getTimerState(),
+): string {
+  if (timer.mode === 'speech' && timer.running) {
+    const visible = getVisibleRemainingMs(timer, now.getTime());
+    const elapsed = timer.stopwatch ? visible : timer.speechTotalMs - visible;
+    if (timer.stopwatch || timer.speechTotalMs > 0) {
+      const secs = Math.max(0, Math.floor(elapsed / 1000));
+      return `Marked at ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    }
+  }
+  return `Marked ${formatMarkerTime(now)}`;
 }
 
 /** True when a text node is a reading-position marker run (red `font_color`). */
@@ -92,7 +113,7 @@ export function buildInsertReadingMarkerTransaction(
 ): Transaction | null {
   const fontColor = schema.marks['font_color'];
   if (!fontColor) return null;
-  const text = `Marked ${formatMarkerTime(now)}`;
+  const text = markerLabel(now);
   const node = schema.text(text, [fontColor.create({ color: READING_MARKER_COLOR })]);
   const pos = state.selection.head;
   const tr = state.tr.insert(pos, node);
@@ -182,7 +203,7 @@ export function cardMarkAction(
 }
 
 /** Build (don't dispatch) the transaction for a heading's "Mark card(s)" row:
- *  every card in `ranges` that has no reading marker gets a red "Marked h:mm"
+ *  every card in `ranges` that has no reading marker gets a red "Marked …"
  *  run at the end of its last body paragraph (a body paragraph is added when
  *  the card has none), which is what makes it a marked card for Save Marked
  *  Cards. When every card already has one, the markers are removed instead.
@@ -200,7 +221,7 @@ export function buildMarkCardsTransaction(
   const cards = cardsInRanges(state.doc, ranges);
   const tr = state.tr;
   const markerNode = (): PMNode =>
-    schema.text(`Marked ${formatMarkerTime(now)}`, [fontColor.create({ color: READING_MARKER_COLOR })]);
+    schema.text(markerLabel(now), [fontColor.create({ color: READING_MARKER_COLOR })]);
   // Back to front, so earlier positions stay valid as later cards change.
   for (const { pos, node } of [...cards].reverse()) {
     if (action === 'unmark') {
@@ -227,4 +248,51 @@ export function buildMarkCardsTransaction(
   tr.setMeta(READING_MARKER_META, true);
   closeHistory(tr);
   return tr;
+}
+
+/** "Mark Card": the rebindable command and Card-menu row. Marks the card
+ *  the cursor is in (every card the selection touches), or unmarks them
+ *  once they all carry a marker. Allowed in read mode like the marker. */
+export const markCardsCommand: Command = (state, dispatch) => {
+  const tr = buildMarkCardsTransaction(state, cardRangesForSelection(state));
+  if (!tr) return false;
+  if (dispatch) dispatch(tr);
+  return true;
+};
+
+/** What the outline shows about marked cards, from one pass over the doc:
+ *  `cards` maps a marked card's position to its marker text ("Marked at
+ *  2:15"), and `rollups` maps a pocket / hat / block position to how many
+ *  marked cards sit under it. */
+export interface MarkInfo {
+  cards: Map<number, string>;
+  rollups: Map<number, number>;
+}
+
+export function computeMarkInfo(doc: PMNode): MarkInfo {
+  const cards = new Map<number, string>();
+  const rollups = new Map<number, number>();
+  // The doc is flat: pockets, hats, blocks and cards follow each other, so
+  // the open headings are just the latest of each level.
+  const open: (number | null)[] = [null, null, null];
+  const level: Record<string, number> = { pocket: 0, hat: 1, block: 2 };
+  doc.forEach((child, offset) => {
+    const lv = level[child.type.name];
+    if (lv !== undefined) {
+      open[lv] = offset;
+      for (let i = lv + 1; i < open.length; i++) open[i] = null;
+      return;
+    }
+    if (child.type.name !== 'card') return;
+    let label: string | null = null;
+    child.descendants((n) => {
+      if (label !== null) return false;
+      if (isMarkerText(n)) label = n.text ?? '';
+      return label === null;
+    });
+    if (label === null) return;
+    cards.set(offset, label);
+    for (const at of open) if (at !== null) rollups.set(at, (rollups.get(at) ?? 0) + 1);
+  });
+  return { cards, rollups };
 }

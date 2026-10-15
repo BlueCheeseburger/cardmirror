@@ -10,6 +10,62 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.15.0-bcb.6 — 2026-10-15
+
+### Added: Mark Card, marked/starred outline, Card submenu, Starred Doc (`reading-marker.ts`, `card-menu-sections.ts`, `nav-panel.ts`, `transform-for-export.ts`, `save-as-ui.ts`, `schema/nodes.ts`)
+
+- `markerLabel(now, timer)` builds the marker text: `Marked at m:ss` (time into the speech) while the
+  speech timer is running — countdown: `speechTotalMs − visibleRemaining`, stopwatch: visible value —
+  else `Marked h:mm`. Used by the cursor marker and `buildMarkCardsTransaction`.
+- New ribbon command `markCards` (`markCardsCommand`: `buildMarkCardsTransaction` over
+  `cardRangesForSelection`; default `Mod-Alt-D`; group "Reading"). Passes read mode via
+  `READING_MARKER_META`.
+- `card-menu-sections.ts` defines the Card menu once (`buildCardMenuSections(host)`); the toolbar dropdown
+  (`index.ts`) and the outline's right-click "Card ▸" submenu (`nav-panel.ts`, `buildSubmenuRow`) both
+  build from it. The outline runs a command over the heading ranges via `runCardCommand` (scratch state per
+  range, back to front, one transaction; Mark / (Re)highlight use their range helpers; Create Reference
+  selects the first range and runs live). The outline's own Shrink / Unhighlight / Mark rows and the
+  "Show heading level N" rows were removed.
+- `computeMarkInfo(doc)`: one pass over the flat doc → marked card positions + "N marked" roll-ups for the
+  open pocket/hat/block; the outline renders a flag (`.pmd-nav-mark-flag`, title = marker text) and
+  `.pmd-nav-mark-count`.
+- Heading nodes get a `starred` attr (default false). The outline shows a hover star on every non-pocket
+  heading (`toggleStar`, `setNodeAttribute`, allowed in read mode) and tints starred rows. Save As gets a
+  fifth mode `starredDoc` (`starredOnly`, `extractStarred`, `countStarred` in `transform-for-export.ts`),
+  numbering frozen like Marked Doc; Custom Save moves to key 6. Stars survive `.cmir`, not `.docx`.
+
+### Added: number keys and marked count in Save As and the New-document dialog (`save-as-ui.ts`, `index.ts`, `style.css`)
+
+`confirmNewDocOverwrite` (the Mod-N "Save your current document…?" overlay) gets
+`addRouteKeyHint` badges and 1 = Save / 2 = Don't save (no modifiers, like
+`confirmCloseUnsaved`). Save As: every `MODE_DEFS` row is `.pmd-save-as-mode-row`
+(`padding-right` reserves the badge's room; the `.pmd-route-kbd` badge sits at
+the row's top-right, so title and blurb never move) and 1–5 select the mode. A
+bare digit is ignored while typing in the Name field — the dialog opens focused
+there — so Alt+digit (matched on `e.code`, since Alt+digit types a symbol on
+macOS) works from anywhere. `openSaveAs` takes `markedCardCount`
+(`countMarkedCards` of the focused doc, passed by `runSaveAsFlowInner`); Marked Doc
+shows "N card(s) marked" / "no cards marked" on its title line, as a sibling of the
+label span so the label stays plain text. The recovery flow passes none, so it
+shows no count.
+
+### Changed: Alt-minimize and the "N hidden" chip replace the Hide button (`multi-pane-shell.ts`, `settings.ts`, `style.css`)
+
+Removed `chipHideBtn` (`.pmd-pane-chip-hide`), `Slot.setHideButtonVisible` and the
+`showHideSlotButton` setting. A shell-level window `keydown` / `keyup` / `blur`
+listener tracks Alt and calls `Slot.setMinimizeMode`, which swaps the expand
+button's icon to minus and its title; an Alt-click on it calls `hideSlot` instead
+of `toggleExpanded`. `#hidden-slots-chip` (in `#status-bar`, after the file badge;
+`display: none` outside `body.pmd-multi-doc`) is refreshed from
+`applyExpandedState`, the doc-added path and `handleSlotEmptied`, lists the
+hidden slots in its tooltip, and on click reveals them (focusing the pane when
+exactly one was hidden). `hideSlot` / `revealAllSlots` / Mod-1/2/3 are unchanged.
+
+### Changed: Save As section order and wording (`save-as-ui.ts`)
+
+Order is now Name, Save, previously saved locations, Format. The OS-picker row's
+blurb is "Opens the system file dialog."
+
 ## 1.15.0-bcb.5.1 — 2026-10-15
 
 ### Added: key badges on route dialogs (`text-prompt.ts`, `index.ts`, `style.css`)

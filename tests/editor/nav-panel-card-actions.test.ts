@@ -62,8 +62,13 @@ function openMenu(nav: NavigationPanel, label: string): string[] {
   return menuRows();
 }
 
+/** The menu's own rows (the Card submenu's rows are listed by `submenuRows`). */
 const menuRows = (): string[] =>
-  [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-item')].map((el) => el.textContent ?? '');
+  [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-item')]
+    .filter((el) => !el.closest('.pmd-nav-context-submenu'))
+    .map((el) => el.firstChild?.textContent ?? '');
+const submenuRows = (): string[] =>
+  [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-submenu .pmd-nav-context-item')].map((el) => el.textContent ?? '');
 
 function clickRow(prefix: string): void {
   const row = [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-item')].find((el) =>
@@ -118,14 +123,36 @@ describe('outline right-click menu', () => {
     expect(rows.some((r) => r.startsWith('Cut'))).toBe(true);
   });
 
-  it('labels the rows for a card and for a section', () => {
-    const cardRows = openMenu(setup(card('Alpha tag', highlighted('lit'))).nav, 'Alpha tag');
-    expect(cardRows).toContain('Shrink card');
-    expect(cardRows).toContain('Unhighlight card');
+  it('has a Card submenu holding what the toolbar Card menu has, and no longer lists those rows itself', () => {
+    const rows = openMenu(setup(card('Alpha tag', highlighted('lit'))).nav, 'Alpha tag');
+    expect(rows).toContain('Card');
+    expect(rows.some((r) => /^(Shrink|Unhighlight|Rehighlight|Mark|Unmark|Show heading level)/.test(r))).toBe(false);
+    expect(submenuRows()).toEqual([
+      'Condense',
+      'Condense without paragraph integrity',
+      'Condense with pilcrows',
+      'Condense with warning',
+      'Uncondense',
+      'Create Reference',
+      'Extract Undertag',
+      'Lock Highlighting',
+      'Unhighlight Card',
+      'Highlight to Background',
+      'Background to Highlight',
+      'Mark Card',
+      'Shrink',
+    ]);
+  });
+
+  it('marks the card from the submenu, and the row then reads Unmark Card', () => {
+    const { view, nav } = setup(card('Alpha tag', schema.text('body')));
+    openMenu(nav, 'Alpha tag');
+    clickRow('Mark Card');
+    expect(view.state.doc.textContent).toMatch(/Marked/);
+    nav.update(view.state.doc);
     document.body.querySelector('.pmd-nav-context-menu')?.remove();
-    const blockRows = openMenu(setup(block('Blk'), card('Alpha tag', highlighted('lit'))).nav, 'Blk');
-    expect(blockRows).toContain('Shrink everything under heading');
-    expect(blockRows).toContain('Unhighlight everything under heading');
+    openMenu(nav, 'Alpha tag');
+    expect(submenuRows()).toContain('Unmark Card');
   });
 
   it('shrinks the card text under the heading, in one undo step', () => {
@@ -154,16 +181,42 @@ describe('outline right-click menu', () => {
     expect(view.dom.querySelector('.pmd-highlight')).toBeNull();
     nav.update(view.state.doc);
     document.body.querySelector('.pmd-nav-context-menu')?.remove();
-    expect(openMenu(nav, 'Alpha tag')).toContain('Rehighlight card');
+    openMenu(nav, 'Alpha tag');
+    expect(submenuRows()).toContain('Rehighlight Card');
     clickRow('Rehighlight');
     expect(view.dom.querySelector('.pmd-highlight')).not.toBeNull();
     document.body.querySelector('.pmd-nav-context-menu')?.remove();
-    expect(openMenu(nav, 'Alpha tag')).toContain('Unhighlight card');
+    openMenu(nav, 'Alpha tag');
+    expect(submenuRows()).toContain('Unhighlight Card');
   });
 
-  it('hides the row when the card has nothing to unhighlight or restore', () => {
+  it('shows the highlight row even when there is nothing to unhighlight, like the toolbar menu', () => {
     const { nav } = setup(card('Plain tag', schema.text('no highlighting here')));
-    const rows = openMenu(nav, 'Plain tag');
-    expect(rows.some((r) => /highlight/i.test(r))).toBe(false);
+    openMenu(nav, 'Plain tag');
+    expect(submenuRows()).toContain('Unhighlight Card');
+  });
+
+  it('stars a card from the outline and tints its row', () => {
+    const { view, nav } = setup(card('Alpha tag', schema.text('body')));
+    nav.update(view.state.doc);
+    const root = (nav as unknown as { listEl: HTMLElement }).listEl;
+    const tagLi = [...root.querySelectorAll<HTMLElement>('.pmd-nav-item')].find((l) => l.textContent?.includes('Alpha tag'))!;
+    tagLi.querySelector<HTMLButtonElement>('.pmd-nav-star')!.click();
+    expect(view.state.doc.child(0).firstChild!.attrs['starred']).toBe(true);
+    nav.update(view.state.doc);
+    const again = [...root.querySelectorAll<HTMLElement>('.pmd-nav-item')].find((l) => l.textContent?.includes('Alpha tag'))!;
+    expect(again.classList.contains('pmd-nav-item-starred')).toBe(true);
+  });
+
+  it('puts a flag on marked cards and an "N marked" count on the block above them', () => {
+    const { view, nav } = setup(block('Blk'), card('One', schema.text('a')), card('Two', schema.text('b')));
+    (nav as unknown as { setMaxLevel: (n: number) => void }).setMaxLevel(4);
+    nav.update(view.state.doc);
+    openMenu(nav, 'One');
+    clickRow('Mark Card');
+    nav.update(view.state.doc);
+    const root = (nav as unknown as { listEl: HTMLElement }).listEl;
+    expect(root.querySelectorAll('.pmd-nav-mark-flag').length).toBe(1);
+    expect(root.querySelector('.pmd-nav-mark-count')?.textContent).toBe('1 marked');
   });
 });

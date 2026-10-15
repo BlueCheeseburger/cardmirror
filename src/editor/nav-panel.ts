@@ -22,7 +22,10 @@ import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js
 import { isCutInPlaceDoc, markCutInPlace } from './cut-in-place.js';
 import { showToast } from './toast.js';
 import { countReadAloudSplit, formatReadTimeFor, type ReadAloudCounts } from './word-count.js';
-import { cardMarkAction, buildMarkCardsTransaction } from './reading-marker.js';
+import { buildMarkCardsTransaction, computeMarkInfo, READING_MARKER_META } from './reading-marker.js';
+import { buildCardMenuSections } from './card-menu-sections.js';
+import type { DocMenuSection } from './doc-menu-ui.js';
+import type { RibbonCommandId } from './ribbon-commands.js';
 import { cardHighlightAction, rehighlightRanges, unhighlightRanges } from './card-highlight-toggle.js';
 import { isAnyOverlayOpen } from './overlay-stack.js';
 import { setManualShadowSelection } from './similar-selection-plugin.js';
@@ -1115,6 +1118,10 @@ export class NavigationPanel {
     // rebuild below.
     const numberLabels = settings.get('showCardNumbering') ? computeNumbering(doc).cards : null;
 
+    // Marked cards: a flag (hover for the marker's text) on each marked card,
+    // and a "N marked" roll-up on the pocket / hat / block above them.
+    const markInfo = computeMarkInfo(doc);
+
     // Clear and re-build. For doc sizes we care about (max ~600 headings
     // in the example corpus) this is fine; if profiling shows it's hot,
     // diff against the previous render.
@@ -1246,6 +1253,18 @@ export class NavigationPanel {
         }
       }
 
+      if (!entry.windowed && (entry.type === 'tag' || entry.type === 'analytic')) {
+        const $p = doc.resolve(entry.pos);
+        const markText = $p.parentOffset === 0 ? markInfo.cards.get($p.before()) : undefined;
+        if (markText != null) {
+          const flag = document.createElement('span');
+          flag.className = 'pmd-nav-mark-flag';
+          flag.title = markText;
+          setIcon(flag, 'flag');
+          li.appendChild(flag);
+        }
+      }
+
       const label = document.createElement('span');
       label.className = 'pmd-nav-label';
       // Whitespace-only headings must render exactly like empty ones: a
@@ -1274,6 +1293,36 @@ export class NavigationPanel {
         }
       }
       li.appendChild(label);
+
+      const rolled = entry.windowed || entry.type === 'tag' || entry.type === 'analytic'
+        ? 0
+        : (markInfo.rollups.get(entry.pos) ?? 0);
+      if (rolled > 0) {
+        const count = document.createElement('span');
+        count.className = 'pmd-nav-mark-count';
+        count.textContent = `${rolled} marked`;
+        li.appendChild(count);
+      }
+
+      if (entry.starred) li.classList.add('pmd-nav-item-starred');
+      // Star: hover any heading below a pocket (a pocket runs to the left
+      // edge, so there's no room) and click to star it; a starred heading
+      // keeps its star and a tinted row, and "Starred only" in Save As
+      // exports just those.
+      if (!entry.windowed && entry.level > 1) {
+        const star = document.createElement('button');
+        star.type = 'button';
+        star.className = 'pmd-nav-star';
+        star.title = entry.starred ? 'Unstar' : 'Star (export only starred in Save As)';
+        star.setAttribute('aria-pressed', String(entry.starred === true));
+        setIcon(star, 'star');
+        star.addEventListener('pointerdown', (e) => e.stopPropagation());
+        star.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.toggleStar(entry);
+        });
+        li.appendChild(star);
+      }
 
       if (entry.cite && settings.get('showCitePreview')) {
         const citePreview = document.createElement('span');
@@ -2809,14 +2858,6 @@ export class NavigationPanel {
     const n = this.contextTargets(entry).length;
     const what = n > 1 ? `${n} headings` : 'heading';
     const targets = this.contextTargets(entry);
-    // Cards and analytic units read as "card"; a Pocket / Hat / Block as
-    // "everything under" it — the same scope the other rows act on.
-    const cardsOnly = targets.every((t) => this.computeHeadingRange(t)?.useNodeSelection === true);
-    const scope = cardsOnly ? (n > 1 ? `${n} cards` : 'card') : `everything under ${what}`;
-    const highlight = this.view
-      ? cardHighlightAction(this.view.state, this.headingRanges(targets))
-      : null;
-    const cardMark = this.view ? cardMarkAction(this.view.state, this.headingRanges(targets)) : null;
     // Search results: only what leaves the document as it is.
     const items: ContextMenuItem[] = this.searchResultsShown()
       ? [
@@ -2848,42 +2889,17 @@ export class NavigationPanel {
         action: () => this.deleteHeadingAndContents(entry),
       },
       { kind: 'separator' },
+      // Everything the toolbar's Card dropdown offers, as a hover submenu —
+      // built from the same list (`buildCardMenuSections`), so it mirrors it.
       {
-        kind: 'item',
-        label: `Shrink ${scope}`,
-        action: () => this.shrinkHeadingContents(entry),
+        kind: 'submenu',
+        label: 'Card',
+        sections: buildCardMenuSections({
+          state: () => this.view?.state ?? null,
+          ranges: () => this.headingRanges(targets),
+          run: (id) => this.runCardCommand(entry, id),
+        }),
       },
-      // One row, two states: Unhighlight while anything under the heading is
-      // highlighted, Rehighlight (while the unhighlight is still undoable)
-      // once it isn't. Hidden when there's nothing to do either way.
-      ...(highlight
-        ? ([
-            {
-              kind: 'item',
-              label: `${highlight === 'rehighlight' ? 'Rehighlight' : 'Unhighlight'} ${scope}`,
-              action: () => this.toggleHeadingHighlight(entry),
-            },
-          ] as ContextMenuItem[])
-        : []),
-      // One row, two states (like Unhighlight): drops a reading marker into
-      // every card under the heading(s), which makes them "marked cards" for
-      // Save Marked Cards; once they all have one it removes them again.
-      ...(cardMark
-        ? ([
-            {
-              kind: 'item',
-              label: `${cardMark === 'unmark' ? 'Unmark' : 'Mark'} ${cardsOnly ? (n > 1 ? `${n} cards` : 'card') : `cards under ${what}`}`,
-              action: () => this.toggleHeadingMark(entry),
-            },
-          ] as ContextMenuItem[])
-        : []),
-      { kind: 'separator' },
-      ...[1, 2, 3, 4].map((lvl): ContextMenuItem => ({
-        kind: 'item',
-        label: `Show heading level ${lvl}`,
-        checked: lvl === this.maxLevel,
-        action: () => this.setMaxLevel(lvl),
-      })),
     ];
 
     for (const item of items) {
@@ -2891,6 +2907,10 @@ export class NavigationPanel {
         const sep = document.createElement('div');
         sep.className = 'pmd-nav-context-separator';
         menu.appendChild(sep);
+        continue;
+      }
+      if (item.kind === 'submenu') {
+        menu.appendChild(this.buildSubmenuRow(menu, item));
         continue;
       }
       const btn = document.createElement('button');
@@ -3016,29 +3036,122 @@ export class NavigationPanel {
     return merged;
   }
 
-  /** Shrink the text under the heading(s) — the same Shrink the Card menu
-   *  and Mod-8 run, over each heading's whole range, all in ONE
-   *  transaction (one undo step). Runs on a scratch state per range so the
-   *  editor's own selection and scroll don't move; Shrink only edits marks,
-   *  so the ranges stay valid from one to the next. */
-  private shrinkHeadingContents(entry: HeadingEntry): void {
+  /** Flip the heading's `starred` attr (one undo step). Allowed in read mode
+   *  like the marker: it's metadata, not text. */
+  private toggleStar(entry: HeadingEntry): void {
     const view = this.view;
-    const run = navCommandRunner;
-    if (!view || !run) return;
+    if (!view || entry.windowed) return;
+    const node = view.state.doc.nodeAt(entry.pos);
+    if (!node || !('starred' in node.attrs)) return;
+    const tr = view.state.tr.setNodeAttribute(entry.pos, 'starred', node.attrs['starred'] !== true);
+    tr.setMeta(READING_MARKER_META, true);
+    view.dispatch(tr);
+  }
+
+  /** The submenu row: "Card ▸", opening a side panel with the Card menu's
+   *  sections while hovered (or focused). Rows run through `runCardCommand`. */
+  private buildSubmenuRow(menu: HTMLElement, item: ContextMenuSubmenu): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'pmd-nav-context-submenu-host';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-nav-context-item pmd-nav-context-item-submenu';
+    btn.textContent = item.label;
+    const arrow = document.createElement('span');
+    arrow.className = 'pmd-nav-context-submenu-arrow';
+    arrow.textContent = '▸';
+    btn.appendChild(arrow);
+    const panel = document.createElement('div');
+    panel.className = 'pmd-nav-context-menu pmd-nav-context-submenu';
+    panel.hidden = true;
+    item.sections.forEach((section, i) => {
+      const title = document.createElement('div');
+      title.className = 'pmd-doc-menu-section-title';
+      title.textContent = section.title;
+      panel.appendChild(title);
+      for (const row of section.items) {
+        const rb = document.createElement('button');
+        rb.type = 'button';
+        rb.className = 'pmd-nav-context-item';
+        rb.textContent = row.label;
+        rb.addEventListener('click', () => {
+          closeAnyOpenContextMenu();
+          row.run(this.view as never);
+        });
+        panel.appendChild(rb);
+      }
+      if (i < item.sections.length - 1) {
+        const sep = document.createElement('div');
+        sep.className = 'pmd-nav-context-separator';
+        panel.appendChild(sep);
+      }
+    });
+    const show = (): void => {
+      panel.hidden = false;
+      // Open to the right of the row; flip left / nudge up when it won't fit.
+      const r = wrap.getBoundingClientRect();
+      panel.style.position = 'fixed';
+      panel.style.left = `${r.right}px`;
+      panel.style.top = `${r.top}px`;
+      const pr = panel.getBoundingClientRect();
+      if (pr.right > window.innerWidth) panel.style.left = `${Math.max(0, r.left - pr.width)}px`;
+      if (pr.bottom > window.innerHeight) {
+        panel.style.top = `${Math.max(0, window.innerHeight - pr.height - 4)}px`;
+      }
+    };
+    wrap.addEventListener('mouseenter', show);
+    wrap.addEventListener('mouseleave', () => { panel.hidden = true; });
+    btn.addEventListener('focus', show);
+    btn.addEventListener('click', show);
+    wrap.append(btn, panel);
+    void menu;
+    return wrap;
+  }
+
+  /** Run a Card-menu command over the right-clicked heading(s)' cards, as one
+   *  undo step. Most run on a scratch state per range (back to front, so
+   *  earlier positions stay valid when a command changes the structure) and
+   *  their steps are merged into one transaction; the editor's own selection
+   *  and scroll don't move. Unhighlight / Rehighlight / Mark work from the
+   *  ranges directly, and Create Reference reads the live selection, so it
+   *  gets the first range selected first. */
+  private runCardCommand(entry: HeadingEntry, id: RibbonCommandId): void {
+    const view = this.view;
+    if (!view) return;
     const ranges = this.headingRanges(this.contextTargets(entry));
+    if (ranges.length === 0) return;
+    if (id === 'unhighlightCard' || id === 'rehighlightCard') {
+      this.toggleHeadingHighlight(entry);
+      return;
+    }
+    if (id === 'markCards') {
+      this.toggleHeadingMark(entry);
+      return;
+    }
+    if (id === 'createReference') {
+      const first = ranges[0]!;
+      const doc = view.state.doc;
+      view.dispatch(
+        view.state.tr.setSelection(TextSelection.between(doc.resolve(first.from), doc.resolve(first.to))),
+      );
+      navLiveRunner?.(id);
+      return;
+    }
+    const run = navCommandRunner;
+    if (!run) return;
     const tr = view.state.tr;
     try {
-      for (const r of ranges) {
+      for (const r of [...ranges].reverse()) {
         const scratch = EditorState.create({
           doc: tr.doc,
           selection: TextSelection.between(tr.doc.resolve(r.from), tr.doc.resolve(r.to)),
         });
-        const cmdTr = run('shrink', scratch);
+        const cmdTr = run(id, scratch);
         if (cmdTr) for (const step of cmdTr.steps) tr.step(step);
       }
     } catch (err) {
       // A step that doesn't apply: change nothing rather than half of it.
-      console.warn('[cardmirror] Shrink from the outline failed:', err);
+      console.warn(`[cardmirror] ${id} from the outline failed:`, err);
       return;
     }
     if (tr.docChanged) view.dispatch(tr);
@@ -3277,10 +3390,16 @@ function headingTextKeys(entries: HeadingEntry[]): string[] {
 /** Runs a ribbon command on a scratch state and hands back its transaction
  *  (null when it doesn't apply). Registered by index.ts, which owns the
  *  ribbon's settings-bound command context. */
-type NavCommandRunner = (id: 'shrink', state: EditorState) => Transaction | null;
+type NavCommandRunner = (id: RibbonCommandId, state: EditorState) => Transaction | null;
 let navCommandRunner: NavCommandRunner | null = null;
-export function setNavCommandRunner(runner: NavCommandRunner): void {
+/** Runs a ribbon command on the live editor (its current selection). */
+let navLiveRunner: ((id: RibbonCommandId) => void) | null = null;
+export function setNavCommandRunner(
+  runner: NavCommandRunner,
+  live?: (id: RibbonCommandId) => void,
+): void {
   navCommandRunner = runner;
+  navLiveRunner = live ?? null;
 }
 
 /** A nav search: entry index → offset of the match in the heading's own
@@ -3393,7 +3512,13 @@ interface ContextMenuItemBase {
   checked?: boolean;
 }
 interface ContextMenuSeparator { kind: 'separator' }
-type ContextMenuItem = ContextMenuItemBase | ContextMenuSeparator;
+/** A row that opens a side panel of grouped rows while hovered. */
+interface ContextMenuSubmenu {
+  kind: 'submenu';
+  label: string;
+  sections: DocMenuSection[];
+}
+type ContextMenuItem = ContextMenuItemBase | ContextMenuSeparator | ContextMenuSubmenu;
 
 /** A read-only context-menu row (the read times): looks like
  *  an item, but clicking it does nothing and keeps the menu open. */
