@@ -5565,8 +5565,9 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   // document with unsaved edits asks before discarding them.
   reloadFromDisk: 'Mod-r',
   // Print the active document through the OS print dialog. Cmd/Ctrl+P is
-  // already Insert Received Card, so this takes the Shift variant.
-  printDocument: 'Mod-Shift-p',
+  // Insert Received Card, so Print takes Mod-Alt-p, which moved Insert
+  // Received Card at End of Doc to Mod-Alt-Shift-p.
+  printDocument: 'Mod-Alt-p',
   saveWorkspace: '',
   reopenWorkspace: '',
   arrangeWindows: '',
@@ -5652,7 +5653,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   sendToStarred: '',
   sendToRecipient: '',
   insertReceivedAtCursor: 'Mod-p',
-  insertReceivedAtEnd: 'Mod-Alt-p',
+  insertReceivedAtEnd: 'Mod-Alt-Shift-p',
   previewReceived: '',
   selectCurrentHeading: 'Alt-a',
   deleteCurrentHeading: '',

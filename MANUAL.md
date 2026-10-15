@@ -1795,7 +1795,7 @@ it does nothing and tells you so. Card numbers are frozen into the saved copy as
 
 ### Printing
 
-**(Fork)** **Print…** (default **Mod-Shift-P**, rebindable; also File → Print… on
+**(Fork)** **Print…** (default **Mod-Alt-P**, rebindable; also File → Print… on
 macOS, the File group in the ribbon, and the command palette) prints the document
 you're working in through your computer's own print dialog — pick the printer or
 "Save as PDF", paper size, copies and page range there. The paper copy is the
@@ -1807,7 +1807,8 @@ a condensed read-aloud copy (just tags, cites and highlighted text); if read mod
 is hiding everything, nothing opens and you get a notice instead. In the
 multi-doc workspace it prints the focused pane's document. In a browser the
 browser's own print dialog opens, and its File → Print menu prints the same way.
-(Mod-P itself is taken by Insert Received Card.)
+(Mod-P itself is Insert Received Card, and Insert Received Card at End of doc
+moved to **Mod-Alt-Shift-P** to make room.)
 
 ---
 
@@ -1902,7 +1903,7 @@ row:
 - Inserted cards fold in the nav pane to your current outline depth
   instead of arriving fully expanded.
 - **Mod-P** inserts the most recently received card at the cursor, and
-  **Mod-Alt-P** appends it, without opening the pill (both rebindable).
+  **Mod-Alt-Shift-P** appends it, without opening the pill (both rebindable).
 - **Preview Received Card** opens the most recent one in the preview
   without inserting it — unbound by default; give it a key under
   Settings → Keyboard shortcuts. The preview's **Read mode** button shows
@@ -3716,7 +3717,7 @@ these to extend the selection.
 | `` ` `` / Alt-`` ` `` | Send to speech at cursor / at end |
 | Mod-`` ` `` | Send to dropzone |
 | *(unbound)* | Send to the starred recipient / group — bind it in Settings |
-| Mod-P / Mod-Alt-P | Insert most recently received card at cursor / at end of doc |
+| Mod-P / Mod-Alt-Shift-P | Insert most recently received card at cursor / at end of doc |
 | Mod-Shift-N | Add note to selection |
 | Mod-Shift-Q | Ask AI about selection |
 | Mod-Shift-X | Format cite from selection (AI) |
@@ -3731,7 +3732,7 @@ these to extend the selection.
 | Mod-S / Mod-Shift-S | Save / Save As |
 | Mod-Alt-S | Save Send Doc |
 | Mod-Alt-M | Save Marked Cards |
-| Mod-Shift-P | Print… |
+| Mod-Alt-P | Print… |
 | Mod-= / Mod-- | Zoom in / out |
 | Mod-Alt-= / Mod-Alt-- / Mod-Alt-0 | Interface scale up / down / reset (desktop) |
 

@@ -41,8 +41,9 @@ Desktop calls `host.printWindow()` → `host:print-window` →
 OS dialog (no custom dialog); `printBackground` keeps highlighting. The browser
 calls `window.print()`, and `installPrintListeners` builds / removes the same
 copy around `beforeprint` / `afterprint` so File → Print in a browser is not
-the live UI. Command `printDocument` is bound to `Mod-Shift-p` (`Mod-p` is
-Insert Received Card), listed in the ribbon File group, and in
+the live UI. Command `printDocument` is bound to `Mod-Alt-p` (`Mod-p` is
+Insert Received Card; `insertReceivedAtEnd` moved from `Mod-Alt-p` to
+`Mod-Alt-Shift-p`, so a user's own override of either is untouched), listed in the ribbon File group, and in
 `NATIVE_MENU_COMMANDS` plus a File → Print… item on macOS (Windows and Linux
 have no native menu bar). Checked in Chromium PDFs: single doc, dark theme,
 read mode (14 pages → 4), Reading view and three-pane (focused pane only);

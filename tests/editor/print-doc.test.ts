@@ -185,10 +185,11 @@ describe('browser File → Print', () => {
 });
 
 describe('keybinding', () => {
-  it('Print is Mod-Shift-p, and no other command shares it (Mod-p is Insert Received Card)', () => {
-    expect(DEFAULT_RIBBON_KEYS.printDocument).toBe('Mod-Shift-p');
+  it('Print is Mod-Alt-p, and no other command shares it (Mod-p is Insert Received Card)', () => {
+    expect(DEFAULT_RIBBON_KEYS.printDocument).toBe('Mod-Alt-p');
+    expect(DEFAULT_RIBBON_KEYS.insertReceivedAtEnd).toBe('Mod-Alt-Shift-p');
     const taken = Object.entries(DEFAULT_RIBBON_KEYS).filter(([, k]) =>
-      (Array.isArray(k) ? k : [k]).some((key) => key.toLowerCase() === 'mod-shift-p'),
+      (Array.isArray(k) ? k : [k]).some((key) => key.toLowerCase() === 'mod-alt-p'),
     );
     expect(taken.map(([id]) => id)).toEqual(['printDocument']);
   });
