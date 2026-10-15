@@ -50,7 +50,7 @@ import {
   buildDeleteStructureTr,
   installIncomingSpeechSliceHandler,
 } from './speech-doc-send.js';
-import { promptForChoice, promptForText, promptForRouteChoice, alertDialog, confirmDialog, installModalKeys, armDialogFocus, setModalKeyPassThrough } from './text-prompt.js';
+import { promptForChoice, promptForText, promptForRouteChoice, addRouteKeyHint, alertDialog, confirmDialog, installModalKeys, armDialogFocus, setModalKeyPassThrough } from './text-prompt.js';
 import { pushOverlay, popOverlay, isTopOverlay, isAnyOverlayOpen } from './overlay-stack.js';
 import { positionFloatingMenu } from './context-menu-position.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
@@ -59,7 +59,6 @@ import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
 import { filePathOf } from './file-drag.js';
 import { installDocHeader, type DocHeader } from './doc-header.js';
-import { fileMenuItems } from './file-path-menu.js';
 import { maybeDecryptForOpen, OpenCancelledError, UnsupportedEncryptionError } from './open-encrypted.js';
 import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
 import { buildCutInPlacePlugin, installCutInPlaceContext } from './cut-in-place.js';
@@ -128,7 +127,7 @@ import {
   isAutoScrolling,
   stopAutoScrollIfOtherView,
 } from './auto-scroll.js';
-import { printDocument, installPrintListeners } from './print-doc.js';
+import { printDocument, installPrintListeners, type PrintOptions } from './print-doc.js';
 import {
   captureViewportAnchor,
   restoreViewportAnchor,
@@ -1980,7 +1979,13 @@ const ribbonContext: RibbonContext = {
     // Desktop: the OS print dialog via the main process. Browser: the
     // browser's own. Either way it prints the focused pane's document as
     // it looks now (read mode included).
-    void printDocument(view, host ? { nativePrint: () => host.printWindow() } : {}).then((result) => {
+    const title = activeFile().filename || 'CardMirror';
+    const opts: PrintOptions = host
+      ? host.printHtml
+        ? { title, printHtml: (html) => host.printHtml!(html) }
+        : { nativePrint: () => host.printWindow() }
+      : {};
+    void printDocument(view, opts).then((result) => {
       if (result === 'empty') showToast('Nothing to print — the document is empty (or read mode is hiding all of it).');
     });
   },
@@ -4732,13 +4737,6 @@ function openRibbonContextMenu(x: number, y: number): void {
         { label: 'Clear Window Name', action: () => { void setWindowName(null); } },
       ]
     : [{ label: 'Name This Window…', action: () => { void renameWindowPrompt(); } }];
-  // The active document's file: copy its path, or show it in its folder
-  // (desktop; the web edition has no paths).
-  if (getElectronHost()) {
-    items.push(
-      ...fileMenuItems(filePathOf(activeFile().handle), (path) => void getElectronHost()?.showItemInFolder?.(path)),
-    );
-  }
 
   const menu = document.createElement('div');
   menu.className = 'pmd-nav-context-menu';
@@ -8738,7 +8736,6 @@ function ensureDocHeader(): void {
     onToggleSpeech: () => toggleMarkSingleDocAsSpeech(),
     getPath: () => filePathOf(activeFile().handle),
     getDragHost: () => getElectronHost(),
-    reveal: (path) => void getElectronHost()?.showItemInFolder?.(path),
   });
   container.hidden = false;
   docHeader.setNavShown(!document.body.classList.contains('pmd-nav-hidden'));
@@ -9946,6 +9943,7 @@ function ensureDiskBadge(): void {
     isSessionHost: () => collabCopresenceFor(activeDocIdentity().sessionUid)?.role === 'host',
     reveal: (handle) => void getElectronHost()?.showItemInFolder?.(handle),
     dragHost: () => getElectronHost(),
+    cloudRelativePath: (path) => getElectronHost()?.cloudRelativePath?.(path) ?? Promise.resolve(null),
     reloadFromDisk: reloadActiveFromDisk,
     keepMineAsCopy: () => saveActiveAsConflictedCopy(),
     overwrite: () => saveActiveForcingDisk(),
@@ -10886,6 +10884,7 @@ export function confirmCloseUnsaved(
         cleanup();
         resolve('save');
       });
+      addRouteKeyHint(saveBtn, '1');
       buttons.appendChild(saveBtn);
     }
 
@@ -10899,6 +10898,7 @@ export function confirmCloseUnsaved(
       cleanup();
       resolve('saveAs');
     });
+    addRouteKeyHint(saveAsBtn, opts?.pathMissing ? '1' : '2');
     buttons.appendChild(saveAsBtn);
 
     const discardBtn = document.createElement('button');
@@ -10910,6 +10910,7 @@ export function confirmCloseUnsaved(
       cleanup();
       resolve('discard');
     });
+    addRouteKeyHint(discardBtn, opts?.pathMissing ? '2' : '3');
     buttons.appendChild(discardBtn);
 
     dialog.appendChild(buttons);

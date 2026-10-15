@@ -46,38 +46,63 @@ function dropboxRoots(info: unknown): string[] {
   return out;
 }
 
-/** Classify an ABSOLUTE, symlink-resolved path. */
-export function classifyCloudPath(filePath: string, env: CloudEnv): CloudProvider | null {
+/** Which sync root holds an ABSOLUTE, symlink-resolved path: its provider and
+ *  the root folder itself (what the provider's own paths are relative to). */
+export function locateCloudRoot(
+  filePath: string,
+  env: CloudEnv,
+): { provider: CloudProvider; root: string } | null {
   const P = pathFor(env.platform);
   const home = env.home;
   for (const root of dropboxRoots(env.dropboxInfo)) {
-    if (isUnder(filePath, root, P)) return 'dropbox';
+    if (isUnder(filePath, root, P)) return { provider: 'dropbox', root };
   }
-  if (isUnder(filePath, P.join(home, 'Dropbox'), P)) return 'dropbox';
+  const homeDropbox = P.join(home, 'Dropbox');
+  if (isUnder(filePath, homeDropbox, P)) return { provider: 'dropbox', root: homeDropbox };
   if (env.platform === 'darwin') {
     // File Provider mounts: ~/Library/CloudStorage/<Provider>-<account>/…
     const cloudStorage = P.join(home, 'Library', 'CloudStorage');
     if (isUnder(filePath, cloudStorage, P)) {
       const mount = P.relative(cloudStorage, filePath).split(P.sep)[0] ?? '';
+      const root = P.join(cloudStorage, mount);
       const lower = mount.toLowerCase();
-      if (lower.startsWith('dropbox')) return 'dropbox';
-      if (lower.startsWith('onedrive')) return 'onedrive';
-      if (lower.startsWith('googledrive')) return 'gdrive';
-      return 'other';
+      if (lower.startsWith('dropbox')) return { provider: 'dropbox', root };
+      if (lower.startsWith('onedrive')) return { provider: 'onedrive', root };
+      if (lower.startsWith('googledrive')) return { provider: 'gdrive', root };
+      return { provider: 'other', root };
     }
-    if (isUnder(filePath, P.join(home, 'Library', 'Mobile Documents', 'com~apple~CloudDocs'), P)) return 'icloud';
+    const iCloud = P.join(home, 'Library', 'Mobile Documents', 'com~apple~CloudDocs');
+    if (isUnder(filePath, iCloud, P)) return { provider: 'icloud', root: iCloud };
   }
   for (const key of ['OneDrive', 'OneDriveCommercial', 'OneDriveConsumer']) {
     const root = env.env[key];
-    if (root && isUnder(filePath, root, P)) return 'onedrive';
+    if (root && isUnder(filePath, root, P)) return { provider: 'onedrive', root };
   }
   if (env.platform === 'win32') {
     // Google Drive for desktop mounts a drive letter whose root holds "My Drive".
-    if (/^[A-Za-z]:[\\/]+My Drive[\\/]/u.test(filePath)) return 'gdrive';
-    if (/^[A-Za-z]:[\\/]+Shared drives[\\/]/u.test(filePath)) return 'gdrive';
+    const m = /^([A-Za-z]:)[\\/]+(?:My Drive|Shared drives)[\\/]/u.exec(filePath);
+    if (m) return { provider: 'gdrive', root: `${m[1]}\\` };
   }
-  if (isUnder(filePath, P.join(home, 'Google Drive'), P)) return 'gdrive';
+  const homeGdrive = P.join(home, 'Google Drive');
+  if (isUnder(filePath, homeGdrive, P)) return { provider: 'gdrive', root: homeGdrive };
   return null;
+}
+
+/** Classify an ABSOLUTE, symlink-resolved path. */
+export function classifyCloudPath(filePath: string, env: CloudEnv): CloudProvider | null {
+  return locateCloudRoot(filePath, env)?.provider ?? null;
+}
+
+/** The path as the provider itself writes it: relative to the sync root, with
+ *  forward slashes and a leading one — `/Neg files/1NC.docx`, not
+ *  `/Users/me/Dropbox/Neg files/1NC.docx`. Null when the file isn't in a sync
+ *  root. */
+export function cloudRelativePath(filePath: string, env: CloudEnv): string | null {
+  const hit = locateCloudRoot(filePath, env);
+  if (!hit) return null;
+  const P = pathFor(env.platform);
+  const rel = P.relative(hit.root, filePath);
+  return '/' + rel.split(/[\\/]+/u).filter(Boolean).join('/');
 }
 
 async function readDropboxInfo(platform: NodeJS.Platform, home: string, env: Record<string, string | undefined>): Promise<unknown> {
@@ -116,4 +141,17 @@ export async function detectCloudProvider(filePath: string): Promise<CloudProvid
   }
   const env = await realEnv();
   return classifyCloudPath(pathFor(env.platform).resolve(real), env);
+}
+
+/** `cloudRelativePath` for a real file (symlinks resolved first, as for
+ *  `detectCloudProvider`). */
+export async function detectCloudRelativePath(filePath: string): Promise<string | null> {
+  let real = filePath;
+  try {
+    real = await fs.realpath(filePath);
+  } catch {
+    /* gone / unreadable — use the given path */
+  }
+  const env = await realEnv();
+  return cloudRelativePath(pathFor(env.platform).resolve(real), env);
 }

@@ -33,7 +33,7 @@ import { settings } from './settings.js';
 import type { CloudProvider } from './host/types.js';
 import type { AutoApplyOutcome } from './disk-auto-apply.js';
 import { installFileDragSource, type FileDragHost } from './file-drag.js';
-import { installFileContextMenu } from './file-path-menu.js';
+import { copyFilePath, installFileContextMenu } from './file-path-menu.js';
 
 export type DiskBadgeState = 'local' | 'synced' | 'changed' | 'kept-copy';
 export type ClaimResult = 'fresh' | 'journaled' | 'changed' | 'unknown';
@@ -251,6 +251,9 @@ export interface DiskBadgeDeps {
   /** The host that can start a native drag of the file (the desktop host);
    *  null / absent where files can't be handed to other apps. */
   dragHost?: () => FileDragHost | null;
+  /** The path relative to the file's sync root (desktop), for "Copy <provider>
+   *  file path". Absent on the web edition. */
+  cloudRelativePath?: (path: string) => Promise<string | null>;
   /** Replaces the doc from disk, discarding unsaved edits (no prompt). */
   reloadFromDisk: (handle: string) => Promise<void>;
   keepMineAsCopy: (handle: string) => Promise<void>;
@@ -664,6 +667,27 @@ export function createPaneDiskBadge(deps: DiskBadgeDeps, parent: HTMLElement): P
   const disposeMenu = installFileContextMenu(root, {
     getPath: () => deps.getActive().handle,
     reveal: (path) => deps.reveal(path),
+    // In a synced folder: also copy the path as the provider writes it (inside
+    // the sync root), e.g. "/Neg files/1NC.docx" rather than the whole
+    // "/Users/me/Dropbox/Neg files/1NC.docx".
+    extraItems: () => {
+      const { handle } = deps.getActive();
+      const info = handle ? byHandle.get(handle) : null;
+      if (!handle || !info?.provider || !deps.cloudRelativePath) return [];
+      const label = PROVIDER_LABEL[info.provider];
+      const name = info.provider === 'other' ? 'synced-folder file path' : `${label} file path`;
+      return [
+        {
+          label: info.provider === 'other' ? 'Copy synced-folder file path' : `Copy ${label} file path`,
+          action: () => {
+            void deps.cloudRelativePath!(handle).then((rel) => {
+              if (rel) void copyFilePath(rel, name);
+              else showToast(`Couldn’t work out the ${name} — the file may have moved.`);
+            });
+          },
+        },
+      ];
+    },
   });
 
   paneRefreshListeners.add(render);

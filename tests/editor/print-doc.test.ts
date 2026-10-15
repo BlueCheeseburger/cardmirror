@@ -140,6 +140,48 @@ describe('printDocument', () => {
     expect(document.getElementById('pmd-print-root')).toBeNull();
   });
 
+  it('desktop path: hands a self-contained light page to the host and never touches the live window', async () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.setAttribute('data-theme-doc', 'dark');
+    document.documentElement.classList.add('pmd-cite-underlined');
+    document.documentElement.style.setProperty('--pmd-body-font', '"Calibri"');
+    const { view } = fakeView(CARD);
+    let liveDuring: { theme: string | null; root: boolean; printing: boolean } | null = null;
+    const printHtml = vi.fn(async (html: string) => {
+      liveDuring = {
+        theme: document.documentElement.getAttribute('data-theme'),
+        root: document.getElementById('pmd-print-root') !== null,
+        printing: document.documentElement.classList.contains('pmd-printing'),
+      };
+      return html.length > 0;
+    });
+    const webPrint = vi.spyOn(window, 'print').mockImplementation(() => {});
+    expect(await printDocument(view, { printHtml, title: 'My <doc>' })).toBe('printed');
+    expect(webPrint).not.toHaveBeenCalled();
+    // The live window stayed dark and had no print copy while the dialog was up.
+    expect(liveDuring).toEqual({ theme: 'dark', root: false, printing: false });
+    const html = printHtml.mock.calls[0]![0];
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    // Light by construction: no theme attributes. Display settings carry over.
+    expect(doc.documentElement.hasAttribute('data-theme')).toBe(false);
+    expect(doc.documentElement.hasAttribute('data-theme-doc')).toBe(false);
+    expect(doc.documentElement.classList.contains('pmd-printing')).toBe(true);
+    expect(doc.documentElement.classList.contains('pmd-cite-underlined')).toBe(true);
+    expect(doc.documentElement.getAttribute('style')).toContain('--pmd-body-font');
+    expect(doc.title).toBe('My <doc>');
+    expect(doc.querySelector('#pmd-print-root .pmd-print-doc .pmd-card')?.textContent).toContain('Body words');
+    expect(doc.querySelector('[contenteditable], [id="live-editor"]')).toBeNull();
+    document.documentElement.classList.remove('pmd-cite-underlined');
+    document.documentElement.style.removeProperty('--pmd-body-font');
+  });
+
+  it('desktop path: nothing to print means no host call', async () => {
+    const { view } = fakeView('<p></p>');
+    const printHtml = vi.fn(async () => true);
+    expect(await printDocument(view, { printHtml })).toBe('empty');
+    expect(printHtml).not.toHaveBeenCalled();
+  });
+
   it('opens no dialog for an empty document', async () => {
     const { view } = fakeView('<p></p>');
     const webPrint = vi.spyOn(window, 'print').mockImplementation(() => {});

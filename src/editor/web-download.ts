@@ -22,9 +22,9 @@ import { promptForRouteChoice } from './text-prompt.js';
 
 const REPO_URL = 'https://github.com/BlueCheeseburger/cardmirror';
 // The LIST endpoint, newest first — NOT `/releases/latest`, which only
-// serves full releases and returns nothing while every CardMirror
-// release is marked pre-release (beta). Same reason the fallback page
-// is `/releases`, not `/releases/latest`.
+// serves full releases and returned nothing while every CardMirror
+// release was marked pre-release (through v1.15.0-bcb.5). It works either
+// way, so it stays. Same reason the fallback page is `/releases`.
 const LATEST_RELEASE_API =
   'https://api.github.com/repos/BlueCheeseburger/cardmirror/releases?per_page=1';
 const RELEASES_PAGE = `${REPO_URL}/releases`;

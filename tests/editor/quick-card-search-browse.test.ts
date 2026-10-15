@@ -72,15 +72,45 @@ afterEach(() => {
 });
 
 describe('palette prefix hint', () => {
+  beforeEach(() => localStorage.removeItem('pmd-qcs-prefix-hint-seen'));
+
   it('the empty state says the prefix letter goes before what you type', async () => {
     openPalette();
     await settle();
     const hint = document.querySelector('.pmd-qcs-empty-hint');
     expect(hint?.textContent).toContain('letter first');
-    // The legend itself is untouched, and the hint is gone once typing starts.
+    // The legend itself is untouched.
     expect(empty()).toContain('f files');
-    type('heg');
+  });
+
+  it('shows on every open until a typed search returns a result, then never again', async () => {
+    // A search with no results does not retire it.
+    openPalette();
     await settle();
+    type('zzzznomatch');
+    await settle();
+    expect(rows()).toEqual([]);
+    quickCardSearchUI.close();
+    openPalette();
+    await settle();
+    expect(document.querySelector('.pmd-qcs-empty-hint')).not.toBeNull();
+
+    // Typing only a prefix (no query) doesn't count either.
+    type('c ');
+    await settle();
+    quickCardSearchUI.close();
+    openPalette();
+    await settle();
+    expect(document.querySelector('.pmd-qcs-empty-hint')).not.toBeNull();
+
+    // A query with results does.
+    type('warming');
+    await settle();
+    expect(rows().length).toBeGreaterThan(0);
+    quickCardSearchUI.close();
+    openPalette();
+    await settle();
+    expect(document.querySelector('.pmd-qcs-empty')).not.toBeNull();
     expect(document.querySelector('.pmd-qcs-empty-hint')).toBeNull();
   });
 });

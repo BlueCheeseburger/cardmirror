@@ -473,6 +473,9 @@ interface ElectronAPI {
   ): Promise<{ claim: ClaimResult; provider: CloudProvider | null } | null>;
   openPathRelease(path: string): Promise<void>;
   cloudProvider(path: string): Promise<CloudProvider | null>;
+  /** The path relative to its sync root, with a leading slash (null = not in
+   *  a sync folder). Optional: older mains resolve null. */
+  cloudRelativePath?(path: string): Promise<string | null>;
   onDiskChanged(handler: (payload: { path: string; mtimeMs: number; size: number }) => void): () => void;
   saveConflictedCopy(handle: string, bytes: Uint8Array, userName: string | null): Promise<{ name: string; handle: string }>;
   /** "Show in context": if another window owns `path`, focus it and send
@@ -554,6 +557,10 @@ interface ElectronAPI {
   /** Open the OS print dialog for this window's current page. Resolves
    *  true when a job was sent, false when the user cancelled or it failed. */
   printWindow?(): Promise<boolean>;
+  /** Print a self-contained HTML page of the document from a hidden window
+   *  through the OS dialog (the live window isn't touched). Same result as
+   *  `printWindow`. Absent on an older preload. */
+  printHtml?(html: string): Promise<boolean>;
   /** Native file drag out of the window (status-bar mark). Sent from the
    *  renderer's dragstart; optional so an older preload is tolerated. */
   dragFileOut?(path: string, iconDataUrl: string): void;
@@ -1415,6 +1422,12 @@ export class ElectronHost implements Host {
     return typeof fn === 'function' ? await fn(path) : null;
   }
 
+  /** The path relative to the file's sync root (`/Neg files/1NC.docx`), or null. */
+  async cloudRelativePath(path: string): Promise<string | null> {
+    const fn = api().cloudRelativePath;
+    return typeof fn === 'function' ? await fn(path) : null;
+  }
+
   /** Main's stat-only poller saw this window's file change on disk. */
   onDiskChanged(handler: (payload: { path: string; mtimeMs: number; size: number }) => void): () => void {
     const fn = api().onDiskChanged;
@@ -1561,6 +1574,11 @@ export class ElectronHost implements Host {
   /** Open the OS print dialog for this window. */
   async printWindow(): Promise<boolean> {
     return (await api().printWindow?.()) ?? false;
+  }
+
+  /** Print a prepared HTML page from a hidden window. */
+  async printHtml(html: string): Promise<boolean> {
+    return (await api().printHtml?.(html)) ?? false;
   }
   /** Whether this shell can start a native file drag (preload surface
    *  present) — the status-bar mark hides itself otherwise. */
