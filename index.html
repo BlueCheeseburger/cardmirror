@@ -122,13 +122,6 @@
             <button id="font-size-picker-btn" class="ribbon-color-arrow" type="button" title="Font size"
                     aria-haspopup="true" aria-expanded="false"><span class="pmd-icon pmd-icon-chevron-down" aria-hidden="true"></span></button>
           </div>
-          <!-- 3rd column: increment/decrement font size of selection. -->
-          <button id="font-size-up-btn" class="ribbon-font-size-step" type="button"
-                  title="Increase font size" aria-label="Increase font size"
-                  ><span>A</span><span class="ribbon-font-size-step-arrow ribbon-font-size-step-up-arrow pmd-icon pmd-icon-chevron-up" aria-hidden="true"></span></button>
-          <button id="font-size-down-btn" class="ribbon-font-size-step" type="button"
-                  title="Decrease font size" aria-label="Decrease font size"
-                  ><span>A</span><span class="ribbon-font-size-step-arrow pmd-icon pmd-icon-chevron-down" aria-hidden="true"></span></button>
         </div>
         <!-- Document/card-level utility menus. "Doc" holds doc-wide
              operations (Verbatim's Doc menu — standardize highlighting
@@ -183,16 +176,14 @@
                   aria-pressed="false" title="Paste Text (F2) — paste the clipboard as unformatted text">T</button>
         </div>
         <div id="view-ops-panel" class="ribbon-doc-ops-panel ribbon-doc-ops-panel-2col" role="group" aria-label="View tools">
-          <!-- 2×2: read mode / auto-scroll on top, reading view / nav-pane
-               toggle below. Word-count selection summary lives on the
+          <!-- Read mode / auto-scroll on top, nav-pane toggle below. Word-count
+               selection summary lives on the
                status bar (next to the live read-aloud counter) since they
                answer the same family of question. -->
           <button id="read-mode-btn" class="ribbon-doc-ops-btn" type="button"
                   title="Read mode" aria-label="Read mode"><span class="pmd-icon pmd-icon-read-mode" aria-hidden="true"></span></button>
           <button id="auto-scroll-btn" class="ribbon-doc-ops-btn" type="button"
                   title="Auto-scroll (paced to reading speed)" aria-label="Auto-scroll"><span class="pmd-icon pmd-icon-auto-scroll" aria-hidden="true"></span></button>
-          <button id="reader-view-btn" class="ribbon-doc-ops-btn" type="button"
-                  title="Reading view" aria-label="Reading view"><span class="pmd-icon pmd-icon-book" aria-hidden="true"></span></button>
           <button id="nav-pane-toggle-btn" class="ribbon-doc-ops-btn" type="button"
                   aria-pressed="true" title="Show / hide the navigation pane"
                   aria-label="Toggle nav pane"><span class="pmd-icon pmd-icon-nav-toggle" aria-hidden="true"></span></button>

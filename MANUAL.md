@@ -235,7 +235,7 @@ fork's own additions; upstream CardMirror doesn't have them.
   its source, or an editable **linked copy** you refresh — from this document or
   another file.
 - **[Read mode that locks the keyboard](#8-reading-and-delivering-a-speech)**
-  — a non-destructive reading view at the podium that stray keystrokes
+  — a non-destructive way to read at the podium that stray keystrokes
   can't edit, with a reading-position marker for stopping mid-card.
 - **[Read-time word counts](#read-time-estimates)** — the status bar shows
   how long the visible (or selected) text takes to read, per reader, not
@@ -1481,41 +1481,10 @@ with everything that isn't read aloud already hidden, the scroll
 speed tracks your actual delivery pace almost exactly — a hands-free
 teleprompter for practicing a speech. Any manual scroll, wheel, touch,
 or click hands control straight back to you and stops it; running out
-of document does too. In **Reading view** (the book) there is nothing to scroll, so it turns the pages
-instead, giving each page as long as it takes to read aloud at your first reader's
-rate; flipping a page yourself stops it. Switching focus to another pane (in the
+of document does too. Escape, Page Up/Down, Home, End and the up/down arrows
+stop it as well. Switching focus to another pane (in the
 multi-doc workspace) also stops it — it never keeps scrolling somewhere
 you're not looking.
-
-### Reading view
-
-Click the **book** in the ribbon (or bind a key to *Toggle Reading
-View*) to flip the document into Word-style full-screen pages: one to
-three columns sized from the pane's width, flipped a whole screen at a
-time. It's built for reading a speech without scrolling — every flip
-lands on a clean page boundary, and tags and cites are kept with the
-first line of their card so nothing strands at a column bottom.
-
-Flipping: **←/→**, **PgUp/PgDn**, **Space / Shift-Space**, one
-mouse-wheel click (or one trackpad swipe), or the click zones at the
-left and right edges. **Home/End** jump to the first and last page,
-and the indicator at the bottom shows where you are. The navigation
-pane stays available — clicking an entry lands on the page containing
-it.
-
-Like read mode, reading view locks editing; dropping a
-[reading marker](#read-mode) is the only edit allowed (drag-and-drop
-is disabled entirely here). The two combine well: read mode strips the
-document down to what's read aloud, and reading view paginates
-whatever is showing — together they're a teleprompter. Reading view is
-per-document in the [multi-doc workspace](#7-the-multi-doc-workspace),
-so stack your speech docs in one slot, flip each into reading view as
-you finish prepping it, and full-screen the slot when you stand up.
-
-The maximum-text-width accessibility cap bounds the column width, and
-page flips animate by default — **Reduce animations in reading view**
-(Settings → Accessibility) or the global reduce-motion preference
-makes them instant.
 
 ### Read-time estimates
 
@@ -1586,8 +1555,7 @@ down the window, to the end of the document — with each reader's time for it: 
 · Amy: 5:20`. Only read-aloud text counts, same as every other readout,
 so trimming highlights lowers it. It follows the scroll, not the cursor
 (a speaker reads about a third of the way down the screen, and the caret is
-wherever you last clicked), and updates as you scroll. In Reading view it counts
-from the page in view. It's cheap on large files
+wherever you last clicked), and updates as you scroll. It's cheap on large files
 too: CardMirror keeps a running total per section of the document, so a
 new position only re-counts the card or paragraph it lands in.
 
@@ -3571,12 +3539,7 @@ use the Control key show as **⌃** and Command shortcuts as **⌘**.
 - **Maximum text width** — cap how wide the document text column gets,
   so reading doesn't require sweeping your eyes across the whole
   screen. Off by default; when on, choose whether the column sits
-  centered or pinned to the left or right edge. In
-  [reading view](#reading-view) it caps the column width instead.
-- **Reduce animations in reading view** — make
-  [reading view's](#reading-view) page flips instant instead of
-  animated. Off by default; the global reduce-motion preference also
-  flattens them.
+  centered or pinned to the left or right edge.
 - **Screen reader support** *(desktop)* — let screen readers and other
   assistive technology read CardMirror. **Off by default**: a current Chromium
   bug crashes the window (white screen, lost work) while building the
@@ -3864,7 +3827,7 @@ documented in the repository README and reference docs.
 - **Pilcrow** — the small ¶ that marks an original paragraph break in a
   condensed card.
 - **Shrink** — cycle a card's un-underlined text through smaller sizes.
-- **Read mode** — a non-destructive reading view that hides non-read-aloud
+- **Read mode** — a non-destructive way to read a doc that hides non-read-aloud
   content and locks editing.
 - **Read-aloud content** — Tags, Cites, Analytics, and highlighted text:
   what read mode keeps and read-time counts.

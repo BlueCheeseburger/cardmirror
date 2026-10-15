@@ -658,6 +658,11 @@ export interface Settings {
    *  the left, left of the file buttons). Off by default — undo/redo
    *  always work by keyboard; this is a mouse-first affordance. */
   showUndoRedoButtons: boolean;
+  /** Whether the ribbon shows the general word-processor formatting buttons
+   *  that aren't debate-specific: Table, Insert image, superscript, subscript,
+   *  strikethrough, and the card-numbering cluster. Off by default; the
+   *  commands behind them stay in the palette and on their shortcuts. */
+  showExtraFormattingButtons: boolean;
   /** Whether to check for updates automatically (desktop only).
    *  ON by default since 2026-07-27 (opt-OUT — was opt-in; the fleet
    *  wasn't converging and old builds dominated relay traffic). The
@@ -692,10 +697,6 @@ export interface Settings {
    *  reduced. Resolved into a `data-motion` attribute on the
    *  document root; CSS rules in `style.css` consume it. */
   reduceMotion: 'auto' | 'on' | 'off';
-  /** Skip the reading view's page-flip animation regardless of the
-   *  global reduceMotion resolution (mid-speech readers who want
-   *  instant flips without flattening every other animation). */
-  readerReduceMotion: boolean;
   /** Accessibility: remap the meaning-carrying hues (annotation
    *  accents, voice-mode dots, timer Aff/Neg, search matches, category
    *  chips) onto the Okabe-Ito colorblind-safe palette. Resolved into
@@ -1929,11 +1930,11 @@ const DEFAULTS: Settings = {
   iconSet: 'modern',
   showDocNameChip: false,
   showUndoRedoButtons: false,
+  showExtraFormattingButtons: false,
   checkForUpdatesOnLaunch: true,
   updateChecksPausedUntil: 0,
   commentsColumnWidth: 320,
   reduceMotion: 'auto',
-  readerReduceMotion: false,
   colorVisionFriendly: false,
   annotationShapes: false,
   distinguishShading: true,
@@ -3166,15 +3167,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['animations', 'disable animations'],
   },
   {
-    key: 'readerReduceMotion',
-    label: 'Reduce animations in reading view',
-    description:
-      'Page flips in the reading view snap instantly instead of sliding. Use this if the flip animation ever stutters while you are reading a speech; the global Reduce motion setting also disables it.',
-    kind: 'toggle',
-    category: 'accessibility',
-    aliases: ['reading view animation', 'page flip animation', 'reader animations'],
-  },
-  {
     key: 'disableCursorBlink',
     label: 'Steady text cursor (no blinking)',
     description:
@@ -3396,6 +3388,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['undo button', 'redo button', 'undo redo'],
   },
   {
+    key: 'showExtraFormattingButtons',
+    label: 'Show extra formatting buttons',
+    description:
+      'Off by default. When on, the ribbon also shows the general word-processor buttons that aren\u2019t specific to debate: Table, Insert image, superscript, subscript, strikethrough, and the card numbering buttons (number, substructure, restart, show/hide). Their commands and shortcuts work either way, and from the command palette.',
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Theme & chrome',
+    aliases: ['table button', 'image button', 'superscript', 'subscript', 'strikethrough button', 'numbering buttons', 'extra buttons', 'word processor buttons'],
+  },
+  {
     key: 'ribbonTooltipMode',
     label: 'Ribbon tooltips',
     description:
@@ -3571,10 +3573,11 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'showNumberingButtons',
     label: 'Show numbering buttons in the ribbon',
     description:
-      'Show the ribbon cluster for numbering (number, substructure, restart, and show/hide). On by default; turning it off hides only the buttons — your numbering and its display are untouched.',
+      'Show the ribbon cluster for numbering (number, substructure, restart, and show/hide). Needs “Show extra formatting buttons” (Appearance) to be on. Turning it off hides only the buttons — your numbering and its display are untouched.',
     kind: 'toggle',
     category: 'appearance',
     section: 'Card numbering',
+    dependsOn: 'showExtraFormattingButtons',
     aliases: ['numbering buttons', 'numbering ribbon', 'numbering cluster'],
   },
   {
@@ -4998,7 +5001,6 @@ function sanitize(s: Settings): Settings {
     navSearchContent: s.navSearchContent === true,
     navFollowCursor: s.navFollowCursor !== false,
     dragInteractions: s.dragInteractions !== false,
-    readerReduceMotion: s.readerReduceMotion === true,
     // Default-on: preserve `false` only when explicitly set so the
     // onboarding shows up for new installs and survives upgrades
     // from before this setting existed.
@@ -5070,6 +5072,7 @@ function sanitize(s: Settings): Settings {
     iconSet: s.iconSet === 'classic' ? 'classic' : 'modern',
     showDocNameChip: !!s.showDocNameChip,
     showUndoRedoButtons: !!s.showUndoRedoButtons,
+    showExtraFormattingButtons: s.showExtraFormattingButtons === true,
     checkForUpdatesOnLaunch: !!s.checkForUpdatesOnLaunch,
     updateChecksPausedUntil:
       Number.isFinite(Number(s.updateChecksPausedUntil)) && Number(s.updateChecksPausedUntil) > 0

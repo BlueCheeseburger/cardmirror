@@ -291,7 +291,6 @@ import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
 import { cardHighlightPlugin, cardHighlightAction, cardRangesForSelection } from './card-highlight-toggle.js';
 import { emojiUprightPlugin } from './emoji-upright-plugin.js';
-import { readerViewPlugin, applyReaderViewToTarget } from './reader-view.js';
 import { headingIdGuardPlugin } from './heading-id-guard.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
 import { customDashPlugin } from './custom-dash-plugin.js';
@@ -359,7 +358,6 @@ import {
   ribbonKeyStringFor,
   ribbonCommandForKey,
   setFontSize,
-  adjustFontSize,
   compileShrinkProtections,
   RIBBON_COMMAND_LABELS,
   RIBBON_COMMAND_IDS,
@@ -581,7 +579,6 @@ const settingsBtn = document.getElementById('settings-btn') as HTMLButtonElement
 const referenceBtn = document.getElementById('reference-btn') as HTMLButtonElement | null;
 const readModeBtn = document.getElementById('read-mode-btn') as HTMLButtonElement;
 const autoScrollBtn = document.getElementById('auto-scroll-btn') as HTMLButtonElement | null;
-const readerViewBtn = document.getElementById('reader-view-btn') as HTMLButtonElement | null;
 const navPaneToggleBtn = document.getElementById('nav-pane-toggle-btn') as HTMLButtonElement | null;
 const threePaneToggleBtn = document.getElementById('three-pane-toggle-btn') as HTMLButtonElement | null;
 const navPanePullTab = document.getElementById('nav-pane-pull-tab') as HTMLButtonElement | null;
@@ -1019,8 +1016,6 @@ const plainPasteToggleBtn = document.getElementById('plain-paste-toggle-btn') as
 const fontSizeInput = document.getElementById('font-size-input') as HTMLInputElement | null;
 const fontSizePickerBtn = document.getElementById('font-size-picker-btn') as HTMLButtonElement | null;
 const fontSizeControlEl = fontSizeInput?.parentElement as HTMLDivElement | null;
-const fontSizeUpBtn = document.getElementById('font-size-up-btn') as HTMLButtonElement | null;
-const fontSizeDownBtn = document.getElementById('font-size-down-btn') as HTMLButtonElement | null;
 
 // Mirror the paste-plugin's armed flag onto the Paste Text button: aria-pressed
 // (the lit state) plus a state-aware tooltip. The common path (clipboard read
@@ -1324,7 +1319,6 @@ export function enableMultiDocMode(opts: {
    *  confirmed delivered to wherever it's going. */
   onCloseFocusedSilently?: (uid: string) => Promise<void> | void;
   toggleReadMode?: () => void;
-  toggleReaderView?: () => void;
   toggleAutosave?: () => void;
   /** Zoom the focused pane's body by a percentage delta (per-pane zoom). */
   zoomFocusedBy?: (deltaPct: number) => void;
@@ -1421,7 +1415,6 @@ export function enableMultiDocMode(opts: {
   multiDocNewDocWithPicker = opts.onNewDocWithPicker ?? null;
   multiDocCloseFocusedSilently = opts.onCloseFocusedSilently ?? null;
   multiDocToggleReadMode = opts.toggleReadMode ?? null;
-  multiDocToggleReaderView = opts.toggleReaderView ?? null;
   multiDocToggleAutosave = opts.toggleAutosave ?? null;
   multiDocZoomBy = opts.zoomFocusedBy ?? null;
   multiDocZoomResetHook = opts.zoomFocusedReset ?? null;
@@ -1905,7 +1898,6 @@ const ribbonContext: RibbonContext = {
   openWordCountDialog: () => {
     if (view) openWordCount(view);
   },
-  toggleReaderView: () => toggleReaderViewCommand(),
   saveWorkspace: () => {
     if (!getElectronHost()) {
       showToast('Saving a workspace requires the desktop edition.');
@@ -3174,13 +3166,6 @@ wordCountText.addEventListener('click', () => {
 function applyNavPaneVisible(visible: boolean): void {
   document.body.classList.toggle('pmd-nav-hidden', !visible);
 }
-// The reading-view button took the nav toggle's permanent ribbon slot
-// (2026-08-31); Show/Hide Navigation Pane stays available as a
-// command (command bar, custom ribbon buttons, bindable hotkey).
-if (readerViewBtn) {
-  readerViewBtn.addEventListener('mousedown', (e) => e.preventDefault());
-  readerViewBtn.addEventListener('click', () => runRibbon('toggleReaderView'));
-}
 if (navPanePullTab) {
   // Pull-tab is only ever shown when the nav pane is hidden;
   // clicking it always re-shows.
@@ -4343,11 +4328,15 @@ function applyPillVisibility(): void {
     'pmd-undoredo-hidden',
     !settings.get('showUndoRedoButtons'),
   );
-  // Numbering cluster is on by default; hide it when the setting is off. The
-  // class carries `!important` so it wins over the shrink waterfall.
+  // The general word-processor buttons (Table, image, super/subscript,
+  // strikethrough, and the numbering cluster) are off by default. The class
+  // carries `!important` so it wins over the shrink waterfall.
+  const extraFormatting = settings.get('showExtraFormattingButtons');
+  document.documentElement.classList.toggle('pmd-extra-format-hidden', !extraFormatting);
+  // The numbering cluster also has its own switch; it only shows with both on.
   document.documentElement.classList.toggle(
     'pmd-numbering-hidden',
-    !settings.get('showNumberingButtons'),
+    !extraFormatting || !settings.get('showNumberingButtons'),
   );
   // The bottom scroll runway is gated on the WHOLE tray, not just the dropzone:
   // the send/receive pills (shown when pairing is enabled) occupy the same
@@ -4525,13 +4514,8 @@ function initRibbonResizer(): void {
     ['doc-name-chip'],           // (d) Active-doc filename pill (opt-in)
     ['format-menu-panel'],       // (d) Table / image / sub / sup / strike
     ['doc-ops-panel'],           // (e) Paragraph integrity
-    ['font-size-up-btn',         // (f) Font-size step buttons
-     'font-size-down-btn'],
     ['color-panel'],             // (g) Highlight / shading / font color
-                                 //     / font-size input + picker. Hiding
-                                 //     the whole color-panel also covers
-                                 //     the step buttons in (f), which is
-                                 //     fine — display:none is idempotent.
+                                 //     / font-size input + picker.
     ['open-btn', 'new-btn',      // (i) File ops: open, new, save,
      'export-btn', 'autosave-btn'], //     autosave-toggle.
     ['view-ops-panel'],          // (j) Read mode + nav-pane toggle.
@@ -4648,7 +4632,7 @@ function initRibbonResizer(): void {
   // ribbon-only observer never fires. Observing these specific
   // elements catches the show / hide → 0 ↔ N transition and
   // re-runs the cascade.
-  for (const id of ['timer-panel', 'doc-name-chip', 'custom-ribbon-panel', 'numbering-panel']) {
+  for (const id of ['timer-panel', 'doc-name-chip', 'custom-ribbon-panel', 'numbering-panel', 'format-menu-panel']) {
     const el = document.getElementById(id);
     if (el) observer.observe(el);
   }
@@ -4849,7 +4833,6 @@ if (timerToggleBtn) {
   button('reference-btn', 'openShortcutsReference');
   button('read-mode-btn', 'toggleReadMode');
   button('auto-scroll-btn', 'toggleAutoScroll');
-  button('reader-view-btn', 'toggleReaderView');
   button('nav-pane-toggle-btn', 'toggleNavPane');
   button('comments-toggle-btn', 'toggleCommentsVisible');
   button('add-comment-btn', 'addCommentToSelection');
@@ -4862,8 +4845,6 @@ if (timerToggleBtn) {
   button('shading-picker-btn', 'openShadingPicker', 'Background color');
   button('fontcolor-btn', 'applyFontColor');
   button('fontcolor-picker-btn', 'openFontColorPicker', 'Font color');
-  button('font-size-up-btn', 'adjustFontSizeUp');
-  button('font-size-down-btn', 'adjustFontSizeDown');
   button('font-size-picker-btn', 'openFontSizePicker', 'Font size');
   button('doc-menu-btn', 'openDocToolsMenu', 'Document utilities');
   button('card-menu-btn', 'openCardToolsMenu', 'Card utilities');
@@ -5473,19 +5454,6 @@ if (fontSizePickerBtn) {
   });
 }
 
-for (const [btn, delta] of [
-  [fontSizeUpBtn, 1],
-  [fontSizeDownBtn, -1],
-] as const) {
-  if (!btn) continue;
-  btn.addEventListener('mousedown', (e) => e.preventDefault());
-  btn.addEventListener('click', () => {
-    if (!view) return;
-    adjustFontSize(delta, effectivePtForNode)(view.state, view.dispatch.bind(view));
-    view.focus();
-  });
-}
-
 /** Update the status-bar cursor-color readout. It reports the ACTUAL
  *  stored colors on the run at the cursor, NOT the rendered colors.
  *  Two audiences: (a) the display overrides hide the stored colors, so
@@ -5717,7 +5685,7 @@ function effectiveFontSizeForDisplay(state: EditorState): FontSizeInfo {
 let lastWholeDocWords: ReadAloudCounts | null = null;
 
 /** Per-doc lay-speaking toggle for the single-doc status bar — session
- *  state, never persisted, mirroring `readerViewOn` below. Flipped by
+ *  state, never persisted. Flipped by
  *  clicking the readout itself (`word-count-text`); switches every
  *  reader shown from their flow rate (`wpm`/`tagWpm`) to their lay rate
  *  (`layWpm`), or "—" for a reader with no lay rate configured. */
@@ -5800,36 +5768,6 @@ watchScrollForRemaining(appEl, () => refreshWordCount({ selectionOnly: true }));
  * to have exactly one doc, so the `settings.readMode` setting
  * drives this one editor's read-mode flag.
  */
-/** Reading view is per-doc SESSION state (never a setting): module
- *  flag in single-doc; the multi-pane shell keeps a per-record flag
- *  and installs a focused-doc resolver for the ribbon button. */
-let readerViewOn = false;
-let multiDocToggleReaderView: (() => void) | null = null;
-let readerViewStateForActive: () => boolean = () => readerViewOn;
-
-export function setMultiDocToggleReaderView(fn: (() => void) | null): void {
-  multiDocToggleReaderView = fn;
-}
-
-export function setReaderViewStateResolver(resolver: () => boolean): void {
-  readerViewStateForActive = resolver;
-  refreshReaderViewBtn();
-}
-
-export function refreshReaderViewBtn(): void {
-  readerViewBtn?.classList.toggle('pmd-active', readerViewStateForActive());
-}
-
-function toggleReaderViewCommand(): void {
-  if (multiDocActive && multiDocToggleReaderView) {
-    multiDocToggleReaderView();
-  } else if (view) {
-    readerViewOn = !readerViewOn;
-    applyReaderViewToTarget(editorEl, view, readerViewOn);
-  }
-  refreshReaderViewBtn();
-}
-
 function applyReadMode(on: boolean): void {
   // Read mode collapses most of the document; capture what's at the top of
   // the viewport so we can pin it back afterward (§ scroll-anchor) — UNLESS
@@ -6419,9 +6357,6 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // fit-synthesized null ids and replace-split duplicate ids on the
     // offending LOCAL transaction (see heading-id-guard.ts).
     headingIdGuardPlugin,
-    // Reading view: per-doc paginated columns; carries the marker-only
-    // transaction lock + relayout hook (see reader-view.ts).
-    readerViewPlugin,
     highlightFrequencyPlugin,
     // Remembers what Unhighlight Card removed so Rehighlight Card can put it
     // back while the unhighlight is still undoable (card-highlight-toggle.ts).

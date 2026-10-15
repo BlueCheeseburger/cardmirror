@@ -72,11 +72,11 @@ describe('buildPrintContent', () => {
   });
 
   it('carries read mode so hidden text stays hidden, and nothing else from the host', () => {
-    const { view } = fakeView(CARD, 'pmd-pane-editor pmd-read-mode pmd-reader-overlay-host');
+    const { view } = fakeView(CARD, 'pmd-pane-editor pmd-read-mode some-layout-class');
     const wrap = buildPrintContent(view);
     expect(wrap.classList.contains('pmd-read-mode')).toBe(true);
     expect(wrap.classList.contains('pmd-pane-editor')).toBe(true);
-    expect(wrap.classList.contains('pmd-reader-overlay-host')).toBe(false);
+    expect(wrap.classList.contains('some-layout-class')).toBe(false);
   });
 });
 
