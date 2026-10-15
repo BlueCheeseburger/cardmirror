@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.5 — 2026-10-15
 
 ### Added
 - **Print a document.** A new **Print…** command (Mod-Alt-P; File → Print… on

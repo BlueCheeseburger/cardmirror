@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.5 — 2026-10-15
 
 ### Added: printing (`print-doc.ts`, `ribbon-commands.ts`, `index.ts`, `style.css`, `apps/desktop/src/main.ts`, `preload.ts`, `electron-host.ts`)
 
