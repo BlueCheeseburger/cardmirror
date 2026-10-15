@@ -73,6 +73,8 @@ function collectOutlineWithWindows(doc: PMNode): HeadingEntry[] {
   return [...base, ...projected].sort((a, b) => a.pos - b.pos);
 }
 import { preciseScrollIntoView, scrollToHeadingId } from './precise-scroll.js';
+import { scrollAnchorPos } from './reading-line.js';
+import { isAutoScrolling } from './auto-scroll.js';
 import {
   collectHeadings,
   computeHeadingRange,
@@ -201,6 +203,9 @@ export function installNavResizeHandle(host: HTMLElement): HTMLElement {
 
   return handle;
 }
+
+/** Keys that scroll the document under the reader (arm the scroll-following highlight). */
+const SPY_SCROLL_KEYS = new Set(['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown', ' ']);
 
 export class NavigationPanel {
   private root: HTMLElement;
@@ -658,6 +663,7 @@ export class NavigationPanel {
     if (this.unregisterSurface) this.unregisterSurface();
     if (this.unsubscribeDrag) this.unsubscribeDrag();
     if (this.readOnly) return;
+    this.installScrollSpy();
     this.unregisterSurface = dragController.registerSurface(this.dragSurfaceImpl);
     this.unsubscribeDrag = dragController.subscribe((event) => {
       if (event === 'begin') {
@@ -705,6 +711,7 @@ export class NavigationPanel {
     this.cancelLongPress();
     this.unsubscribeSettings?.();
     this.unsubscribeSettings = null;
+    this.removeScrollSpy();
     this.unsubscribeDrag?.();
     this.unsubscribeDrag = null;
     this.unregisterSurface?.();
@@ -1748,6 +1755,86 @@ export class NavigationPanel {
     this.applySelectionClasses();
   }
 
+  // ---- Scroll-following highlight ---------------------------------------
+  //
+  // The outline lights the heading you are IN. Moving the caret does that
+  // (`setCaretHeading`), but scrolling does not move the caret: read down a
+  // doc with the wheel and the outline kept pointing at the heading the caret
+  // was last in, however far away. So while the reader scrolls, the highlight
+  // follows the heading at the reading line (a third of the way down the
+  // window, see reading-line.ts).
+  //
+  // The caret still wins whenever it moves, and a jump from the outline keeps
+  // its row lit: both disarm the follower until the reader's next scroll
+  // INPUT (wheel, touch, a scroll key, a scrollbar drag) or paced auto-scroll.
+  // Gating on input rather than on every scroll event is what keeps the
+  // scroll that typing or a jump itself causes from yanking the highlight.
+  // An explicit multi-selection (Ctrl/Shift-click) is never touched.
+
+  /** Whether scroll events may move the highlight (see above). */
+  private spyArmed = true;
+  private spyFrame = 0;
+  private spyCleanup: (() => void) | null = null;
+
+  private installScrollSpy(): void {
+    this.removeScrollSpy();
+    const arm = (): void => {
+      this.spyArmed = true;
+    };
+    const onScroll = (e: Event): void => {
+      const view = this.view;
+      if (!view || this.destroyed) return;
+      // `scroll` doesn't bubble: this capture listener sees every scroller, so
+      // keep only the one that holds this panel's editor.
+      const target = e.target;
+      if (!(target instanceof Element) || !target.contains(view.dom)) return;
+      if (!this.spyArmed && !isAutoScrolling()) return;
+      if (this.spyFrame !== 0) return;
+      this.spyFrame = requestAnimationFrame(() => {
+        this.spyFrame = 0;
+        this.followReadingLine();
+      });
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (SPY_SCROLL_KEYS.has(e.key)) arm();
+    };
+    const onPointerDown = (e: PointerEvent): void => {
+      // A press ON the scroller itself (not on text inside it) is the scrollbar.
+      const view = this.view;
+      if (view && e.target instanceof Element && e.target.contains(view.dom)) arm();
+    };
+    const opts = { capture: true, passive: true } as const;
+    document.addEventListener('scroll', onScroll, opts);
+    document.addEventListener('wheel', arm, opts);
+    document.addEventListener('touchmove', arm, opts);
+    document.addEventListener('keydown', onKey, opts);
+    document.addEventListener('pointerdown', onPointerDown, opts);
+    this.spyCleanup = () => {
+      document.removeEventListener('scroll', onScroll, opts);
+      document.removeEventListener('wheel', arm, opts);
+      document.removeEventListener('touchmove', arm, opts);
+      document.removeEventListener('keydown', onKey, opts);
+      document.removeEventListener('pointerdown', onPointerDown, opts);
+      if (this.spyFrame !== 0) cancelAnimationFrame(this.spyFrame);
+      this.spyFrame = 0;
+    };
+  }
+
+  private removeScrollSpy(): void {
+    this.spyCleanup?.();
+    this.spyCleanup = null;
+  }
+
+  /** Light the heading at the reading line. Leaves alone anything the reader
+   *  chose on purpose: a multi-selection, or a live view's window rows. */
+  private followReadingLine(): void {
+    const view = this.view;
+    if (!view || this.destroyed || this.selectedIds.size > 1 || this.selectedWindowPos !== null) return;
+    const pos = scrollAnchorPos(view);
+    if (pos === null) return;
+    this.setCaretHeading(pos, null, { fromScroll: true });
+  }
+
   /**
    * Caret-tracking entry point. Called from the editor's
    * `dispatchTransaction` whenever the caret position changes. Finds
@@ -1787,8 +1874,13 @@ export class NavigationPanel {
   setCaretHeading(
     pos: number,
     selfRefPos: number | null = null,
-    opts?: { preserveMultiSelect?: boolean },
+    opts?: { preserveMultiSelect?: boolean; fromScroll?: boolean },
   ): void {
+    // The caret (or a positional resync) now owns the highlight: stop following
+    // the scroll position until the reader scrolls again, or the scroll-into-view
+    // that typing / a jump causes would flip the highlight to whatever heading
+    // sits at the reading line instead of the one the caret is in.
+    if (opts?.fromScroll !== true && opts?.preserveMultiSelect !== true) this.spyArmed = false;
     // A node-selected live view carries the caret onto ITS window row(s) rather
     // than the heading above it. The projected rows share the `self_ref`'s
     // position and have `id: null`, so track the window by position and light
@@ -3106,6 +3198,10 @@ export class NavigationPanel {
    */
   private jumpTo(entry: HeadingEntry, opts?: { focus?: boolean }): void {
     if (!this.view) return;
+    // The jump scrolls the doc, but the row clicked should stay lit — not
+    // whichever heading ends up at the reading line (a short section's jump
+    // lands the NEXT heading there).
+    this.spyArmed = false;
     const focus = opts?.focus !== false;
 
     // A windowed (projected) row is backed by the `self_ref` atom at entry.pos —
