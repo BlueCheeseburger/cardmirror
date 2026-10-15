@@ -68,6 +68,9 @@ export interface SaveAsResult {
   /** Keep ONLY the cards that contain a reading marker, flat (no headings, no
    *  analytics). Mutually exclusive with the include-* / readMode options. */
   markedCardsOnly: boolean;
+  /** Keep ONLY what's starred in the outline (starred cards whole, and
+   *  everything under a starred hat / block). Optional: absent means off. */
+  starredOnly?: boolean;
   /** Card numbers: `keep` the live skeleton (As-Is, or Custom with neither
    *  box ticked), `freeze` them as heading text, or `remove` them. Send Doc
    *  and Marked Doc read the `*DocNumbering` settings. */
@@ -94,6 +97,8 @@ export interface OpenSaveAsOptions {
    *  "Marked Doc" so you know what that mode would save. Omit where there is
    *  no live document (the recovery flow). */
   markedCardCount?: number;
+  /** How many headings are starred — shown beside "Starred Doc". */
+  starredCount?: number;
 }
 
 export function openSaveAs(opts: OpenSaveAsOptions): Promise<SaveAsResult | null> {
@@ -131,7 +136,7 @@ const AS_IS_OPTIONS: SaveContentOptions = {
   numbering: 'keep',
 };
 
-type SaveMode = 'asIs' | 'sendDoc' | 'readDoc' | 'markedDoc' | 'custom';
+type SaveMode = 'asIs' | 'sendDoc' | 'readDoc' | 'markedDoc' | 'starredDoc' | 'custom';
 
 interface ModeDef {
   id: SaveMode;
@@ -207,6 +212,22 @@ const MODE_DEFS: ModeDef[] = [
     numberingSetting: 'markedDocNumbering',
   },
   {
+    id: 'starredDoc',
+    label: 'Starred Doc',
+    description: 'Saves only the headings you starred in the outline, and what is under them.',
+    options: {
+      includeComments: false,
+      includeAnalytics: true,
+      includeUndertags: true,
+      readMode: false,
+      includeNotes: false,
+      includeAiThreads: false,
+      markedCardsOnly: false,
+      starredOnly: true,
+      numbering: 'keep',
+    },
+  },
+  {
     id: 'custom',
     label: 'Custom Save',
     description: 'Choose exactly what to include.',
@@ -268,7 +289,7 @@ class SaveAsModal {
         this.cancel();
         return true;
       }
-      // 1–5 pick a save mode (the badges on the rows). A bare digit is left
+      // 1–6 pick a save mode (the badges on the rows). A bare digit is left
       // alone while typing in the Name field (it opens focused there, so a
       // digit is a digit); Alt+digit works from anywhere, including the Name
       // field. `code`, not `key`: Alt+digit types a symbol on macOS.
@@ -428,7 +449,7 @@ class SaveAsModal {
     wrap.appendChild(heading);
 
     const groupName = `pmd-save-as-mode-${Math.random().toString(36).slice(2, 8)}`;
-    this.modeRadios = { asIs: null!, sendDoc: null!, readDoc: null!, markedDoc: null!, custom: null! };
+    this.modeRadios = { asIs: null!, sendDoc: null!, readDoc: null!, markedDoc: null!, starredDoc: null!, custom: null! };
     MODE_DEFS.forEach((def, index) => {
       const row = buildRadioRow(groupName, def.id === this.currentMode, def.label, def.description);
       row.input.value = def.id;
@@ -440,11 +461,20 @@ class SaveAsModal {
         'title',
         `Press ${index + 1} to choose ${def.label} (Alt+${index + 1} while typing the name)`,
       );
-      if (def.id === 'markedDoc' && this.opts.markedCardCount !== undefined) {
-        const n = this.opts.markedCardCount;
+      const countFor =
+        def.id === 'markedDoc'
+          ? this.opts.markedCardCount
+          : def.id === 'starredDoc'
+            ? this.opts.starredCount
+            : undefined;
+      if (countFor !== undefined) {
+        const n = countFor;
         const count = document.createElement('span');
         count.className = 'pmd-save-as-marked-count';
-        count.textContent = n === 0 ? 'no cards marked' : `${n} ${n === 1 ? 'card' : 'cards'} marked`;
+        count.textContent =
+          def.id === 'starredDoc'
+            ? n === 0 ? 'nothing starred' : `${n} starred`
+            : n === 0 ? 'no cards marked' : `${n} ${n === 1 ? 'card' : 'cards'} marked`;
         if (n === 0) count.classList.add('pmd-save-as-marked-count-none');
         // On the title's own line, to its right (the label span stays plain text).
         const text = row.el.querySelector('.pmd-save-as-radio-row-text')!;

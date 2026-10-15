@@ -283,7 +283,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
   },
   {
     title: 'Reading',
-    commands: ['toggleReadingMarker'],
+    commands: ['toggleReadingMarker', 'markCards'],
   },
   {
     title: 'Learn',

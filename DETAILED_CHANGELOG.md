@@ -12,6 +12,28 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: Mark Card, marked/starred outline, Card submenu, Starred Doc (`reading-marker.ts`, `card-menu-sections.ts`, `nav-panel.ts`, `transform-for-export.ts`, `save-as-ui.ts`, `schema/nodes.ts`)
+
+- `markerLabel(now, timer)` builds the marker text: `Marked at m:ss` (time into the speech) while the
+  speech timer is running — countdown: `speechTotalMs − visibleRemaining`, stopwatch: visible value —
+  else `Marked h:mm`. Used by the cursor marker and `buildMarkCardsTransaction`.
+- New ribbon command `markCards` (`markCardsCommand`: `buildMarkCardsTransaction` over
+  `cardRangesForSelection`; default `Mod-Alt-D`; group "Reading"). Passes read mode via
+  `READING_MARKER_META`.
+- `card-menu-sections.ts` defines the Card menu once (`buildCardMenuSections(host)`); the toolbar dropdown
+  (`index.ts`) and the outline's right-click "Card ▸" submenu (`nav-panel.ts`, `buildSubmenuRow`) both
+  build from it. The outline runs a command over the heading ranges via `runCardCommand` (scratch state per
+  range, back to front, one transaction; Mark / (Re)highlight use their range helpers; Create Reference
+  selects the first range and runs live). The outline's own Shrink / Unhighlight / Mark rows and the
+  "Show heading level N" rows were removed.
+- `computeMarkInfo(doc)`: one pass over the flat doc → marked card positions + "N marked" roll-ups for the
+  open pocket/hat/block; the outline renders a flag (`.pmd-nav-mark-flag`, title = marker text) and
+  `.pmd-nav-mark-count`.
+- Heading nodes get a `starred` attr (default false). The outline shows a hover star on every non-pocket
+  heading (`toggleStar`, `setNodeAttribute`, allowed in read mode) and tints starred rows. Save As gets a
+  fifth mode `starredDoc` (`starredOnly`, `extractStarred`, `countStarred` in `transform-for-export.ts`),
+  numbering frozen like Marked Doc; Custom Save moves to key 6. Stars survive `.cmir`, not `.docx`.
+
 ### Added: number keys and marked count in Save As and the New-document dialog (`save-as-ui.ts`, `index.ts`, `style.css`)
 
 `confirmNewDocOverwrite` (the Mod-N "Save your current document…?" overlay) gets

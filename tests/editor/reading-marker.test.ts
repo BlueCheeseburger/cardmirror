@@ -9,6 +9,9 @@ import {
   buildToggleReadingMarkerTransaction,
   buildMarkCardsTransaction,
   cardMarkAction,
+  markerLabel,
+  markCardsCommand,
+  computeMarkInfo,
   READING_MARKER_COLOR,
   READING_MARKER_META,
   READ_MODE_DRAG_META,
@@ -237,5 +240,49 @@ describe('marking whole cards (outline right-click)', () => {
     expect(next.child(0).child(1).type.name).toBe('card_body');
     expect(cardMarkAction(state, [])).toBeNull();
     expect(buildMarkCardsTransaction(state, [], NOW)).toBeNull();
+  });
+});
+
+describe('marker text: speech-timer time, else clock', () => {
+  const base = {
+    mode: 'speech', running: true, runningSince: NOW.getTime() - 135_000,
+    speechBaseRemainingMs: 6 * 60_000, speechTotalMs: 6 * 60_000,
+    stopwatch: false, speechStopwatchBaseMs: 0,
+  } as any;
+  it('says how far into the speech when the speech timer is running', () => {
+    expect(markerLabel(NOW, base)).toBe('Marked at 2:15');
+  });
+  it('counts up for a stopwatch speech', () => {
+    expect(markerLabel(NOW, { ...base, stopwatch: true, speechBaseRemainingMs: 0, speechStopwatchBaseMs: 30_000 })).toBe('Marked at 2:45');
+  });
+  it('falls back to the clock when the timer is not running or is in prep', () => {
+    expect(markerLabel(NOW, { ...base, running: false })).toBe('Marked 7:32');
+    expect(markerLabel(NOW, { ...base, mode: 'affPrep' })).toBe('Marked 7:32');
+  });
+});
+
+describe('Mark Card command and outline info', () => {
+  it('marks the card at the cursor, then unmarks it', () => {
+    const doc = makeDoc(card(tag('T'), cardBody('hello')));
+    const st = cursorAt(doc, 'hello', 2);
+    let next: EditorState | null = null;
+    expect(markCardsCommand(st, (tr) => { next = st.apply(tr); })).toBe(true);
+    expect(markerText(next!.doc)?.text).toMatch(/^Marked /);
+    let again: EditorState | null = null;
+    markCardsCommand(next!, (tr) => { again = next!.apply(tr); });
+    expect(markerText(again!.doc)).toBeNull();
+  });
+  it('lists marked cards and rolls them up under the headings above', () => {
+    const doc = makeDoc(
+      schema.nodes['block']!.create({ id: newHeadingId() }, schema.text('B')),
+      card(tag('A'), cardBody('a')),
+      card(tag('B'), cardBody('b')),
+    );
+    const st = cursorAt(doc, 'b', 0);
+    let next: EditorState | null = null;
+    markCardsCommand(st, (tr) => { next = st.apply(tr); });
+    const info = computeMarkInfo(next!.doc);
+    expect([...info.cards.values()].length).toBe(1);
+    expect(info.rollups.get(0)).toBe(1);
   });
 });

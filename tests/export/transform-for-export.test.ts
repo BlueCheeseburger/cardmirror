@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { schema, newHeadingId } from '../../src/schema/index.js';
 import { EditorState, TextSelection } from 'prosemirror-state';
-import { transformForExport, countMarkedCards, bakesUnreadRedOnSave } from '../../src/export/transform-for-export.js';
+import { transformForExport, countMarkedCards, countStarred, bakesUnreadRedOnSave } from '../../src/export/transform-for-export.js';
 import { buildToggleReadingMarkerTransaction } from '../../src/editor/reading-marker.js';
 
 // ---- Doc builders ----------------------------------------------
@@ -431,5 +431,36 @@ describe('the unread red is never baked into a working file', () => {
     const clean = makeDoc(card(tag('T'), cardBody(txt('before. '), marker('Marked 7:32'), txt(' after one.'))));
     const cleanState = EditorState.create({ doc: clean, selection: TextSelection.create(clean, markerPos) });
     expect(cleanState.apply(buildToggleReadingMarkerTransaction(cleanState)!).doc.textContent).toBe('Tbefore.  after one.');
+  });
+});
+
+describe('starredOnly (Save As "Starred Doc")', () => {
+  const head = (type: string, text: string, starred = false) =>
+    schema.nodes[type]!.create({ id: newHeadingId(), starred }, schema.text(text));
+  const card1 = (t: string, starred = false) =>
+    schema.nodes['card']!.createChecked(null, [head('tag', t, starred), schema.nodes['card_body']!.create(null, schema.text('body ' + t))]);
+  const opts = { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false, starredOnly: true };
+  const tags = (d: any) => {
+    const out: string[] = [];
+    d.descendants((n: any) => { if (n.type.name === 'tag') out.push(n.textContent); return true; });
+    return out;
+  };
+
+  it('keeps starred cards whole and drops the rest', () => {
+    const doc = schema.nodes['doc']!.createChecked(null, [card1('a'), card1('b', true), card1('c')]);
+    expect(tags(transformForExport(doc, opts))).toEqual(['b']);
+    expect(countStarred(doc)).toBe(1);
+  });
+
+  it('keeps everything under a starred block, down to the next block', () => {
+    const doc = schema.nodes['doc']!.createChecked(null, [
+      head('block', 'B1', true), card1('a'), card1('b'), head('block', 'B2'), card1('c'),
+    ]);
+    expect(tags(transformForExport(doc, opts))).toEqual(['a', 'b']);
+  });
+
+  it('does not repeat a card that is starred inside a starred block', () => {
+    const doc = schema.nodes['doc']!.createChecked(null, [head('block', 'B1', true), card1('a', true), card1('b')]);
+    expect(tags(transformForExport(doc, opts))).toEqual(['a', 'b']);
   });
 });
