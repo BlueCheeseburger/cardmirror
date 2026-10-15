@@ -298,6 +298,19 @@ Why this is safe for the updaters (checked 2026-10-15):
 - `src/editor/web-download.ts` deliberately hits the `/releases` *list*
   endpoint, newest first, so it works whether or not releases are flagged.
 
+## Release notes start with a "which file do I download?" block
+
+The user asked (2026-10-15) that every release's notes begin with which file new
+Mac, Windows and Linux users should download. `release.yml`'s "Extract release
+notes" step now prepends it to the CHANGELOG section it extracts: the `.dmg` for
+Mac, the `-Setup-….exe` for Windows, the `.AppImage` (and the Arch `.pacman`) for
+Linux, as links built from the tag (the names electron-builder produces; if those
+ever change, change them there too). It sits between `<!-- download-guide:start
+-->` / `<!-- download-guide:end -->` markers so the in-app What's new popup can
+strip it (`stripDownloadGuide` in `whats-new.ts`) — people updating already have
+the app. Don't paste a block like it into `CHANGELOG.md` by hand; it's generated.
+Releases published before `v1.15.0-bcb.6` don't have it.
+
 ## When trimming release assets, the .zip + .yml files are NOT optional
 
 If a release's asset list gets trimmed down (e.g. "just mac and

@@ -129,6 +129,23 @@ jobs:
             echo "Release notes not found in CHANGELOG for $VERSION — using fallback body." >&2
             echo "_(Release notes not yet pasted from CHANGELOG.md — maintainer should edit.)_" > release-notes.md
           fi
+          # Put "which file do I download?" at the very top, for people installing
+          # CardMirror for the first time. The asset names are fixed by
+          # electron-builder from the version, so they can be written out here.
+          # The block sits between markers so the in-app "What's new" popup
+          # (whats-new.ts) can drop it — people updating already have the app.
+          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          {
+            printf '%s\n' '<!-- download-guide:start -->'
+            printf '%s\n' '**New to CardMirror? Download one file for your computer:**' ''
+            printf '%s\n' "- **Mac** (Apple Silicon and Intel): [CardMirror-${VERSION}-universal.dmg](${BASE}/CardMirror-${VERSION}-universal.dmg)"
+            printf '%s\n' "- **Windows**: [CardMirror-Setup-${VERSION}.exe](${BASE}/CardMirror-Setup-${VERSION}.exe)"
+            printf '%s\n' "- **Linux**: [cardmirror-${VERSION}.AppImage](${BASE}/cardmirror-${VERSION}.AppImage) (any distro: make it executable, then run it), or on Arch [cardmirror-${VERSION}.pacman](${BASE}/cardmirror-${VERSION}.pacman)" ''
+            printf '%s\n' 'Already have CardMirror? It updates itself, so there is nothing to download. The other files below (.zip, .yml, .blockmap) are what the automatic updater reads.' ''
+            printf '%s\n' '---' '<!-- download-guide:end -->' ''
+            cat release-notes.md
+          } > release-notes.full.md
+          mv release-notes.full.md release-notes.md
           echo "Wrote $(wc -l < release-notes.md) lines of notes."
 
       - name: Ensure draft release exists

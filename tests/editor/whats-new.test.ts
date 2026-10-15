@@ -9,6 +9,7 @@ import {
   decideWhatsNew,
   releaseApiUrl,
   fetchReleaseNotes,
+  stripDownloadGuide,
   renderReleaseNotes,
   maybeShowWhatsNew,
   showWhatsNewDialog,
@@ -32,6 +33,21 @@ describe('decideWhatsNew', () => {
   });
   it('shows the notes to a returning install that has no marker yet', () => {
     expect(decideWhatsNew({ stored: null, current: '1.2.0', returningInstall: true })).toBe('show');
+  });
+});
+
+describe('stripDownloadGuide', () => {
+  const GUIDE =
+    '<!-- download-guide:start -->\n**New to CardMirror?**\n\n- **Mac**: [a.dmg](x)\n\n---\n<!-- download-guide:end -->\n\n';
+  it('drops the new-user download block from the top of the notes', () => {
+    expect(stripDownloadGuide(`${GUIDE}### Added\n\n- A thing\n`)).toBe('### Added\n\n- A thing');
+  });
+  it('leaves notes without the block alone', () => {
+    expect(stripDownloadGuide('### Added\n\n- A thing')).toBe('### Added\n\n- A thing');
+  });
+  it('the popup shows the notes without it', async () => {
+    const ok = (body: string) => (async () => ({ ok: true, json: async () => ({ body }) }) as Response) as typeof fetch;
+    expect(await fetchReleaseNotes('1.0.0', ok(`${GUIDE}### Fixed\n\n- A fix`))).toBe('### Fixed\n\n- A fix');
   });
 });
 

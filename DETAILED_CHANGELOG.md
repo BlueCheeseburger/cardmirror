@@ -38,6 +38,17 @@ IPC (`cloudRelativePath` on the preload / `ElectronHost`, optional so older main
 resolve null). Tests: `tests/desktop/cloud-roots.test.ts`,
 `tests/editor/disk-conflict-pane-badge.test.ts`.
 
+### Added: download guide at the top of release notes (`release.yml`, `whats-new.ts`, `CLAUDE.md`)
+
+After extracting the CHANGELOG section, the "Extract release notes" step wraps a
+generated "New to CardMirror? Download one file…" list (Mac `-universal.dmg`,
+Windows `-Setup-….exe`, Linux `.AppImage` + Arch `.pacman`, linked at
+`releases/download/<tag>/…`) in `<!-- download-guide:start/end -->` and
+prepends it, so it is the first thing on the release page. `whats-new.ts`'s
+`stripDownloadGuide` removes it before the update popup shows the notes.
+Verified by running the step's script against a stand-in CHANGELOG; the filenames
+match the `v1.15.0-bcb.5` assets. Takes effect with the next release.
+
 ### Fixed: print from a hidden window; backgrounds always print (`print-doc.ts`, `main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`, `style.css`)
 
 Desktop printing swapped the LIVE page for the print copy and removed

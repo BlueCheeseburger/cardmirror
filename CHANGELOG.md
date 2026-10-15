@@ -16,6 +16,12 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   but nothing said so. Every other choice dialog that answers to number keys shows
   them too.
 
+### Added (release notes)
+- **Each release's notes now start with which file to download** — the `.dmg` for
+  Mac, the `.exe` installer for Windows, the `.AppImage` (or Arch `.pacman`) for
+  Linux — for people installing CardMirror for the first time. The What's new
+  popup after an update leaves that block out.
+
 ### Fixed
 - **Printing no longer flips the window to the light theme while the print dialog
   is open.** The desktop app now prints a separate light copy of the document from
