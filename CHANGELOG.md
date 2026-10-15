@@ -8,6 +8,47 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.15.0-bcb.5.1 — 2026-10-15
+
+### Added
+- **Number keys on the "Save before closing?" dialog.** Save, Save As… and Don't
+  save now show their keys (1, 2, 3) in a corner badge — the keys already worked,
+  but nothing said so. Every other choice dialog that answers to number keys shows
+  them too.
+
+### Added (release notes)
+- **Each release's notes now start with which file to download** — the `.dmg` for
+  Mac, the `.exe` installer for Windows, the `.AppImage` (or Arch `.pacman`) for
+  Linux — for people installing CardMirror for the first time. The What's new
+  popup after an update leaves that block out.
+
+### Fixed
+- **Printing no longer flips the window to the light theme while the print dialog
+  is open.** The desktop app now prints a separate light copy of the document from
+  a hidden window, so the window you're working in stays exactly as it was.
+- **Highlighting, shading and emphasis boxes now come out on the printed page and
+  in "Save as PDF".** On macOS the print dialog was dropping them (the PDF had the
+  underlines but no highlight colors). They're now marked to always print.
+
+### Changed
+- The README's list of the fork's biggest features merges the two card-search
+  features (Logos and your own cards) into one, and adds an eighth: changes that
+  make CardMirror easier to pick up.
+- **Copy file path lives on the file badge only.** Right-clicking the ribbon, the
+  blue document bar or a pane's title bar no longer offers it (the ribbon and
+  title-bar menus go back to what they were).
+- **Copy the path inside Dropbox / OneDrive / Google Drive / iCloud.** For a file in
+  a synced folder, right-clicking the file badge also offers **Copy Dropbox file
+  path** (or the service's name), which copies the path inside the sync folder —
+  `/Debate/Neg files/1NC.docx` — instead of the whole
+  `/Users/you/Dropbox/Debate/Neg files/1NC.docx`.
+- **The Search Everything prefix hint shows until you've used search.** The line
+  telling you to type the letter first ("f heg bad") appears every time the empty
+  palette opens, and goes away for good once a search you typed returns a result.
+- **No duplicate file badge in three-pane mode.** The cloud / computer badge
+  appears in each pane's footer only; the copy in the window's bottom bar is gone
+  there (a single window still shows it in the bottom bar).
+
 ## 1.15.0-bcb.5 — 2026-10-15
 
 ### Added

@@ -125,3 +125,33 @@ describe('per-pane disk badge', () => {
     expect(handle_.el.getAttribute('data-state')).toBe('changed');
   });
 });
+
+describe('badge right-click menu', () => {
+  const menuLabels = (): string[] =>
+    [...document.querySelectorAll('.pmd-nav-context-item')].map((b) => b.textContent ?? '');
+
+  function rightClick(el: HTMLElement): void {
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
+  }
+
+  it('a Dropbox file offers the provider-relative path, and copies it', async () => {
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const cloudRelativePath = vi.fn(async () => '/Neg files/1NC.cmir');
+    const { handle_ } = pane(A, { cloudRelativePath });
+    noteDocRegistered(A, 'fresh', 'dropbox');
+    rightClick(handle_.el);
+    expect(menuLabels()).toEqual(['Copy file path', 'Show in folder', 'Copy Dropbox file path']);
+    (document.querySelectorAll('.pmd-nav-context-item')[2] as HTMLElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cloudRelativePath).toHaveBeenCalledWith(A);
+    expect(writeText).toHaveBeenCalledWith('/Neg files/1NC.cmir');
+  });
+
+  it('a local file only offers the plain path rows', () => {
+    const { handle_ } = pane('/local/x.cmir', { cloudRelativePath: async () => null });
+    noteDocRegistered('/local/x.cmir', 'fresh', null);
+    rightClick(handle_.el);
+    expect(menuLabels()).toEqual(['Copy file path', 'Show in folder']);
+  });
+});

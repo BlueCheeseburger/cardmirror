@@ -77,7 +77,7 @@ import {
   type DiskState,
   type ClaimResult,
 } from './doc-writes.js';
-import { detectCloudProvider, type CloudProvider } from './cloud-roots.js';
+import { detectCloudProvider, detectCloudRelativePath, type CloudProvider } from './cloud-roots.js';
 import { createDiskWatch } from './disk-watch.js';
 import * as os from 'node:os';
 import {
@@ -848,6 +848,35 @@ ipcMain.handle('host:print-window', (event) => {
   return new Promise<boolean>((resolve) => {
     event.sender.print({ silent: false, printBackground: true }, (success) => resolve(success));
   });
+});
+
+/** Print a document from a self-contained HTML page the renderer built
+ *  (print-doc.ts `buildPrintHtml`): written to a temp file, loaded in a hidden
+ *  window — light palette, no editor chrome — and printed through the OS dialog
+ *  from there, so the live window never changes while the dialog is open.
+ *  Resolves false when the user cancels or the job fails. */
+ipcMain.handle('host:print-html', async (_event, html: unknown): Promise<boolean> => {
+  if (typeof html !== 'string' || html.length === 0 || html.length > 128 * 1024 * 1024) return false;
+  const file = path.join(os.tmpdir(), `cardmirror-print-${process.pid}-${Date.now()}.html`);
+  let win: BrowserWindow | null = null;
+  try {
+    await fs.writeFile(file, html, 'utf8');
+    win = new BrowserWindow({
+      show: false,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false },
+    });
+    await win.loadFile(file);
+    const printWin = win;
+    return await new Promise<boolean>((resolve) => {
+      printWin.webContents.print({ silent: false, printBackground: true, color: true }, (success) => resolve(success));
+    });
+  } catch (err) {
+    console.error('[print] failed:', err);
+    return false;
+  } finally {
+    if (win && !win.isDestroyed()) win.destroy();
+    void fs.rm(file, { force: true }).catch(() => {});
+  }
 });
 
 /** Native drag of a saved document out of the window — the blue document
@@ -1718,6 +1747,14 @@ ipcMain.handle(
 ipcMain.handle('host:cloud-provider', async (_event, p: unknown): Promise<CloudProvider | null> => {
   if (typeof p !== 'string' || !p) return null;
   return cloudProviderFor(canonicalOpenPath(p));
+});
+
+/** The path as the sync provider writes it — relative to the sync root, with a
+ *  leading slash (`/Neg files/1NC.docx`) — for the file badge's "Copy
+ *  <provider> path". Null when the file isn't in a sync root. */
+ipcMain.handle('host:cloud-relative-path', async (_event, p: unknown): Promise<string | null> => {
+  if (typeof p !== 'string' || !p) return null;
+  return detectCloudRelativePath(canonicalOpenPath(p));
 });
 
 // ─── Crash-recovery journals ───────────────────────────────────────

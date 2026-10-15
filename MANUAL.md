@@ -2752,9 +2752,13 @@ versions.
   icon when it lives in Dropbox, OneDrive, Google Drive or iCloud, a **computer
   icon** when it's only on this computer. Drag it into Slack, Mail, Teams,
   Finder or Explorer to share the file itself, click it to show the file in its
-  folder, or right-click it for **Copy file path**. Dragging the blue document
-  bar out of the window shares the file the same way, and right-clicking the
-  ribbon or the document bar also offers **Copy file path**. It's absent until
+  folder, or right-click it for **Copy file path** (and **Show in folder**). For
+  a file in a synced folder the menu also has **Copy Dropbox file path** (or
+  OneDrive, Google Drive, iCloud Drive), which copies the path as the service
+  writes it — inside the sync folder, like `/Neg files/1NC.docx`, without the
+  `/Users/you/Dropbox` part. The badge's menu is the only place to copy a path.
+  Dragging the blue document bar out of the window shares the file the same
+  way. It's absent until
   the document has been saved, since what travels is the file on disk (save
   first to include your latest edits). In the three-pane workspace each pane
   has its own badge.

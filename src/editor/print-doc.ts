@@ -67,6 +67,74 @@ export function isPrintContentEmpty(content: HTMLElement): boolean {
   return (clone.textContent ?? '').trim().length === 0;
 }
 
+/** Every rule of every stylesheet on the page as one string, with relative
+ *  `url(...)`s made absolute so they still resolve from another document. */
+function collectCss(): string {
+  const out: string[] = [];
+  for (const sheet of Array.from(document.styleSheets)) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      continue; // a cross-origin sheet we can't read
+    }
+    const base = sheet.href ?? document.baseURI;
+    for (const rule of Array.from(rules)) {
+      out.push(
+        rule.cssText.replace(/url\((['"]?)(?!data:|https?:|file:|blob:|#)([^)'"]+)\1\)/gu, (m, q: string, u: string) => {
+          try {
+            return `url(${q}${new URL(u, base).href}${q})`;
+          } catch {
+            return m;
+          }
+        }),
+      );
+    }
+  }
+  return out.join('\n');
+}
+
+function escapeAttr(v: string): string {
+  return v.replace(/&/gu, '&amp;').replace(/"/gu, '&quot;').replace(/</gu, '&lt;');
+}
+function escapeText(v: string): string {
+  return v.replace(/&/gu, '&amp;').replace(/</gu, '&lt;');
+}
+
+/** A complete, self-contained HTML page holding just the print copy of `view`
+ *  and the app's stylesheets, with no theme attribute — so it is the light
+ *  palette by construction. Desktop prints this in a hidden window, which means
+ *  the live window is never touched (no flip to light while the dialog is
+ *  open). Null when there is nothing visible to print. */
+export function buildPrintHtml(view: EditorView, title = 'CardMirror'): string | null {
+  const content = buildPrintContent(view);
+  if (isPrintContentEmpty(content)) return null;
+  // The page's own `<html>` attributes carry the display settings the content
+  // rules key off (typography classes, CSS variables in `style`) — all except
+  // the theme.
+  const html = document.documentElement;
+  const attrs = html
+    .getAttributeNames()
+    .filter((n) => !(THEME_ATTRS as readonly string[]).includes(n))
+    .map((n) => {
+      let v = html.getAttribute(n) ?? '';
+      if (n === 'class') v = v.split(/\s+/u).filter((c) => c && c !== PRINTING_CLASS).join(' ');
+      return ` ${n}="${escapeAttr(v)}"`;
+    })
+    .filter((a) => !a.startsWith(' class='))
+    .join('');
+  // The `@media print` rules key off `html.pmd-printing`; keep the page's other
+  // classes (typography toggles) beside it.
+  const classes = [...html.classList].filter((c) => c !== PRINTING_CLASS);
+  classes.push(PRINTING_CLASS);
+  const classAttr = ` class="${escapeAttr(classes.join(' '))}"`;
+  return (
+    `<!doctype html><html${attrs}${classAttr}><head><meta charset="utf-8">` +
+    `<title>${escapeText(title)}</title><style>${collectCss()}</style></head>` +
+    `<body><div id="${ROOT_ID}">${content.outerHTML}</div></body></html>`
+  );
+}
+
 function prepare(view: EditorView): 'empty' | 'ok' {
   cleanup();
   const content = buildPrintContent(view);
@@ -107,14 +175,26 @@ function nextFrame(): Promise<void> {
 }
 
 export interface PrintOptions {
-  /** Desktop: ask the main process to open the OS print dialog for this
-   *  window. Omitted in the browser, where `window.print()` does it. */
+  /** Desktop: hand a self-contained HTML page of the document to the main
+   *  process, which prints it from a hidden window through the OS dialog. The
+   *  live window is not touched. */
+  printHtml?: (html: string) => Promise<unknown>;
+  /** Names the printed page (the PDF's default file name). */
+  title?: string;
+  /** Older desktop shells: print the live window's own page through the OS
+   *  dialog (swaps the page for the print copy while the dialog is open). */
   nativePrint?: () => Promise<unknown>;
 }
 
 /** Print the document in `view`. Resolves 'empty' without opening a dialog
  *  when there is nothing visible to print. */
 export async function printDocument(view: EditorView, opts: PrintOptions = {}): Promise<'printed' | 'empty'> {
+  if (opts.printHtml) {
+    const html = buildPrintHtml(view, opts.title);
+    if (html === null) return 'empty';
+    await opts.printHtml(html);
+    return 'printed';
+  }
   if (prepare(view) === 'empty') return 'empty';
   try {
     // Let the copy lay out before the print engine snapshots the page.

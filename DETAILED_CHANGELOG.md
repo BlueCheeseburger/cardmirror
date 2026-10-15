@@ -10,6 +10,91 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.15.0-bcb.5.1 — 2026-10-15
+
+### Added: key badges on route dialogs (`text-prompt.ts`, `index.ts`, `style.css`)
+
+`addRouteKeyHint(btn, key)` puts a `.pmd-route-kbd` badge (the slot picker's
+existing style, now generic on `.pmd-route-btn { position: relative }`) in a
+route button's corner. `promptForRouteChoice` badges its first nine choices;
+`confirmCloseUnsaved` badges Save / Save As… / Don't save (1/2/3, or 1/2 when the
+saved path is missing and Save is omitted). The handlers already answered to
+those keys. The multi-document close dialog is not badged: it shows one card per
+document, so a bare number would be ambiguous.
+
+### Changed: copy path only on the file badge; provider-relative copy (`file-path-menu.ts`, `disk-conflict.ts`, `cloud-roots.ts`, `main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`, `multi-pane-shell.ts`, `doc-header.ts`, `pane-move-menu.ts`)
+
+The file-menu rows come off the ribbon's right-click menu, the doc header and the
+pane chip's move menu (`pane-move-menu.ts` is back to its pre-batch form); the
+badge's `installFileContextMenu` is the only user. It gains `extraItems`, which
+`createPaneDiskBadge` fills with **Copy <provider> file path** when the file is in
+a sync root. `cloud-roots.ts` now has `locateCloudRoot` (provider + the root
+folder, which `classifyCloudPath` wraps) and `cloudRelativePath` — path relative
+to that root, `/`-separated with a leading slash (Dropbox `info.json` roots,
+`~/Dropbox`, macOS `CloudStorage/<mount>`, iCloud's CloudDocs, OneDrive env roots,
+a Google Drive `X:\My Drive` mount — whose path keeps `My Drive/` — and
+`~/Google Drive`). It's fetched on demand through a new `host:cloud-relative-path`
+IPC (`cloudRelativePath` on the preload / `ElectronHost`, optional so older mains
+resolve null). Tests: `tests/desktop/cloud-roots.test.ts`,
+`tests/editor/disk-conflict-pane-badge.test.ts`.
+
+### Added: download guide at the top of release notes (`release.yml`, `whats-new.ts`, `CLAUDE.md`)
+
+After extracting the CHANGELOG section, the "Extract release notes" step wraps a
+generated "New to CardMirror? Download one file…" list (Mac `-universal.dmg`,
+Windows `-Setup-….exe`, Linux `.AppImage` + Arch `.pacman`, linked at
+`releases/download/<tag>/…`) in `<!-- download-guide:start/end -->` and
+prepends it, so it is the first thing on the release page. `whats-new.ts`'s
+`stripDownloadGuide` removes it before the update popup shows the notes.
+Verified by running the step's script against a stand-in CHANGELOG; the filenames
+match the `v1.15.0-bcb.5` assets. Takes effect with the next release.
+
+### Fixed: print from a hidden window; backgrounds always print (`print-doc.ts`, `main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`, `style.css`)
+
+Desktop printing swapped the LIVE page for the print copy and removed
+`data-theme` / `data-theme-doc` while `webContents.print` held the system dialog
+open, so a dark window turned light until the dialog closed. Now
+`buildPrintHtml(view, title)` returns a complete page — the app's stylesheets
+(rules concatenated from `document.styleSheets`, relative `url()`s made
+absolute), the `<html>` attributes / classes / inline custom properties minus the
+theme (so the display settings carry over and the palette is light by
+construction), `pmd-printing`, and `#pmd-print-root` holding the cloned content —
+and `printDocument` hands it to the host (`printHtml`). `host:print-html` in
+`main.ts` writes it to a temp file, loads it in a hidden sandboxed window
+(JavaScript off), calls `print({ silent: false, printBackground: true, color:
+true })` and destroys the window and file afterwards. The live window is never
+modified. The old live-page path (`prepare` / `cleanup`, `nativePrint`) remains
+for the browser edition's `window.print()` and for an older preload.
+Separately, `-webkit-print-color-adjust: exact` / `print-color-adjust: exact` on
+`#pmd-print-root *` makes highlight, shading and emphasis backgrounds print
+whatever the dialog's background setting does — the macOS system dialog had
+produced a PDF with no highlighting. Chromium PDFs of the standalone page match
+the on-screen document with `printBackground` off. The hidden-window print call
+itself needs a real desktop build to exercise.
+
+### Changed: releases are no longer flagged pre-release (`.github/workflows/release.yml`, `web-download.ts`, `CLAUDE.md`)
+
+The "Ensure draft release exists" step used to pass `--prerelease` for any tag
+with a `-` after the version (every `vX.Y.Z-bcb.N`). It now creates the release
+with no flag, and a re-run of an existing release passes `--prerelease=false`.
+Effective from the next release; published ones are untouched. The updaters need
+nothing: `electron-updater` already allows prereleases whenever the running
+version has a prerelease component, and the web download button uses the
+`/releases` list endpoint.
+
+### Changed: prefix hint retires after a successful search (`quick-card-search-ui.ts`)
+
+The `.pmd-qcs-empty-hint` line shows in the empty no-prefix state until
+`renderResults` sees rows for a typed query (not in-file, not folder browse, and
+`parsePrefix(...).query` non-empty — a bare `c ` doesn't count). That sets
+localStorage `pmd-qcs-prefix-hint-seen`; per-user and deliberately not a Setting.
+
+### Changed: status-bar file badge hidden in three-pane windows (`style.css`)
+
+`body.pmd-multi-doc #status-file-badge { display: none }` — each pane footer
+already carries its own `createPaneDiskBadge`, and the status-bar one followed
+the focused pane, so it duplicated it.
+
 ## 1.15.0-bcb.5 — 2026-10-15
 
 ### Added: printing (`print-doc.ts`, `ribbon-commands.ts`, `index.ts`, `style.css`, `apps/desktop/src/main.ts`, `preload.ts`, `electron-host.ts`)

@@ -44,20 +44,38 @@
 >    logged fallback for the zip worker and a ribbon button that
 >    distinguishes "saving" from "paused" (e.g. a doc with a live view Word
 >    can't hold open). (main)
-> 6. **Logos card search** — type `g ` in Search Everything to search
+> 6. **Search Everything finds your cards and Logos's** — type `g ` to search
 >    Logos's index of open-source round-doc cards (college and high school
 >    policy) and insert a full card, cite and formatting intact, at your
->    cursor; it can condense, shrink and recolor each one as it lands. (main)
-> 7. **Search your own cards** — type `q ` in Search Everything to search
->    the Quick Cards you saved and the cards inside your indexed files at
->    once. Right-click any result to read the full card first (a card from a
->    file names the file and its path), and pick one on a screen with no
+>    cursor (it can condense, shrink and recolor each one as it lands); type
+>    `q ` to search the Quick Cards you saved and the cards inside your indexed
+>    files at once. Right-click any result to read the full card first (a card
+>    from a file names the file and its path), and pick one on a screen with no
 >    open document to open it as a new document. (main)
-> 8. **Redesigned Save As** — pick a save mode (As-Is, Send Doc, Read Doc,
+> 7. **Redesigned Save As** — pick a save mode (As-Is, Send Doc, Read Doc,
 >    Marked Doc, Custom Save) and a location, then press Save As, instead
 >    of buttons that save the instant you click them. Custom Save's options
 >    show inline, and previously used save locations are a list you select
 >    from. (main)
+> 8. **Easier to use, especially for newcomers** — small changes that make
+>    CardMirror discoverable without a manual:
+>    - a. **A visible Search button** (a magnifying glass at the bottom left)
+>      for Search Everything, plus a hint that the letter goes before what you
+>      type (`f heg bad`) that stays until you've done your first successful
+>      search.
+>    - b. **Key hints on the styles** — the F-key (F4, F7, Ctrl+F8…) is printed
+>      on each button in the formatting panel, so the shortcuts teach
+>      themselves.
+>    - c. **Number keys shown on dialogs** — "Save before closing?" and the
+>      pane and window choosers print 1, 2, 3 on their buttons, so you can see
+>      you can just press the number.
+>    - d. **A single window looks like one pane of the workspace** — the same
+>      blue document bar with the name (double-click to rename, no `.docx`
+>      shown), save, autosave, outline and close buttons, and a microphone that
+>      appears on hover to mark the speech doc.
+>    - e. **A decluttered ribbon** — table, image, super/subscript,
+>      strikethrough and numbering buttons are hidden until you turn them on, and
+>      new documents start on an Analytic line instead of a blank paragraph.
 
 CardMirror is a debate text editor focused on high school and college
 policy debate. It's a standalone

@@ -13178,7 +13178,8 @@ body.pmd-pane-dragging * {
    close ✕ in the top-right corner. */
 .pmd-slot-picker { position: relative; }
 .pmd-slot-picker .pmd-route-header { padding-right: 1.75rem; }
-.pmd-slot-picker .pmd-route-btn { position: relative; }
+/* Every route-dialog button can carry a key badge (addRouteKeyHint). */
+.pmd-route-btn { position: relative; }
 .pmd-route-kbd {
   position: absolute;
   top: 0.3rem;
@@ -18077,6 +18078,14 @@ ins.pmd-doc-diff-word {
     -webkit-user-select: text;
     user-select: text;
   }
+  /* Highlighting, shading and emphasis boxes are backgrounds and borders: print
+     them whatever the print dialog's "background graphics" setting says (the
+     macOS system dialog was dropping highlighting). */
+  #pmd-print-root,
+  #pmd-print-root * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   /* Cards were laid out lazily on screen; paper needs them all, in flow. */
   #pmd-print-root .pmd-pocket,
   #pmd-print-root .pmd-hat,
@@ -18099,3 +18108,8 @@ ins.pmd-doc-diff-word {
   #pmd-print-root img, #pmd-print-root table, #pmd-print-root tr { break-inside: avoid; }
   #pmd-print-root img { max-width: 100%; }
 }
+
+/* Three-pane windows show each document's file badge in that pane's footer, so
+   the window-level status-bar copy (which would duplicate the focused pane's)
+   is hidden there. */
+body.pmd-multi-doc #status-file-badge { display: none; }

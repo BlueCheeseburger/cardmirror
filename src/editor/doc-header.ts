@@ -17,7 +17,6 @@ import { setIcon } from './icons.js';
 import { installInlineRename } from './doc-rename.js';
 import { createChipSpeechButton } from './chip-speech-button.js';
 import { installFileDragSource, type FileDragHost } from './file-drag.js';
-import { installFileContextMenu } from './file-path-menu.js';
 
 export interface DocHeaderOptions {
   /** The name to seed a rename with (no extension), or null for a document that
@@ -36,8 +35,6 @@ export interface DocHeaderOptions {
   getPath: () => string | null;
   /** The host that can start a native file drag (desktop); null elsewhere. */
   getDragHost: () => FileDragHost | null;
-  /** Show the file in the OS file manager. */
-  reveal?: (path: string) => void;
 }
 
 export interface AutosaveChipState {
@@ -110,14 +107,8 @@ export function installDocHeader(container: HTMLElement, opts: DocHeaderOptions)
   chip.appendChild(closeBtn);
 
   // The bar is the file's handle: drag it into another app to share the saved
-  // file; right-click anywhere on it to copy the path.
+  // file. (Copying the path lives on the file badge's right-click menu only.)
   const disposeDrag = installFileDragSource(chip, opts.getPath, opts.getDragHost);
-  const disposeMenu = installFileContextMenu(chip, {
-    getPath: opts.getPath,
-    // Paths only exist on desktop; the web edition has nothing to copy.
-    enabled: () => opts.getDragHost() !== null,
-    ...(opts.reveal ? { reveal: opts.reveal } : {}),
-  });
 
   container.appendChild(chip);
 
@@ -153,7 +144,6 @@ export function installDocHeader(container: HTMLElement, opts: DocHeaderOptions)
     destroy(): void {
       rename.destroy();
       disposeDrag();
-      disposeMenu();
       container.replaceChildren();
     },
   };

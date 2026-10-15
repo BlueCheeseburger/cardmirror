@@ -1143,6 +1143,26 @@ function enterVerb(source: PaletteResult['source']): string {
 }
 
 const SEARCH_PLACEHOLDER = 'Search…';
+
+/** The prefix hint in the empty palette is shown until the user has run a real
+ *  search and got a result; after that it has done its job and stays gone.
+ *  Per-user (localStorage), not a Setting: it isn't something to configure. */
+const PREFIX_HINT_SEEN_KEY = 'pmd-qcs-prefix-hint-seen';
+function prefixHintSeen(): boolean {
+  try {
+    return localStorage.getItem(PREFIX_HINT_SEEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function markPrefixHintSeen(): void {
+  try {
+    localStorage.setItem(PREFIX_HINT_SEEN_KEY, '1');
+  } catch {
+    /* storage unavailable — the hint just keeps showing */
+  }
+}
+
 /** The palette's width in px, in every layout (narrower only when the
  *  window itself is). */
 const PALETTE_WIDTH = 540;
@@ -2874,7 +2894,7 @@ class QuickCardSearchUI {
       // The prefixes above are easy to misread as things to type AFTER the
       // search words; say which way round they go. A sibling of the list, so
       // the list's own text stays exactly the prefix legend.
-      if (this.emptyText.startsWith('Type to search everything · ')) {
+      if (this.emptyText.startsWith('Type to search everything · ') && !prefixHintSeen()) {
         const hint = document.createElement('div');
         hint.className = 'pmd-qcs-empty-hint';
         hint.append(
@@ -2887,6 +2907,15 @@ class QuickCardSearchUI {
         this.resultsEl.appendChild(hint);
       }
       return;
+    }
+    // A typed query that produced rows: the user has found how searching works.
+    if (
+      !this.inFile &&
+      !this.browseActive &&
+      parsePrefix(this.input.value).query.trim() !== '' &&
+      !prefixHintSeen()
+    ) {
+      markPrefixHintSeen();
     }
     this.results.forEach((r, i) => {
       const row = document.createElement('div');

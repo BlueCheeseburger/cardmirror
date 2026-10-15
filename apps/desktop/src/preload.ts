@@ -186,6 +186,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showItemInFolder: (handle: string) => ipcRenderer.invoke('host:show-item-in-folder', handle),
   /** Open the OS print dialog for this window (File → Print…). */
   printWindow: (): Promise<boolean> => ipcRenderer.invoke('host:print-window'),
+  /** Print a prepared HTML page of the document from a hidden window. */
+  printHtml: (html: string): Promise<boolean> => ipcRenderer.invoke('host:print-html', html),
   /** Native file drag out of the window (the status-bar CardMirror
    *  mark). `send`, not `invoke`: startDrag must run in response to the
    *  renderer's dragstart, synchronously. */
@@ -592,6 +594,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('host:cloud-provider', path) as Promise<
       'dropbox' | 'onedrive' | 'gdrive' | 'icloud' | 'other' | null
     >,
+  /** The file's path relative to its sync root, with a leading slash (null =
+   *  not in a sync folder). */
+  cloudRelativePath: (path: string) =>
+    ipcRenderer.invoke('host:cloud-relative-path', path) as Promise<string | null>,
   /** Main's poller saw the owning window's file change on disk. */
   onDiskChanged: (handler: (payload: { path: string; mtimeMs: number; size: number }) => void): (() => void) => {
     const listener = (_evt: unknown, payload: { path: string; mtimeMs: number; size: number }): void => handler(payload);

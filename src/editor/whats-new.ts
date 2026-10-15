@@ -54,6 +54,13 @@ export function releaseApiUrl(version: string): string {
   return `https://api.github.com/repos/BlueCheeseburger/cardmirror/releases/tags/v${encodeURIComponent(version)}`;
 }
 
+/** The release body starts with a "which file do I download?" block for new
+ *  users (release.yml writes it between these markers). Someone seeing the
+ *  What's new popup already has the app, so it is dropped here. */
+export function stripDownloadGuide(body: string): string {
+  return body.replace(/<!--\s*download-guide:start\s*-->[\s\S]*?<!--\s*download-guide:end\s*-->\s*/u, '').trim();
+}
+
 /** The release's notes (markdown), or null when there are none or the
  *  request failed. */
 export async function fetchReleaseNotes(
@@ -69,7 +76,7 @@ export async function fetchReleaseNotes(
     });
     if (!res.ok) return null;
     const json = (await res.json()) as { body?: unknown };
-    const body = typeof json.body === 'string' ? json.body.trim() : '';
+    const body = typeof json.body === 'string' ? stripDownloadGuide(json.body) : '';
     return body === '' ? null : body;
   } catch {
     return null;
