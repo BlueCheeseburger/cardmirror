@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.6 — 2026-10-15
 
 ### Added: Mark Card, marked/starred outline, Card submenu, Starred Doc (`reading-marker.ts`, `card-menu-sections.ts`, `nav-panel.ts`, `transform-for-export.ts`, `save-as-ui.ts`, `schema/nodes.ts`)
 

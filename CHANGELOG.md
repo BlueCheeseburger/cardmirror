@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.6 — 2026-10-15
 
 ### Added
 - **Number keys on the "Save your current document before creating a new one?"
