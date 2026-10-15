@@ -96,12 +96,12 @@ describe('Save As — dialog layout', () => {
 });
 
 describe('Save As — mode selection', () => {
-  it('lists all five modes, As-Is selected by default', async () => {
+  it('lists all six modes, As-Is selected by default', async () => {
     const p = open();
     const labels = qa('.pmd-save-as-radio-row .pmd-save-as-radio-row-label')
       .map((el) => el.textContent)
       .filter((t) => t !== 'CardMirror native (.cmir)' && t !== 'Microsoft Word (.docx)');
-    expect(labels).toEqual(['As-Is', 'Send Doc', 'Read Doc', 'Marked Doc', 'Custom Save']);
+    expect(labels).toEqual(['As-Is', 'Send Doc', 'Read Doc', 'Marked Doc', 'Starred Doc', 'Custom Save']);
     expect(modeRadio('As-Is').checked).toBe(true);
     cancelAll();
     await p;
@@ -405,14 +405,16 @@ describe('Save As — number keys, marked count, section order', () => {
     );
   };
 
-  it('keys 1–5 pick the save modes, and each mode row carries its key badge', async () => {
+  it('keys 1–6 pick the save modes, and each mode row carries its key badge', async () => {
     const p = open();
-    expect(qa('.pmd-save-as-mode-row .pmd-route-kbd').map((k) => k.textContent)).toEqual(['1', '2', '3', '4', '5']);
+    expect(qa('.pmd-save-as-mode-row .pmd-route-kbd').map((k) => k.textContent)).toEqual(['1', '2', '3', '4', '5', '6']);
     pressKey('2');
     expect(modeRadio('Send Doc').checked).toBe(true);
     pressKey('4');
     expect(modeRadio('Marked Doc').checked).toBe(true);
     pressKey('5');
+    expect(modeRadio('Starred Doc').checked).toBe(true);
+    pressKey('6');
     expect(modeRadio('Custom Save').checked).toBe(true);
     pressKey('1');
     expect(modeRadio('As-Is').checked).toBe(true);

@@ -40,7 +40,7 @@ import { EditorState, Selection, TextSelection, type Command, type Transaction }
 import type { EditorView } from 'prosemirror-view';
 import { toggleMark } from 'prosemirror-commands';
 import { undo as historyUndo, redo as historyRedo } from 'prosemirror-history';
-import { toggleReadingMarkerCommand } from './reading-marker.js';
+import { toggleReadingMarkerCommand, markCardsCommand } from './reading-marker.js';
 import { moveToHeadingOfType } from './word-selection-keymap.js';
 import { convertCardsToReadMode } from './convert-cards-to-read-mode.js';
 import { openFootnoteEditor } from './footnote-popover.js';
@@ -4625,6 +4625,7 @@ export type RibbonCommandId =
   | 'lockHighlighting'
   | 'unhighlightCard'
   | 'rehighlightCard'
+  | 'markCards'
   | 'extractUndertag'
   | 'highlightToShading'
   | 'shadingToHighlight'
@@ -4900,6 +4901,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'lockHighlighting',
   'unhighlightCard',
   'rehighlightCard',
+  'markCards',
   'extractUndertag',
   'highlightToShading',
   'shadingToHighlight',
@@ -5120,6 +5122,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   lockHighlighting: 'Lock Highlighting',
   unhighlightCard: 'Unhighlight Card',
   rehighlightCard: 'Rehighlight Card',
+  markCards: 'Mark Card (Marked Doc / Unmark)',
   extractUndertag: 'Extract Undertag',
   highlightToShading: 'Highlight to Background',
   shadingToHighlight: 'Background to Highlight',
@@ -5357,6 +5360,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   clearToNormal: ['clear formatting', 'remove formatting', 'clear to normal'],
   lockHighlighting: ['lock highlights', 'grey highlights', 'gray highlights'],
   unhighlightCard: ['remove highlighting', 'clear highlights', 'remove highlights from card', 'unhighlight'],
+  markCards: ['mark card', 'unmark card', 'marked card', 'mark as read', 'marked doc'],
   rehighlightCard: ['restore highlighting', 'bring back highlights', 'undo unhighlight', 'rehighlight'],
   standardizeHighlightExcept: ['standardize except', 'standardize highlighting except', 'exception highlight'],
   standardizeShadingExcept: ['standardize background except', 'standardize shading except', 'exception shading'],
@@ -5544,6 +5548,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   lockHighlighting: '',
   unhighlightCard: '',
   rehighlightCard: '',
+  markCards: 'Mod-Alt-d',
   extractUndertag: '',
   highlightToShading: '',
   shadingToHighlight: '',
@@ -6309,6 +6314,8 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return unhighlightCard();
     case 'rehighlightCard':
       return rehighlightCard();
+    case 'markCards':
+      return markCardsCommand;
     case 'highlightToShading':
       return highlightToShading();
     case 'shadingToHighlight':

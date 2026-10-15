@@ -386,20 +386,21 @@ mirrors Word's Navigation Pane, but does more:
   (To drop a [live view or linked copy](#10-live-views-and-linked-copies)
   of a heading, use the commands in the Search palette or the ribbon; the
   right-click menu no longer has them.)
-  **(Fork)** Two more rows act on everything under the heading: **Shrink**
-  runs the same Shrink as the Card menu (Mod-8) over it, and
-  **Unhighlight** strips the highlighting from it. On a card they read
-  *Shrink card* / *Unhighlight card*; on a Pocket, Hat or Block, *…everything
-  under heading*. Once you've unhighlighted, the same row reads
-  **Rehighlight** and puts the highlighting back — for as long as the
-  unhighlight is still in the undo history (close and reopen the document,
-  or undo it, and it's gone). Both are one undo step and follow a
-  multi-selection like Cut and Copy do.
-  **Mark card** (or *Mark N cards*, or *Mark cards under heading* on a
-  Pocket, Hat or Block) drops a red "Marked h:mm" reading marker at the end
-  of each card under the heading, so those cards count as marked for
-  **Save Marked Cards**. Once every card there has one the row reads
-  **Unmark…** and removes them. One undo step.
+  **(Fork)** A **Card ▸** row opens (on hover) a side menu with *everything the
+  toolbar's Card menu has* — Condense, Excerpt, Highlighting, **Mark Card**
+  and Shrink — acting on the card under the right-clicked heading, or on every
+  card under a Pocket, Hat or Block. It is the same list as the toolbar menu,
+  built from one definition, so the two always match. Unhighlight turns into
+  **Rehighlight** (and back) as in the toolbar. Everything runs as one undo
+  step and follows a multi-selection like Cut and Copy do.
+  **Marked cards** show in the outline: a red flag before the card's name
+  (hover it for the marker's text) and a red "N marked" after a Pocket, Hat or
+  Block with marked cards under it.
+  **Stars:** hover any Hat, Block, card or analytic (a Pocket runs to the left
+  edge, so it has none) and a star appears at the row's right; click it to
+  star the heading (its row turns a pale gold, and the star stays). **Starred
+  Doc** in [Save As](#save-as) saves just the starred ones: a starred card
+  whole, a starred Hat or Block with everything under it.
   *(Fork)* The bottom of the menu shows how long your first two readers
   take to read the heading and everything under it, one reader per line
   (all selected headings together, for a multi-selection). The times use
@@ -1460,6 +1461,17 @@ mode, so the marker shows.)
 
 You can also drop a marker while editing — **Mod-Shift-D** works any time
 (Space and Enter only stand in for it inside read mode).
+
+**(Fork)** While the **speech timer is running**, the marker says how far into
+the speech you are ("Marked at 2:15") instead of the clock time, so you can
+say "marked at 2:15" out loud and the other team can find the card. With the
+timer stopped it falls back to the clock ("Marked 7:32").
+
+**Mark Card** marks the whole card the cursor is in (rather than a spot inside
+it) — **Mod-Alt-D** by default, rebindable under Settings → Keyboard, and in
+the toolbar's **Card** menu under *Marking*. It drops the same red marker at the
+end of the card and counts for Marked Doc; run it again to unmark. It works in
+read mode too.
 
 Second, you can perform **click-and drag** actions - move headers around in
 the document, add received cards to your document, or grab cards from the
@@ -2798,6 +2810,9 @@ bottom of the dialog.
   - **Read Doc** — the read-mode view of the document.
   - **Marked Doc** — only the cards you marked. The dialog says how many
     cards that is, beside the name.
+  - **Starred Doc** — only what you starred in the outline (see
+    the outline's right-click menu (above)), with the count beside
+    the name.
   - **Custom Save** — shows checkboxes under it so you choose exactly what
     to include: comments, analytics, undertags, **Freeze card numbers as
     text** or **Remove card numbers** (one or the other; neither keeps live

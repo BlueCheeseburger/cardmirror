@@ -18132,3 +18132,53 @@ body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
 }
 #hidden-slots-chip[hidden] { display: none; }
 #hidden-slots-chip:hover { background: var(--pmd-c-hover); }
+
+/* "Card ▸" row in the outline's right-click menu: the Card menu's rows open
+   in a side panel while the row is hovered. */
+.pmd-nav-context-submenu-host { position: relative; }
+.pmd-nav-context-item-submenu { padding-right: 2rem; }
+.pmd-nav-context-submenu-arrow {
+  position: absolute;
+  right: 0.75rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-nav-context-submenu { z-index: 211; min-width: 230px; }
+.pmd-nav-context-submenu .pmd-doc-menu-section-title { padding: 0.3rem 1rem 0.15rem; }
+
+/* Outline: marked-card flag, "N marked" roll-up, and the heading star. */
+.pmd-nav-mark-flag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-self: center;
+  color: #d32f2f;
+}
+.pmd-nav-mark-flag svg { width: 0.85em; height: 0.85em; }
+.pmd-nav-mark-count {
+  flex: 0 0 auto;
+  margin-left: 0.4rem;
+  font-size: 0.75em;
+  font-weight: 400;
+  color: #d32f2f;
+  white-space: nowrap;
+}
+.pmd-nav-star {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  padding: 0 0.15rem;
+  background: transparent;
+  border: none;
+  color: var(--pmd-c-text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.pmd-nav-star svg { width: 0.9em; height: 0.9em; }
+.pmd-nav-item:hover .pmd-nav-star,
+.pmd-nav-star:focus-visible { opacity: 0.7; }
+.pmd-nav-star:hover { opacity: 1; color: #e0a100; }
+.pmd-nav-item-starred .pmd-nav-star { opacity: 1; color: #e0a100; }
+.pmd-nav-item-starred .pmd-nav-star svg { fill: currentColor; }
+.pmd-nav-item.pmd-nav-item-starred:not(.pmd-nav-item-selected) {
+  background: rgba(224, 161, 0, 0.16);
+}

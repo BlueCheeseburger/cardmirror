@@ -20,7 +20,7 @@ import { Node as PMNode, Fragment, type Slice, type Mark } from 'prosemirror-mod
 import { schema, newHeadingId } from '../schema/index.js';
 import { toDocx, serializeNative, serializeNativeAsync, parseNative, parseNativeSalvage, NativeDamagedError, readDocIdFromBytes, stampDocId, setSaveHealListener } from '../index.js';
 import { openDocxOffThread } from './docx-open.js';
-import { transformForExport, countMarkedCards, bakesUnreadRedOnSave } from '../export/transform-for-export.js';
+import { transformForExport, countMarkedCards, countStarred, bakesUnreadRedOnSave } from '../export/transform-for-export.js';
 import type { Thread, Comment } from './comments-plugin.js';
 import type { LocalComment } from './learn-store.js';
 import { NavigationPanel, setNavCommandRunner } from './nav-panel.js';
@@ -291,7 +291,8 @@ import { isRightClickContextMenu } from './context-menu-gate.js';
 import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
-import { cardHighlightPlugin, cardHighlightAction, cardRangesForSelection } from './card-highlight-toggle.js';
+import { cardHighlightPlugin, cardRangesForSelection } from './card-highlight-toggle.js';
+import { buildCardMenuSections } from './card-menu-sections.js';
 import { emojiUprightPlugin } from './emoji-upright-plugin.js';
 import { headingIdGuardPlugin } from './heading-id-guard.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
@@ -3084,91 +3085,23 @@ if (strikethroughBtn) {
   strikethroughBtn.addEventListener('click', () => runRibbon('toggleStrikethrough'));
 }
 
-/** The Card menu's Unhighlight / Rehighlight row, decided when the menu opens. */
-function cardHighlightMenuItem(): { label: string; commandId: 'unhighlightCard' | 'rehighlightCard'; run: () => void } {
-  const state = view?.state;
-  const action = state ? cardHighlightAction(state, cardRangesForSelection(state)) : null;
-  return action === 'rehighlight'
-    ? { label: 'Rehighlight Card', commandId: 'rehighlightCard', run: () => runRibbon('rehighlightCard') }
-    : { label: 'Unhighlight Card', commandId: 'unhighlightCard', run: () => runRibbon('unhighlightCard') };
-}
-
 const cardMenuBtn = document.getElementById('card-menu-btn') as HTMLButtonElement | null;
 if (cardMenuBtn) {
   cardMenuBtn.addEventListener('mousedown', (e) => e.preventDefault());
   cardMenuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    // Sections are kept alphabetical by title — Condense, Excerpt,
-    // Highlighting. All items route through `getRibbonCommand` so a
+    // The rows come from `buildCardMenuSections`, shared with the outline's
+    // right-click "Card" submenu. All route through `getRibbonCommand`, so a
     // user-bound key fires the same code path as clicking the menu.
-    openDocMenu(cardMenuBtn, view, [
-      {
-        title: 'Condense',
-        items: [
-          { label: 'Condense', commandId: 'condenseDefault', run: () => runRibbon('condenseDefault') },
-          {
-            label: 'Condense without paragraph integrity',
-            commandId: 'condenseNoIntegrity',
-            run: () => runRibbon('condenseNoIntegrity'),
-          },
-          {
-            label: 'Condense with pilcrows',
-            commandId: 'condenseNoIntegrityWithPilcrows',
-            run: () => runRibbon('condenseNoIntegrityWithPilcrows'),
-          },
-          {
-            label: 'Condense with warning',
-            commandId: 'condenseWithWarning',
-            run: () => runRibbon('condenseWithWarning'),
-          },
-          { label: 'Uncondense', commandId: 'uncondense', run: () => runRibbon('uncondense') },
-        ],
-      },
-      {
-        title: 'Excerpt',
-        items: [
-          {
-            label: 'Create Reference',
-            commandId: 'createReference',
-            run: () => runRibbon('createReference'),
-          },
-          {
-            label: 'Extract Undertag',
-            commandId: 'extractUndertag',
-            run: () => runRibbon('extractUndertag'),
-          },
-        ],
-      },
-      {
-        title: 'Highlighting',
-        items: [
-          {
-            label: 'Lock Highlighting',
-            commandId: 'lockHighlighting',
-            run: () => runRibbon('lockHighlighting'),
-          },
-          // One slot, two states: after Unhighlight Card the same row reads
-          // Rehighlight Card for as long as the unhighlight is undoable.
-          cardHighlightMenuItem(),
-          {
-            label: 'Highlight to Background',
-            commandId: 'highlightToShading',
-            run: () => runRibbon('highlightToShading'),
-          },
-          {
-            label: 'Background to Highlight',
-            commandId: 'shadingToHighlight',
-            run: () => runRibbon('shadingToHighlight'),
-          },
-        ],
-      },
-      {
-        title: 'Shrink',
-        items: [
-          { label: 'Shrink', commandId: 'shrink', run: () => runRibbon('shrink') },
-        ],
-      },
-    ]);
+    openDocMenu(
+      cardMenuBtn,
+      view,
+      buildCardMenuSections({
+        state: () => view?.state ?? null,
+        ranges: (st) => cardRangesForSelection(st),
+        run: (id) => runRibbon(id),
+      }),
+    );
   });
 }
 readModeBtn.addEventListener('click', () => runRibbon('toggleReadMode'));
@@ -5205,7 +5138,7 @@ function ribbonCommandTransaction(id: AnyCommandId, state: EditorState): Transac
   });
   return out;
 }
-setNavCommandRunner(ribbonCommandTransaction);
+setNavCommandRunner(ribbonCommandTransaction, (id) => runRibbon(id));
 
 function runRibbonCommandById(id: AnyCommandId): void {
   if (VIEWLESS_RIBBON_COMMANDS.has(id)) {
@@ -8996,6 +8929,8 @@ async function serializeForSave(
     includeAiThreads?: boolean;
     /** Keep only the cards that contain a reading marker, flat. */
     markedCardsOnly?: boolean;
+    /** Keep only what's starred in the outline (and what's under it). */
+    starredOnly?: boolean;
     /** Card numbers: keep the live skeleton, freeze as heading text, or
      *  remove. Omitted → freeze when the export drops numbered content
      *  (analytics / read mode / marked cards), else keep. */
@@ -9022,6 +8957,7 @@ async function serializeForSave(
     includeUndertags: opts.includeUndertags,
     readMode: opts.readMode,
     markedCardsOnly: opts.markedCardsOnly ?? false,
+    starredOnly: opts.starredOnly ?? false,
     // Exports to Word only — never the user's working file, in either
     // format (see bakesUnreadRedOnSave: baked red is read back as marker
     // text and deleted with the marker).
@@ -9225,6 +9161,7 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     // is what a remembered location is.
     allowSaveLocations: !!getElectronHost()?.writeFileAtPath,
     markedCardCount: countMarkedCards(view ? view.state.doc : currentDoc),
+    starredCount: countStarred(view ? view.state.doc : currentDoc),
   });
   if (!choice) return false;
   // Writing to .docx flattens live views / linked copies — confirm first.
@@ -9250,6 +9187,7 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     !choice.includeNotes &&
     !choice.includeAiThreads &&
     !choice.markedCardsOnly &&
+    !choice.starredOnly &&
     choice.numbering === 'keep';
   try {
     // A full Save As is a distinct logical doc → fork a new docId (the
@@ -9272,6 +9210,7 @@ async function runSaveAsFlowInner(): Promise<boolean> {
           includeNotes: choice.includeNotes,
           includeAiThreads: choice.includeAiThreads,
           markedCardsOnly: choice.markedCardsOnly,
+          starredOnly: choice.starredOnly ?? false,
           numbering: choice.numbering,
         },
         forkDocId,

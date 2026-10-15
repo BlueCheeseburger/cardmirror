@@ -43,8 +43,8 @@ export function applyNumberingExport(doc: PMNode, mode: NumberingExportMode): PM
  *  — its analytics flag is moot — so nothing renumbers and it keeps the
  *  live skeleton, as a full save does. The fallback rule for a caller
  *  that states no mode. */
-export function exportFreezesNumbering(opts: { includeAnalytics: boolean; readMode: boolean; markedCardsOnly?: boolean }): boolean {
-  return (!opts.includeAnalytics && !opts.readMode) || !!opts.markedCardsOnly;
+export function exportFreezesNumbering(opts: { includeAnalytics: boolean; readMode: boolean; markedCardsOnly?: boolean; starredOnly?: boolean }): boolean {
+  return (!opts.includeAnalytics && !opts.readMode) || !!opts.markedCardsOnly || !!opts.starredOnly;
 }
 
 /** The document with every numbering role cleared and no text written:

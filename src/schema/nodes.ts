@@ -57,6 +57,13 @@ const headingAttrs = {
     default: null as string | null,
     validate: (v: unknown) => (v === null || typeof v === 'string'),
   },
+  /** Starred in the outline (hat / block / tag / analytic; the outline offers
+   *  no star on a pocket). Drives the tinted outline row and Save As's
+   *  "Starred only". Saved with the document; not written to .docx. */
+  starred: {
+    default: false,
+    validate: (v: unknown) => typeof v === 'boolean',
+  },
   ...indentAttr,
   ...spacingAttr,
 };
