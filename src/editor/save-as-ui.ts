@@ -9,12 +9,14 @@
  *     teammates still on Verbatim, or for any tournament-day round
  *     where the receiving party needs Word.
  *
- * Layout: a Name section, a Format section, a Save section — a radio
- * list (As-Is / Send Doc / Read Doc / Marked Doc / Custom Save, the
- * last revealing its content checkboxes inline when selected) —
- * a "Save in a previously saved location" section (also a radio list:
- * "Choose location when saving" plus one row per remembered folder),
- * then Cancel and a single "Save As" button at the bottom. Choosing a
+ * Layout: a Name section, a Save section — a radio list (As-Is / Send
+ * Doc / Read Doc / Marked Doc / Custom Save, the last revealing its
+ * content checkboxes inline when selected; keys 1–5 pick a mode, shown
+ * in a badge at each row's right edge) — a "Save in a previously saved
+ * location" section (also a radio list: "Choose location when saving"
+ * plus one row per remembered folder), a Format section (last: it is
+ * set once and rarely changed), then Cancel and a single "Save As"
+ * button at the bottom. Choosing a
  * save mode or a location only SELECTS it; nothing writes anything
  * until Save As is clicked (or Enter is pressed in the Name field) —
  * every earlier version of this dialog saved the instant you clicked
@@ -28,7 +30,7 @@ import { settings } from './settings.js';
 import type { NumberingExportMode } from './numbering-bake.js';
 import { setIcon } from './icons';
 import { pushOverlay, popOverlay } from './overlay-stack.js';
-import { installModalKeys, captureFocusForDialog } from './text-prompt.js';
+import { installModalKeys, captureFocusForDialog, addRouteKeyHint } from './text-prompt.js';
 import { sanitizeFilename } from './speech-filename.js';
 import {
   listSaveLocations,
@@ -66,6 +68,9 @@ export interface SaveAsResult {
   /** Keep ONLY the cards that contain a reading marker, flat (no headings, no
    *  analytics). Mutually exclusive with the include-* / readMode options. */
   markedCardsOnly: boolean;
+  /** Keep ONLY what's starred in the outline (starred cards whole, and
+   *  everything under a starred hat / block). Optional: absent means off. */
+  starredOnly?: boolean;
   /** Card numbers: `keep` the live skeleton (As-Is, or Custom with neither
    *  box ticked), `freeze` them as heading text, or `remove` them. Send Doc
    *  and Marked Doc read the `*DocNumbering` settings. */
@@ -88,6 +93,12 @@ export interface OpenSaveAsOptions {
    *  can actually write to a bare directory path — the web edition
    *  can't, and the recovery flow doesn't. */
   allowSaveLocations?: boolean;
+  /** How many cards in the document carry a reading marker — shown beside
+   *  "Marked Doc" so you know what that mode would save. Omit where there is
+   *  no live document (the recovery flow). */
+  markedCardCount?: number;
+  /** How many headings are starred — shown beside "Starred Doc". */
+  starredCount?: number;
 }
 
 export function openSaveAs(opts: OpenSaveAsOptions): Promise<SaveAsResult | null> {
@@ -125,7 +136,7 @@ const AS_IS_OPTIONS: SaveContentOptions = {
   numbering: 'keep',
 };
 
-type SaveMode = 'asIs' | 'sendDoc' | 'readDoc' | 'markedDoc' | 'custom';
+type SaveMode = 'asIs' | 'sendDoc' | 'readDoc' | 'markedDoc' | 'starredDoc' | 'custom';
 
 interface ModeDef {
   id: SaveMode;
@@ -201,6 +212,22 @@ const MODE_DEFS: ModeDef[] = [
     numberingSetting: 'markedDocNumbering',
   },
   {
+    id: 'starredDoc',
+    label: 'Starred Doc',
+    description: 'Saves only the headings you starred in the outline, and what is under them.',
+    options: {
+      includeComments: false,
+      includeAnalytics: true,
+      includeUndertags: true,
+      readMode: false,
+      includeNotes: false,
+      includeAiThreads: false,
+      markedCardsOnly: false,
+      starredOnly: true,
+      numbering: 'keep',
+    },
+  },
+  {
     id: 'custom',
     label: 'Custom Save',
     description: 'Choose exactly what to include.',
@@ -262,6 +289,20 @@ class SaveAsModal {
         this.cancel();
         return true;
       }
+      // 1–6 pick a save mode (the badges on the rows). A bare digit is left
+      // alone while typing in the Name field (it opens focused there, so a
+      // digit is a digit); Alt+digit works from anywhere, including the Name
+      // field. `code`, not `key`: Alt+digit types a symbol on macOS.
+      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        const n = e.altKey ? Number(/^Digit(\d)$/u.exec(e.code)?.[1]) : Number(e.key);
+        const def = Number.isInteger(n) && n >= 1 && n <= MODE_DEFS.length ? MODE_DEFS[n - 1] : undefined;
+        const typing = (e.target as HTMLElement | null)?.matches?.('input[type="text"], textarea');
+        if (def && (e.altKey || !typing)) {
+          this.modeRadios[def.id].checked = true;
+          this.setMode(def.id);
+          return true;
+        }
+      }
       // Everything else: keys aimed at the dialog's own inputs pass
       // through natively (Enter in the filename field, or on any
       // radio, submits the form via the Save As button); keys aimed
@@ -311,15 +352,17 @@ class SaveAsModal {
       this.commit();
     });
 
-    // FILE NAME and FORMAT — the what/where, each under its heading.
+    // Name, then what to save, then where. Format goes LAST: it is set once
+    // and rarely touched, so it shouldn't sit above the choices you make
+    // every time.
     form.appendChild(this.buildFileNameSection());
-    form.appendChild(this.buildFormatSection());
     form.appendChild(this.buildModeSection());
 
     // Previously saved folders — collapsed by default, and the user's
     // choice sticks (see save-locations-store). Omitted entirely on
     // hosts that can't write to a bare directory path.
     if (this.opts.allowSaveLocations) form.appendChild(this.buildLocationsSection());
+    form.appendChild(this.buildFormatSection());
 
     this.dialog.appendChild(form);
 
@@ -406,10 +449,41 @@ class SaveAsModal {
     wrap.appendChild(heading);
 
     const groupName = `pmd-save-as-mode-${Math.random().toString(36).slice(2, 8)}`;
-    this.modeRadios = { asIs: null!, sendDoc: null!, readDoc: null!, markedDoc: null!, custom: null! };
-    for (const def of MODE_DEFS) {
+    this.modeRadios = { asIs: null!, sendDoc: null!, readDoc: null!, markedDoc: null!, starredDoc: null!, custom: null! };
+    MODE_DEFS.forEach((def, index) => {
       const row = buildRadioRow(groupName, def.id === this.currentMode, def.label, def.description);
       row.input.value = def.id;
+      // Key badge at the row's right edge (the row reserves room for it), so
+      // it never pushes the title or blurb.
+      row.el.classList.add('pmd-save-as-mode-row');
+      addRouteKeyHint(row.el, String(index + 1));
+      row.el.querySelector('.pmd-route-kbd')!.setAttribute(
+        'title',
+        `Press ${index + 1} to choose ${def.label} (Alt+${index + 1} while typing the name)`,
+      );
+      const countFor =
+        def.id === 'markedDoc'
+          ? this.opts.markedCardCount
+          : def.id === 'starredDoc'
+            ? this.opts.starredCount
+            : undefined;
+      if (countFor !== undefined) {
+        const n = countFor;
+        const count = document.createElement('span');
+        count.className = 'pmd-save-as-marked-count';
+        count.textContent =
+          def.id === 'starredDoc'
+            ? n === 0 ? 'nothing starred' : `${n} starred`
+            : n === 0 ? 'no cards marked' : `${n} ${n === 1 ? 'card' : 'cards'} marked`;
+        if (n === 0) count.classList.add('pmd-save-as-marked-count-none');
+        // On the title's own line, to its right (the label span stays plain text).
+        const text = row.el.querySelector('.pmd-save-as-radio-row-text')!;
+        const label = text.querySelector('.pmd-save-as-radio-row-label')!;
+        const line = document.createElement('span');
+        line.className = 'pmd-save-as-radio-row-line';
+        text.insertBefore(line, label);
+        line.append(label, count);
+      }
       row.input.addEventListener('change', () => {
         if (row.input.checked) this.setMode(def.id);
       });
@@ -418,7 +492,7 @@ class SaveAsModal {
       if (def.id === 'custom') {
         wrap.appendChild(this.buildCustomOptions());
       }
-    }
+    });
     this.applyModeVisibility();
     return wrap;
   }
@@ -551,7 +625,7 @@ class SaveAsModal {
       groupName,
       !selected,
       'Choose location when saving',
-      'Opens the file dialog, like Save As always has.',
+      'Opens the system file dialog.',
     );
     // An <input type="radio"> with no explicit value defaults to
     // "on", not "" — set it explicitly so "nothing selected" and

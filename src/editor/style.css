@@ -10585,6 +10585,25 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   font-weight: 500;
 }
 
+/* Save-mode rows reserve room at the right for their key badge. */
+.pmd-save-as-mode-row {
+  position: relative;
+  padding-right: 2rem;
+}
+.pmd-save-as-radio-row-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.pmd-save-as-marked-count {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-save-as-marked-count-none {
+  font-style: italic;
+}
 .pmd-save-as-radio-row-blurb {
   font-size: 0.78rem;
   color: var(--pmd-c-text-muted);
@@ -12432,7 +12451,6 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-close,
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-stack,
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-nav,
-.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-hide,
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-expand {
   color: var(--pmd-c-text-on-accent);
 }
@@ -12458,7 +12476,6 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
  * The chip's accent fill is theme-invariant, so its hover glyph is too:
  * the light-mode black, pinned via --pmd-c-on-accent-hover. */
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-nav:hover,
-.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-hide:hover,
 .pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-expand:hover {
   color: var(--pmd-c-on-accent-hover);
 }
@@ -12746,20 +12763,6 @@ body.pmd-pane-dragging * {
   line-height: 1;
 }
 .pmd-pane-chip-expand:hover { color: var(--pmd-c-text-strong); }
-.pmd-pane-chip-hide {
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--pmd-c-text-muted);
-  font-size: 0.9rem;
-  line-height: 1;
-}
-.pmd-pane-chip-hide[hidden] { display: none; }
-.pmd-pane-chip-hide:hover { color: var(--pmd-c-text-strong); }
 .pmd-pane-chip-nav {
   flex: 0 0 auto;
   width: 18px;
@@ -18113,3 +18116,69 @@ ins.pmd-doc-diff-word {
    the window-level status-bar copy (which would duplicate the focused pane's)
    is hidden there. */
 body.pmd-multi-doc #status-file-badge { display: none; }
+
+/* The "N hidden" chip (multi-pane-shell.ts): panes minimized with Alt+expand.
+   Only meaningful in three-pane mode; the shell shows it while any pane is
+   hidden. */
+body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
+#hidden-slots-chip {
+  cursor: pointer;
+  font: inherit;
+  color: var(--pmd-c-accent);
+  background: transparent;
+  border: 1px solid var(--pmd-c-accent);
+  border-radius: 999px;
+  padding: 0 0.6rem;
+}
+#hidden-slots-chip[hidden] { display: none; }
+#hidden-slots-chip:hover { background: var(--pmd-c-hover); }
+
+/* "Card ▸" row in the outline's right-click menu: the Card menu's rows open
+   in a side panel while the row is hovered. */
+.pmd-nav-context-submenu-host { position: relative; }
+.pmd-nav-context-item-submenu { padding-right: 2rem; }
+.pmd-nav-context-submenu-arrow {
+  position: absolute;
+  right: 0.75rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-nav-context-submenu { z-index: 211; min-width: 230px; }
+.pmd-nav-context-submenu .pmd-doc-menu-section-title { padding: 0.3rem 1rem 0.15rem; }
+
+/* Outline: marked-card flag, "N marked" roll-up, and the heading star. */
+.pmd-nav-mark-flag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-self: center;
+  color: #d32f2f;
+}
+.pmd-nav-mark-flag svg { width: 0.85em; height: 0.85em; }
+.pmd-nav-mark-count {
+  flex: 0 0 auto;
+  margin-left: 0.4rem;
+  font-size: 0.75em;
+  font-weight: 400;
+  color: #d32f2f;
+  white-space: nowrap;
+}
+.pmd-nav-star {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  padding: 0 0.15rem;
+  background: transparent;
+  border: none;
+  color: var(--pmd-c-text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.pmd-nav-star svg { width: 0.9em; height: 0.9em; }
+.pmd-nav-item:hover .pmd-nav-star,
+.pmd-nav-star:focus-visible { opacity: 0.7; }
+.pmd-nav-star:hover { opacity: 1; color: #e0a100; }
+.pmd-nav-item-starred .pmd-nav-star { opacity: 1; color: #e0a100; }
+.pmd-nav-item-starred .pmd-nav-star svg { fill: currentColor; }
+.pmd-nav-item.pmd-nav-item-starred:not(.pmd-nav-item-selected) {
+  background: rgba(224, 161, 0, 0.16);
+}

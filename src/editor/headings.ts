@@ -23,6 +23,8 @@ export interface HeadingEntry {
   id: string | null;
   /** Cite-formatted text from the same card (only for tag entries). */
   cite: string | null;
+  /** The heading is starred (see the `starred` schema attr). */
+  starred?: boolean;
   /** Position of the enclosing live zone (`transclusion_ref`), or null when this
    *  heading isn't transcluded. Entries sharing a `zonePos` form one transcluded
    *  run — used for the nav-pane rail, by the drag path to promote a transcluded
@@ -109,6 +111,7 @@ export function collectHeadings(
         level,
         id: typeof node.attrs['id'] === 'string' && node.attrs['id'] ? node.attrs['id'] : null,
         cite: cite && cite.trim() !== '' ? cite.trim() : null,
+        starred: node.attrs['starred'] === true,
         zonePos,
       });
     }

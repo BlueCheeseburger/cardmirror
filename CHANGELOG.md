@@ -8,6 +8,53 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.15.0-bcb.6 — 2026-10-15
+
+### Added
+- **Number keys on the "Save your current document before creating a new one?"
+  dialog** — 1 Save, 2 Don't save, shown in a badge on each button, like the
+  "Save before closing?" dialog.
+- **Number keys in Save As.** Each save choice (As-Is, Send Doc, Read Doc, Marked
+  Doc, Starred Doc, Custom Save) shows its number, 1–6, in a badge at the right edge of its
+  row, and pressing the number picks it. While the cursor is still in the Name
+  field, use Alt+number so digits can still be typed in the name.
+- **Marked Doc in Save As says how many cards are marked** ("3 cards marked", or
+  "no cards marked"), beside its name.
+
+- **Minimize a pane with Alt.** In three-pane mode, hold Alt and a pane's expand
+  button turns into a minimize button; clicking it takes the pane out of the
+  layout so the others share its width. A **"1 hidden"** chip appears in the
+  status bar (hover for which pane); click it to bring the pane back.
+  Reveal All Slots and Mod-1/2/3 still bring hidden panes back.
+
+- **Mark Card** — a new command (default **Mod-Alt-D**, rebindable) and a row
+  under *Marking* in the toolbar's Card menu: marks the card the cursor is in
+  with the red marker, or unmarks it. Works in read mode.
+- **Marked text uses the speech timer.** While the speech timer is running the
+  marker reads "Marked at 2:15" (time into the speech); otherwise the clock
+  time as before.
+- **Outline shows marked cards:** a red flag before each marked card's name
+  (hover for the marker text) and a red "N marked" after a Pocket, Hat or Block
+  with marked cards under it.
+- **Outline right-click gets a "Card ▸" submenu** (on hover) holding everything
+  the toolbar's Card menu has — the two are built from one list, so they match.
+- **Stars in the outline.** Hover a Hat, Block, card or analytic and click the
+  star; the row turns pale gold and keeps its star. **Starred Doc** in Save As
+  (key 5) saves just the starred ones — a starred card whole, a starred Hat or
+  Block with everything under it. Stars are saved in `.cmir` files.
+
+### Changed
+- **The outline's right-click menu no longer lists Shrink, Unhighlight or Mark
+  directly** (they live in the Card submenu), and the "Show heading level N"
+  rows are gone — pick the level with the buttons at the top of the outline.
+- Save As now has six choices (Starred Doc added); Custom Save is key 6.
+- **The Hide button on each pane's title bar is gone**, along with its setting
+  ("Show a Hide button on each slot") — minimizing is Alt + the expand button.
+- **Save As: the Format choice moved to the bottom**, below the previously saved
+  locations — it's set once and rarely touched, so it no longer sits above the
+  choices you make every time.
+- The "Choose location when saving" row now says "Opens the system file dialog."
+
 ## 1.15.0-bcb.5.1 — 2026-10-15
 
 ### Added

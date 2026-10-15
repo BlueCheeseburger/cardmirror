@@ -386,20 +386,21 @@ mirrors Word's Navigation Pane, but does more:
   (To drop a [live view or linked copy](#10-live-views-and-linked-copies)
   of a heading, use the commands in the Search palette or the ribbon; the
   right-click menu no longer has them.)
-  **(Fork)** Two more rows act on everything under the heading: **Shrink**
-  runs the same Shrink as the Card menu (Mod-8) over it, and
-  **Unhighlight** strips the highlighting from it. On a card they read
-  *Shrink card* / *Unhighlight card*; on a Pocket, Hat or Block, *…everything
-  under heading*. Once you've unhighlighted, the same row reads
-  **Rehighlight** and puts the highlighting back — for as long as the
-  unhighlight is still in the undo history (close and reopen the document,
-  or undo it, and it's gone). Both are one undo step and follow a
-  multi-selection like Cut and Copy do.
-  **Mark card** (or *Mark N cards*, or *Mark cards under heading* on a
-  Pocket, Hat or Block) drops a red "Marked h:mm" reading marker at the end
-  of each card under the heading, so those cards count as marked for
-  **Save Marked Cards**. Once every card there has one the row reads
-  **Unmark…** and removes them. One undo step.
+  **(Fork)** A **Card ▸** row opens (on hover) a side menu with *everything the
+  toolbar's Card menu has* — Condense, Excerpt, Highlighting, **Mark Card**
+  and Shrink — acting on the card under the right-clicked heading, or on every
+  card under a Pocket, Hat or Block. It is the same list as the toolbar menu,
+  built from one definition, so the two always match. Unhighlight turns into
+  **Rehighlight** (and back) as in the toolbar. Everything runs as one undo
+  step and follows a multi-selection like Cut and Copy do.
+  **Marked cards** show in the outline: a red flag before the card's name
+  (hover it for the marker's text) and a red "N marked" after a Pocket, Hat or
+  Block with marked cards under it.
+  **Stars:** hover any Hat, Block, card or analytic (a Pocket runs to the left
+  edge, so it has none) and a star appears at the row's right; click it to
+  star the heading (its row turns a pale gold, and the star stays). **Starred
+  Doc** in [Save As](#save-as) saves just the starred ones: a starred card
+  whole, a starred Hat or Block with everything under it.
   *(Fork)* The bottom of the menu shows how long your first two readers
   take to read the heading and everything under it, one reader per line
   (all selected headings together, for a multi-selection). The times use
@@ -1304,17 +1305,17 @@ workspace while another shows a single document.
   active document into a slot.
 - **Expand** a slot to full width with **Mod-Shift-F**, and restore it
   the same way.
-- **Hide Slot** (a command, unbound by default) takes the focused slot out
-  of the layout so the other slots share its width. Its documents stay open.
+- **Minimize a pane:** hold **Alt** and the pane's expand button turns into a
+  minimize button; click it and the pane leaves the layout so the other slots
+  share its width. Its documents stay open, and a **“1 hidden”** chip appears
+  in the status bar; click it to bring the pane back (hover for which one).
+  **Hide Slot** (a command, unbound by default) does the same from the keyboard.
   **Reveal All Slots** brings every hidden slot back, and so do **Mod-1/2/3**
   on that slot, opening or sending a document into it, Arrange Windows, and
   anything that needs you to see one of its documents (a save prompt, or a
   file that turns out to be open there already).
   The last slot showing can't be hidden, and if you close every document
-  in the slots that are showing, the hidden ones come back. Turn on
-  **Settings → General → Workspace → Show a Hide button on each slot**
-  (off by default) for a Hide
-  button in each slot's title bar.
+  in the slots that are showing, the hidden ones come back.
 - When you have more than one document in a slot, jump between them using
   the drop-down in the document's title bar or by using **Ctrl-Tab**.
 - Turn on **Opening a file replaces an untouched Untitled doc**
@@ -1460,6 +1461,17 @@ mode, so the marker shows.)
 
 You can also drop a marker while editing — **Mod-Shift-D** works any time
 (Space and Enter only stand in for it inside read mode).
+
+**(Fork)** While the **speech timer is running**, the marker says how far into
+the speech you are ("Marked at 2:15") instead of the clock time, so you can
+say "marked at 2:15" out loud and the other team can find the card. With the
+timer stopped it falls back to the clock ("Marked 7:32").
+
+**Mark Card** marks the whole card the cursor is in (rather than a spot inside
+it) — **Mod-Alt-D** by default, rebindable under Settings → Keyboard, and in
+the toolbar's **Card** menu under *Marking*. It drops the same red marker at the
+end of the card and counts for Marked Doc; run it again to unmark. It works in
+read mode too.
 
 Second, you can perform **click-and drag** actions - move headers around in
 the document, add received cards to your document, or grab cards from the
@@ -2788,15 +2800,19 @@ bottom of the dialog.
 - **Name** — the file name. A `/` or any other character your file system
   can't use in a name becomes a hyphen, so `R3 2NC (redo 9/17/26)` saves
   as one file rather than a set of folders.
-- **Format** — CardMirror native (`.cmir`) or Microsoft Word (`.docx`).
-  Switching updates the name's extension.
-- **Save** — what goes in the copy:
+- **Save** — what goes in the copy. Each choice has its number (1–6) at the
+  right edge: press it to pick that choice, or Alt+number while the cursor is
+  still in the Name field:
   - **As-Is** (the default) — the whole document.
   - **Send Doc** — a clean copy with comments, analytics, and undertags
     stripped, for the judge or opponent (optionally with a `SEND_`
     filename prefix).
   - **Read Doc** — the read-mode view of the document.
-  - **Marked Doc** — only the cards you marked.
+  - **Marked Doc** — only the cards you marked. The dialog says how many
+    cards that is, beside the name.
+  - **Starred Doc** — only what you starred in the outline (see
+    the outline's right-click menu (above)), with the count beside
+    the name.
   - **Custom Save** — shows checkboxes under it so you choose exactly what
     to include: comments, analytics, undertags, **Freeze card numbers as
     text** or **Remove card numbers** (one or the other; neither keeps live
@@ -2804,11 +2820,13 @@ bottom of the dialog.
     by default).
 - **Save in a previously saved location** **(desktop only)** — a
   collapsible list (it remembers whether you left it open). The first row,
-  **Choose location when saving**, is the default and opens the usual file
+  **Choose location when saving**, is the default and opens the system file
   dialog. Below it are the folders you've saved into, most recent first —
   up to five, plus any you've pinned with the ☆ (pinned folders stay at the
   top and never drop off). Select a folder and Save As writes straight
   into it, no file dialog.
+- **Format** — CardMirror native (`.cmir`) or Microsoft Word (`.docx`), last
+  because it's usually left alone. Switching updates the name's extension.
 
 Send and Marked Docs **freeze their card numbers**: every numbered heading
 gets its number written in as plain text, in your display format, and the

@@ -40,6 +40,9 @@ export interface ExportTransformOptions {
    *  no analytics. Mutually exclusive with the other options (like readMode).
    *  Optional / defaults off so existing callers don't have to opt in. */
   markedCardsOnly?: boolean;
+  /** Keep ONLY what's starred in the outline: each starred card whole, and
+   *  everything under a starred hat / block. Mutually exclusive like the rest. */
+  starredOnly?: boolean;
   /** Bake the display-only "text after a reading marker is red"
    *  (`markUnreadAfterMarker`) into real `font_color` runs, so the export
    *  matches what's on screen. Mirror the live setting at the call site;
@@ -54,6 +57,7 @@ export function transformForExport(
   let out: PMNode;
   if (opts.readMode) out = applyReadModeTransform(doc);
   else if (opts.markedCardsOnly) out = extractMarkedCards(doc);
+  else if (opts.starredOnly) out = extractStarred(doc);
   else {
     out = doc;
     if (!opts.includeAnalytics) out = stripAnalytics(out);
@@ -249,6 +253,57 @@ function extractMarkedCards(doc: PMNode): PMNode {
     if (child.type.name === 'card' && containsReadingMarker(child)) out.push(child);
   });
   return schema.nodes['doc']!.create(null, out);
+}
+
+// ------------------------ starred (outline) ------------------------
+//
+// A heading starred in the outline (the `starred` attr on a hat / block / tag
+// / analytic) marks what Save As's "Starred Doc" keeps: a starred card or
+// analytic whole, and everything under a starred hat / block (down to the next
+// heading of the same or a shallower level). The doc is flat, so each starred
+// block is a run of siblings; overlapping stars never repeat a node.
+
+const STAR_LEVEL: Record<string, number> = { pocket: 1, hat: 2, block: 3 };
+
+function headStarred(node: PMNode): boolean {
+  if (node.attrs['starred'] === true) return true;
+  if (node.type.name !== 'card' && node.type.name !== 'analytic_unit') return false;
+  const head = node.firstChild;
+  return !!head && head.attrs['starred'] === true;
+}
+
+function extractStarred(doc: PMNode): PMNode {
+  const schema = doc.type.schema;
+  const out: PMNode[] = [];
+  let keepBelow = 0; // while > 0, keep everything until a heading ≤ this level
+  doc.forEach((child) => {
+    const level = STAR_LEVEL[child.type.name];
+    if (level !== undefined) {
+      if (keepBelow > 0 && level > keepBelow) {
+        out.push(child);
+        return;
+      }
+      keepBelow = 0;
+      if (child.attrs['starred'] === true) {
+        keepBelow = level;
+        out.push(child);
+      }
+      return;
+    }
+    if (keepBelow > 0 || headStarred(child)) out.push(child);
+  });
+  return schema.nodes['doc']!.create(null, out);
+}
+
+/** How many headings are starred (cards, analytics, hats, blocks), so the
+ *  Save As dialog can say what "Starred Doc" would save. */
+export function countStarred(doc: PMNode): number {
+  let n = 0;
+  doc.forEach((child) => {
+    if (child.attrs['starred'] === true) n++;
+    else if ((child.type.name === 'card' || child.type.name === 'analytic_unit') && headStarred(child)) n++;
+  });
+  return n;
 }
 
 /** How many doc-level cards contain a reading marker — so callers can warn

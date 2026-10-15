@@ -744,7 +744,6 @@ class Slot {
   /** Chip hide button — hides this slot's pane (the docs stay open).
    *  Only shown when the "Show a Hide button on each slot" setting is on;
    *  the Hide Slot command works either way. */
-  private chipHideBtn: HTMLButtonElement;
   /** Title chip × close button. */
   private chipCloseBtn: HTMLButtonElement;
   /** Editor body — DocRecord.editorEl mounts here. */
@@ -936,27 +935,17 @@ class Slot {
     this.chipExpandBtn = document.createElement('button');
     this.chipExpandBtn.type = 'button';
     this.chipExpandBtn.className = 'pmd-pane-chip-expand';
-    this.chipExpandBtn.title = `Expand this pane to fill the workspace (${ctrlOrCmdWord()}+Shift+F)`;
+    this.chipExpandBtn.title = `Expand this pane to fill the workspace (${ctrlOrCmdWord()}+Shift+F). Hold Alt to minimize it instead.`;
     setIcon(this.chipExpandBtn, 'expand');
     this.chipExpandBtn.setAttribute('aria-pressed', 'false');
     this.chipExpandBtn.addEventListener('mousedown', (e) => e.preventDefault());
     this.chipExpandBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.shell.toggleExpanded(this);
+      // Alt-click minimizes (hides) the pane instead of expanding it.
+      if (e.altKey) this.shell.hideSlot(this);
+      else this.shell.toggleExpanded(this);
     });
     chip.appendChild(this.chipExpandBtn);
-    this.chipHideBtn = document.createElement('button');
-    this.chipHideBtn.type = 'button';
-    this.chipHideBtn.className = 'pmd-pane-chip-hide';
-    this.chipHideBtn.title = 'Hide this slot (Reveal All Slots brings it back)';
-    setIcon(this.chipHideBtn, 'minus');
-    this.chipHideBtn.hidden = !settings.get('showHideSlotButton');
-    this.chipHideBtn.addEventListener('mousedown', (e) => e.preventDefault());
-    this.chipHideBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.shell.hideSlot(this);
-    });
-    chip.appendChild(this.chipHideBtn);
     // Outline-toggle — shows / hides this slot's nav section. Pressed
     // = outline visible. Doubles as the reopen affordance after the
     // user closes the section with its own × button.
@@ -1116,8 +1105,12 @@ class Slot {
 
   /** Sync the chip's expand button to the shell's current expand
    *  state. Driven by `MultiPaneShell.applyExpandedState`. */
-  setHideButtonVisible(visible: boolean): void {
-    this.chipHideBtn.hidden = !visible;
+  /** Alt held: the expand button becomes a minimize (hide) button. */
+  setMinimizeMode(on: boolean): void {
+    setIcon(this.chipExpandBtn, on ? 'minus' : 'expand');
+    this.chipExpandBtn.title = on
+      ? 'Minimize this pane (the “hidden” chip in the status bar brings it back)'
+      : `Expand this pane to fill the workspace (${ctrlOrCmdWord()}+Shift+F). Hold Alt to minimize it instead.`;
   }
 
   setExpandButtonPressed(pressed: boolean): void {
@@ -1980,6 +1973,9 @@ class MultiPaneShell {
       for (const id of SLOT_IDS) this.slots[id].refreshWordCount();
     });
 
+    this.installHiddenChip();
+    this.installMinimizeModifier();
+
     this.unsubscribeSettings = settings.subscribe((s) => {
       if (s.multiDocLayoutMode !== this.layoutMode) {
         this.layoutMode = s.multiDocLayoutMode;
@@ -1992,7 +1988,6 @@ class MultiPaneShell {
       }
       // Pane word counts depend on reader settings.
       for (const id of SLOT_IDS) this.slots[id].refreshWordCount();
-      for (const id of SLOT_IDS) this.slots[id].setHideButtonVisible(s.showHideSlotButton);
       // Last workspace turned on mid-session: publish the open set now.
       if (s.lastWorkspaceEnabled) this.reportWorkspace();
       // Editor spellcheck is served by the viewport-spellcheck plugin
@@ -2292,6 +2287,62 @@ class MultiPaneShell {
     return slot.stack.length > 0 && !slot.paneHidden;
   }
 
+  /** The status bar's "N hidden" chip: shown while any pane with documents is
+   *  hidden; click brings it (or them all) back. */
+  private hiddenChipEl: HTMLButtonElement | null = null;
+
+  private installHiddenChip(): void {
+    const bar = document.getElementById('status-bar');
+    if (!bar) return;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.id = 'hidden-slots-chip';
+    chip.className = 'status-segment';
+    chip.hidden = true;
+    chip.addEventListener('mousedown', (e) => e.preventDefault());
+    chip.addEventListener('click', () => {
+      const hidden = this.hiddenSlots();
+      this.revealAllSlots();
+      const first = hidden[0];
+      if (hidden.length === 1 && first) {
+        this.focusSlot(first);
+        first.visible?.view.focus();
+      }
+    });
+    const anchor = document.getElementById('status-file-badge');
+    bar.insertBefore(chip, anchor ? anchor.nextSibling : bar.firstChild);
+    this.hiddenChipEl = chip;
+    this.refreshHiddenChip();
+  }
+
+  private hiddenSlots(): Slot[] {
+    return SLOT_IDS.map((id) => this.slots[id]).filter((sl) => sl.stack.length > 0 && sl.paneHidden);
+  }
+
+  private refreshHiddenChip(): void {
+    const chip = this.hiddenChipEl;
+    if (!chip) return;
+    const hidden = this.hiddenSlots();
+    chip.hidden = hidden.length === 0;
+    if (hidden.length === 0) return;
+    chip.textContent = hidden.length === 1 ? '1 hidden' : `${hidden.length} hidden`;
+    const names = hidden.map((sl) => `${sl.id.replace('slot', 'Slot ')}: ${docDisplayName(sl.visible?.filename ?? 'Untitled')}`);
+    chip.title = `${names.join(' · ')} — click to show ${hidden.length === 1 ? 'it' : 'them'} again`;
+  }
+
+  /** Holding Alt turns every pane's expand button into a minimize button. */
+  private installMinimizeModifier(): void {
+    let alt = false;
+    const set = (on: boolean): void => {
+      if (on === alt) return;
+      alt = on;
+      for (const id of SLOT_IDS) this.slots[id].setMinimizeMode(on);
+    };
+    window.addEventListener('keydown', (e) => set(e.altKey));
+    window.addEventListener('keyup', (e) => set(e.altKey));
+    window.addEventListener('blur', () => set(false));
+  }
+
   /** Hide Slot: take `slot`'s pane (and outline) out of the layout so
    *  the other slots share the width. Its docs stay open. Ends expand
    *  mode first. Refused for the last slot still showing, so the
@@ -2372,6 +2423,7 @@ class MultiPaneShell {
     // reconcileNavRail; pane visibility above stays independent.
     this.reconcileNavRail();
     this.refreshLayout();
+    this.refreshHiddenChip();
     if (expanded) this.focusSlot(expanded);
   }
 
@@ -3533,11 +3585,13 @@ class MultiPaneShell {
     // by reconcileNavRail.
     this.reconcileNavRail();
     this.refreshLayout();
+    this.refreshHiddenChip();
   }
 
   /** Handle a slot becoming empty — if it had focus, transfer to
    *  the next active slot (or clear focus). */
   handleSlotEmptied(slot: Slot): void {
+    this.refreshHiddenChip();
     // Workspace fully empty → land on the home screen rather than a
     // blank window (parity with single-pane's close-to-home). Checked
     // BEFORE the focus bookkeeping: that path early-returns when the
