@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.5.1 — 2026-10-15
 
 ### Added
 - **Number keys on the "Save before closing?" dialog.** Save, Save As… and Don't
@@ -31,6 +31,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   underlines but no highlight colors). They're now marked to always print.
 
 ### Changed
+- The README's list of the fork's biggest features merges the two card-search
+  features (Logos and your own cards) into one, and adds an eighth: changes that
+  make CardMirror easier to pick up.
 - **Copy file path lives on the file badge only.** Right-clicking the ribbon, the
   blue document bar or a pane's title bar no longer offers it (the ribbon and
   title-bar menus go back to what they were).

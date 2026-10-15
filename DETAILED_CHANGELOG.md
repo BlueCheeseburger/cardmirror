@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.5.1 — 2026-10-15
 
 ### Added: key badges on route dialogs (`text-prompt.ts`, `index.ts`, `style.css`)
 
