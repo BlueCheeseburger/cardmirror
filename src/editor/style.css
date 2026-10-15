@@ -4310,14 +4310,23 @@ body.pmd-override-shading [data-shading] {
    plain descendant combinator — cheaper than the previous per-color
    `:has()` chain, and no per-`.pmd-underline` recalc blowup on cv:auto
    cards. A run wholly INSIDE a band already inherits the band's `color`,
-   so its underline is band-coloured for free (currentColor). */
-:is(.pmd-underline, .pmd-emphasis, #editor.pmd-cite-underlined .pmd-cite)
+   so its underline is band-coloured for free (currentColor).
+
+   The underlined-cite alternative is listed twice — `#editor.…` for the
+   single-doc editor and `html.… .pmd-pane-editor` for panes — because the
+   flag is a class on `#editor` there and only on <html> in the multi-pane
+   shell. Dropping the pane copy made underlined cites lose their line over
+   highlighted / shaded words in panes (and ignore the underline thickness)
+   while looking right in single-doc mode. */
+:is(.pmd-underline, .pmd-emphasis, #editor.pmd-cite-underlined .pmd-cite,
+    html.pmd-cite-underlined .pmd-pane-editor .pmd-cite)
   :is([data-highlight-band="light"], [data-shading-band="light"]) {
   text-decoration: underline;
   text-decoration-thickness: var(--pmd-underline-size, auto);
   text-decoration-color: var(--pmd-c-band-fg-light);
 }
-:is(.pmd-underline, .pmd-emphasis, #editor.pmd-cite-underlined .pmd-cite)
+:is(.pmd-underline, .pmd-emphasis, #editor.pmd-cite-underlined .pmd-cite,
+    html.pmd-cite-underlined .pmd-pane-editor .pmd-cite)
   :is([data-highlight-band="dark"], [data-shading-band="dark"]) {
   text-decoration: underline;
   text-decoration-thickness: var(--pmd-underline-size, auto);
@@ -13793,6 +13802,7 @@ html.pmd-undertag-bold .pmd-pane-editor .pmd-undertag-mark {
 }
 html.pmd-cite-underlined .pmd-pane-editor .pmd-cite {
   text-decoration: underline;
+  text-decoration-thickness: var(--pmd-underline-size, auto);
 }
 html.pmd-underline-bold .pmd-pane-editor .pmd-underline {
   font-weight: bold;
