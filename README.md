@@ -9,7 +9,7 @@
 
 > **This is a fork** ([`BlueCheeseburger/cardmirror`](https://github.com/BlueCheeseburger/cardmirror))
 > of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). The
-> 8 biggest things this fork adds on top of upstream, ranked by user impact
+> biggest things this fork adds on top of upstream, ranked by user impact
 > (full history in [CHANGELOG.md § Fork Changes](./CHANGELOG.md#fork-changes),
 > implementation details in
 > [DETAILED_CHANGELOG.md § Fork Changes](./DETAILED_CHANGELOG.md#fork-changes)):
@@ -73,13 +73,9 @@ Run it as a **desktop app** for tournament-day work, or as a **web
 preview** in any browser for trying it out or working from a Chromebook
 or locked-down school machine.
 
-> **Keep backups.** CardMirror is stable and used daily, but no
-> editor is bug-free — keep a copy of anything critical in a second
-> format.
->
-> **Desktop builds are unsigned**, so Windows and macOS warn you the
-> first time you launch. The one-time workaround for each is in the
-> install steps below.
+**Desktop builds are unsigned**, so Windows and macOS warn you the
+first time you launch. The one-time workaround for each is in the
+install steps below.
 
 See [`MANUAL.md`](./MANUAL.md) for the full user
 manual; [`PRIVACY.md`](./PRIVACY.md) for how CardMirror handles your data;
@@ -99,18 +95,6 @@ If sharing seems broken, check the live status page at
 **[cardmirror.betteruptime.com](https://cardmirror.betteruptime.com/)**
 before troubleshooting on your end. Everything else in CardMirror works
 offline and does not depend on it.
-
-## Support
-
-The core CardMirror editor is free, and built and maintained by one
-person. If it's useful to you, two ways to help keep it going:
-
-- **Subscribe at [Debate Decoded](https://debate-decoded.ghost.io/)** —
-  recurring support that funds ongoing development, and the best way to
-  keep the project moving.
-- **[Tip once on Ko-fi](https://ko-fi.com/anthonytrufanov)** — a
-  one-time contribution, no account needed. (Or use the **Sponsor**
-  button at the top of the repo.)
 
 ## Install
 

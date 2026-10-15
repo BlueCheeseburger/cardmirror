@@ -36,37 +36,3 @@ targets fidelity with both.
 | `src/` | The shared editor core — schema, importer/exporter, plugins, commands. |
 | `apps/desktop/` | The Electron desktop shell. |
 | `tests/`, `benchmarks/` | Round-trip and performance suites (point `CARDMIRROR_DOCS_DIR` at your own `.docx` fixtures). |
-
-New contributor: read this file, then `ARCHITECTURE.md`.
-
-## Status
-
-CardMirror is at 1.0. The schema, importer, exporter, editor, and
-multi-doc workspace are built and used daily; the round-trip is the
-project's dominant correctness criterion and is tested against real
-`.docx` files.
-
-**Shipped:** docx round-trip · the full Pocket/Hat/Block/Tag schema ·
-the F-key formatting commands · cards, analytics, tables, and images ·
-read mode · send-to-speech · drag-and-drop reordering · the three-slot
-multi-doc workspace · command-palette file search and find/replace ·
-spaced-repetition flashcards · AI cite/alt-text/table/comment features
-(comments, notes, and ask-AI work on images too; cite formatting also
-runs whole-document behind a confirm) · AI OCR/PDF text repair
-(diff-based, animated, single undo) · selection translation
-(MyMemory keyless / Anthropic / Google, AI-optional) · editor spellcheck ·
-autosave and crash recovery · desktop auto-update · encrypted card sharing ·
-real-time co-editing (desktop, experimental) · transclusion (read-only live
-views + editable linked copies) · display-only card numbering.
-
-**Planned** (rationale in `ARCHITECTURE.md`): Verbatim Flow integration ·
-numbered/bulleted lists · per-type display-spacing ·
-fuller screen-reader support and accessibility presets. The
-remaining Verbatim cleanup macros (AutoNumberTags,
-ConvertToDefaultStyles, …) aren't planned, though several cleanup
-commands already ship — and ReformatAllCites has an AI counterpart in
-**Reformat Every Cite**.
-
-**Out of scope:** section/page layout, footnotes, revision-ID metadata,
-non-heading bookmarks, localization. The importer drops these; the
-exporter never emits them.
