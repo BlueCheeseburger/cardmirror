@@ -50,7 +50,7 @@ import {
   buildDeleteStructureTr,
   installIncomingSpeechSliceHandler,
 } from './speech-doc-send.js';
-import { promptForChoice, promptForText, promptForRouteChoice, alertDialog, confirmDialog, installModalKeys, armDialogFocus, setModalKeyPassThrough } from './text-prompt.js';
+import { promptForChoice, promptForText, promptForRouteChoice, addRouteKeyHint, alertDialog, confirmDialog, installModalKeys, armDialogFocus, setModalKeyPassThrough } from './text-prompt.js';
 import { pushOverlay, popOverlay, isTopOverlay, isAnyOverlayOpen } from './overlay-stack.js';
 import { positionFloatingMenu } from './context-menu-position.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
@@ -10886,6 +10886,7 @@ export function confirmCloseUnsaved(
         cleanup();
         resolve('save');
       });
+      addRouteKeyHint(saveBtn, '1');
       buttons.appendChild(saveBtn);
     }
 
@@ -10899,6 +10900,7 @@ export function confirmCloseUnsaved(
       cleanup();
       resolve('saveAs');
     });
+    addRouteKeyHint(saveAsBtn, opts?.pathMissing ? '1' : '2');
     buttons.appendChild(saveAsBtn);
 
     const discardBtn = document.createElement('button');
@@ -10910,6 +10912,7 @@ export function confirmCloseUnsaved(
       cleanup();
       resolve('discard');
     });
+    addRouteKeyHint(discardBtn, opts?.pathMissing ? '2' : '3');
     buttons.appendChild(discardBtn);
 
     dialog.appendChild(buttons);

@@ -10,6 +10,31 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: key badges on route dialogs (`text-prompt.ts`, `index.ts`, `style.css`)
+
+`addRouteKeyHint(btn, key)` puts a `.pmd-route-kbd` badge (the slot picker's
+existing style, now generic on `.pmd-route-btn { position: relative }`) in a
+route button's corner. `promptForRouteChoice` badges its first nine choices;
+`confirmCloseUnsaved` badges Save / Save As… / Don't save (1/2/3, or 1/2 when the
+saved path is missing and Save is omitted). The handlers already answered to
+those keys. The multi-document close dialog is not badged: it shows one card per
+document, so a bare number would be ambiguous.
+
+### Changed: prefix hint retires after a successful search (`quick-card-search-ui.ts`)
+
+The `.pmd-qcs-empty-hint` line shows in the empty no-prefix state until
+`renderResults` sees rows for a typed query (not in-file, not folder browse, and
+`parsePrefix(...).query` non-empty — a bare `c ` doesn't count). That sets
+localStorage `pmd-qcs-prefix-hint-seen`; per-user and deliberately not a Setting.
+
+### Changed: status-bar file badge hidden in three-pane windows (`style.css`)
+
+`body.pmd-multi-doc #status-file-badge { display: none }` — each pane footer
+already carries its own `createPaneDiskBadge`, and the status-bar one followed
+the focused pane, so it duplicated it.
+
 ## 1.15.0-bcb.5 — 2026-10-15
 
 ### Added: printing (`print-doc.ts`, `ribbon-commands.ts`, `index.ts`, `style.css`, `apps/desktop/src/main.ts`, `preload.ts`, `electron-host.ts`)

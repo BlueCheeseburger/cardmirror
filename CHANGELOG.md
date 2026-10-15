@@ -8,6 +8,22 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+- **Number keys on the "Save before closing?" dialog.** Save, Save As… and Don't
+  save now show their keys (1, 2, 3) in a corner badge — the keys already worked,
+  but nothing said so. Every other choice dialog that answers to number keys shows
+  them too.
+
+### Changed
+- **The Search Everything prefix hint shows until you've used search.** The line
+  telling you to type the letter first ("f heg bad") appears every time the empty
+  palette opens, and goes away for good once a search you typed returns a result.
+- **No duplicate file badge in three-pane mode.** The cloud / computer badge
+  appears in each pane's footer only; the copy in the window's bottom bar is gone
+  there (a single window still shows it in the bottom bar).
+
 ## 1.15.0-bcb.5 — 2026-10-15
 
 ### Added

@@ -456,6 +456,9 @@ export function promptForRouteChoice<T extends string>(
       }
       btn.addEventListener('click', () => pick(choice.value));
       buttons.appendChild(btn);
+      // The first nine answer to their number key (see the key handler below).
+      const index = buttons.children.length;
+      if (index <= 9) addRouteKeyHint(btn, String(index));
     }
     dialog.appendChild(buttons);
 
@@ -502,6 +505,17 @@ export function promptForRouteChoice<T extends string>(
     document.body.appendChild(overlay);
     armDialogFocus(dialog, 'dialog', opts.message);
   });
+}
+
+/** Put a small key badge in the corner of a route-dialog button, so the number
+ *  shortcut the dialog already answers to is visible. The badge is aria-hidden:
+ *  the key is announced by the dialog's own key handling, not the button name. */
+export function addRouteKeyHint(btn: HTMLElement, key: string): void {
+  const kbd = document.createElement('kbd');
+  kbd.className = 'pmd-route-kbd';
+  kbd.setAttribute('aria-hidden', 'true');
+  kbd.textContent = key;
+  btn.appendChild(kbd);
 }
 
 /** In-DOM replacement for `window.alert` — same dialog vocabulary as the
