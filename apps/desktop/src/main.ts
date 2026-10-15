@@ -850,13 +850,14 @@ ipcMain.handle('host:print-window', (event) => {
   });
 });
 
-/** Native drag of a saved document out of the window — the status-bar
- *  CardMirror mark (renderer: file-drag-mark.ts), the cross-platform twin
- *  of the macOS title-bar proxy icon. `startDrag` has to run in response
+/** Native drag of a saved document out of the window — the blue document
+ *  bar, a pane chip dragged out of the window, or the footer file badge
+ *  (renderer: file-drag.ts), the cross-platform twin of the macOS
+ *  title-bar proxy icon. `startDrag` has to run in response
  *  to the renderer's own dragstart, hence `on` + `send` rather than
  *  `handle`. The path is the doc's handle (absolute on desktop); anything
  *  else, or a file that no longer exists, is ignored. The drag image is
- *  the mark itself — Windows refuses a drag without a real icon. */
+ *  the CardMirror mark icon — Windows refuses a drag without a real icon. */
 ipcMain.on('host:drag-file-out', (event, payload: unknown) => {
   const p = payload as { path?: unknown; iconDataUrl?: unknown } | null;
   const file = typeof p?.path === 'string' ? p.path : '';

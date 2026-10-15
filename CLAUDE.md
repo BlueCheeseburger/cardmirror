@@ -377,3 +377,22 @@ keep only one live release current and delete the superseded one. The
 user said not to: leave every older `vX.Y.Z-bcb.N` release in place when
 cutting a new one. Don't delete a release unless the user asks for that
 specific one.
+
+## "Reading view" means read mode — the paged Reading view is gone, keep it gone
+
+The user said (2026-10-15): "reading mode is the one true view/mode, and if i
+say 'reading view' in the future, i mean reading mode." The separate paged
+Reading view (`reader-view.ts`, `toggleReaderView`, its ribbon button,
+`readerReduceMotion`, paged auto-scroll, `.pmd-reader-*` CSS) was removed
+entirely that day because it kept getting in the way of read mode. Don't
+re-add it, and when an upstream sync brings it back (or code that depends on
+it), delete it again rather than asking. In commands and docs, "reading
+view" / "reader view" are just aliases of read mode (`toggleReadMode`).
+
+Removed with it in the same change, also not coming back: the ribbon
+doc-name pill (`showDocNameChip`, `#doc-name-chip`), the amber speech
+banner (`#speech-doc-banner`), and the bottom-right CardMirror drag mark
+(`#file-drag-mark`, `file-drag-mark.ts`). A single window now shows the
+blue `#doc-header` bar (the pane chip reused, in `doc-header.ts`), and the
+bottom file badge (`createPaneDiskBadge`) is the one place to reveal, drag
+or copy the path of a file.

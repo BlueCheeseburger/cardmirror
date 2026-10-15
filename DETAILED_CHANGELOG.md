@@ -51,6 +51,117 @@ and in real Electron, where the keyboard shortcut → `webContents.print` was
 called with the expected options while the print copy was in place.
 Tests: `tests/editor/print-doc.test.ts`.
 
+### Removed: Reading view (`reader-view.ts` and its commands, settings, CSS, tests)
+
+Read mode is the one reading mode. Deleted `reader-view.ts` (the paged
+two-column view), its ribbon button / command (`toggleReaderView`) / palette
+aliases (they now belong to `toggleReadMode`: "reading view", "reader view"),
+the `readerReduceMotion` setting, the `readerJump` path in `precise-scroll.ts`,
+the paged mode and `pageReadSeconds` in `auto-scroll.ts`, the `#reader-view-btn`
+and its CSS, and the matching tests; MANUAL.md lost its Reading view section.
+`.pmd-icon-book` stays (the custom-button icon picker lists it). **Keep it
+removed on an upstream sync** (CLAUDE.md records this).
+
+### Changed: single window is a one-pane workspace (`doc-header.ts`, `chip-speech-button.ts`, `index.ts`, `index.html`, `style.css`)
+
+`#doc-header` is the multi-pane `.pmd-pane-chip` reused as a fixed bar above the
+document (`--doc-header-height`, hidden in three-pane, mobile and home): name
+with inline rename, save, autosave, outline toggle, close — no expand button or
+slot number. `.pmd-pane-focused` / `.pmd-pane-speech` give it the same blue /
+amber states. It replaces the ribbon doc-name pill (`#doc-name-chip`,
+`installRibbonChipRename`, `showDocNameChip`) and the speech banner
+(`#speech-doc-banner`, `pmd-speech-banner-visible`); `thinking-tooltip.ts` now
+measures `#doc-header` for its top clearance. `createChipSpeechButton` (a ghost
+mic at the chip's left, shown on hover, solid when it's the speech doc) is shared
+by the header and every `Slot` chip; it calls `toggleMarkSingleDocAsSpeech()`
+(single) / `markFocusedAsSpeech()` (multi).
+
+### Changed: names shown without the extension (`doc-rename.ts`, `duplicate-names.ts`)
+
+`stripKnownExtension` / `docDisplayName` strip a trailing `.docx` / `.cmir` for
+display, the rename field seed and the pane-drag label; `nameKey` strips it for
+duplicate detection. The stack dropdown deliberately keeps extensions (it tells
+two same-named files apart).
+
+### Added: copy path, drag-out and one file badge (`file-drag.ts`, `file-path-menu.ts`, `disk-conflict.ts`, `pane-move-menu.ts`, `pane-drag.ts`, `multi-pane-shell.ts`, `index.ts`)
+
+The status-bar CardMirror mark (`file-drag-mark.ts`, `#file-drag-mark`) is gone;
+`file-drag.ts` keeps its machinery (`startNativeFileDrag`, `installFileDragSource`,
+`filePathOf`) for three sources: the doc header, the pane chip (pointer-based
+drag, so `onExitWindow` in `pane-drag.ts` hands off to a native drag when the
+pointer leaves the window) and the file badge. `createPaneDiskBadge` now renders
+for any doc with a path — cloud-provider icon when synced, a computer icon
+(`COMPUTER_SVG`, `LOCAL_INFO`) when local — and is also mounted in the
+single-window status bar (`#status-file-badge`); click reveals, drag shares,
+right-click opens the `file-path-menu.ts` menu (Copy file path, Show in folder).
+The ribbon's right-click menu and the pane chip's move menu (`extraItems`) gain
+the same items on desktop. Verified in Chromium; the native drag itself
+(`host:drag-file-out` → `startDrag`) can only be exercised on a real desktop.
+
+### Added: Default text style (`blank-doc.ts`, `settings.ts`, `settings-ui.ts`, `multi-pane-shell.ts`, `index.ts`)
+
+`defaultTextStyle` (`'analytic'` default | `'normal'` | `'undertag'`) decides the
+single empty block `makeBlankDoc()` builds (an `analytic_unit` wrapping an
+`analytic`, a plain paragraph, or an undertag). Every New path (single, pane,
+session, blank opens, speech docs — whose trailing line follows it too) shares
+`makeStyledBlock`; `seedCursorOffset` replaces the old hard-coded caret
+positions, and `isUntouchedBlank` accepts any of the three shapes, so an opened
+file still replaces an untouched doc after the setting changes.
+
+### Added: Custom styles (`custom-styles-model.ts`, `custom-styles.ts`, `custom-styles-ui.ts`, `plugin-registry.ts`, `settings.ts`, `index.ts`)
+
+`customStyles: { id, name, format }[]` (max 24; format keys `bold`, `italic`,
+`strikethrough`, `superscript`, `subscript`, `color`, `highlight`, `font`,
+`size`) is sanitized by `sanitizeCustomStyles` in `settings.ts` (the model file
+has no schema/ProseMirror imports for that reason). Applying one adds direct
+marks (a toggle: strips them when the whole selection already has them; arms
+stored marks for a caret). Underline and emphasis are deliberately not offered —
+they're the named styles with their own exclusion rules. Each style becomes a
+`custom-style.<id>` command through `setUserCommands` in `plugin-registry.ts` —
+the same pool plugin commands use, so the palette, Keyboard shortcuts and custom
+ribbon buttons get it with no new plumbing, and unlike plugins it exists on the
+web build too. Deleting a style also purges its key override and ribbon button.
+The editor is one `<details>` dropdown per style plus an "Edit as JSON" mode
+(`parseCustomStylesJson`, accepts a list or `{ styles }`).
+
+### Added: Word Count Selection lay column, Search Everything prefix hint, Search icon
+
+`word-count-ui.ts` adds Lay WPM / Lay time columns once any reader has a
+`layWpm`; a reader without one shows "—", never their flow time
+(`readTimeSeconds` contract). `quick-card-search-ui.ts` appends a
+`.pmd-qcs-empty-hint` line under the prefix legend. The status-bar Search
+button is an icon (`aria-label="Search Everything"`).
+
+### Changed: extra formatting buttons hidden (`settings.ts`, `index.ts`, `style.css`)
+
+`showExtraFormattingButtons` (default off) toggles `html.pmd-extra-format-hidden`
+(Table / Insert image / super / sub / strikethrough panel) and
+`html.pmd-numbering-hidden` (Card numbering buttons; it keeps its own
+`showNumberingButtons` row beneath, which now depends on the master toggle).
+The font-size step buttons are removed outright.
+
+### Fixed: outline follows the heading in view (`nav-panel.ts`, `reading-line.ts`)
+
+A scroll spy (armed by scrolling, disarmed by caret moves and outline jumps)
+re-selects the heading containing `scrollAnchorPos` — the reading line a third
+of the way down — so the highlight no longer lingers on an earlier heading.
+Tests: `tests/editor/nav-scroll-follow.test.ts`.
+
+### Fixed: importer drops a shading fill that repeats the highlight (`import/importer.ts`, `ooxml/highlight-colors.ts`)
+
+A run with both `<w:highlight w:val="cyan"/>` and `<w:shd w:fill="00FFFF"/>`
+imported with a `shading` mark, which read-time counting treats as "not read".
+After the whole `rPr` is parsed, a shading whose colour equals the highlight's
+RGB is dropped (decided post-parse so mark order doesn't matter); a different
+fill (grey `D2D2D2` protected text) is kept.
+
+### Fixed: pane vs single typography parity (`style.css`)
+
+The cite-underline thickness and highlight/shading band rules existed only for
+`#editor`; the pane copies (`html.pmd-* .pmd-pane-editor`) were missing them, so
+underlined cites changed look across a single ↔ three-pane switch. Guarded by
+`tests/editor/pane-typography-css-parity.test.ts`.
+
 ## 1.15.0-bcb.4 — 2026-10-10
 
 ### Fixed: the reading line is a third of the way down, not the top edge; indicator and "Left" work in Reading view (`reading-line.ts`, `live-read-time.ts`, `auto-scroll.ts`, `scroll-anchor.ts`)

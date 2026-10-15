@@ -26,13 +26,13 @@
 >    long the rest of your doc takes to read aloud at your pace and shows
 >    whether you're on time, too slow or too fast (words under the timer, or
 >    a small dot that shades from red through green to blue), plus the time
->    left to read. It works in read mode and Reading view, and counts from
+>    left to read. It works in read mode, and counts from
 >    the line you're actually reading, a third of the way down the screen.
 >    (main)
 > 3. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
->    text and speeding through everything else. It works in read mode and
->    Reading view and follows the lay-speaking toggle. (main)
+>    text and speeding through everything else. It works in read mode
+>    and follows the lay-speaking toggle. (main)
 > 4. **Compare and merge documents** — the home screen's top row has a
 >    "Compare documents" card: pick two `.cmir`/`.docx` files and see a
 >    read-only, side-by-side line diff of their text, with the changed words

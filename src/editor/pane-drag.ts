@@ -41,6 +41,11 @@ export interface PaneChipDragOptions {
   onHover: (slotId: string | null) => void;
   /** Committed: move the dragged doc into this slot. */
   onDrop: (slotId: string) => void;
+  /** The pointer left the window mid-drag — nothing in here to drop on any
+   *  more. Return true to take over (the gesture is ended first, as a cancel):
+   *  the shell starts a native drag of the document's file so another app can
+   *  receive it. Return false to keep the drag going. */
+  onExitWindow?: () => boolean;
 }
 
 export interface PaneChipDragHandle {
@@ -155,8 +160,18 @@ export function installPaneChipDrag(
     }
     // Past the threshold this is a drag, not a text selection.
     e.preventDefault();
+    if (opts.onExitWindow && outsideWindow(e) && opts.onExitWindow()) {
+      end(true);
+      return;
+    }
     moveGhost(e.clientX, e.clientY);
     hover(opts.slotAtPoint(e.clientX, e.clientY));
+  }
+
+  /** The button is still down, so the page keeps getting pointer events after
+   *  the pointer leaves the window — with coordinates outside the viewport. */
+  function outsideWindow(e: PointerEvent): boolean {
+    return e.clientX < 0 || e.clientY < 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight;
   }
 
   function onPointerUp(e: PointerEvent): void {

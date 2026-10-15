@@ -97,7 +97,7 @@ import {
   autosaveBlockedForRecoveredDraft,
   recoveredDraftJournalSavedAt,
 } from './journal-staleness.js';
-import { isUntouchedBlank, makeBlankDoc } from './blank-doc.js';
+import { isUntouchedBlank, makeBlankDoc, makeStyledBlock, seedCursorOffset } from './blank-doc.js';
 import { opensAsBlank, blankDocumentBytes } from './empty-open.js';
 import { homeScreen } from './home-screen.js';
 import { captureCleanToken } from './save-clean-token.js';
@@ -162,7 +162,10 @@ import {
   moveFocusedDocToWindow,
   offerDamagedSalvage,
 } from './index.js';
-import { installInlineRename, isInlineRenaming } from './doc-rename.js';
+import { installInlineRename, isInlineRenaming, docDisplayName } from './doc-rename.js';
+import { createChipSpeechButton, type ChipSpeechButton } from './chip-speech-button.js';
+import { filePathOf, startNativeFileDrag } from './file-drag.js';
+import { fileMenuItems } from './file-path-menu.js';
 import { installPaneChipDrag } from './pane-drag.js';
 import { installMoveMenuTrigger } from './pane-move-menu.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
@@ -719,6 +722,9 @@ class Slot {
   private dropHintEl: HTMLElement | null = null;
   /** Title chip text container. */
   private chipNameEl: HTMLElement;
+  /** The speech-doc marker at the chip's left: a ghost mic on hover, solid on
+   *  the speech doc; a click toggles this doc's speech designation. */
+  private chipSpeech: ChipSpeechButton;
   /** Small full-path text beside the name, shown only while another open
    *  doc in this window shares the name (see duplicate-names.ts). */
   private chipPathEl: HTMLElement;
@@ -807,6 +813,14 @@ class Slot {
     // Title chip.
     const chip = document.createElement('div');
     chip.className = 'pmd-pane-chip';
+    // Speech-doc marker, leftmost. Focus this slot first so the toggle acts on
+    // the document whose bar was clicked.
+    this.chipSpeech = createChipSpeechButton(() => {
+      if (!this.visible) return;
+      this.shell.focusSlot(this);
+      this.shell.markFocusedAsSpeech();
+    });
+    chip.appendChild(this.chipSpeech.el);
     this.chipStackBtn = document.createElement('button');
     this.chipStackBtn.type = 'button';
     this.chipStackBtn.className = 'pmd-pane-chip-stack';
@@ -833,7 +847,7 @@ class Slot {
     // pane's name must move focus there before it commits, or it
     // would rename whichever doc happened to be focused.
     installInlineRename(this.chipNameEl, {
-      currentName: () => this.visible?.filename ?? null,
+      currentName: () => (this.visible ? docDisplayName(this.visible.filename) : null),
       commit: (typed) => {
         this.shell.focusSlot(this);
         void renameFocusedDoc(typed).then(() => this.refreshChipFilename());
@@ -850,8 +864,11 @@ class Slot {
       // Expand mode shows exactly one pane, so there is nowhere
       // visible to drop; the keyboard commands still work there.
       canDrag: () => this.visible !== null && !this.shell.isExpanded(),
-      label: () => (this.visible ? displayFilename(this.visible.filename) : ''),
+      label: () => (this.visible ? docDisplayName(this.visible.filename) : ''),
       slotAtPoint: (x, y) => this.shell.slotIdAtPoint(x, y),
+      // Dragged out of the window: hand the document's file to whatever app is
+      // under the pointer (nothing happens for a document with no file yet).
+      onExitWindow: () => startNativeFileDrag(getElectronHost(), filePathOf(this.visible?.handle)),
       onDragStart: () => this.shell.beginChipDrag(this),
       onDragEnd: () => this.shell.endChipDrag(),
       onHover: (id) => this.shell.highlightDropSlot(this, id),
@@ -877,6 +894,11 @@ class Slot {
         this.shell.focusSlot(this);
         void moveFocusedDocToWindow(target === 'new-window' ? 'new-window' : target);
       },
+      // Right-click anywhere on the bar: copy / show the file as well as move it.
+      extraItems: () =>
+        this.visible && getElectronHost()
+          ? fileMenuItems(filePathOf(this.visible.handle), (path) => void getElectronHost()?.showItemInFolder?.(path))
+          : [],
     });
     // Slot-number badge — small fixed glyph immediately left of
     // the expand button. Helps users identify which slot they're
@@ -1031,6 +1053,7 @@ class Slot {
       isDirty: () => this.visible?.dirty ?? false,
       isSessionHost: () => collabCopresenceFor(this.visible?.uid ?? '')?.role === 'host',
       reveal: (handle) => void getElectronHost()?.showItemInFolder?.(handle),
+      dragHost: () => getElectronHost(),
       reloadFromDisk: (handle) => this.shell.reloadFromDisk(handle),
       keepMineAsCopy: (handle) => this.shell.keepMineAsCopyForHandle(handle),
       overwrite: (handle) => this.shell.overwriteForHandle(handle),
@@ -1440,7 +1463,7 @@ class Slot {
     // browser clamps against.
     this.bodyEl.scrollTop = rec.savedScrollTop;
     this.navBodyEl.appendChild(rec.navEl);
-    this.chipNameEl.textContent = displayFilename(rec.filename);
+    this.chipNameEl.textContent = docDisplayName(rec.filename);
     this.refreshChip();
     this.refreshChipSaveState();
     this.refreshWordCount();
@@ -1492,6 +1515,11 @@ class Slot {
 
   /** Update the chip's stack-dropdown trigger visibility based on
    *  current stack depth. */
+  /** Reflect whether this pane's document is the speech doc on the chip's mic. */
+  setSpeechState(isSpeech: boolean): void {
+    this.chipSpeech.setState(isSpeech);
+  }
+
   /** Show (or clear) the same-name path hint. Driven by the shell, which
    *  sees every open doc. */
   setChipPath(path: string | null): void {
@@ -1521,7 +1549,7 @@ class Slot {
     // plenty of things that aren't the filename changing, and would
     // otherwise delete the field under the user's cursor.
     if (isInlineRenaming(this.chipNameEl)) return;
-    this.chipNameEl.textContent = displayFilename(rec.filename);
+    this.chipNameEl.textContent = docDisplayName(rec.filename);
     this.shell?.refreshDuplicatePaths();
   }
 
@@ -4203,11 +4231,12 @@ class MultiPaneShell {
     //   - With pocket: drop into the trailing paragraph so the
     //     first ` press inserts BELOW the pocket rather than
     //     inside it. Position math: pocket node occupies
-    //     [0, pocket.nodeSize); paragraph cursor lives at
-    //     pocket.nodeSize + 1.
-    //   - Without pocket: position 1 (inside the only paragraph)
-    //     is the natural cursor spot.
-    const cursorPos = includePocket ? doc.firstChild!.nodeSize + 1 : 1;
+    //     [0, pocket.nodeSize); the cursor sits just inside the
+    //     trailing line (one deeper when it's an analytic_unit).
+    //   - Without pocket: inside the only line.
+    const cursorPos = includePocket
+      ? doc.firstChild!.nodeSize + seedCursorOffset(doc.lastChild!)
+      : seedCursorOffset(doc.firstChild!);
     const tr = record.view.state.tr.setSelection(
       TextSelection.create(record.view.state.doc, cursorPos),
     );
@@ -4383,6 +4412,7 @@ class MultiPaneShell {
       const slot = this.slots[id];
       const isSpeech = !!speechView && slot.visible?.view === speechView;
       slot.paneEl.classList.toggle('pmd-pane-speech', isSpeech);
+      slot.setSpeechState(isSpeech);
     }
   }
 }
@@ -4395,7 +4425,7 @@ class MultiPaneShell {
 function makeSpeechBlankDoc(title: string): PMNode {
   return schema.nodes['doc']!.createChecked(null, [
     schema.nodes['pocket']!.create({ id: newHeadingId() }, schema.text(title)),
-    schema.nodes['paragraph']!.create(null),
+    makeStyledBlock(),
   ]);
 }
 

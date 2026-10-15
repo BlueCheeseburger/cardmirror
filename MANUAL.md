@@ -984,9 +984,11 @@ saved it on another machine, the pill turns amber and says how long
 ago. Nothing pops up, so a conflict never interrupts a speech; the pill
 waits until read mode and the timer pop-out are off.
 
-**(fork)** In the [multi-doc workspace](#7-the-multi-doc-workspace), each
-pane shows its own cloud status in its own footer instead of one shared
-pill, so it's always clear which document a warning is about. While a file
+The badge sits at the bottom of the document in a single window and in each
+pane's footer in the [multi-doc workspace](#7-the-multi-doc-workspace), so
+it's always clear which document a warning is about; a file that isn't in a
+synced folder shows a computer icon instead of a service. **(fork)**
+Each pane shows its own cloud status instead of one shared pill, so it's always clear which document a warning is about. While a file
 is fully synced the badge is just the service's icon (Dropbox, OneDrive,
 Google Drive, or iCloud); it adds a short label when the file changed on
 disk or was saved as a conflicted copy. Clicking it offers the same choices
@@ -1337,6 +1339,10 @@ workspace while another shows a single document.
   document stays where it was. **(Desktop only.)**
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is.
+- **(fork)** **Hover a title chip** and a greyed microphone appears at its left;
+  click it to make that document the active speech doc (click again to clear).
+  A single window has the same blue bar above its one document, with the same
+  buttons minus Expand and the slot number.
 
 ### Multiple workspaces
 
@@ -1373,8 +1379,8 @@ set back as one entry, next to your recently opened files.
   the document's filename ("Speech Doc", "Research"). Right-click again
   for **Rename Window…** or **Clear Window Name**. The name survives
   switching the window between single and three-pane layouts.
-- **Rename a document**: double-click its name in the ribbon's doc-name
-  chip or a pane's title chip, type the new name, and press **Enter** (or
+- **Rename a document**: double-click its name in the document bar
+  or a pane's title chip (shown without `.docx` / `.cmir`), type the new name, and press **Enter** (or
   click away). **Esc** cancels. This renames the real file on disk: it
   stays in the same folder and keeps its format (use Save As to change
   format), and an existing file with that name is never overwritten.
@@ -2741,13 +2747,17 @@ versions.
   never overwrites a file that changed underneath it; it pauses and tells
   you to use Save to review, and the amber **Changed on disk** pill offers
   the same choices. **(Desktop only.)**
-- **Drag the file out of the app (desktop).** The CardMirror mark in the
-  bottom-right corner of the status bar stands for the focused document's
-  file: drag it into Slack, Mail, Teams, Finder or Explorer to share the
-  file itself, or click it to show the file in its folder. It's dimmed
-  until the document has been saved, since what travels is the file on
-  disk (save first to include your latest edits). In the three-pane
-  workspace it follows the focused document.
+- **Drag the file out of the app, or copy its path (desktop).** The **file
+  badge** at the bottom of the document stands for its file: a cloud-provider
+  icon when it lives in Dropbox, OneDrive, Google Drive or iCloud, a **computer
+  icon** when it's only on this computer. Drag it into Slack, Mail, Teams,
+  Finder or Explorer to share the file itself, click it to show the file in its
+  folder, or right-click it for **Copy file path**. Dragging the blue document
+  bar out of the window shares the file the same way, and right-clicking the
+  ribbon or the document bar also offers **Copy file path**. It's absent until
+  the document has been saved, since what travels is the file on disk (save
+  first to include your latest edits). In the three-pane workspace each pane
+  has its own badge.
 
 - **Saved Word files carry an invisible CardMirror marker.** A .docx
   saved here names CardMirror and its version in the file's standard
@@ -3127,6 +3137,9 @@ file search scans, and how much version history to keep.
 - **Seed new speech docs with a Pocket heading** — when on, New Speech
   Document opens with a Pocket carrying the speech's name; off starts
   blank.
+- **Default text style** — the style a new document's first line starts in:
+  **Analytic** (the default), **Clear** (a plain paragraph) or **Undertag**.
+  Affects new documents only, never files you open.
 
 **Send / Read / Marked docs**
 
@@ -3212,12 +3225,13 @@ How things look. None of these change the file — only your view (see
   document tracks whichever theme the chrome is currently showing.
 - **Icon style** — modern line icons (default) or classic glyphs;
   interface only.
-- **Show doc name in ribbon** — show the active filename as a pill in the
-  ribbon's center, handy when the title bar is hidden. Off by default;
-  hidden in multi-pane (each pane shows its own chip).
 - **Show undo / redo buttons** — a stacked Undo / Redo button pair at the
   far left of the ribbon, before the file buttons. Off by default —
   undo/redo always work by keyboard either way.
+- **Show extra formatting buttons** — the general word-processor buttons
+  (Table, Insert image, superscript, subscript, strikethrough and the
+  card-numbering buttons) are hidden by default; turn this on to show them.
+  Their commands and shortcuts work either way.
 - **Ribbon tooltips** — what a hovered ribbon button shows: both, label
   only, shortcut only, or none.
 
@@ -3335,6 +3349,18 @@ Typing helpers and the behavior of the cutting and condense commands
 - **Custom autocorrect** — your own replace-as-you-type entries, with
   duplicate-entry refusal and clash warnings against the other typing
   aids; Backspace right after reverts to what you typed. Off by default.
+
+**Custom styles**
+
+- **Custom styles** — your own named character styles. Each is a dropdown:
+  pick bold, italic, strikethrough, super/subscript, a text colour, a
+  highlight, a font and a size, and watch the live sample. **Edit as JSON**
+  shows the whole list as raw JSON (a list of `{ "name", "format" }`, with
+  format keys `bold`, `italic`, `strikethrough`, `superscript`, `subscript`,
+  `color`, `highlight`, `font`, `size`) so you can paste styles between
+  machines. Every style is a **Style: …** command: run it from the command bar,
+  bind a key in Keyboard shortcuts, or add it as a custom ribbon button.
+  Running it on text that already has all of it removes it again. Up to 24.
 
 **New paragraph on Enter**
 

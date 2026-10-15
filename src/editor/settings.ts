@@ -16,6 +16,7 @@ import { getHost } from './host/index.js';
 import { isLiteBuild } from './lite.js';
 import { DEFAULT_SPEECH_FILENAME_TEMPLATE } from './speech-filename-default.js';
 import { ctrlOrCmdWord } from './platform.js';
+import { sanitizeCustomStyles, type CustomStyle } from './custom-styles-model.js';
 
 /** Body-text zoom bounds (percent). The live per-window / per-pane zoom AND the
  *  default-open zoom setting all clamp to these — one source of truth so
@@ -384,6 +385,14 @@ export type EnterAfterStyle =
   | 'analytic'
   | 'undertag';
 
+/** Style a brand-new document's first (empty) line starts in. 'normal' is the
+ *  plain paragraph (the Clear style). */
+export type DefaultTextStyle = 'normal' | 'analytic' | 'undertag';
+const DEFAULT_TEXT_STYLE_VALUES: readonly DefaultTextStyle[] = ['normal', 'analytic', 'undertag'];
+function sanitizeDefaultTextStyle(v: unknown): DefaultTextStyle {
+  return DEFAULT_TEXT_STYLE_VALUES.includes(v as DefaultTextStyle) ? (v as DefaultTextStyle) : 'analytic';
+}
+
 /** Separator glyph that trails a card-numbering number/letter (display-only).
  *  `period` = ".", `paren` = ")", `dash` = " -", `colon` = ":", `emdash` = "—",
  *  `endash` = "–", `doublehyphen` = "--", `triplehyphen` = "---",
@@ -645,14 +654,6 @@ export interface Settings {
    *  Resolves to the `data-icons` attribute on the document
    *  root, consumed by `icons.css`. */
   iconSet: 'modern' | 'classic';
-  /** Show a pill in the center of the ribbon displaying the
-   *  active doc's filename. Off by default — the OS title bar
-   *  carries this info on most platforms. Useful when the
-   *  title bar is hidden, unstyled, or non-existent (tiling
-   *  window managers without decorations, frameless windows,
-   *  embedded web edition). Single-doc only; multi-pane shows
-   *  per-pane chips regardless of this setting. */
-  showDocNameChip: boolean;
   /** Whether the ribbon shows a vertically stacked Undo / Redo button
    *  pair at the far left (right of the timer panel when that's on
    *  the left, left of the file buttons). Off by default — undo/redo
@@ -896,6 +897,7 @@ export interface Settings {
    *  empty paragraph — for users who'd rather title their speeches
    *  inline. */
   includeSpeechDocPocket: boolean;
+  defaultTextStyle: DefaultTextStyle;
   /** Whether to show the cite preview on hover in the nav pane. */
   showCitePreview: boolean;
   /** Whether computed card numbers (the auto-numbering skeleton) render. Numbers
@@ -1585,6 +1587,8 @@ export interface Settings {
   /** Up to 10 user-configured custom buttons, shown to the right of the
    *  comments buttons on the ribbon (empty = the section is hidden). */
   ribbonCustomButtons: RibbonCustomButton[];
+  /** User-defined character styles (Settings → Editing → Custom styles). */
+  customStyles: CustomStyle[];
   /** User-defined "press a key → type this text" macros. */
   keyboardMacros: KeyboardMacro[];
   /** Display name attached to new comments authored locally. */
@@ -1928,7 +1932,6 @@ const DEFAULTS: Settings = {
   theme: 'system',
   docTheme: 'light',
   iconSet: 'modern',
-  showDocNameChip: false,
   showUndoRedoButtons: false,
   showExtraFormattingButtons: false,
   checkForUpdatesOnLaunch: true,
@@ -1977,6 +1980,7 @@ const DEFAULTS: Settings = {
   findLastQuery: '',
   findCategoryOrder: ['heading', 'tag', 'analytic', 'undertag', 'cite', 'other'],
   includeSpeechDocPocket: true,
+  defaultTextStyle: 'analytic',
   showCitePreview: true,
   showCardNumbering: true,
   showNumberingButtons: true,
@@ -2123,6 +2127,7 @@ const DEFAULTS: Settings = {
   acronymPatterns: [],
   ribbonKeyOverrides: {},
   ribbonCustomButtons: [],
+  customStyles: [],
   keyboardMacros: [],
   commentAuthor: 'You',
   commentAuthorInitials: '',
@@ -2312,6 +2317,7 @@ export interface SettingMeta {
     | 'createReferenceDelimiter'
     | 'keybindings'
     | 'ribbonCustomButtons'
+    | 'customStyles'
     | 'text'
     | 'folder'
     | 'folderList'
@@ -2326,6 +2332,7 @@ export interface SettingMeta {
     | 'speechDocFormat'
     | 'speechFilenameTemplate'
     | 'saveFormat'
+    | 'defaultTextStyle'
     | 'docTypeFormat'
     | 'numberingExport'
     | 'formattingGapClass'
@@ -2841,6 +2848,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'files',
     section: 'New documents',
     mobile: true,
+  },
+  {
+    key: 'defaultTextStyle',
+    label: 'Default text style',
+    description:
+      "The style a new document's first line starts in, so typing straight away lands in it. Analytic is the default; pick Clear for a plain paragraph or Undertag for undertag text. Applies to New, new speech documents without a Pocket heading, and blank opens — never to files you open.",
+    kind: 'defaultTextStyle',
+    category: 'files',
+    section: 'New documents',
+    aliases: ['default style', 'new doc style', 'starting style', 'analytic default', 'blank doc style'],
   },
   {
     key: 'includeSpeechDocPocket',
@@ -3369,15 +3386,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Theme & chrome',
   },
   {
-    key: 'showDocNameChip',
-    label: 'Show doc name in ribbon',
-    description:
-      "Off by default. When on, the active document's filename appears as a pill in the center of the ribbon — useful when the OS title bar is hidden, unstyled, or non-existent (tiling window managers, frameless windows, web embeds). Hidden in multi-pane mode because each per-pane chip already shows its slot's filename.",
-    kind: 'toggle',
-    category: 'appearance',
-    section: 'Theme & chrome',
-  },
-  {
     key: 'showUndoRedoButtons',
     label: 'Show undo / redo buttons',
     description:
@@ -3811,6 +3819,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'editing',
     section: 'New paragraph on Enter',
     aliases: ['enter behavior', 'return key', 'new paragraph', 'enter after pocket', 'enter after hat', 'enter after block', 'enter after tag', 'enter after analytic', 'enter after undertag'],
+  },
+  {
+    key: 'customStyles',
+    label: 'Custom styles',
+    description:
+      'Your own named character styles — pick the formatting (bold, italic, text colour, highlight, font, size…) from a dropdown, or edit the whole list as raw JSON. Each one is a command you can run from the command bar ("Style: …"), bind to a key in Keyboard shortcuts, or put on the ribbon as a custom button. Running a style on text that already has all of it removes it again.',
+    kind: 'customStyles',
+    category: 'editing',
+    section: 'Custom styles',
+    aliases: ['custom style', 'character style', 'user style', 'own style', 'formatting preset', 'macro'],
   },
   {
     key: 'paragraphIntegrity',
@@ -5070,7 +5088,6 @@ function sanitize(s: Settings): Settings {
     // Default-on (modern): only an explicit `'classic'` reverts to the
     // original emoji/text glyphs (survives upgrades from before this existed).
     iconSet: s.iconSet === 'classic' ? 'classic' : 'modern',
-    showDocNameChip: !!s.showDocNameChip,
     showUndoRedoButtons: !!s.showUndoRedoButtons,
     showExtraFormattingButtons: s.showExtraFormattingButtons === true,
     checkForUpdatesOnLaunch: !!s.checkForUpdatesOnLaunch,
@@ -5155,6 +5172,7 @@ function sanitize(s: Settings): Settings {
     findCategoryOrder: sanitizeFindCategoryOrder(s.findCategoryOrder),
     includeSpeechDocPocket:
       s.includeSpeechDocPocket === false ? false : true,
+    defaultTextStyle: sanitizeDefaultTextStyle(s.defaultTextStyle),
     showCitePreview: !!s.showCitePreview,
     showCardNumbering: s.showCardNumbering === false ? false : true,
     showNumberingButtons: s.showNumberingButtons === false ? false : true,
@@ -5482,6 +5500,7 @@ function sanitize(s: Settings): Settings {
       : DEFAULTS.acronymPatterns,
     ribbonKeyOverrides: sanitizeRibbonKeyOverrides(s.ribbonKeyOverrides),
     ribbonCustomButtons: sanitizeRibbonCustomButtons(s.ribbonCustomButtons),
+    customStyles: sanitizeCustomStyles(s.customStyles),
     keyboardMacros: sanitizeKeyboardMacros(s.keyboardMacros),
     commentAuthor:
       typeof s.commentAuthor === 'string' && s.commentAuthor.length > 0

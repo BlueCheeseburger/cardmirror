@@ -10,6 +10,8 @@
  * (claims, recents, window title) stays in index.ts, which owns it.
  */
 
+import { displayFilename } from './platform.js';
+
 /** Extensions the app round-trips. A rename may not change which one a
  *  file has — that's a format conversion, which is Save As's job. */
 const KNOWN_EXTENSIONS = ['.cmir', '.docx'] as const;
@@ -24,6 +26,21 @@ function knownExtensionOf(filename: string): string {
   const lower = filename.toLowerCase();
   const match = KNOWN_EXTENSIONS.find((ext) => lower.endsWith(ext));
   return match ? filename.slice(-match.length) : '';
+}
+
+/** `filename` without its `.cmir` / `.docx` extension (anything else is kept
+ *  whole — "v. Single Payer" is not an extension). */
+export function stripKnownExtension(filename: string): string {
+  const ext = knownExtensionOf(filename);
+  return ext ? filename.slice(0, filename.length - ext.length) : filename;
+}
+
+/** How a document's name reads in the chrome — the blue title bar, the
+ *  rename field, the drag label: the file's name as Finder spells it, with no
+ *  extension. The extension is still the file's; a rename keeps it
+ *  (`resolveRenameFilename`) and Save As is how you change it. */
+export function docDisplayName(filename: string): string {
+  return stripKnownExtension(displayFilename(filename));
 }
 
 /** What `typed` should become, given the name the doc has now.
@@ -61,8 +78,9 @@ export function isInlineRenaming(el: HTMLElement): boolean {
 }
 
 export interface InlineRenameOptions {
-  /** The name to seed the editor with. Null / '' disables renaming —
-   *  an unsaved doc has no name to edit yet. */
+  /** The name to seed the editor with, as it reads in the chrome (no
+   *  extension — see `docDisplayName`). Null / '' disables renaming — an
+   *  unsaved doc has no name to edit yet. */
   currentName: () => string | null;
   /** Called with the raw typed text when the user commits. */
   commit: (typed: string) => void;
@@ -143,11 +161,9 @@ export function installInlineRename(el: HTMLElement, opts: InlineRenameOptions):
     el.textContent = '';
     el.appendChild(field);
     field.focus();
-    // Select the basename only, so typing replaces the name without
-    // silently eating the extension.
-    const dot = name.lastIndexOf('.');
-    if (dot > 0) field.setSelectionRange(0, dot);
-    else field.select();
+    // The seed has no extension, so the whole name is the thing being
+    // replaced (the file keeps its extension on commit).
+    field.select();
   };
 
   const onDblClick = (e: MouseEvent): void => {

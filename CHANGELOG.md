@@ -21,37 +21,95 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   focused pane. In a browser it opens the browser's print dialog, and File → Print
   there prints the same way. Mod-Alt-P used to be Insert Received Card at End of
   doc, which moves to Mod-Alt-Shift-P (Mod-P still inserts at the cursor).
+- **A single window looks like one pane of the three-pane workspace.** The blue
+  document bar now sits above the document in single-window mode too, with the
+  doc name (double-click to rename), save, autosave, outline toggle and close
+  buttons — minus the expand button and slot number, which only mean something
+  with several panes. It replaces the old filename pill in the ribbon, the amber
+  speech-document banner and the "Show doc name in ribbon" setting.
+- **Hover a document bar to mark it as your speech doc.** A greyed microphone
+  appears at the left of the bar (single window and every pane); click it to make
+  that document the active speech doc, click again to clear it. The bar turns amber
+  while it's the speech doc.
+- **Document names never show `.docx` / `.cmir`.** Renaming a document now starts
+  from the bare name, and what you see after you click away is the name alone.
+  (The file keeps its extension on disk.)
+- **Copy a file's path from anywhere you see the file.** Right-click the ribbon,
+  the document bar, or the file badge at the bottom of the window to **Copy file
+  path** (and Show in folder). The file badge is now the one place to grab the
+  file: a cloud-provider icon for a file in Dropbox / OneDrive / Google Drive /
+  iCloud, or a computer icon for a file that's only on this computer; click it to
+  reveal the file, drag it into another app (mail, chat, a web upload) to share
+  the real file, right-click it to copy the path. Dragging the blue document bar
+  out of the window shares the file the same way. The old CardMirror mark in the
+  bottom-right corner is gone — the badge replaces it.
+- **Default text style.** New documents now start on an Analytic line, so you can
+  type straight into the style most debaters want. **Settings → Files → Default
+  text style** switches it back to Clear (a plain paragraph) or to Undertag. It
+  only affects new documents, never files you open.
+- **Custom styles.** **Settings → Editing → Custom styles** lets you define your
+  own character styles — bold, italic, strikethrough, super/subscript, text
+  colour, highlight, font and size — from a compact dropdown per style, or by
+  editing the whole list as raw JSON. Each becomes a **Style: …** command you can
+  run from the command bar, bind to a key in Keyboard shortcuts, or put on the
+  ribbon as a custom button. Running a style on text that already has all of it
+  removes it again.
+- **Word Count Selection shows lay and flow.** When you've entered lay speeds as
+  well as flow speeds, the dialog lists both for every reader (a reader with no
+  lay speed shows "—").
+- **A hint in Search Everything** that the letter prefix goes first, then a
+  space, then what you're searching for ("f heg bad", not "heg bad f").
+- **Show extra formatting buttons** (Settings → Appearance): the general
+  word-processor buttons — Table, Insert image, superscript, subscript,
+  strikethrough and the card-numbering buttons — are hidden by default; turn this
+  on to bring them back. Their commands and shortcuts work either way.
+
+### Changed
+- **Reading view is gone — read mode is the one reading mode.** The separate
+  paged Reading view, its button, command, settings and the paged auto-scroll
+  are removed; "reading view" now just means read mode.
+- **The bottom-left Search button is a magnifying-glass icon** instead of the
+  word "Search".
+- **No more font size up / down buttons** in the ribbon (the size box and the
+  commands in the command bar stay).
+- **The Analytic / Undertag column is no longer divided** from Cite / Underline
+  and the others.
+- **Home screen top row: New document, Open…, Compare documents.** The "New speech
+  document" card is gone from the home screen (New Speech Document is still in the
+  ribbon and the command bar), and Compare moved up from the bottom row into the
+  third slot. The number keys follow: 1 New document, 2 Open, 3 Compare, then the
+  utility tiles.
+- The README's list of the fork's eight biggest features is reordered: multi-window
+  workspace, pace indicator, paced auto-scroll, Compare and merge documents, `.docx`
+  autosave, Logos card search, search your own cards (`q`), redesigned Save As. Its
+  logo has a transparent background (and a white-wordmark version for dark mode).
 
 ### Fixed
+- **The outline highlights the heading you're actually in.** While you scroll, the
+  highlighted outline row follows the heading nearest the top third of the
+  screen (it used to sit on a heading further up); clicking or typing in the
+  document still wins.
+- **Cyan-highlighted words weren't counted in read times.** Some `.docx` files mark
+  a run with both a highlight and a background fill of the same colour; the
+  background copy made the words count as unread. When the fill matches the
+  highlight it's now dropped on import (a different fill, like grey protected
+  text, is kept).
+- **Underlined cites kept their underline thickness and highlight bands in panes**
+  — single window and three-pane now draw them identically, so switching between
+  them no longer changes how styled text looks.
 - **Auto-scroll follows the lay-speaking toggle.** It always paced at the flow
   rate; it now uses the lay rate while the document is on lay speaking (per pane
   in three-pane mode), and changes pace the moment you flip the toggle.
-- **Auto-scroll in Reading view really paces each page.** Page timing fell back
-  to a flat 20 seconds because the page couldn't be measured; each page now gets
-  the time its own words take to read.
 - **Escape, PageUp/PageDown, Home, End and the up/down arrows stop auto-scroll**
-  (they fought it before). Entering Reading view mid-run stops it, a long pause
-  in the app (a backgrounded tab) no longer makes it leap, and starting it at the
-  very end of the document tells you so instead of silently doing nothing.
+  (they fought it before). A long pause in the app (a backgrounded tab) no longer
+  makes it leap, and starting it at the very end of the document tells you so
+  instead of silently doing nothing.
 - **Paced auto-scroll no longer stops partway down the document.** On dense
   highlighted text the pace is a fraction of a pixel per frame, and the browser
   rounds every scroll step down to a whole pixel, so the scroll silently stalled
   (the button still read as on). It now carries the fractional steps itself. The
   slowest pace is also lower, so a slow reader on dense text isn't scrolled
   faster than they read.
-
-### Changed
-- **Home screen top row: New document, Open…, Compare documents.** The "New speech
-  document" card is gone from the home screen (New Speech Document is still in the
-  ribbon and the command bar), and Compare moved up from the bottom row into the
-  third slot. The number keys follow: 1 New document, 2 Open, 3 Compare, then the
-  utility tiles.
-- The README's list of the fork's eight biggest features is reordered: multi-window workspace, pace indicator, paced auto-scroll, Compare and merge documents, `.docx` autosave, Logos card search, search your own cards (`q`), redesigned Save As.
-
-### Changed
-- The README's logo has a transparent background (and a white-wordmark version
-  for dark mode), and the pace indicator is #2 in its list of the fork's biggest
-  features.
 
 ## 1.15.0-bcb.4 — 2026-10-10
 

@@ -57,7 +57,9 @@ import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-re
 import { openDocMenu } from './doc-menu-ui.js';
 import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
-import { installFileDragMark } from './file-drag-mark.js';
+import { filePathOf } from './file-drag.js';
+import { installDocHeader, type DocHeader } from './doc-header.js';
+import { fileMenuItems } from './file-path-menu.js';
 import { maybeDecryptForOpen, OpenCancelledError, UnsupportedEncryptionError } from './open-encrypted.js';
 import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
 import { buildCutInPlacePlugin, installCutInPlaceContext } from './cut-in-place.js';
@@ -75,7 +77,8 @@ import { installExternalConsent } from './external-consent-ui.js';
 import { maybeSnapshotVersion } from './version-history.js';
 import { awaitWithSaveWatchdog, warnIfSlow } from './save-watchdog.js';
 import { installExternalInsertHost } from './external-insert-host.js';
-import { installPluginRegistry } from './plugin-registry.js';
+import { installPluginRegistry, onUserCommandsChanged, setUserCommands } from './plugin-registry.js';
+import { applyCustomStyle, customStyleCommandId, type CustomStyle } from './custom-styles.js';
 import { createPluginApi } from './plugin-api.js';
 import { installPluginJumpHost } from './plugin-jump-host.js';
 import { isPluginEnabled, reconcilePluginState } from './plugins-store.js';
@@ -181,7 +184,7 @@ import {
   migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
 import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.js';
-import { resolveRenameFilename, installInlineRename, isInlineRenaming } from './doc-rename.js';
+import { resolveRenameFilename, docDisplayName } from './doc-rename.js';
 import { highlightColorLabel, shadingColorLabel } from './color-palette.js';
 import { viewportSpellcheckPlugin } from './viewport-spellcheck.js';
 import { autoApplyDiskChange, DISK_SYNC_META, type AutoApplyOutcome } from './disk-auto-apply.js';
@@ -325,7 +328,9 @@ import {
 } from './journal-staleness.js';
 import {
   installDiskBadge,
-  refreshDiskBadge,
+  createPaneDiskBadge,
+  type DiskBadgeDeps,
+  type PaneDiskBadgeHandle,
   noteDocRegistered,
   noteDiskChanged,
   noteSavedInPlace,
@@ -338,7 +343,7 @@ import {
 } from './disk-conflict.js';
 import type { DiskBase } from './host/types.js';
 import { blankSpawnPayload } from './host/types.js';
-import { makeBlankDoc } from './blank-doc.js';
+import { makeBlankDoc, makeStyledBlock } from './blank-doc.js';
 import { opensAsBlank, blankDocumentBytes } from './empty-open.js';
 import { indentParagraph, outdentParagraph } from './indent-keymap.js';
 import {
@@ -665,9 +670,8 @@ async function setWindowName(name: string | null): Promise<void> {
 /** Sync the speech-mark button's aria-pressed with whether the
  *  currently-active view IS the speech doc. Called from
  *  `setActiveView` (focus change) and from the speech-doc
- *  registry subscription installed below. Also drives the
- *  multi-window speech-doc banner (the prominent "🎤 This is the
- *  speech document" strip below the ribbon). */
+ *  registry subscription installed below. Also drives the speech tint on
+ *  the single-document window's title bar. */
 function refreshSpeechMarkBtn(): void {
   const resolver = getSpeechDocResolver();
   const isSpeechDoc =
@@ -675,12 +679,9 @@ function refreshSpeechMarkBtn(): void {
   if (speechMarkBtn) {
     speechMarkBtn.setAttribute('aria-pressed', isSpeechDoc ? 'true' : 'false');
   }
-  // Banner is only meaningful when this window IS the speech doc.
-  // Multi-pane mode hides it via CSS (it uses per-pane chips); the
-  // body class toggle here just controls the multi-window case.
-  const banner = document.getElementById('speech-doc-banner');
-  if (banner) banner.hidden = !isSpeechDoc;
-  document.body.classList.toggle('pmd-speech-banner-visible', isSpeechDoc);
+  // The single-document window's title bar turns amber (and its mic solid)
+  // when this window holds the speech doc, like a pane's does.
+  docHeader?.setSpeech(isSpeechDoc);
 }
 
 /** Single-doc mark-as-speech toggle. Routes through the resolver,
@@ -980,12 +981,12 @@ async function runNewSpeechDocumentSingleDoc(): Promise<void> {
 }
 
 /** Speech-doc starter: a Pocket heading carrying the user-supplied
- *  title plus a trailing empty paragraph for the cursor to land in.
+ *  title plus a trailing empty line (in the Default text style) for the cursor to land in.
  *  Same shape as multi-pane's `makeSpeechBlankDoc`. */
 function makeSpeechBlankDoc(title: string): PMNode {
   return schema.nodes['doc']!.createChecked(null, [
     schema.nodes['pocket']!.create({ id: newHeadingId() }, schema.text(title)),
-    schema.nodes['paragraph']!.create(null),
+    makeStyledBlock(),
   ]);
 }
 
@@ -1068,13 +1069,15 @@ function updatePlainPasteIndicator(armed: boolean): void {
 
 const zoomOutBtn = document.getElementById('zoom-out-btn') as HTMLButtonElement;
 const zoomInBtn = document.getElementById('zoom-in-btn') as HTMLButtonElement;
-/** Bottom-right CardMirror mark: drag the focused doc's file into other
- *  apps (desktop). Synced from `updateWindowTitle`, the one path every
- *  doc-identity change already goes through. */
-const syncFileDragMark = installFileDragMark(
-  document.getElementById('file-drag-mark') as HTMLButtonElement,
-  () => getElectronHost(),
-);
+/** The blue title bar over the document — the one-document-per-window layout
+ *  only (three-pane mode has one on every pane, built by multi-pane-shell.ts).
+ *  Declared up here, not beside `ensureDocHeader`, because boot-time apply
+ *  functions reach it before the per-doc state further down has initialized. */
+let docHeader: DocHeader | null = null;
+/** The status bar's file badge (cloud provider or "this computer") — the
+ *  single-document window's copy of the badge every pane carries. Declared
+ *  here for the same reason as `docHeader`. */
+let singleFileBadge: PaneDiskBadgeHandle | null = null;
 /** Provenance stamped into every .docx this app writes (app.xml
  *  Application / AppVersion + the cmirGenerator custom property). */
 const DOCX_GENERATOR = { application: 'CardMirror', version: appVersion } as const;
@@ -3165,6 +3168,7 @@ wordCountText.addEventListener('click', () => {
  *  tab. Called on boot and on every setting change. */
 function applyNavPaneVisible(visible: boolean): void {
   document.body.classList.toggle('pmd-nav-hidden', !visible);
+  docHeader?.setNavShown(visible);
 }
 if (navPanePullTab) {
   // Pull-tab is only ever shown when the nav pane is hidden;
@@ -3368,6 +3372,55 @@ function renderCustomRibbonButtons(): void {
   panel.hidden = shown === 0;
 }
 renderCustomRibbonButtons();
+
+// Custom styles (Settings → Editing): each user-defined style is a command
+// (`custom-style.<id>`, label "Style: <name>") in the plugin command pool, so
+// the palette, Keyboard shortcuts and custom ribbon buttons all see it. A
+// change to the set rebuilds every open view's keymap (views bake theirs at
+// construction) and the custom ribbon buttons.
+let lastCustomStyles: CustomStyle[] | null = null;
+function syncCustomStyleCommands(): void {
+  const styles = settings.get('customStyles');
+  lastCustomStyles = styles;
+  const removed = setUserCommands(
+    styles.map((st) => ({
+      id: customStyleCommandId(st.id),
+      label: `Style: ${st.name}`,
+      keywords: ['custom style', 'character style', st.name],
+      run: () => {
+        const v = getActiveView();
+        if (v) applyCustomStyle(v, st);
+      },
+    })),
+  );
+  if (removed.length === 0) return;
+  // A deleted style's key binding and ribbon button go with it.
+  const overrides = settings.get('ribbonKeyOverrides');
+  const kept: typeof overrides = {};
+  let dropped = 0;
+  for (const [cmdId, key] of Object.entries(overrides)) {
+    if (removed.includes(cmdId)) {
+      dropped++;
+      continue;
+    }
+    if (key !== undefined) kept[cmdId] = key;
+  }
+  if (dropped > 0) settings.set('ribbonKeyOverrides', kept);
+  const buttons = settings.get('ribbonCustomButtons');
+  const keptButtons = buttons.filter((b) => !removed.includes(b.command));
+  if (keptButtons.length !== buttons.length) settings.set('ribbonCustomButtons', keptButtons);
+}
+onUserCommandsChanged(() => {
+  for (const { uid, view: v } of getSpeechDocResolver().allViews()) {
+    try {
+      v.updateState(v.state.reconfigure({ plugins: buildEditorPlugins(uid) }));
+    } catch (err) {
+      console.warn('[custom-styles] keymap rebuild failed for a view:', err);
+    }
+  }
+  renderCustomRibbonButtons();
+});
+syncCustomStyleCommands();
 if (askAiBtn) {
   askAiBtn.addEventListener('mousedown', (e) => e.preventDefault());
   askAiBtn.addEventListener('click', () => runRibbonCommandById('aiAskAboutSelection'));
@@ -4051,23 +4104,6 @@ systemDarkMedia.addEventListener('change', () => {
   }
 });
 
-/** Apply the `showDocNameChip` setting to `<html>`. The chip's CSS
- *  display is gated on this class — without it, the chip is
- *  force-hidden with `!important` and the ribbon resizer can't
- *  override it back on. Off by default.
- *
- *  Deliberately does NOT call `updateWindowTitle`: at boot this
- *  runs before `currentDocFilename`'s module-level declaration
- *  executes (the apply functions live near the top of the module;
- *  the per-doc state near the bottom), so reading it through
- *  `activeFile()` would throw a TDZ ReferenceError. The chip's
- *  text + `[hidden]` attribute are kept current by
- *  `updateWindowTitle` on every mount / save / open / focus
- *  change. */
-function applyShowDocNameChip(on: boolean): void {
-  document.documentElement.classList.toggle('pmd-doc-name-chip-on', on);
-}
-
 /** Apply the `reduceMotion` setting onto the document root as
  *  `data-motion`. CSS rules in `style.css` consume the attribute
  *  and gate animations / transitions. Three states:
@@ -4353,7 +4389,6 @@ function applyPillVisibility(): void {
 // setting changes (and once now to handle the persisted value).
 settings.subscribe((s) => {
   applyTheme(s.theme, s.docTheme);
-  applyShowDocNameChip(s.showDocNameChip);
   applyIconSet(s.iconSet);
   applyReduceMotion(s.reduceMotion);
   applyColorVision(s.colorVisionFriendly);
@@ -4370,7 +4405,7 @@ settings.subscribe((s) => {
   // decorations while the pane element keeps `pmd-read-mode`, i.e. read
   // mode showing every word of every card. The shell's own subscriber
   // re-stamps these classes per pane instead.
-  refreshDiskBadge(); // read mode on/off freezes / releases it
+  singleFileBadge?.refresh(); // read mode on/off freezes / releases it
   if (
     !multiDocActive &&
     (s.readMode !== lastReadMode ||
@@ -4463,6 +4498,7 @@ settings.subscribe((s) => {
   }
   refreshFontSizeDisplay();
   refreshCursorColorDisplay();
+  if (s.customStyles !== lastCustomStyles) syncCustomStyleCommands();
   if (
     s.ribbonKeyOverrides !== lastRibbonOverrides ||
     s.keyboardMacros !== lastKeyboardMacros
@@ -4511,7 +4547,6 @@ function initRibbonResizer(): void {
     ['formatting-panel'],        // (b) Structural styles
     ['numbering-panel'],         // (c) Card numbering cluster — hide THIRD
     ['custom-ribbon-panel'],     // (d) User custom buttons
-    ['doc-name-chip'],           // (d) Active-doc filename pill (opt-in)
     ['format-menu-panel'],       // (d) Table / image / sub / sup / strike
     ['doc-ops-panel'],           // (e) Paragraph integrity
     ['color-panel'],             // (g) Highlight / shading / font color
@@ -4632,7 +4667,7 @@ function initRibbonResizer(): void {
   // ribbon-only observer never fires. Observing these specific
   // elements catches the show / hide → 0 ↔ N transition and
   // re-runs the cascade.
-  for (const id of ['timer-panel', 'doc-name-chip', 'custom-ribbon-panel', 'numbering-panel', 'format-menu-panel']) {
+  for (const id of ['timer-panel', 'custom-ribbon-panel', 'numbering-panel', 'format-menu-panel']) {
     const el = document.getElementById(id);
     if (el) observer.observe(el);
   }
@@ -4650,6 +4685,8 @@ initRibbonResizer();
 interface RibbonContextMenuItem {
   label: string;
   action: () => void;
+  disabled?: boolean;
+  title?: string;
 }
 let openRibbonContextMenuEl: HTMLElement | null = null;
 
@@ -4695,6 +4732,13 @@ function openRibbonContextMenu(x: number, y: number): void {
         { label: 'Clear Window Name', action: () => { void setWindowName(null); } },
       ]
     : [{ label: 'Name This Window…', action: () => { void renameWindowPrompt(); } }];
+  // The active document's file: copy its path, or show it in its folder
+  // (desktop; the web edition has no paths).
+  if (getElectronHost()) {
+    items.push(
+      ...fileMenuItems(filePathOf(activeFile().handle), (path) => void getElectronHost()?.showItemInFolder?.(path)),
+    );
+  }
 
   const menu = document.createElement('div');
   menu.className = 'pmd-nav-context-menu';
@@ -4703,10 +4747,15 @@ function openRibbonContextMenu(x: number, y: number): void {
     btn.type = 'button';
     btn.className = 'pmd-nav-context-item';
     btn.textContent = item.label;
-    btn.addEventListener('click', () => {
-      item.action();
-      closeRibbonContextMenu();
-    });
+    if (item.title) btn.title = item.title;
+    if (item.disabled) {
+      btn.disabled = true;
+    } else {
+      btn.addEventListener('click', () => {
+        item.action();
+        closeRibbonContextMenu();
+      });
+    }
     menu.appendChild(btn);
   }
 
@@ -4740,7 +4789,6 @@ function initRibbonRenameMenu(): void {
 initRibbonRenameMenu();
 
 applyTheme(settings.get('theme'), settings.get('docTheme'));
-applyShowDocNameChip(settings.get('showDocNameChip'));
 applyIconSet(settings.get('iconSet'));
 applyReduceMotion(settings.get('reduceMotion'));
 applyColorVision(settings.get('colorVisionFriendly'));
@@ -8668,19 +8716,34 @@ function adoptFileIdentity(
   });
 }
 
-/** The ribbon chip is rebuilt in place rather than re-created, so its
- *  double-click handler is installed exactly once and then left alone. */
-let ribbonChipRenameInstalled = false;
-function installRibbonChipRename(chipText: HTMLElement): void {
-  if (ribbonChipRenameInstalled) return;
-  ribbonChipRenameInstalled = true;
-  installInlineRename(chipText, {
-    currentName: () => activeFile().filename ?? null,
-    commit: (typed) => {
+/** Create the blue title bar on the first `updateWindowTitle`, once the layout
+ *  is known (see `docHeader`, declared with the DOM constants above). */
+function ensureDocHeader(): void {
+  if (docHeader || multiDocActive) return;
+  const container = document.getElementById('doc-header');
+  if (!container) return;
+  docHeader = installDocHeader(container, {
+    renameSeed: () => {
+      const name = activeFile().filename;
+      return name ? docDisplayName(name) : null;
+    },
+    onRename: (typed) => {
       void renameFocusedDoc(typed).then(() => updateWindowTitle());
     },
-    restore: () => updateWindowTitle(),
+    onRenameEnd: () => updateWindowTitle(),
+    onSave: () => runRibbon('save'),
+    onToggleAutosave: () => toggleAutosaveCommand(),
+    onToggleNav: () => runRibbon('toggleNavPane'),
+    onClose: () => void handleCloseDocToHome(),
+    onToggleSpeech: () => toggleMarkSingleDocAsSpeech(),
+    getPath: () => filePathOf(activeFile().handle),
+    getDragHost: () => getElectronHost(),
+    reveal: (path) => void getElectronHost()?.showItemInFolder?.(path),
   });
+  container.hidden = false;
+  docHeader.setNavShown(!document.body.classList.contains('pmd-nav-hidden'));
+  refreshSpeechMarkBtn();
+  refreshAutosaveBtn();
 }
 
 /** Why a rename attempt didn't happen, in the user's terms. Keyed by
@@ -8815,7 +8878,6 @@ function updateWindowTitle(): void {
   const focused = activeFile();
   pushSingleDocInfo();
   reportSingleDocWorkspace();
-  syncFileDragMark(focused.handle);
   syncRepresentedFile(focused.handle);
   if (currentWindowName) {
     document.title = currentWindowName;
@@ -8837,33 +8899,18 @@ function updateWindowTitle(): void {
       ? `${displayFilename(focused.filename)} — CardMirror`
       : 'CardMirror';
   }
-  // In-app filename chip. The chip itself is CSS-hidden in
-  // multi-pane mode (each per-pane chip shows the pane's own
-  // filename), so the JS update is a no-op there visually — but
-  // we still write the focused doc's filename so a mode-switch
-  // back to single-doc doesn't surface a stale label. The chip
-  // is `[hidden]`-toggled when there's no filename at all
-  // (untitled / onboarding / fresh doc before Save-As) so the
-  // empty chip doesn't sit in the ribbon as visual noise.
-  const chip = document.getElementById('doc-name-chip');
-  const chipText = document.getElementById('doc-name-chip-text');
-  if (chip && chipText) {
-    const shown = focused.filename ? displayFilename(focused.filename) : '';
-    // Don't clobber a rename in progress: this runs on plenty of
-    // things that aren't the filename changing.
-    if (!isInlineRenaming(chipText)) chipText.textContent = shown;
-    chip.setAttribute('title', shown ? `${shown} — double-click to rename` : '');
-    chip.toggleAttribute('hidden', !focused.filename);
-    installRibbonChipRename(chipText);
-  }
-  // The cloud badge follows the active document — single-doc mode
-  // only. Multi-pane mode has its own per-pane badge (embedded in
-  // each pane's footer by multi-pane-shell.ts) instead of this one
-  // shared, focus-following tray, so a background pane's disk state
-  // is never ambiguous about which document it belongs to.
+  // The blue title bar (single-document window). The name reads without its
+  // extension; a rename in progress keeps its field.
+  ensureDocHeader();
+  docHeader?.setName(focused.filename ? docDisplayName(focused.filename) : 'Untitled');
+  docHeader?.setSaveTitle(focused.filename ? `Save "${displayFilename(focused.filename)}"` : 'Save');
+  // The file badge follows the active document — single-doc mode only.
+  // Multi-pane mode has its own per-pane badge (embedded in each pane's
+  // footer by multi-pane-shell.ts), so a background pane's disk state is
+  // never ambiguous about which document it belongs to.
   if (!multiDocActive) {
     ensureDiskBadge();
-    refreshDiskBadge();
+    singleFileBadge?.refresh();
   }
 }
 
@@ -9557,6 +9604,7 @@ function setSaveInProgress(on: boolean): void {
     savingStateTimer = window.setTimeout(() => {
       savingStateTimer = null;
       exportBtn.classList.add('pmd-save-saving');
+      docHeader?.setSaving(true);
     }, SAVING_STATE_DELAY_MS);
   } else {
     savingDepth = Math.max(0, savingDepth - 1);
@@ -9566,6 +9614,7 @@ function setSaveInProgress(on: boolean): void {
       savingStateTimer = null;
     }
     exportBtn.classList.remove('pmd-save-saving');
+    docHeader?.setSaving(false);
   }
 }
 
@@ -9880,15 +9929,14 @@ function autoApplyForHandle(handle: string): Promise<AutoApplyOutcome> {
 }
 
 let diskBadgeInstalled = false;
-/** Create the cloud pill (bottom-right tray, the mirror of the Send /
- *  Receive tray) and wire main's disk-changed pushes. Idempotent. Waits
- *  for the left tray to exist: it is created at boot for every layout
- *  except mobile, which has no pills at all. */
+/** Create the file badge in the status bar and wire main's disk-changed pushes.
+ *  Idempotent. Waits for the left tray to exist: it is created at boot for
+ *  every layout except mobile, which has no pills at all. */
 function ensureDiskBadge(): void {
   if (diskBadgeInstalled) return;
   if (!document.querySelector('.pmd-pill-tray')) return;
   diskBadgeInstalled = true;
-  installDiskBadge({
+  const deps: DiskBadgeDeps = {
     getActive: () => {
       const f = activeFile();
       return { handle: typeof f.handle === 'string' ? f.handle : null, name: f.filename };
@@ -9897,14 +9945,20 @@ function ensureDiskBadge(): void {
     isDirty: () => (multiDocActive ? (multiDocGetFocusedFile?.()?.dirty ?? false) : currentDocDirty),
     isSessionHost: () => collabCopresenceFor(activeDocIdentity().sessionUid)?.role === 'host',
     reveal: (handle) => void getElectronHost()?.showItemInFolder?.(handle),
+    dragHost: () => getElectronHost(),
     reloadFromDisk: reloadActiveFromDisk,
     keepMineAsCopy: () => saveActiveAsConflictedCopy(),
     overwrite: () => saveActiveForcingDisk(),
     openOriginal: (original) => openFileByPath(original, original.split(/[\\/]/u).pop() ?? original),
-  });
+  };
+  // Headless: the deps serve Reload From Disk; what the window SHOWS is the
+  // same footer badge a pane carries, in the status bar (no corner tray).
+  installDiskBadge(deps, { headless: true });
+  const slot = document.getElementById('status-file-badge');
+  if (slot) singleFileBadge = createPaneDiskBadge(deps, slot);
   setAutoApplyHandler(autoApplyForHandle);
   getElectronHost()?.onDiskChanged(({ path }) => noteDiskChanged(path));
-  subscribeTimer(() => refreshDiskBadge());
+  subscribeTimer(() => singleFileBadge?.refresh());
 }
 
 async function runSaveFlowInner(): Promise<boolean> {
@@ -10144,6 +10198,7 @@ export function flashSaveSuccess(): void {
     return;
   }
   flashSavedGlyph(exportBtn);
+  if (docHeader) flashSavedGlyph(docHeader.saveButton);
 }
 
 // ─── Autosave + crash-recovery journal ────────────────────────────
@@ -10489,17 +10544,29 @@ export function refreshAutosaveBtn(): void {
   // ribbonTooltipMode (none / tooltip / shortcut / both) governs
   // whether this state-aware text actually appears.
   registerRibbonTooltip({ el: autosaveBtn, label });
+  // The window's blue title bar carries the same toggle (single-document layout).
+  docHeader?.setAutosave({
+    pressed: on,
+    effective: autosaveBtn.dataset['autosaveEffective'] === 'true',
+    error: autosaveBtn.hasAttribute('data-autosave-error'),
+    label,
+  });
+}
+
+/** Flip autosave for the active document (the ribbon button and the title
+ *  bar's). Three-pane mode flips the focused pane's; one document per window
+ *  flips the window's. */
+function toggleAutosaveCommand(): void {
+  if (multiDocActive && multiDocToggleAutosave) {
+    multiDocToggleAutosave();
+    return;
+  }
+  settings.set('autosaveEnabled', !settings.get('autosaveEnabled'));
 }
 
 if (autosaveBtn) {
   autosaveBtn.addEventListener('mousedown', (e) => e.preventDefault());
-  autosaveBtn.addEventListener('click', () => {
-    if (multiDocActive && multiDocToggleAutosave) {
-      multiDocToggleAutosave();
-      return;
-    }
-    settings.set('autosaveEnabled', !settings.get('autosaveEnabled'));
-  });
+  autosaveBtn.addEventListener('click', () => toggleAutosaveCommand());
   // Initial state + live updates as the setting / focused doc changes.
   refreshAutosaveBtn();
   settings.subscribe(() => refreshAutosaveBtn());
