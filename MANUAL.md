@@ -1304,17 +1304,17 @@ workspace while another shows a single document.
   active document into a slot.
 - **Expand** a slot to full width with **Mod-Shift-F**, and restore it
   the same way.
-- **Hide Slot** (a command, unbound by default) takes the focused slot out
-  of the layout so the other slots share its width. Its documents stay open.
+- **Minimize a pane:** hold **Alt** and the pane's expand button turns into a
+  minimize button; click it and the pane leaves the layout so the other slots
+  share its width. Its documents stay open, and a **“1 hidden”** chip appears
+  in the status bar; click it to bring the pane back (hover for which one).
+  **Hide Slot** (a command, unbound by default) does the same from the keyboard.
   **Reveal All Slots** brings every hidden slot back, and so do **Mod-1/2/3**
   on that slot, opening or sending a document into it, Arrange Windows, and
   anything that needs you to see one of its documents (a save prompt, or a
   file that turns out to be open there already).
   The last slot showing can't be hidden, and if you close every document
-  in the slots that are showing, the hidden ones come back. Turn on
-  **Settings → General → Workspace → Show a Hide button on each slot**
-  (off by default) for a Hide
-  button in each slot's title bar.
+  in the slots that are showing, the hidden ones come back.
 - When you have more than one document in a slot, jump between them using
   the drop-down in the document's title bar or by using **Ctrl-Tab**.
 - Turn on **Opening a file replaces an untouched Untitled doc**

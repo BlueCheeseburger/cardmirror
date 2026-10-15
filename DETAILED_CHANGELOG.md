@@ -27,6 +27,18 @@ shows "N card(s) marked" / "no cards marked" on its title line, as a sibling of 
 label span so the label stays plain text. The recovery flow passes none, so it
 shows no count.
 
+### Changed: Alt-minimize and the "N hidden" chip replace the Hide button (`multi-pane-shell.ts`, `settings.ts`, `style.css`)
+
+Removed `chipHideBtn` (`.pmd-pane-chip-hide`), `Slot.setHideButtonVisible` and the
+`showHideSlotButton` setting. A shell-level window `keydown` / `keyup` / `blur`
+listener tracks Alt and calls `Slot.setMinimizeMode`, which swaps the expand
+button's icon to minus and its title; an Alt-click on it calls `hideSlot` instead
+of `toggleExpanded`. `#hidden-slots-chip` (in `#status-bar`, after the file badge;
+`display: none` outside `body.pmd-multi-doc`) is refreshed from
+`applyExpandedState`, the doc-added path and `handleSlotEmptied`, lists the
+hidden slots in its tooltip, and on click reveals them (focusing the pane when
+exactly one was hidden). `hideSlot` / `revealAllSlots` / Mod-1/2/3 are unchanged.
+
 ### Changed: Save As section order and wording (`save-as-ui.ts`)
 
 Order is now Name, Save, previously saved locations, Format. The OS-picker row's
