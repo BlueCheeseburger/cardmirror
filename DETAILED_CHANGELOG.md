@@ -2367,7 +2367,102 @@ multi-window: both show the same slot picker when in three-pane mode,
 routing to the right pane rather than always landing in the last-focused
 window.
 
-### 2. Per-pane cloud-sync badge (`disk-conflict.ts`, `multi-pane-shell.ts`, `index.ts`, `style.css`)
+### 2. On-time / too-slow / too-fast pace indicator (`timer-pace.ts`, `live-read-time.ts`, `reading-line.ts`, `scroll-anchor.ts`, `settings.ts`, `style.css`)
+
+**Introduced in 1.15.0-bcb.1; reading line and Reading-view support in 1.15.0-bcb.4.**
+
+`timer-pace.ts` renders the pace row under the speech timer; it compares the
+clock's remaining time with the read time of everything after the reading
+position (`remainingReadCounts` / `scrollAnchorPos` in `live-read-time.ts`) at
+the reader's rate, honoring the per-pane lay-speaking toggle. The reading
+position is the document position at the "reading line", `READING_LINE_FRACTION
+= 1/3` of the viewport height (`reading-line.ts`), used by the pace row, "Left",
+auto-scroll and the scroll-anchor pinning in `scroll-anchor.ts`. In Reading
+view the anchor is probed in the first visible column at that height instead of
+the (scrolled-away) vertical position. `timerLeftInline` (default off) fits the
+left time inside the timer box. Full notes are in the 1.15.0-bcb.1 – bcb.4
+release sections above ("Added: timer pace row", "Fixed: the reading line is a
+third of the way down").
+
+### 3. Paced auto-scroll
+
+**Introduced in 1.6.0-bcb.1.**
+
+A module-level scroll loop reads the current reading-speed setting (wpm),
+computes a per-frame pixel delta, and applies it via `scrollBy`. Dense
+highlighted-text regions (measured by mark density in the visible viewport)
+slow the computed delta; plain text speeds it back up. The ribbon
+auto-scroll button starts and stops the loop; the loop halts automatically
+on any user scroll input so it doesn't fight manual navigation.
+
+### 4. Compare and merge documents (`doc-diff.ts`, `doc-diff-ui.ts`, `doc-merge.ts`, `home-screen.ts`, `index.ts`, `style.css`)
+
+**Introduced in 1.10.0-bcb.4.** A read-only, side-by-side line diff of
+two `.cmir`/`.docx` files, opened from the home screen's Compare card.
+Full implementation notes (LCS line diff, `MAX_DIFF_CELLS` cap,
+side-by-side row pairing, outline jump) are in
+[1.10.0-bcb.4's entry](#added-compare-documents-doc-diffts-doc-diff-uits-home-screents-indexts-stylecss).
+Word-level highlighting of edited lines was added in
+[1.12.0-bcb.3](#added-word-level-highlighting-in-compare-documents-doc-diffts-doc-diff-uits-stylecss).
+
+**Merge** (1.15.0-bcb.2, `doc-merge.ts`): `planMerge` runs the same line diff,
+keeps shared lines once and one-sided lines as they are, and treats a
+remove/add pair that Compare shows as one edited line as a conflict (first,
+second or both); `buildMerged` rebuilds the document from the original nodes so
+formatting survives. See "Added: merge two documents" above.
+
+### 5. Autosave for .docx files
+
+**Introduced in 1.6.0-bcb.1.**
+
+The existing autosave path was gated on `.cmir` files only; this fork
+lifted that gate. The zip worker that prepares `.docx` writes is given a
+time-boxed fallback: if the background worker thread stops responding
+within a set interval, the main thread takes over and completes the save,
+then logs the fallback. The ribbon's Save button now distinguishes
+"saving in progress" from "paused" (e.g. a document with a live view or
+linked copy Word can't hold open), matching the visual feedback users
+already had for `.cmir` autosave.
+
+### 6. Logos card search (`logos-search.ts`, `quick-card-search-ui.ts`)
+
+**Introduced in 1.12.0-bcb.3** (as `l `; `g ` since 1.12.0-bcb.4). A `g ` source in Search Everything that
+queries Logos's index of opencaselist round-doc cards and inserts the full
+card with its formatting, with optional automatic condense / shrink /
+highlight color on insert. Full notes are in
+[1.12.0-bcb.3's entry](#added-logos-as-a-search-everything-source-logos-searchts-quick-card-search-uits).
+
+### 7. Search your own cards — `q ` (`tagline-search.ts`, `tagline-index-core.ts`, `quick-card-search-ui.ts`, `card-preview-modal.ts`)
+
+**Introduced as `f c` in 1.15.0-bcb.1; became `q` in 1.15.0-bcb.2.1.**
+
+The file-index utility process keeps a lazy, mtime-ordered tagline/cite index of
+the cards in your indexed files (`createTaglineIndex`, started at app launch
+since 1.15.0-bcb.2.1). `q ` merges those with Quick Cards in one list (badges
+CARD / QUICK); right-click opens the card in `card-preview-modal.ts` with the
+file name and path. Search Everything also opens on screens without an editor,
+where picking a card opens it as a new document. See "Added: Search Everything
+on every screen", "Added: right-click preview…" and "Added: `f c` card-tagline
+search" in the release sections above.
+
+### 8. Redesigned Save As (`save-as-ui.ts`, `save-locations-store.ts`, `style.css`)
+
+**Introduced in 1.10.0-bcb.3.2.**
+
+The five save modes are a `MODE_DEFS`-driven radio list (shared `buildRadioRow`
+helper, also used for Format) instead of buttons that write on click. Custom
+Save's checkboxes are an inline block under its row rather than a sub-dialog.
+"Save in a previously saved location" is a selectable list backed by
+`save-locations-store.ts`, with "Choose location when saving" as the default;
+the Save As button applies mode and location together. See "Added: Save As
+redesigned around select-then-commit" and "Added: Save As remembers save
+locations" in the 1.10.0-bcb.3.2 section above.
+
+### Also in this fork
+
+Smaller additions, not ranked. Implementation notes:
+
+#### Per-pane cloud-sync badge (`disk-conflict.ts`, `multi-pane-shell.ts`, `index.ts`, `style.css`)
 
 **Introduced in 1.8.0-bcb.3.**
 
@@ -2412,15 +2507,7 @@ single-doc → multi-pane mode-switch stays hidden.
 Seven new tests in `tests/editor/disk-conflict-pane-badge.test.ts`.
 All 8 pre-existing `disk-conflict.test.ts` tests pass unchanged.
 
-### 3. Logos card search (`logos-search.ts`, `quick-card-search-ui.ts`)
-
-**Introduced in 1.12.0-bcb.3** (as `l `; `g ` since 1.12.0-bcb.4). A `g ` source in Search Everything that
-queries Logos's index of opencaselist round-doc cards and inserts the full
-card with its formatting, with optional automatic condense / shrink /
-highlight color on insert. Full notes are in
-[1.12.0-bcb.3's entry](#added-logos-as-a-search-everything-source-logos-searchts-quick-card-search-uits).
-
-### 4. Google Gemini as a third AI provider
+#### Google Gemini as a third AI provider
 
 **Introduced in 1.6.0-bcb.1.**
 
@@ -2430,18 +2517,32 @@ model-list fetch all follow the same extension points the existing two
 providers already used. See the individual PRs on this fork's repository
 for the specific files changed.
 
-### 5. Paced auto-scroll
+#### Window naming (`apps/desktop/src/main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`)
 
-**Introduced in 1.6.0-bcb.1.**
+**Introduced in 1.8.0-bcb.3.**
 
-A module-level scroll loop reads the current reading-speed setting (wpm),
-computes a per-frame pixel delta, and applies it via `scrollBy`. Dense
-highlighted-text regions (measured by mark density in the visible viewport)
-slow the computed delta; plain text speeds it back up. The ribbon
-auto-scroll button starts and stops the loop; the loop halts automatically
-on any user scroll input so it doesn't fight manual navigation.
+Persistence lives in the main process so names survive renderer reloads
+(mode-switch, settings changes): `main.ts` gained a
+`windowNames: Map<number, string>` keyed by `BrowserWindow.id`, cleaned up
+in the existing `win.on('closed', ...)` handler. Two IPC handlers
+(`host:window-name-set` / `host:window-name-get`) mirror the existing
+`host:speech-set` / `host:speech-get` shape. `preload.ts` bridges both as
+`windowNameSet` / `windowNameGet`; `electron-host.ts` adds the matching
+methods (Electron-only, reached via `getElectronHost()`, not part of the
+shared `Host` interface).
 
-### 6. Settings search (`settings-ui.ts`, `style.css`)
+`index.ts` fetches the name once at boot via `getElectronHost()?.windowNameGet()`
+into `currentWindowName`. `updateWindowTitle()` checks it first — uses the
+name as the full title with no suffix — before falling back to the existing
+doc-name-derived logic. The context menu (`openRibbonContextMenu`) uses the
+shared `positionFloatingMenu` / `registerOpenContextMenu` primitives and
+the existing `.pmd-nav-context-menu` / `.pmd-nav-context-item` CSS.
+
+A follow-up fix in 1.8.0-bcb.4 raised `.pmd-nav-context-menu` to
+`z-index: 210` (above the ribbon's `z-index: 200`) so the menu is
+visible when opened from a click inside the ribbon's own bounds.
+
+#### Settings search (`settings-ui.ts`, `style.css`)
 
 *Replaced in the 1.14.0 sync by upstream's Settings search (`settings-search.ts`).*
 
@@ -2483,54 +2584,6 @@ previously-matched rows from the DOM, making them invisible to
 `querySelector` and silently dropping them on a second query. Fixed by
 restoring each category panel from its `panelOriginalChildren` snapshot
 BEFORE clearing `resultsPanel`.
-
-### 7. Window naming (`apps/desktop/src/main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`)
-
-**Introduced in 1.8.0-bcb.3.**
-
-Persistence lives in the main process so names survive renderer reloads
-(mode-switch, settings changes): `main.ts` gained a
-`windowNames: Map<number, string>` keyed by `BrowserWindow.id`, cleaned up
-in the existing `win.on('closed', ...)` handler. Two IPC handlers
-(`host:window-name-set` / `host:window-name-get`) mirror the existing
-`host:speech-set` / `host:speech-get` shape. `preload.ts` bridges both as
-`windowNameSet` / `windowNameGet`; `electron-host.ts` adds the matching
-methods (Electron-only, reached via `getElectronHost()`, not part of the
-shared `Host` interface).
-
-`index.ts` fetches the name once at boot via `getElectronHost()?.windowNameGet()`
-into `currentWindowName`. `updateWindowTitle()` checks it first — uses the
-name as the full title with no suffix — before falling back to the existing
-doc-name-derived logic. The context menu (`openRibbonContextMenu`) uses the
-shared `positionFloatingMenu` / `registerOpenContextMenu` primitives and
-the existing `.pmd-nav-context-menu` / `.pmd-nav-context-item` CSS.
-
-A follow-up fix in 1.8.0-bcb.4 raised `.pmd-nav-context-menu` to
-`z-index: 210` (above the ribbon's `z-index: 200`) so the menu is
-visible when opened from a click inside the ribbon's own bounds.
-
-### 8. Autosave for .docx files
-
-**Introduced in 1.6.0-bcb.1.**
-
-The existing autosave path was gated on `.cmir` files only; this fork
-lifted that gate. The zip worker that prepares `.docx` writes is given a
-time-boxed fallback: if the background worker thread stops responding
-within a set interval, the main thread takes over and completes the save,
-then logs the fallback. The ribbon's Save button now distinguishes
-"saving in progress" from "paused" (e.g. a document with a live view or
-linked copy Word can't hold open), matching the visual feedback users
-already had for `.cmir` autosave.
-
-### 9. Compare documents (`doc-diff.ts`, `doc-diff-ui.ts`, `home-screen.ts`, `index.ts`, `style.css`)
-
-**Introduced in 1.10.0-bcb.4.** A read-only, side-by-side line diff of
-two `.cmir`/`.docx` files, opened from the home screen's Compare card.
-Full implementation notes (LCS line diff, `MAX_DIFF_CELLS` cap,
-side-by-side row pairing, outline jump) are in
-[1.10.0-bcb.4's entry](#added-compare-documents-doc-diffts-doc-diff-uits-home-screents-indexts-stylecss).
-Word-level highlighting of edited lines was added in
-[1.12.0-bcb.3](#added-word-level-highlighting-in-compare-documents-doc-diffts-doc-diff-uits-stylecss).
 
 ---
 
