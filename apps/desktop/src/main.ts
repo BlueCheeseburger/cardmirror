@@ -77,7 +77,7 @@ import {
   type DiskState,
   type ClaimResult,
 } from './doc-writes.js';
-import { detectCloudProvider, type CloudProvider } from './cloud-roots.js';
+import { detectCloudProvider, detectCloudRelativePath, type CloudProvider } from './cloud-roots.js';
 import { createDiskWatch } from './disk-watch.js';
 import * as os from 'node:os';
 import {
@@ -1718,6 +1718,14 @@ ipcMain.handle(
 ipcMain.handle('host:cloud-provider', async (_event, p: unknown): Promise<CloudProvider | null> => {
   if (typeof p !== 'string' || !p) return null;
   return cloudProviderFor(canonicalOpenPath(p));
+});
+
+/** The path as the sync provider writes it — relative to the sync root, with a
+ *  leading slash (`/Neg files/1NC.docx`) — for the file badge's "Copy
+ *  <provider> path". Null when the file isn't in a sync root. */
+ipcMain.handle('host:cloud-relative-path', async (_event, p: unknown): Promise<string | null> => {
+  if (typeof p !== 'string' || !p) return null;
+  return detectCloudRelativePath(canonicalOpenPath(p));
 });
 
 // ─── Crash-recovery journals ───────────────────────────────────────

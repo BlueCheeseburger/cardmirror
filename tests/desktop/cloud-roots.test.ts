@@ -1,7 +1,7 @@
 // @vitest-environment node
 /** Cloud-sync root detection (cloud-roots.ts): pure classifier over injected inputs. */
 import { describe, it, expect } from 'vitest';
-import { classifyCloudPath, type CloudEnv } from '../../apps/desktop/src/cloud-roots.js';
+import { classifyCloudPath, cloudRelativePath, type CloudEnv } from '../../apps/desktop/src/cloud-roots.js';
 
 const mac: CloudEnv = {
   platform: 'darwin',
@@ -44,5 +44,28 @@ describe('classifyCloudPath', () => {
     expect(classifyCloudPath('/Users/ant/Documents/x.cmir', mac)).toBeNull();
     expect(classifyCloudPath('C:\\Users\\ant\\Documents\\x.cmir', win)).toBeNull();
     expect(classifyCloudPath('/Users/ant/DropboxNotReally/x.cmir', { ...mac, dropboxInfo: null }), 'prefix, not substring').toBeNull();
+  });
+});
+
+describe('cloudRelativePath', () => {
+  it('is the path inside the sync root, with forward slashes and a leading one', () => {
+    expect(cloudRelativePath('/Users/ant/Dropbox (Personal)/Debate/Neg files/1NC.docx', mac)).toBe(
+      '/Debate/Neg files/1NC.docx',
+    );
+    expect(cloudRelativePath('/Users/ant/Dropbox/x.cmir', { ...mac, dropboxInfo: null })).toBe('/x.cmir');
+    expect(cloudRelativePath('/Users/ant/Library/CloudStorage/Dropbox-Team/Neg/1NC.cmir', mac)).toBe('/Neg/1NC.cmir');
+    expect(cloudRelativePath('/Users/ant/Library/Mobile Documents/com~apple~CloudDocs/a/b.cmir', mac)).toBe('/a/b.cmir');
+  });
+
+  it('converts Windows separators and handles drive-letter and env roots', () => {
+    expect(cloudRelativePath('C:\\Users\\ant\\Dropbox\\Debate\\Neg files\\1NC.docx', win)).toBe(
+      '/Debate/Neg files/1NC.docx',
+    );
+    expect(cloudRelativePath('C:\\Users\\ant\\OneDrive - School\\x.cmir', win)).toBe('/x.cmir');
+    expect(cloudRelativePath('G:\\My Drive\\Debate\\x.cmir', win)).toBe('/My Drive/Debate/x.cmir');
+  });
+
+  it('is null outside every sync root', () => {
+    expect(cloudRelativePath('/Users/ant/Documents/x.cmir', mac)).toBeNull();
   });
 });

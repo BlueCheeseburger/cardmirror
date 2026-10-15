@@ -165,7 +165,6 @@ import {
 import { installInlineRename, isInlineRenaming, docDisplayName } from './doc-rename.js';
 import { createChipSpeechButton, type ChipSpeechButton } from './chip-speech-button.js';
 import { filePathOf, startNativeFileDrag } from './file-drag.js';
-import { fileMenuItems } from './file-path-menu.js';
 import { installPaneChipDrag } from './pane-drag.js';
 import { installMoveMenuTrigger } from './pane-move-menu.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
@@ -894,11 +893,6 @@ class Slot {
         this.shell.focusSlot(this);
         void moveFocusedDocToWindow(target === 'new-window' ? 'new-window' : target);
       },
-      // Right-click anywhere on the bar: copy / show the file as well as move it.
-      extraItems: () =>
-        this.visible && getElectronHost()
-          ? fileMenuItems(filePathOf(this.visible.handle), (path) => void getElectronHost()?.showItemInFolder?.(path))
-          : [],
     });
     // Slot-number badge — small fixed glyph immediately left of
     // the expand button. Helps users identify which slot they're
@@ -1054,6 +1048,7 @@ class Slot {
       isSessionHost: () => collabCopresenceFor(this.visible?.uid ?? '')?.role === 'host',
       reveal: (handle) => void getElectronHost()?.showItemInFolder?.(handle),
       dragHost: () => getElectronHost(),
+      cloudRelativePath: (path) => getElectronHost()?.cloudRelativePath?.(path) ?? Promise.resolve(null),
       reloadFromDisk: (handle) => this.shell.reloadFromDisk(handle),
       keepMineAsCopy: (handle) => this.shell.keepMineAsCopyForHandle(handle),
       overwrite: (handle) => this.shell.overwriteForHandle(handle),

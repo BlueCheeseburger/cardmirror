@@ -473,6 +473,9 @@ interface ElectronAPI {
   ): Promise<{ claim: ClaimResult; provider: CloudProvider | null } | null>;
   openPathRelease(path: string): Promise<void>;
   cloudProvider(path: string): Promise<CloudProvider | null>;
+  /** The path relative to its sync root, with a leading slash (null = not in
+   *  a sync folder). Optional: older mains resolve null. */
+  cloudRelativePath?(path: string): Promise<string | null>;
   onDiskChanged(handler: (payload: { path: string; mtimeMs: number; size: number }) => void): () => void;
   saveConflictedCopy(handle: string, bytes: Uint8Array, userName: string | null): Promise<{ name: string; handle: string }>;
   /** "Show in context": if another window owns `path`, focus it and send
@@ -1412,6 +1415,12 @@ export class ElectronHost implements Host {
    *  the handler resolve null. */
   async cloudProvider(path: string): Promise<CloudProvider | null> {
     const fn = api().cloudProvider;
+    return typeof fn === 'function' ? await fn(path) : null;
+  }
+
+  /** The path relative to the file's sync root (`/Neg files/1NC.docx`), or null. */
+  async cloudRelativePath(path: string): Promise<string | null> {
+    const fn = api().cloudRelativePath;
     return typeof fn === 'function' ? await fn(path) : null;
   }
 

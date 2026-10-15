@@ -17,6 +17,14 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   them too.
 
 ### Changed
+- **Copy file path lives on the file badge only.** Right-clicking the ribbon, the
+  blue document bar or a pane's title bar no longer offers it (the ribbon and
+  title-bar menus go back to what they were).
+- **Copy the path inside Dropbox / OneDrive / Google Drive / iCloud.** For a file in
+  a synced folder, right-clicking the file badge also offers **Copy Dropbox file
+  path** (or the service's name), which copies the path inside the sync folder —
+  `/Debate/Neg files/1NC.docx` — instead of the whole
+  `/Users/you/Dropbox/Debate/Neg files/1NC.docx`.
 - **The Search Everything prefix hint shows until you've used search.** The line
   telling you to type the letter first ("f heg bad") appears every time the empty
   palette opens, and goes away for good once a search you typed returns a result.

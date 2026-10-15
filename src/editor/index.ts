@@ -59,7 +59,6 @@ import { createReference } from './create-reference.js';
 import { showToast } from './toast.js';
 import { filePathOf } from './file-drag.js';
 import { installDocHeader, type DocHeader } from './doc-header.js';
-import { fileMenuItems } from './file-path-menu.js';
 import { maybeDecryptForOpen, OpenCancelledError, UnsupportedEncryptionError } from './open-encrypted.js';
 import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js';
 import { buildCutInPlacePlugin, installCutInPlaceContext } from './cut-in-place.js';
@@ -4732,13 +4731,6 @@ function openRibbonContextMenu(x: number, y: number): void {
         { label: 'Clear Window Name', action: () => { void setWindowName(null); } },
       ]
     : [{ label: 'Name This Window…', action: () => { void renameWindowPrompt(); } }];
-  // The active document's file: copy its path, or show it in its folder
-  // (desktop; the web edition has no paths).
-  if (getElectronHost()) {
-    items.push(
-      ...fileMenuItems(filePathOf(activeFile().handle), (path) => void getElectronHost()?.showItemInFolder?.(path)),
-    );
-  }
 
   const menu = document.createElement('div');
   menu.className = 'pmd-nav-context-menu';
@@ -8738,7 +8730,6 @@ function ensureDocHeader(): void {
     onToggleSpeech: () => toggleMarkSingleDocAsSpeech(),
     getPath: () => filePathOf(activeFile().handle),
     getDragHost: () => getElectronHost(),
-    reveal: (path) => void getElectronHost()?.showItemInFolder?.(path),
   });
   container.hidden = false;
   docHeader.setNavShown(!document.body.classList.contains('pmd-nav-hidden'));
@@ -9946,6 +9937,7 @@ function ensureDiskBadge(): void {
     isSessionHost: () => collabCopresenceFor(activeDocIdentity().sessionUid)?.role === 'host',
     reveal: (handle) => void getElectronHost()?.showItemInFolder?.(handle),
     dragHost: () => getElectronHost(),
+    cloudRelativePath: (path) => getElectronHost()?.cloudRelativePath?.(path) ?? Promise.resolve(null),
     reloadFromDisk: reloadActiveFromDisk,
     keepMineAsCopy: () => saveActiveAsConflictedCopy(),
     overwrite: () => saveActiveForcingDisk(),

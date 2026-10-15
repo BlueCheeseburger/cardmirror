@@ -592,6 +592,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('host:cloud-provider', path) as Promise<
       'dropbox' | 'onedrive' | 'gdrive' | 'icloud' | 'other' | null
     >,
+  /** The file's path relative to its sync root, with a leading slash (null =
+   *  not in a sync folder). */
+  cloudRelativePath: (path: string) =>
+    ipcRenderer.invoke('host:cloud-relative-path', path) as Promise<string | null>,
   /** Main's poller saw the owning window's file change on disk. */
   onDiskChanged: (handler: (payload: { path: string; mtimeMs: number; size: number }) => void): (() => void) => {
     const listener = (_evt: unknown, payload: { path: string; mtimeMs: number; size: number }): void => handler(payload);

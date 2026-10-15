@@ -1,8 +1,9 @@
 /**
  * The small right-click menu for a document's file — "Copy file path" and
- * "Show in folder" — on the blue title bar over a document, the cloud /
- * computer badge in the footer, and the ribbon. One floating menu in the nav
- * pane's context-menu styling, closed by Escape or an outside click.
+ * "Show in folder", plus "Copy <provider> file path" for a file in a synced
+ * folder — on the cloud / computer badge. That badge is the only place it
+ * appears. One floating menu in the nav pane's context-menu styling, closed by
+ * Escape or an outside click.
  */
 
 import { positionFloatingMenu } from './context-menu-position.js';
@@ -18,10 +19,10 @@ export interface FileMenuItem {
   title?: string;
 }
 
-/** Copy `path` to the clipboard and say so. */
-export async function copyFilePath(path: string): Promise<void> {
+/** Copy `path` to the clipboard and say so. `what` names it in the toast. */
+export async function copyFilePath(path: string, what = 'file path'): Promise<void> {
   const ok = await writeClipboardText(path);
-  showToast(ok ? 'Copied file path' : 'Couldn’t copy the file path — the clipboard was busy. Try again.');
+  showToast(ok ? `Copied ${what}` : `Couldn’t copy the ${what} — the clipboard was busy. Try again.`);
 }
 
 /** The menu's rows for a document whose file is `path` (null = never saved).
@@ -102,6 +103,8 @@ export interface FileContextMenuOptions {
   reveal?: (path: string) => void;
   /** Whether a right-click here should open the menu at all. */
   enabled?: () => boolean;
+  /** Extra rows after the file rows (computed fresh on each open). */
+  extraItems?: () => readonly FileMenuItem[];
 }
 
 /** Open the menu on right-click over `el`. Returns a disposer. */
@@ -110,7 +113,10 @@ export function installFileContextMenu(el: HTMLElement, opts: FileContextMenuOpt
     if (e.defaultPrevented) return;
     if (opts.enabled && !opts.enabled()) return;
     e.preventDefault();
-    openFileMenu(e.clientX, e.clientY, fileMenuItems(opts.getPath(), opts.reveal));
+    openFileMenu(e.clientX, e.clientY, [
+      ...fileMenuItems(opts.getPath(), opts.reveal),
+      ...(opts.extraItems?.() ?? []),
+    ]);
   };
   el.addEventListener('contextmenu', onContextMenu);
   return () => el.removeEventListener('contextmenu', onContextMenu);

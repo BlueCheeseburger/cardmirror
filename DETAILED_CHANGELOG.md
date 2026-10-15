@@ -22,6 +22,22 @@ saved path is missing and Save is omitted). The handlers already answered to
 those keys. The multi-document close dialog is not badged: it shows one card per
 document, so a bare number would be ambiguous.
 
+### Changed: copy path only on the file badge; provider-relative copy (`file-path-menu.ts`, `disk-conflict.ts`, `cloud-roots.ts`, `main.ts`, `preload.ts`, `electron-host.ts`, `index.ts`, `multi-pane-shell.ts`, `doc-header.ts`, `pane-move-menu.ts`)
+
+The file-menu rows come off the ribbon's right-click menu, the doc header and the
+pane chip's move menu (`pane-move-menu.ts` is back to its pre-batch form); the
+badge's `installFileContextMenu` is the only user. It gains `extraItems`, which
+`createPaneDiskBadge` fills with **Copy <provider> file path** when the file is in
+a sync root. `cloud-roots.ts` now has `locateCloudRoot` (provider + the root
+folder, which `classifyCloudPath` wraps) and `cloudRelativePath` — path relative
+to that root, `/`-separated with a leading slash (Dropbox `info.json` roots,
+`~/Dropbox`, macOS `CloudStorage/<mount>`, iCloud's CloudDocs, OneDrive env roots,
+a Google Drive `X:\My Drive` mount — whose path keeps `My Drive/` — and
+`~/Google Drive`). It's fetched on demand through a new `host:cloud-relative-path`
+IPC (`cloudRelativePath` on the preload / `ElectronHost`, optional so older mains
+resolve null). Tests: `tests/desktop/cloud-roots.test.ts`,
+`tests/editor/disk-conflict-pane-badge.test.ts`.
+
 ### Changed: prefix hint retires after a successful search (`quick-card-search-ui.ts`)
 
 The `.pmd-qcs-empty-hint` line shows in the empty no-prefix state until
