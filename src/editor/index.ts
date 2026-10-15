@@ -2810,6 +2810,7 @@ function confirmNewDocOverwrite(): Promise<'save' | 'discard' | 'cancel'> {
     saveBtn.className = 'pmd-route-btn';
     saveBtn.innerHTML = '<strong>Save</strong><br><span>Save the current doc, then start fresh.</span>';
     saveBtn.addEventListener('click', () => { cleanup(); resolve('save'); });
+    addRouteKeyHint(saveBtn, '1');
     buttons.appendChild(saveBtn);
 
     const discardBtn = document.createElement('button');
@@ -2817,6 +2818,7 @@ function confirmNewDocOverwrite(): Promise<'save' | 'discard' | 'cancel'> {
     discardBtn.className = 'pmd-route-btn';
     discardBtn.innerHTML = "<strong>Don't save</strong><br><span>Discard changes and start fresh.</span>";
     discardBtn.addEventListener('click', () => { cleanup(); resolve('discard'); });
+    addRouteKeyHint(discardBtn, '2');
     buttons.appendChild(discardBtn);
 
     dialog.appendChild(buttons);
@@ -2841,6 +2843,20 @@ function confirmNewDocOverwrite(): Promise<'save' | 'discard' | 'cancel'> {
       if (e.key === 'Escape') {
         cleanup();
         resolve('cancel');
+        return true;
+      }
+      // 1 = Save, 2 = Don't save (the badges on the buttons) — same keys as the
+      // "Save before closing?" dialog. Skipped when a modifier is held so
+      // chords like Ctrl+1 stay available.
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return false;
+      if (e.key === '1') {
+        cleanup();
+        resolve('save');
+        return true;
+      }
+      if (e.key === '2') {
+        cleanup();
+        resolve('discard');
         return true;
       }
       return false;
@@ -9208,6 +9224,7 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     // Only the desktop host can write to a bare directory path, which
     // is what a remembered location is.
     allowSaveLocations: !!getElectronHost()?.writeFileAtPath,
+    markedCardCount: countMarkedCards(view ? view.state.doc : currentDoc),
   });
   if (!choice) return false;
   // Writing to .docx flattens live views / linked copies — confirm first.

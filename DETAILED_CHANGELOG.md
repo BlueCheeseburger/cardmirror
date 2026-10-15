@@ -10,6 +10,28 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: number keys and marked count in Save As and the New-document dialog (`save-as-ui.ts`, `index.ts`, `style.css`)
+
+`confirmNewDocOverwrite` (the Mod-N "Save your current document…?" overlay) gets
+`addRouteKeyHint` badges and 1 = Save / 2 = Don't save (no modifiers, like
+`confirmCloseUnsaved`). Save As: every `MODE_DEFS` row is `.pmd-save-as-mode-row`
+(`padding-right` reserves the badge's room; the `.pmd-route-kbd` badge sits at
+the row's top-right, so title and blurb never move) and 1–5 select the mode. A
+bare digit is ignored while typing in the Name field — the dialog opens focused
+there — so Alt+digit (matched on `e.code`, since Alt+digit types a symbol on
+macOS) works from anywhere. `openSaveAs` takes `markedCardCount`
+(`countMarkedCards` of the focused doc, passed by `runSaveAsFlowInner`); Marked Doc
+shows "N card(s) marked" / "no cards marked" on its title line, as a sibling of the
+label span so the label stays plain text. The recovery flow passes none, so it
+shows no count.
+
+### Changed: Save As section order and wording (`save-as-ui.ts`)
+
+Order is now Name, Save, previously saved locations, Format. The OS-picker row's
+blurb is "Opens the system file dialog."
+
 ## 1.15.0-bcb.5.1 — 2026-10-15
 
 ### Added: key badges on route dialogs (`text-prompt.ts`, `index.ts`, `style.css`)

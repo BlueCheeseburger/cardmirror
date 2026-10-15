@@ -397,3 +397,84 @@ describe('Save As — previously saved locations', () => {
     await p;
   });
 });
+
+describe('Save As — number keys, marked count, section order', () => {
+  const pressKey = (key: string, target: Element = document.body, altKey = false): void => {
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', { key, code: `Digit${key}`, altKey, bubbles: true, cancelable: true }),
+    );
+  };
+
+  it('keys 1–5 pick the save modes, and each mode row carries its key badge', async () => {
+    const p = open();
+    expect(qa('.pmd-save-as-mode-row .pmd-route-kbd').map((k) => k.textContent)).toEqual(['1', '2', '3', '4', '5']);
+    pressKey('2');
+    expect(modeRadio('Send Doc').checked).toBe(true);
+    pressKey('4');
+    expect(modeRadio('Marked Doc').checked).toBe(true);
+    pressKey('5');
+    expect(modeRadio('Custom Save').checked).toBe(true);
+    pressKey('1');
+    expect(modeRadio('As-Is').checked).toBe(true);
+    // Picking only selects; nothing is saved until Save As.
+    saveAsBtn().click();
+    const r = await p;
+    expect(r?.markedCardsOnly).toBe(false);
+  });
+
+  it('digits typed in the Name field are just digits, not mode picks', async () => {
+    open();
+    const name = q<HTMLInputElement>('.pmd-save-as-input')!;
+    name.focus();
+    pressKey('3', name);
+    expect(modeRadio('As-Is').checked).toBe(true);
+    expect(modeRadio('Read Doc').checked).toBe(false);
+    // Alt+digit does pick a mode from the Name field (the dialog opens focused there).
+    pressKey('3', name, true);
+    expect(modeRadio('Read Doc').checked).toBe(true);
+    expect(name.value).toBe('R2 1NR.docx');
+  });
+
+  it('badges sit at the row edge and do not live inside the title or blurb text', () => {
+    open();
+    const row = modeRow('Send Doc');
+    const kbd = row.querySelector('.pmd-route-kbd')!;
+    expect(kbd.parentElement).toBe(row);
+    expect(row.querySelector('.pmd-save-as-radio-row-label')!.textContent).toBe('Send Doc');
+  });
+
+  it('Marked Doc says how many cards are marked, to the right of its title', () => {
+    openSaveAs({ initialFilename: 'x', defaultFormat: 'docx', markedCardCount: 3 });
+    const line = modeRow('Marked Doc').querySelector('.pmd-save-as-radio-row-line')!;
+    expect(line.textContent).toBe('Marked Doc3 cards marked');
+    expect(line.querySelector('.pmd-save-as-radio-row-label')!.textContent).toBe('Marked Doc');
+    cancelAll();
+    openSaveAs({ initialFilename: 'x', defaultFormat: 'docx', markedCardCount: 1 });
+    expect(modeRow('Marked Doc').textContent).toContain('1 card marked');
+    cancelAll();
+    openSaveAs({ initialFilename: 'x', defaultFormat: 'docx', markedCardCount: 0 });
+    expect(modeRow('Marked Doc').textContent).toContain('no cards marked');
+  });
+
+  it('shows no count where the caller has no live document', () => {
+    open();
+    expect(q('.pmd-save-as-marked-count')).toBeNull();
+  });
+
+  it('the Format section comes last, below the previously-saved-locations block', () => {
+    open({ allowSaveLocations: true });
+    const form = q('.pmd-save-as-body')!;
+    const headings = Array.from(form.querySelectorAll('.pmd-save-as-options-heading')).map((h) => h.textContent);
+    expect(headings).toEqual(['Name', 'Save', 'Format']);
+    const locations = form.querySelector('.pmd-save-as-locations')!;
+    const format = Array.from(form.querySelectorAll('.pmd-save-as-radio-list')).pop()!;
+    expect(format.querySelector('.pmd-save-as-options-heading')!.textContent).toBe('Format');
+    expect(locations.compareDocumentPosition(format) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('describes the OS picker as the system file dialog', () => {
+    open({ allowSaveLocations: true });
+    qa('.pmd-save-as-locations-toggle').forEach((b) => (b as HTMLButtonElement).click());
+    expect(q('.pmd-save-as-location-dialog-row')!.textContent).toContain('Opens the system file dialog.');
+  });
+});
