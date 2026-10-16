@@ -8,6 +8,11 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+- **The minimize button (Alt + a pane's expand button) is now the expand icon with its arrows pointing inward**, instead of a hyphen.
+
 ## 1.15.0-bcb.6.1 — 2026-10-16
 
 ### Fixed

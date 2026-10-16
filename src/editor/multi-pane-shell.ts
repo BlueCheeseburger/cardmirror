@@ -1107,7 +1107,7 @@ class Slot {
    *  state. Driven by `MultiPaneShell.applyExpandedState`. */
   /** Alt held: the expand button becomes a minimize (hide) button. */
   setMinimizeMode(on: boolean): void {
-    setIcon(this.chipExpandBtn, on ? 'minus' : 'expand');
+    setIcon(this.chipExpandBtn, on ? 'minimize' : 'expand');
     this.chipExpandBtn.title = on
       ? 'Minimize this pane (the “hidden” chip in the status bar brings it back)'
       : `Expand this pane to fill the workspace (${ctrlOrCmdWord()}+Shift+F). Hold Alt to minimize it instead.`;
