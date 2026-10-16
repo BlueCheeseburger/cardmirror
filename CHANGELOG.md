@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.6.1 — 2026-10-16
 
 ### Fixed
 - **Marked cards no longer count any red text.** A card only counts as marked (outline flag, "N marked", Marked Doc, the count in Save As) when it has a red marker that reads "Marked …", not when it merely contains red text.
