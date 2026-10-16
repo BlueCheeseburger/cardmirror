@@ -20,7 +20,7 @@
 >    mode. Documents move between panes by drag: grab a pane's title chip
 >    and drop it on the slot you want, empty ones included; right-click the
 >    chip to move a doc — unsaved edits and all — to a different window
->    entirely. (main)
+>    entirely.
 > 2. **On-time / too-slow / too-fast pace indicator** — with the speech
 >    clock running, the timer compares the time left on the clock with how
 >    long the rest of your doc takes to read aloud at your pace and shows
@@ -28,54 +28,40 @@
 >    a small dot that shades from red through green to blue), plus the time
 >    left to read. It works in read mode, and counts from
 >    the line you're actually reading, a third of the way down the screen.
->    (main)
 > 3. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
 >    text and speeding through everything else. It works in read mode
->    and follows the lay-speaking toggle. (main)
+>    and follows the lay-speaking toggle.
 > 4. **Compare and merge documents** — the home screen's top row has a
 >    "Compare documents" card: pick two `.cmir`/`.docx` files and see a
->    read-only, side-by-side line diff of their text, with the changed words
+>    side-by-side line diff of their text, with the changed words
 >    in an edited line struck through or underlined, and an outline on each
 >    side (green for added, red for removed, yellow for partly changed) to
 >    jump to a heading. From the same view you can merge the two into one
->    new document, choosing a side for each conflicting line. (main)
+>    new document, choosing a side for each conflicting line.
 > 5. **Autosave for `.docx` files**, not just `.cmir` — plus a time-boxed,
 >    logged fallback for the zip worker and a ribbon button that
 >    distinguishes "saving" from "paused" (e.g. a doc with a live view Word
->    can't hold open). (main)
-> 6. **Search Everything finds your cards and Logos's** — type `g ` to search
->    Logos's index of open-source round-doc cards (college and high school
->    policy) and insert a full card, cite and formatting intact, at your
->    cursor (it can condense, shrink and recolor each one as it lands); type
->    `q ` to search the Quick Cards you saved and the cards inside your indexed
->    files at once. Right-click any result to read the full card first (a card
->    from a file names the file and its path), and pick one on a screen with no
->    open document to open it as a new document. (main)
-> 7. **Redesigned Save As** — pick a save mode (As-Is, Send Doc, Read Doc,
->    Marked Doc, Custom Save) and a location, then press Save As, instead
->    of buttons that save the instant you click them. Custom Save's options
->    show inline, and previously used save locations are a list you select
->    from. (main)
-> 8. **Easier to use, especially for newcomers** — small changes that make
+>    can't hold open).
+> 6. **Index Logos for cards in Search Everything** — type `g ` to search
+>    Logos's index of open-source round-doc cards (from opencaselist
+>    and insert a full card, cite and formatting intact, at your cursor.
+> 7. **Easier to use, especially for newcomers** — small changes that make
 >    CardMirror discoverable without a manual:
 >    - a. **A visible Search button** (a magnifying glass at the bottom left)
->      for Search Everything, plus a hint that the letter goes before what you
->      type (`f heg bad`) that stays until you've done your first successful
->      search.
+>      for Search Everything, plus a hint on how to use it.
 >    - b. **Key hints on the styles** — the F-key (F4, F7, Ctrl+F8…) is printed
->      on each button in the formatting panel, so the shortcuts teach
+>      on each style button in the formatting panel, so the shortcuts teach
 >      themselves.
 >    - c. **Number keys shown on dialogs** — "Save before closing?" and the
 >      pane and window choosers print 1, 2, 3 on their buttons, so you can see
->      you can just press the number.
->    - d. **A single window looks like one pane of the workspace** — the same
->      blue document bar with the name (double-click to rename, no `.docx`
->      shown), save, autosave, outline and close buttons, and a microphone that
->      appears on hover to mark the speech doc.
->    - e. **A decluttered ribbon** — table, image, super/subscript,
->      strikethrough and numbering buttons are hidden until you turn them on, and
->      new documents start on an Analytic line instead of a blank paragraph.
+>      you can just press the number immediately.
+>    - d. **Mark as active speech doc** — a microphone that
+>      appears on hover to mark the speech doc, so you don't have to teach 
+>      newcomers how to use keyboard shortcuts.
+>    - e. **A decluttered toolbar** — table, image, super/subscript,
+>      strikethrough and numbering buttons are hidden (you turn them back on).
+>      
 
 CardMirror is a debate text editor focused on high school and college
 policy debate. It's a standalone
@@ -86,10 +72,6 @@ same F-key shortcuts, same send-to-speech
 workflow, same Word-compatible `.docx` files — but with no Word, no
 macros, and no add-in. That keeps it fast on the multi-megabyte
 evidence files debaters work in, and enables cross-platform feature parity.
-
-Run it as a **desktop app** for tournament-day work, or as a **web
-preview** in any browser for trying it out or working from a Chromebook
-or locked-down school machine.
 
 **Desktop builds are unsigned**, so Windows and macOS warn you the
 first time you launch. The one-time workaround for each is in the
@@ -217,7 +199,7 @@ Two providers are supported; pick either one:
   which fronts models from many labs behind one key — use it if you
   already have OpenRouter credit or want a specific non-Claude
   model. You choose the model by its id (e.g.
-  `anthropic/claude-sonnet-4.6` or `openai/gpt-4o`) in the
+  `anthropic/claude-sonnet-5.5` or `openai/gpt-6-luns`) in the
   **OpenRouter model** field.
 
 To enable them:
@@ -278,9 +260,6 @@ is installed.
    wrapper; open it.
 
 ### 3. Open a terminal inside that folder
-
-A "terminal" is a window where you type commands. You're going to
-open one already pointing at the CardMirror folder.
 
 - **macOS** — enable Finder → right-click → *Services → New
   Terminal at Folder* once via System Settings → Keyboard →
