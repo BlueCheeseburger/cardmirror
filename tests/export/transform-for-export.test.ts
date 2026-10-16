@@ -464,3 +464,16 @@ describe('starredOnly (Save As "Starred Doc")', () => {
     expect(tags(transformForExport(doc, opts))).toEqual(['a', 'b']);
   });
 });
+
+describe('countMarkedCards ignores plain red text', () => {
+  it('counts only "Marked …" runs', () => {
+    const red = schema.marks['font_color']!.create({ color: 'FF0000' });
+    const mk = (body: string) =>
+      schema.nodes['card']!.createChecked(null, [
+        schema.nodes['tag']!.create({ id: newHeadingId() }, schema.text('t')),
+        schema.nodes['card_body']!.create(null, schema.text(body, [red])),
+      ]);
+    const doc = schema.nodes['doc']!.createChecked(null, [mk('red phrase'), mk('Marked at 2:15')]);
+    expect(countMarkedCards(doc)).toBe(1);
+  });
+});
