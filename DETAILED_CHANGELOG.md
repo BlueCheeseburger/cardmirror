@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.6.1 — 2026-10-16
 
 ### Fixed: plain red text counted as a marker; outline star moved left (`reading-marker.ts`, `transform-for-export.ts`, `style.css`)
 
