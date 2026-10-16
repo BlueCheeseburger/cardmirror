@@ -40,6 +40,7 @@ export type IconName =
   | 'chevron-left'
   | 'chevron-right'
   | 'expand'
+  | 'minimize'
   | 'minus'
   | 'read-mode'
   | 'nav-toggle'

@@ -125,6 +125,9 @@
 .pmd-icon-expand { --pmd-icon: url("data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22m14%2010%207-7m0%200h-6m6%200v6m-11%205-7%207m0%200h6m-6%200v-6%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
 :root[data-icons="classic"] .pmd-icon-expand::before { content: "\26F6 "; }
 
+.pmd-icon-minimize { --pmd-icon: url("data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M4%2014h6v6m10-10h-6V4m0%206%207-7M3%2021l7-7%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
+:root[data-icons="classic"] .pmd-icon-minimize::before { content: "\2B77 "; }
+
 .pmd-icon-minus { --pmd-icon: url("data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%2012h14%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E"); }
 :root[data-icons="classic"] .pmd-icon-minus::before { content: "\2212 "; }
 
