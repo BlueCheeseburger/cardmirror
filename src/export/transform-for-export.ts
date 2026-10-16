@@ -28,7 +28,7 @@
 
 import { Fragment, type Node as PMNode, type Schema } from 'prosemirror-model';
 import { Transform } from 'prosemirror-transform';
-import { isReadingMarkerColor, READING_MARKER_COLOR } from '../editor/reading-marker.js';
+import { isMarkerText, READING_MARKER_COLOR } from '../editor/reading-marker.js';
 import { computeUnreadDecorations } from '../editor/mark-unread-plugin.js';
 
 export interface ExportTransformOptions {
@@ -228,16 +228,7 @@ function containsReadingMarker(node: PMNode): boolean {
   let found = false;
   node.descendants((n) => {
     if (found) return false;
-    if (
-      n.isText &&
-      n.marks.some(
-        (m) =>
-          m.type.name === 'font_color' &&
-          isReadingMarkerColor(m.attrs['color'] as string | undefined),
-      )
-    ) {
-      found = true;
-    }
+    if (isMarkerText(n)) found = true;
     return !found;
   });
   return found;
