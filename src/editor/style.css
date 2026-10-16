@@ -18163,10 +18163,14 @@ body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
 }
 .pmd-nav-star {
   flex: 0 0 auto;
-  margin-left: auto;
-  align-self: center;
+  /* Left edge of the row, in the indent gutter (hat/block/tag rows all
+     indent past it), so it never shifts the text. */
+  position: absolute;
+  left: 0.3rem;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
-  padding: 0 0.15rem;
+  padding: 0;
   background: transparent;
   border: none;
   color: var(--pmd-c-text-muted);

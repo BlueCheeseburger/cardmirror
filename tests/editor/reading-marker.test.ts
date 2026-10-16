@@ -286,3 +286,12 @@ describe('Mark Card command and outline info', () => {
     expect(info.rollups.get(0)).toBe(1);
   });
 });
+
+describe('plain red text is not a marker', () => {
+  it('ignores red text that does not read "Marked …" in marker detection and counts', () => {
+    const red = schema.marks['font_color']!.create({ color: READING_MARKER_COLOR });
+    const doc = makeDoc(card(tag('T'), schema.nodes['card_body']!.create(null, schema.text('ableist torture', [red]))));
+    expect(cardMarkAction(EditorState.create({ doc }), [{ from: 0, to: doc.content.size }])).toBe('mark');
+    expect(computeMarkInfo(doc).cards.size).toBe(0);
+  });
+});

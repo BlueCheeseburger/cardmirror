@@ -73,10 +73,13 @@ export function markerLabel(
   return `Marked ${formatMarkerTime(now)}`;
 }
 
-/** True when a text node is a reading-position marker run (red `font_color`). */
-export function isMarkerText(node: { isText: boolean; marks: readonly { type: { name: string }; attrs: Record<string, unknown> }[] }): boolean {
+/** True when a text node is a reading-position marker run: red `font_color`
+ *  text that reads "Marked …". Plain red text (a red-highlighted phrase in a
+ *  card) is NOT a marker. */
+export function isMarkerText(node: { isText: boolean; text?: string | null; marks: readonly { type: { name: string }; attrs: Record<string, unknown> }[] }): boolean {
   return (
     node.isText &&
+    /^Marked\b/u.test(node.text ?? '') &&
     node.marks.some(
       (m) => m.type.name === 'font_color' && isReadingMarkerColor(m.attrs['color'] as string),
     )
