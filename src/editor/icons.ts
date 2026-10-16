@@ -55,6 +55,7 @@ export type IconName =
   | 'ai'
   // Curated general-purpose set for custom ribbon buttons.
   | 'star'
+  | 'star-filled'
   | 'bookmark'
   | 'flag'
   | 'bold'

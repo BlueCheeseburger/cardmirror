@@ -18182,7 +18182,6 @@ body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
 .pmd-nav-star:focus-visible { opacity: 0.7; }
 .pmd-nav-star:hover { opacity: 1; color: #e0a100; }
 .pmd-nav-item-starred .pmd-nav-star { opacity: 1; color: #e0a100; }
-.pmd-nav-item-starred .pmd-nav-star svg { fill: currentColor; }
 .pmd-nav-item.pmd-nav-item-starred:not(.pmd-nav-item-selected) {
   background: rgba(224, 161, 0, 0.16);
 }

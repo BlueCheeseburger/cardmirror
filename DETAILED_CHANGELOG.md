@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: starred outline rows show a filled star (`icons.css`, `icons.ts`, `nav-panel.ts`)
+
+The star is a CSS-mask icon, so the earlier `svg { fill }` rule never applied. New `star-filled` icon (same path, `fill="#000"`); `nav-panel.ts` uses it when `entry.starred`.
+
 ### Changed: minimize button icon (`icons.ts`, `icons.css`, `multi-pane-shell.ts`)
 
 New `minimize` icon (inward arrows, same stroke as `expand`); `Slot.setMinimizeMode` uses it instead of `minus`.

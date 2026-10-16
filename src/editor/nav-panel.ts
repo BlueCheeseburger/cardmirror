@@ -1315,7 +1315,7 @@ export class NavigationPanel {
         star.className = 'pmd-nav-star';
         star.title = entry.starred ? 'Unstar' : 'Star (export only starred in Save As)';
         star.setAttribute('aria-pressed', String(entry.starred === true));
-        setIcon(star, 'star');
+        setIcon(star, entry.starred ? 'star-filled' : 'star');
         star.addEventListener('pointerdown', (e) => e.stopPropagation());
         star.addEventListener('click', (e) => {
           e.stopPropagation();

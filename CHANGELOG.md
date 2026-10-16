@@ -10,6 +10,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Fixed
+- **A starred heading shows a filled star** in the outline (it was an outline star tinted gold).
+
 ### Changed
 - **The minimize button (Alt + a pane's expand button) is now the expand icon with its arrows pointing inward**, instead of a hyphen.
 
