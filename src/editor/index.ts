@@ -9207,6 +9207,7 @@ function scheduleJournalWrite(): void {
     // crash-recovery journaling for the whole session.
     journalWriteChain = journalWriteChain
       .then(() => runJournalWrite())
+      .then(() => undefined)
       .catch((err) => console.warn('Journal write crashed:', err));
   }, JOURNAL_DELAY_MS);
 }

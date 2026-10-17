@@ -223,6 +223,7 @@ function scheduleJournalForRecord(record: DocRecord): void {
       record,
       prev
         .then(() => runJournalForRecord(record))
+        .then(() => undefined)
         .catch((err) => console.warn('Journal (record) write crashed:', err)),
     );
   }, RECORD_JOURNAL_DELAY_MS);
