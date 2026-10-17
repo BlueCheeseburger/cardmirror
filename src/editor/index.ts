@@ -10061,11 +10061,24 @@ installPluginCommunityGate();
   if (eh) {
     let lastRoots = settings.get('fileSearchRoots');
     void eh.syncLibraryRoots(lastRoots);
+    // Write scope: the speech-doc auto-save folder is the one place the
+    // renderer writes by path without a dialog, so main must know it.
+    const writeFolders = (): string[] => {
+      const f = settings.get('defaultSpeechDocFolder').trim();
+      return f ? [f] : [];
+    };
+    let lastWriteFolders = writeFolders().join('\n');
+    void eh.syncWriteFolders(writeFolders());
     settings.subscribe(() => {
       const roots = settings.get('fileSearchRoots');
       if (roots !== lastRoots) {
         lastRoots = roots;
         void eh.syncLibraryRoots(roots);
+      }
+      const wf = writeFolders();
+      if (wf.join('\n') !== lastWriteFolders) {
+        lastWriteFolders = wf.join('\n');
+        void eh.syncWriteFolders(wf);
       }
     });
     void eh.grantLegacyRecents(

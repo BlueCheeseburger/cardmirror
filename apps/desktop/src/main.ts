@@ -89,6 +89,8 @@ import {
   grantReadPath,
   grantReadDir,
   setLibraryRoots,
+  setWriteFolders,
+  isWriteAllowed,
   grantLegacyRecents,
   isReadAllowed,
 } from './read-scope.js';
@@ -991,6 +993,12 @@ ipcMain.handle('host:plugin-pick-file', async (event) => {
 ipcMain.handle('host:sync-library-roots', async (_event, roots: unknown) => {
   setLibraryRoots(Array.isArray(roots) ? roots.map(String) : []);
 });
+// The speech-doc auto-save folder (a settings string) is the one place
+// write-file-at-path writes without a dialog in the same session; the
+// renderer mirrors it here (boot + on change) so the write scope knows it.
+ipcMain.handle('host:sync-write-folders', async (_event, folders: unknown) => {
+  setWriteFolders(Array.isArray(folders) ? folders.map(String) : []);
+});
 // Fired by the preload's getPathForFile — a real dropped file resolved
 // by webUtils. Not on the exposed electronAPI surface.
 ipcMain.on('host:grant-dropped-path', (_event, p: unknown) => {
@@ -1423,6 +1431,11 @@ ipcMain.handle(
   ) => {
     if (typeof filePath !== 'string' || !filePath) {
       throw new Error('write-file-at-path: no path');
+    }
+    // Scoped like read-file-at-path: documents / zips only, inside a
+    // folder the user put in play (read-scope.ts isWriteAllowed).
+    if (!(await isWriteAllowed(filePath))) {
+      throw new Error('write-file-at-path: path not permitted');
     }
     // mkdir: bulk convert writes into a destination folder, preserving
     // the input's subfolder structure. failIfExists is opt-in — only
