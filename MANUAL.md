@@ -2256,6 +2256,23 @@ control is hidden, and AI features gray out cleanly when you're offline.
 | **Generate table from image** | Right-click an image | Extracts a real, editable table from a picture of one. |
 | **Draft a flashcard** | From Create Flashcard | Drafts a question/answer or cloze from the selection. |
 
+### Cross-Ex Practice and Card Credibility
+
+Two side panels sit with the comments buttons once AI is on (the target and shield buttons; also in Search Everything as **Cross-Ex Practice (AI)** and **Card Credibility (AI)**, unbound by default). Opening one closes the other.
+
+**Cross-Ex Practice** writes 3 to 6 questions an opponent would ask about your cards, from the **highlighted and underlined** text only (the text you read aloud). The small unhighlighted text is sent as reference only. Pick **Policy**, **LD** or **PF** at the top. If the file is clearly Aff and Neg, questions sit under blue Aff and red Neg headers; a thin side gets fewer questions.
+
+- A question that targets a card names it ("Your Brady 25 evidence…") and shows a **clickable cite** that scrolls to the card.
+- **Show answer** reveals the answer an opponent would likely give (hidden so you can try first). **Press next** is the best follow-up to run after it.
+- **3 more like this** writes three new questions on the same line of attack, inserted under the seed.
+- **Build trap drill** gives three setup questions where a careless answer walks into a follow-up. Type your answer, **Check my answer** returns *Avoided*, *Fell* or *Partially safe* with feedback, then shows the ideal answer.
+- Under about 120 highlighted words (or a document under about 400 words) an amber notice warns you the questions may be few or shallow. A very large document asks before anything is trimmed (highlighted text is capped at 40,000 characters, all text at 60,000).
+- Questions and traps are saved per document and survive restarts; **Regenerate** replaces them (and clears the drill).
+
+**Card Credibility** (the shield) scores every card from its **tag and cite only**; the AI never reads the card body. Each card gets an overall score 0–10 (Strong 8–10, Solid 6–7, Shaky 4–5, Weak 0–3) and four bars (author, recency, source, claim fit), a one-line reason, a red **Press** (the sharpest cross-ex attack on that card's credibility) and **Go to card in document**. The header shows the card count and average. Cards with no cite are skipped, and a card the AI skips is left out (never a made-up 0): the panel says "N of M cards scored. Re-score to try again." Results are cached per document and cost nothing to reopen; changing tags or adding or removing cards clears them. **Re-score** always makes fresh AI calls. Scoring never uses the cheapest model tier.
+
+**Highlight warnings** need no AI. For each card with at least 20 body words (in a document with at least 4 of them), the share of words highlighted is compared with the document's average. A card more than 1.5 standard deviations above or below gets an amber **!** in the outline and a note in its expanded Credibility row ("38% highlighted"): *over-highlighted* (check you're not reading too broadly) or *under-highlighted* (you may not have prepped it). **Dismiss** hides one for good in that document. Evenly highlighted documents show none.
+
 You can set the author name AI notes are attributed under, customize
 the cite-formatting prompt, and — on the Anthropic provider — point AI
 at a specific Claude model (**AI model (advanced)** — leave blank to use
