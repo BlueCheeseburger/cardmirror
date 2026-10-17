@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: keyboard map (`keyboard-map.ts`, `reference-ui.ts`, `keybindings-editor.ts`, `style.css`)
+
+`buildKeyboardMap()` draws a keyboard (Mac or PC bottom row by `isMacPlatform()`) above the Keyboard shortcuts
+list. `collectBindings()` reads the same effective keys as the Settings editor (`ribbonKeyOverrides` over
+`DEFAULT_RIBBON_KEYS`, `effectivePluginDefaultKeys` for plugins, plus `keyboardMacros`) and
+`parseKeyString()` turns each into modifiers + key (`~` = Shift+`, Mod-Tab = Control on a Mac). The map
+subscribes to `settings` and redraws when overrides or macros change; `ReferenceModal` rebuilds its list
+the same way and destroys the map on close. Modifier layers are the Mac's ⌘ ⌃ ⌥ ⇧ or ctrl/alt/shift;
+holding the real keys previews a layer. Rebinding from the map goes through new exports
+`bindKeyToCommand` / `unbindKeyFromCommand` / `clearMacroKey` in `keybindings-editor.ts`, which keep the
+editor's rules (reserved keys, bare single characters refused, a taken key is removed from its old command).
+
 ### Fixed: starred outline rows show a filled star (`icons.css`, `icons.ts`, `nav-panel.ts`)
 
 The star is a CSS-mask icon, so the earlier `svg { fill }` rule never applied. New `star-filled` icon (same path, `fill="#000"`); `nav-panel.ts` uses it when `entry.starred`.

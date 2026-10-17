@@ -3679,6 +3679,23 @@ everyone, apply direct formatting in the document itself).
 All defaults; rebind any of them in **Settings → Keyboard shortcuts**.
 **Mod** = Ctrl (Windows/Linux) or ⌘ (macOS).
 
+**(Fork) The keyboard map.** The **Keyboard shortcuts** screen (the keyboard
+button in the top-right ribbon) opens on a picture of your keyboard. Each key
+shows the command it runs. The row of modifier buttons (⌘ command, ⌃ control,
+⌥ option, ⇧ shift on a Mac; ctrl, alt, shift elsewhere) switches the layer, so
+turning on **command** shows everything on ⌘+key. Click the buttons, or just
+hold the real keys. It detects your system on its own.
+
+- Click a key to see its command, and the same key with other modifiers below.
+- A small dot on a key means it is also used on another layer. A red **!**
+  means two commands share it (only one runs).
+- **Remove** takes the command off that key. On a free key, **Use this key
+  for** lets you pick a command from a list to bind it (a key already used by
+  another command is taken from it, like in Settings).
+- It always shows your current bindings: defaults, your changes, plugin
+  commands and keyboard macros. Rebind something in Settings and the map
+  changes with it. The full list is below the map.
+
 ### Structure and formatting
 | Shortcut | Action |
 |----------|--------|

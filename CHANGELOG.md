@@ -10,6 +10,14 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+- **Keyboard map on the Keyboard shortcuts screen.** A picture of your keyboard
+  with the command on each key. ⌘ ⌃ ⌥ ⇧ (or ctrl, alt, shift) switch the layer; click
+  them or hold the real keys. It reads your live bindings, so your own keybinds,
+  plugin commands and keyboard macros show up and update straight away. Click a
+  key for details, **Remove** a binding, or pick a command for a free key. It
+  detects Mac or Windows by itself and flags keys that two commands share.
+
 ### Fixed
 - **A starred heading shows a filled star** in the outline (it was an outline star tinted gold).
 
