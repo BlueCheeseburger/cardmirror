@@ -229,11 +229,12 @@ function scheduleJournalForRecord(record: DocRecord): void {
 }
 
 /** Actually serialize + write `record`'s current doc as a journal
- *  entry under its uid. Best-effort — logs failures, doesn't
- *  surface them to the user. */
-async function runJournalForRecord(record: DocRecord): Promise<void> {
+ *  entry under its uid. Logs failures; returns false so the mode-switch
+ *  flow (the one caller that must know) can abort instead of reloading
+ *  as if the doc were safe. The debounced path ignores the result. */
+async function runJournalForRecord(record: DocRecord): Promise<boolean> {
   const host = getHost();
-  if (!host.journalsSupported) return;
+  if (!host.journalsSupported) return true;
   try {
     const state = record.view.state;
     const bytes = await serializeNativeAsync(state.doc, {
@@ -255,8 +256,10 @@ async function runJournalForRecord(record: DocRecord): Promise<void> {
       ...(recoveredFrom ? { recoveredFromSavedAt: recoveredFrom } : {}),
       bytes,
     });
+    return true;
   } catch (err) {
     console.warn('Journal write failed:', err);
+    return false;
   }
 }
 
@@ -2608,7 +2611,7 @@ class MultiPaneShell {
    *  mode-switch marker scopes the post-reload reopen to exactly
    *  this list. */
   async journalAll(): Promise<Array<{ uid: string; dirty: boolean }>> {
-    const tasks: Promise<void>[] = [];
+    const tasks: Promise<boolean>[] = [];
     const docs: Array<{ uid: string; dirty: boolean }> = [];
     for (const id of SLOT_IDS) {
       for (const rec of this.slots[id].stack) {
@@ -2620,7 +2623,13 @@ class MultiPaneShell {
         docs.push({ uid: rec.uid, dirty: rec.dirty });
       }
     }
-    await Promise.all(tasks);
+    const results = await Promise.all(tasks);
+    const failed = results.map((ok, i) => (ok ? null : docs[i]!)).filter((d): d is { uid: string; dirty: boolean } => d !== null);
+    if (failed.length > 0) {
+      // Abort the switch (caller reverts + alerts) rather than reload with
+      // a doc that would silently not come back.
+      throw new Error(`${failed.length} document${failed.length === 1 ? '' : 's'} could not be journaled`);
+    }
     return docs;
   }
 

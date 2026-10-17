@@ -9170,10 +9170,14 @@ function scheduleJournalWrite(): void {
   }, JOURNAL_DELAY_MS);
 }
 
-async function runJournalWrite(): Promise<void> {
-  if (!view) return;
+/** Returns false when the write FAILED (logged); true when it landed or
+ *  there was nothing to do. The debounced caller ignores the result; the
+ *  mode-switch flow must not — a doc whose journal failed would silently
+ *  not reopen (or reopen stale) after the reload. */
+async function runJournalWrite(): Promise<boolean> {
+  if (!view) return true;
   const host = getHost();
-  if (!host.journalsSupported) return;
+  if (!host.journalsSupported) return true;
   try {
     const bytes = await serializeNativeAsync(view.state.doc, {
       threads: Array.from(getCommentsState(view.state).threads.values()),
@@ -9194,8 +9198,10 @@ async function runJournalWrite(): Promise<void> {
       ...(recoveredFrom ? { recoveredFromSavedAt: recoveredFrom } : {}),
       bytes,
     });
+    return true;
   } catch (err) {
     console.warn('Journal write failed:', err);
+    return false;
   }
 }
 
@@ -10879,7 +10885,11 @@ async function journalAllForModeSwitch(): Promise<ModeSwitchDoc[]> {
     window.clearTimeout(journalTimer);
     journalTimer = null;
   }
-  await runJournalWrite();
+  // A failed journal must abort the switch (the caller's catch reverts
+  // and tells the user) instead of reloading as if the doc were safe.
+  if (!(await runJournalWrite())) {
+    throw new Error(`the recovery copy of "${currentDocFilename ?? 'Untitled'}" could not be written`);
+  }
   return [{ uid: currentDocUid, dirty: currentDocDirty }];
 }
 
