@@ -507,7 +507,9 @@ every conversion is reversible with **Backspace** right after it fires.
 - **Smart quotes** (Settings → Editing → "Smart quotes") curl a straight `'` or
   `"` to the right direction as you type — opening after a space, dash, bracket,
   or the start of a line; closing (and the apostrophe) otherwise — so `don't`
-  and `(he said "hi")` come out right.
+  and `(he said "hi")` come out right. A digit typed right after an opening
+  `‘` flips it to an apostrophe, so cite dates like `'24` and `'10-13` come
+  out as `’24` and `’10-13`.
 
 - **Link URLs as you type** (Settings → Editing → "Link URLs as you type", off
   by default) turns a web address into a link the moment you type a space or
@@ -545,7 +547,7 @@ every conversion is reversible with **Backspace** right after it fires.
 - **Flip Quote Direction** (a command, unbound by default) flips every curly
   quote in your selection to its opposite direction, keeping the formatting.
   It's the manual fix for the cases smart quotes — like Word — guess wrong, such
-  as a leading apostrophe in `'tis` or `'90s` that should curl the other way.
+  as a leading apostrophe in `'tis` that should curl the other way.
 
 ### Shrink (Mod-8)
 
