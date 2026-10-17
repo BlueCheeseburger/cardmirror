@@ -1120,6 +1120,13 @@ let multiDocSetFocusedFile:
   | null = null;
 /** Set the focused DocRecord's Learn docId (minted/forked lazily). */
 let multiDocSetFocusedDocId: ((docId: string) => void) | null = null;
+/** uid-targeted twins of setFocusedFile / setFocusedDocId: a save commits
+ *  to the doc it was saved FROM, not whichever pane is focused when the
+ *  (slow) write finishes. */
+let multiDocSetFileForUid:
+  | ((uid: string, file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null }) => void)
+  | null = null;
+let multiDocSetDocIdForUid: ((uid: string, docId: string) => void) | null = null;
 /** Find the live view of any pane in this window (focused or not) whose
  *  DocRecord carries `docId`, else null. Backs the inbound-jump host and
  *  the plugin API's local-first jump, so a doc open in an unfocused pane
@@ -1204,7 +1211,9 @@ export function enableMultiDocMode(opts: {
     dirty?: boolean;
   } | null;
   setFocusedFile?: (file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null }) => void;
+  setFileForUid?: (uid: string, file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null }) => void;
   setFocusedDocId?: (docId: string) => void;
+  setDocIdForUid?: (uid: string, docId: string) => void;
   /** Live view of any pane holding `docId` (focused or background), or null. */
   findViewForDocId?: (docId: string) => EditorView | null;
   getAllFilenames?: () => (string | null)[];
@@ -1268,7 +1277,9 @@ export function enableMultiDocMode(opts: {
   multiDocSetFocusedFilename = opts.setFocusedFilename ?? null;
   multiDocGetFocusedFile = opts.getFocusedFile ?? null;
   multiDocSetFocusedFile = opts.setFocusedFile ?? null;
+  multiDocSetFileForUid = opts.setFileForUid ?? null;
   multiDocSetFocusedDocId = opts.setFocusedDocId ?? null;
+  multiDocSetDocIdForUid = opts.setDocIdForUid ?? null;
   multiDocFindViewForDocId = opts.findViewForDocId ?? null;
   multiDocGetAllFilenames = opts.getAllFilenames ?? null;
   multiDocGetFilenameForUid = opts.getFilenameForUid ?? null;
@@ -6441,6 +6452,16 @@ function setActiveDocId(docId: string): void {
   currentDocId = docId;
 }
 
+/** Like setActiveDocId, but for the doc identified by `uid` (captured
+ *  before an await) rather than whatever is focused now. */
+function setDocIdFor(uid: string, docId: string): void {
+  if (multiDocActive) {
+    if (multiDocSetDocIdForUid) multiDocSetDocIdForUid(uid, docId);
+    return;
+  }
+  if (uid === currentDocUid) currentDocId = docId;
+}
+
 /** The docId to ground new annotations against right now — the persistent
  *  docId once saved, else the session uid (rekeyed onto the real docId at
  *  first save). Used by Create Flashcard / Ask AI. */
@@ -7949,21 +7970,35 @@ function activeFile(): { filename: string | null; handle: unknown | null; format
 /** Apply a save result back into the active file's record — chip
  *  label, in-place-save handle, and format all update together. */
 function commitSaveResult(filename: string, handle: unknown | null, format: 'cmir' | 'docx'): void {
-  if (multiDocActive && multiDocSetFocusedFile) {
-    multiDocSetFocusedFile({ filename, handle, format });
-  } else {
+  commitSaveResultFor(activeDocIdentity().sessionUid, filename, handle, format);
+}
+
+/** Commit a save result to the doc with session uid `uid` — captured by
+ *  the caller BEFORE its awaits. Save As serializes, shows a dialog and
+ *  writes (seconds on a big doc or a cloud folder) while the user can
+ *  click another pane; committing to "the focused doc" at that point gave
+ *  pane B pane A's new file, and B's next save overwrote it. In single-doc
+ *  mode a uid that no longer matches means the doc was swapped out; the
+ *  write already happened, so only the identity update is skipped. */
+function commitSaveResultFor(uid: string, filename: string, handle: unknown | null, format: 'cmir' | 'docx'): void {
+  if (multiDocActive) {
+    if (multiDocSetFileForUid) multiDocSetFileForUid(uid, { filename, handle, format });
+    else multiDocSetFocusedFile?.({ filename, handle, format });
+  } else if (uid === currentDocUid) {
     currentDocFilename = filename;
     setCurrentDocHandle(handle);
     currentDocFormat = format;
+  } else {
+    console.warn('[save] result for a doc no longer mounted; identity not updated');
   }
   // A (re)named doc that owns a live session republishes its title to
   // the room — a session started on an untitled doc gets its name the
   // moment the host saves, and joiners adopt it via the meta watcher.
   // `?.` on the module promise: never force-loads collab for a plain save.
-  void collabUiModule?.then((m) => m.republishSessionTitle(activeDocIdentity().sessionUid));
+  void collabUiModule?.then((m) => m.republishSessionTitle(uid));
   // A committed save (e.g. Save-As of a recovered draft) writes the content
   // to a real file, so it's no longer a stale-recovery-overwrite candidate.
-  clearRecoveredDraftMark(activeDocIdentity().sessionUid);
+  clearRecoveredDraftMark(uid);
   updateWindowTitle();
   // Format/handle may have changed (e.g., Save-As from unsaved →
   // .cmir-with-handle), which flips the autosave button between
@@ -8274,6 +8309,9 @@ export async function runSaveAsFlow(): Promise<boolean> {
 
 async function runSaveAsFlowInner(): Promise<boolean> {
   const file = activeFile();
+  // The doc this save is FOR, fixed now: every later step commits to it
+  // by uid, whatever is focused when the awaits return.
+  const { docId: srcDocId, sessionUid } = activeDocIdentity();
   const suggestedName = basenameWithoutExt(file.filename ?? 'untitled');
   // Existing on-disk handle wins (preserves the file's current
   // format on Save As); otherwise honor the user's preferred
@@ -8342,17 +8380,13 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     });
     if (!result) return false;
     if (isFullSave) {
-      // Read the pre-fork identity before committing the new file
-      // (commitSaveResult leaves docId untouched, but read first to be
-      // explicit about which doc we're forking FROM).
-      const { docId: srcDocId, sessionUid } = activeDocIdentity();
       // Did this doc have a real on-disk original? (file.handle is the
       // PRE-save handle.) A never-saved doc has no original to preserve,
       // so its annotations MOVE to the new file rather than copy —
       // otherwise an in-doc flashcard's minted docId would linger as a
       // phantom "Untitled" group.
       const hadOnDiskOriginal = file.handle != null;
-      commitSaveResult(result.name, result.handle ?? null, choice.format);
+      commitSaveResultFor(sessionUid, result.name, result.handle ?? null, choice.format);
       if (forkDocId) {
         if (srcDocId && hadOnDiskOriginal) {
           // Real file → fork: the original keeps its cards; the copy
@@ -8367,7 +8401,7 @@ async function runSaveAsFlowInner(): Promise<boolean> {
           // session uid.
           learnStore.rekeyDoc(sessionUid, forkDocId);
         }
-        setActiveDocId(forkDocId);
+        setDocIdFor(sessionUid, forkDocId);
         learnStore.registerDoc({
           docId: forkDocId,
           path: typeof result.handle === 'string' ? result.handle : null,
@@ -8694,6 +8728,9 @@ export async function runSaveFlow(): Promise<boolean> {
 async function keepBothForActiveFile(
   file: { handle: string; filename: string | null; format: 'cmir' | 'docx' },
   bytes: Uint8Array,
+  /** Session uid of the doc the bytes came from, captured by the caller
+   *  BEFORE it serialized (same discipline as Save As). */
+  sessionUid: string,
 ): Promise<boolean> {
   const electron = getElectronHost();
   if (!electron) return false;
@@ -8702,7 +8739,7 @@ async function keepBothForActiveFile(
     // Mark the copy BEFORE the identity switch registers it, so the
     // registration keeps the kept-copy state.
     noteKeptCopy(copy.handle, file.handle);
-    commitSaveResult(copy.name, copy.handle, file.format);
+    commitSaveResultFor(sessionUid, copy.name, copy.handle, file.format);
     // No chip or toast: the pill's "Conflicted copy" state is the announcement.
     return true;
   } catch (err) {
@@ -8724,11 +8761,13 @@ async function serializeActiveForSave(format: 'cmir' | 'docx', docId: string | n
 /** Badge action: "Keep mine as a copy" without a prior refused save. */
 async function saveActiveAsConflictedCopy(): Promise<void> {
   const file = activeFile();
+  // Captured before any await: a keep-both copy commits to THIS doc.
+  const saveUid = activeDocIdentity().sessionUid;
   if (typeof file.handle !== 'string' || !file.handle || !file.format) return;
   const docId = ensureActiveDocId();
   const commitClean = captureActiveDocCleanToken();
   const bytes = await serializeActiveForSave(file.format, docId);
-  if (!(await keepBothForActiveFile({ handle: file.handle, filename: file.filename, format: file.format }, bytes))) return;
+  if (!(await keepBothForActiveFile({ handle: file.handle, filename: file.filename, format: file.format }, bytes, saveUid))) return;
   commitClean();
   flashSaveSuccess();
   reportAutosaveSuccess();
@@ -8839,6 +8878,8 @@ function ensureDiskBadge(): void {
 
 async function runSaveFlowInner(): Promise<boolean> {
   const file = activeFile();
+  // Captured before any await: a keep-both copy commits to THIS doc.
+  const saveUid = activeDocIdentity().sessionUid;
   if (!file.handle || !file.format || !getHost().supportsInPlaceSave) {
     return runSaveAsFlow();
   }
@@ -8925,7 +8966,7 @@ async function runSaveFlowInner(): Promise<boolean> {
       // becomes a conflicted copy beside the original and this window
       // switches to the copy. No dialog; the chip + badge say so.
       if (!isFileChangedOnDiskError(err) || typeof file.handle !== 'string') throw err;
-      if (!(await keepBothForActiveFile({ handle: file.handle, filename: file.filename, format: file.format }, bytes))) {
+      if (!(await keepBothForActiveFile({ handle: file.handle, filename: file.filename, format: file.format }, bytes, saveUid))) {
         return false;
       }
     }
@@ -9198,6 +9239,8 @@ function captureActiveDocCleanToken(): () => boolean {
 async function runAutosaveAttempt(): Promise<void> {
   if (!settings.get('autosaveEnabled')) return;
   const file = activeFile();
+  // Captured before any await: a keep-both copy commits to THIS doc.
+  const saveUid = activeDocIdentity().sessionUid;
   // Autosave only saves `.cmir` files. The toDocx path is too
   // expensive for background firing; users keep manual control
   // over when docx files hit disk.
@@ -9238,7 +9281,7 @@ async function runAutosaveAttempt(): Promise<void> {
       // write is non-destructive now, and a paused autosave would leave
       // edits unsaved for as long as the user failed to notice.
       if (!isFileChangedOnDiskError(err) || typeof file.handle !== 'string') throw err;
-      if (!(await keepBothForActiveFile({ handle: file.handle, filename: file.filename, format: 'cmir' }, bytes))) {
+      if (!(await keepBothForActiveFile({ handle: file.handle, filename: file.filename, format: 'cmir' }, bytes, saveUid))) {
         throw err;
       }
     }

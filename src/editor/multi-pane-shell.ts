@@ -2467,6 +2467,12 @@ class MultiPaneShell {
     if (rec) rec.docId = docId;
   }
 
+  /** Learn docId for a specific record (Save As forks commit here). */
+  setDocIdForUid(uid: string, docId: string): void {
+    const hit = this.findRecordByUid(uid);
+    if (hit) hit.rec.docId = docId;
+  }
+
   /** View of any pane holding `docId` — every slot's full stack (visible
    *  AND background), so an inbound jump reaches a doc open in an
    *  unfocused pane. A background (stacked-but-hidden) record is RAISED
@@ -2554,10 +2560,29 @@ class MultiPaneShell {
    *  Keeps the chip label, the in-place-save handle, and the format
    *  in sync as the user renames or migrates formats. */
   setFocusedFile(file: { filename: string; handle: unknown | null; format: DocFormat | null }): void {
-    const slot = this.focusedSlot;
-    if (!slot) return;
-    const rec = slot.visible;
-    if (!rec) return;
+    const rec = this.focusedSlot?.visible;
+    if (rec) this.setFileForUid(rec.uid, file);
+  }
+
+  /** The slot whose stack holds `uid`, and the record. Null when the doc
+   *  was closed meanwhile. */
+  private findRecordByUid(uid: string): { slot: Slot; rec: DocRecord } | null {
+    for (const id of SLOT_IDS) {
+      const slot = this.slots[id];
+      const rec = slot.stack.find((r) => r.uid === uid);
+      if (rec) return { slot, rec };
+    }
+    return null;
+  }
+
+  /** Commit a save result to the doc it was saved FROM, wherever it sits
+   *  now. Save As / keep-both capture the uid before their awaits and
+   *  commit here, so a pane focused mid-save never inherits another doc's
+   *  file (audit item 7, 2026-10-08). */
+  setFileForUid(uid: string, file: { filename: string; handle: unknown | null; format: DocFormat | null }): void {
+    const hit = this.findRecordByUid(uid);
+    if (!hit) return;
+    const { slot, rec } = hit;
     rec.filename = file.filename;
     // Save-As may have moved this doc to a new on-disk location;
     // re-sync the cross-window path claim so the new path is
@@ -2566,7 +2591,7 @@ class MultiPaneShell {
     rec.handle = file.handle;
     setViewDocPath(rec.view, typeof file.handle === 'string' ? file.handle : null);
     rec.format = file.format;
-    slot.refreshChipFilename();
+    if (slot.visible === rec) slot.refreshChipFilename();
     pushPaneDocInfo(rec.uid, rec.filename);
     // Save As moved the doc (or gave a never-saved doc its first
     // path) — the snapshot's paths are now out of date.
@@ -3928,7 +3953,9 @@ export function mountMultiPaneShell(): void {
     setFocusedFilename: (name) => shell!.setFocusedFilename(name),
     getFocusedFile: () => shell!.getFocusedFile(),
     setFocusedFile: (f) => shell!.setFocusedFile(f),
+    setFileForUid: (uid, f) => shell!.setFileForUid(uid, f),
     setFocusedDocId: (id) => shell!.setFocusedDocId(id),
+    setDocIdForUid: (uid, id) => shell!.setDocIdForUid(uid, id),
     findViewForDocId: (id) => shell!.findViewForDocId(id),
     getAllFilenames: () => shell!.getAllFilenames(),
     getFilenameForUid: (uid) => shell!.filenameForUid(uid),
