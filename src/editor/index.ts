@@ -6944,9 +6944,10 @@ async function routeOpenedFile(opened: OpenedFile): Promise<void> {
       await host.spawnWindow({
         filename: src.name,
         bytes: src.bytes,
-        // spawnWindow is Electron-only (canSpawnWindow); its handle is a path
-        // string. A web FileSystemFileHandle can't cross to a new window.
-        handle: typeof src.handle === 'string' ? src.handle : null,
+        // Electron: a path string. Web PWA: the FileSystemFileHandle rides
+        // along (IndexedDB hand-off = structured clone), so the new window
+        // can save in place.
+        handle: typeof src.handle === 'string' || (src.handle != null && typeof src.handle === 'object') ? (src.handle as string | FileSystemFileHandle) : null,
         format,
         uid: null,
       });
