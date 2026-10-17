@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.7 — 2026-10-17
 
 ### Added
 - **Cross-Ex Practice (AI side panel).** Writes 3 to 6 questions an opponent would ask about your file. It sends the headings, tags, full cites and highlighted text only (never the unhighlighted card text), and splits questions under Aff and Neg headers when the file has both. Each question has a clickable cite that jumps to the card, a hidden model answer, a **Press next** follow-up, and **3 more like this**. **Build trap drill** gives three setup questions where a careless answer walks into a follow-up; type your answer and it grades you. Saved per document.
