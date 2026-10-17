@@ -3012,7 +3012,13 @@ class MultiPaneShell {
           slot.stack.length === 0
             ? '(empty)'
             : `${slot.visible?.filename ?? ''}${slot.stack.length > 1 ? ` (+${slot.stack.length - 1})` : ''}`;
-        btn.innerHTML = `<strong>${id.replace('slot', 'Slot ')}</strong><br><span>${stackLabel}</span>`;
+        // Built from nodes, not innerHTML: the label carries a filename,
+        // which on macOS / Linux may contain markup.
+        const strong = document.createElement('strong');
+        strong.textContent = id.replace('slot', 'Slot ');
+        const label = document.createElement('span');
+        label.textContent = stackLabel;
+        btn.replaceChildren(strong, document.createElement('br'), label);
         btn.addEventListener('click', () => finish(id));
         row.appendChild(btn);
       }
