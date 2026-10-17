@@ -611,8 +611,17 @@ def delete_message(msg_id: str, db: Session = Depends(get_db)) -> Response:
 # ── Rooms (collaboration sessions) ───────────────────────────────────
 
 
-def _room_or_error(db: Session, room_id: str) -> RelayRoom:
-    room = db.get(RelayRoom, room_id)
+def _room_or_error(db: Session, room_id: str, *, for_update: bool = False, for_share: bool = False) -> RelayRoom:
+    """Load the room. `for_update` takes the row lock that serializes writers
+    (compaction vs. compaction, compaction vs. the bytes_used updates);
+    `for_share` lets readers see snapshot + tail from one consistent point
+    rather than straddling a compaction commit. (sqlite ignores both.)"""
+    q = db.query(RelayRoom).filter(RelayRoom.id == room_id)
+    if for_update:
+        q = q.with_for_update()
+    elif for_share:
+        q = q.with_for_update(read=True)
+    room = q.one_or_none()
     if room is None:
         raise HTTPException(404, "no such room")
     if room.tombstoned:
@@ -680,7 +689,10 @@ def get_room_updates(
     have_snap: Optional[int] = Query(None, alias="haveSnap", ge=0),
     db: Session = Depends(get_db),
 ) -> Response:
-    _room_or_error(db, room_id)
+    # Share lock on the room row: a compaction committing between the
+    # snapshot read and the tail read would hand the client an old snapshot
+    # plus a tail that starts after the NEW covers — a gap it can't fill.
+    _room_or_error(db, room_id, for_share=True)
     out: dict = {}
     snap = db.get(RelayRoomSnapshot, room_id)
     floor = after
@@ -731,17 +743,29 @@ def post_room_snapshot(
         raise HTTPException(400, "expected {blob, coversThroughSeq}")
     if len(blob) > MAX_UPDATE_BYTES * 8:
         raise HTTPException(413, "snapshot too large")
-    room = _room_or_error(db, room_id)
-    existing = db.get(RelayRoomSnapshot, room_id)
-    if existing is not None and covers <= existing.covers_through_seq:
+    # Row lock: two overlapping compactions (a slow uplink can let the host
+    # start the next before the last lands) otherwise race read-then-write,
+    # and the OLDER one could roll covers_through_seq back after the newer
+    # already deleted its updates — a permanent hole in the log.
+    room = _room_or_error(db, room_id, for_update=True)
+    existing_covers = (
+        db.query(RelayRoomSnapshot.covers_through_seq)
+        .filter(RelayRoomSnapshot.room_id == room_id)
+        .scalar()
+    )
+    if existing_covers is not None and covers <= existing_covers:
         # Stale or duplicate compaction (another client got there first).
         return Response(status_code=204)
-    if existing is None:
+    if existing_covers is None:
         db.add(RelayRoomSnapshot(room_id=room_id, blob=blob, covers_through_seq=covers))
     else:
-        existing.blob = blob
-        existing.covers_through_seq = covers
-        existing.created_at = datetime.utcnow()
+        db.query(RelayRoomSnapshot).filter(
+            RelayRoomSnapshot.room_id == room_id,
+            RelayRoomSnapshot.covers_through_seq < covers,
+        ).update(
+            {"blob": blob, "covers_through_seq": covers, "created_at": datetime.utcnow()},
+            synchronize_session=False,
+        )
     db.query(RelayRoomUpdate).filter(
         RelayRoomUpdate.room_id == room_id, RelayRoomUpdate.id <= covers
     ).delete(synchronize_session=False)
