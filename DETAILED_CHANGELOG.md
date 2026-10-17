@@ -12,6 +12,84 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: AI revamp — Cross-Ex Practice and Card Credibility (`src/editor/ai/`)
+
+New modules, no changes to the existing AI features. `tiers.ts` picks a model per tier for the active provider
+(`lite` for grading, `balanced` for generation/scoring; a Gemini Flash Lite override is bumped to Flash for scoring;
+OpenRouter always uses the user's model) and holds the JSON helpers. `callTierParsed` retries once with double the
+output budget when a reply stops on the token limit: Gemini 2.5 spends hidden thinking tokens from the same budget, and
+at the old 3,072 the trap drill and "3 more like this" came back as cut-off JSON ("Couldn't read the AI's reply").
+Generation now asks for 8,192 tokens, and `parseJsonList` salvages the complete items from a list cut off mid-way.
+`card-analysis.ts` reads each `card` node into tag / cite / body words / highlighted words / highlighted text, cached on
+the immutable card node, and lists the pocket / hat / block headings. `crossex.ts` sends, in document order, the
+headings and each highlighted card's tag, full cite (up to 1,000 characters) and highlighted text only, capped at
+40,000 highlighted characters with a confirm before trimming. `credibility.ts` scores tags and cites in batches of 40:
+recency drops only for what has plausibly changed since the piece was written, the reason is up to 20 words, `tagFit`
+replaces `claimFit` (old saves are upgraded on load), and the press is kept only below 6 (Shaky / Weak). Every parser
+drops malformed entries rather than inventing them (a skipped credibility card is left out, never scored 0).
+`ai-panel-ui.ts` is one right-hand drawer with two modes; `ai-panel-store.ts` keeps questions, traps, scores (keyed by a
+fingerprint of all card tags + count) with the scoring calls that produced them, and deeper-analysis conversations, in
+localStorage per document id. Ribbon commands `aiCrossEx` and `aiCredibility` (unbound) plus two buttons in the
+comments cluster, hidden while AI is off. No event picker or per-event coaching text: the prompts are the same for
+every format. The over/under-highlighted warnings (outline badge and panel note) were removed.
+
+**Streaming** (`llm.ts`): `LlmRequest.onText` switches a call to streaming (`stream: true` for Anthropic and
+OpenRouter, `:streamGenerateContent?alt=sse` for Gemini, Gemini thought parts skipped). A shared SSE reader folds the
+stream back into each provider's non-streaming reply shape, so stop reasons, refusals and errors are handled by the same
+parsers as before. Used by AI comment replies (text fills the Thinking placeholder), the deeper analysis (Markdown
+re-rendered as it arrives), Cross-Ex questions and "3 more like this" (complete items shown as they parse), the trap
+drill (progress count) and credibility scoring (rows appear as each card is scored). Structured one-shot features
+(cite formatting, translation, flashcards, repairs, image AI, voice cleanup, grading) still wait for the whole reply,
+since nothing is shown until it is complete. Cross-Ex and Credibility prompts now allow **bold** and *italic* only,
+rendered by `appendEmphasis`; any other Markdown shows as literal text. Tests: `tests/editor/llm-stream.test.ts`.
+
+**Deeper analysis** (`card-deep-dive.ts`, `card-deep-dive-ui.ts`, `markdown-dom.ts`): a full-screen overlay with the
+card rendered read-only on the left and a conversation on the right. The model gets the original scoring batch prompt
+and its JSON reply as the first two turns, then "Why did you score card [i] ("tag") that way? Provide a deeper analysis,
+and be organized in your response to the user." plus the whole card text (highlighted runs in `[[ ]]`, capped at 12,000
+characters). The system prompt is the scoring prompt plus a section lifting its JSON / plain-text rules for Markdown,
+plus the bundled `skills/policy-debate-basics.md` (front matter stripped). Scores saved before the exchanges were kept
+get a one-card stand-in exchange. Replies render through a small DOM-only Markdown renderer (headings, bold, italic,
+code, lists, quotes, rules; text only, no HTML). Tests: `tests/editor/ai-panels.test.ts`, `tests/editor/ai-deep-dive.test.ts`.
+
+### Fixed: Recover Previous Version showed every `.docx` version as unreadable (`version-history.ts`, `index.ts`)
+
+`maybeSnapshotVersion` was handed `serializeForSave`'s bytes, which are in the document's own format. For a `.docx`
+that is the zip, but the snapshot store names every file `.cmir` and the version list reads it back with
+`parseNative`, which throws on a zip — so the list said "Unreadable version" and the preview "could not be previewed".
+Reader: new `parseSnapshotBytes` sniffs `PK` and imports with `fromDocxFull`, so snapshots already on disk read.
+Writer: `maybeSnapshotVersion` now takes bytes or a function that makes them; for a `.docx` the save and autosave
+paths pass `() => serializeForSave('cmir', …)`, run only after the throttle says yes (no extra serialize per
+autosave), and the content hash in the snapshot name now de-duplicates (a re-zipped `.docx` never matched).
+
+### Changed: manual drops the published web version (`MANUAL.md`)
+
+Removed the install-the-web-app steps, the mobile-layout and "Collaboration on the web" sections, the Chromebook notes, the
+`cardmirror.app` / `lite.cardmirror.app` links, and the web-layout setting. "Desktop vs. web" became "Desktop and the
+browser build" (the browser build runs from source). `(web only)` markers stay where behavior differs in that build.
+
+### Fixed: shortcuts ran on the document behind an open dialog (`index.ts`, `blocked-key.ts`)
+
+The global ribbon-key handler in `index.ts` had no dialog check: with the dialog focused (so the keydown never
+reached ProseMirror's own keymap) it still looked the key up and dispatched the command into `view`. Found by
+probing the web build: with the Keyboard shortcuts dialog open, Ctrl+B and F9 changed the document and Ctrl+F opened
+the find bar. Now, after the native-field check, `isAnyOverlayOpen()` plus a non-viewless command means
+`preventDefault`, no dispatch, and `notifyKeyBlocked(CLOSE_DIALOG_FIRST)`. `VIEWLESS_RIBBON_COMMANDS` (new/open/save-as,
+Search Everything, zoom…) stay available. `notifyKeyBlocked` shows a toast but keeps one on screen per message, so a
+held key does not stack them. Keys typed into a dialog's own text field are still left to the field.
+
+### Added: keyboard map (`keyboard-map.ts`, `reference-ui.ts`, `keybindings-editor.ts`, `style.css`)
+
+`buildKeyboardMap()` draws a keyboard (Mac or PC bottom row by `isMacPlatform()`) above the Keyboard shortcuts
+list. `collectBindings()` reads the same effective keys as the Settings editor (`ribbonKeyOverrides` over
+`DEFAULT_RIBBON_KEYS`, `effectivePluginDefaultKeys` for plugins, plus `keyboardMacros`) and
+`parseKeyString()` turns each into modifiers + key (`~` = Shift+`, Mod-Tab = Control on a Mac). The map
+subscribes to `settings` and redraws when overrides or macros change; `ReferenceModal` rebuilds its list
+the same way and destroys the map on close. Modifier layers are the Mac's ⌘ ⌃ ⌥ ⇧ or ctrl/alt/shift;
+holding the real keys previews a layer. Rebinding from the map goes through new exports
+`bindKeyToCommand` / `unbindKeyFromCommand` / `clearMacroKey` in `keybindings-editor.ts`, which keep the
+editor's rules (reserved keys, bare single characters refused, a taken key is removed from its old command).
+
 ### Fixed: starred outline rows show a filled star (`icons.css`, `icons.ts`, `nav-panel.ts`)
 
 The star is a CSS-mask icon, so the earlier `svg { fill }` rule never applied. New `star-filled` icon (same path, `fill="#000"`); `nav-panel.ts` uses it when `entry.starred`.

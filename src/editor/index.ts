@@ -52,6 +52,7 @@ import {
 } from './speech-doc-send.js';
 import { promptForChoice, promptForText, promptForRouteChoice, addRouteKeyHint, alertDialog, confirmDialog, installModalKeys, armDialogFocus, setModalKeyPassThrough } from './text-prompt.js';
 import { pushOverlay, popOverlay, isTopOverlay, isAnyOverlayOpen } from './overlay-stack.js';
+import { notifyKeyBlocked, CLOSE_DIALOG_FIRST } from './blocked-key.js';
 import { positionFloatingMenu } from './context-menu-position.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
 import { openDocMenu } from './doc-menu-ui.js';
@@ -198,6 +199,7 @@ import { runReformatAllCites } from './ai/reformat-all-cites.js';
 import { runTranslate } from './translate.js';
 import { runRepairText } from './ai/repair-text.js';
 import { runRepairFormatting } from './ai/repair-formatting.js';
+import { initAiPanels, openCrossEx, openCredibility } from './ai/ai-panel-ui.js';
 import { runSendToFlow, runPullFromFlow, runCreateFlow, runStartFlowHost } from './flow-port.js';
 import {
   readModePlugin,
@@ -1009,6 +1011,8 @@ const addNoteBtn = document.getElementById('add-note-btn') as HTMLButtonElement 
 const createFlashcardBtn = document.getElementById('create-flashcard-btn') as HTMLButtonElement | null;
 const manageFlashcardsBtn = document.getElementById('manage-flashcards-btn') as HTMLButtonElement | null;
 const askAiBtn = document.getElementById('ask-ai-btn') as HTMLButtonElement | null;
+const aiCrossExBtn = document.getElementById('ai-crossex-btn') as HTMLButtonElement | null;
+const aiCredBtn = document.getElementById('ai-cred-btn') as HTMLButtonElement | null;
 const commentsColumnEl = document.getElementById('comments-column') as HTMLElement | null;
 const wordCountText = document.getElementById('word-count-text')!;
 const cursorColorDisplay = document.getElementById('cursor-color-display') as HTMLElement;
@@ -2169,6 +2173,8 @@ const ribbonContext: RibbonContext = {
     if (!view) return;
     runRepairFormatting(view);
   },
+  openCrossEx: () => openCrossEx(),
+  openCredibility: () => openCredibility(),
   sendToFlowColumn: () => {
     if (view) void runSendToFlow(view, { mode: 'column', headingsOnly: false });
   },
@@ -3379,6 +3385,15 @@ if (askAiBtn) {
   askAiBtn.addEventListener('mousedown', (e) => e.preventDefault());
   askAiBtn.addEventListener('click', () => runRibbonCommandById('aiAskAboutSelection'));
 }
+for (const [btn, cmd] of [
+  [aiCrossExBtn, 'aiCrossEx'],
+  [aiCredBtn, 'aiCredibility'],
+] as const) {
+  if (!btn) continue;
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('click', () => runRibbonCommandById(cmd));
+}
+initAiPanels({ getView: () => view, getDocKey: () => ensureActiveDocId() });
 if (addNoteBtn) {
   addNoteBtn.addEventListener('mousedown', (e) => e.preventDefault());
   addNoteBtn.addEventListener('click', () => runRibbonCommandById('addNoteToSelection'));
@@ -3387,6 +3402,8 @@ if (addNoteBtn) {
 /** Show the Ask-AI ribbon button only when AI features are enabled. */
 function applyAskAiButtonVisibility(enabled: boolean): void {
   if (askAiBtn) askAiBtn.hidden = !enabled;
+  if (aiCrossExBtn) aiCrossExBtn.hidden = !enabled;
+  if (aiCredBtn) aiCredBtn.hidden = !enabled;
 }
 applyAskAiButtonVisibility(settings.get('aiFeaturesEnabled'));
 
@@ -4964,6 +4981,14 @@ window.addEventListener('keydown', (e) => {
     targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT';
   if (inNativeField && !VIEWLESS_RIBBON_COMMANDS.has(cmdId)) return;
   e.preventDefault();
+  // A dialog has the user's attention: a document command must not run on
+  // the document behind it (Ctrl+B used to bold it, Ctrl+F opened Find
+  // there). File-level and Search Everything keys stay available. Say why
+  // nothing happened instead of going quiet.
+  if (isAnyOverlayOpen() && !VIEWLESS_RIBBON_COMMANDS.has(cmdId)) {
+    notifyKeyBlocked(CLOSE_DIALOG_FIRST);
+    return;
+  }
   // File-level commands (newDocument / openFile / saveAs) and the
   // shortcuts-dialog opener don't need a live view — invoke the
   // ctx side effect directly so the shortcut works even when no
@@ -5862,7 +5887,9 @@ function refreshAutoScrollBtn(): void {
   autoScrollBtn?.classList.toggle('pmd-active', isAutoScrolling());
 }
 
-const navPanel = new NavigationPanel(navEl, { useLay: () => laySpeakingOn });
+const navPanel = new NavigationPanel(navEl, {
+  useLay: () => laySpeakingOn,
+});
 
 /** The single-doc NavigationPanel instance — the mobile shell drives
  *  its destination mode ("Send to…") and hosts it in the drawer. */
@@ -9988,7 +10015,20 @@ async function runSaveFlowInner(): Promise<boolean> {
     // Version-history snapshot BEFORE the disk write is awaited: a save
     // whose destination folder hangs (cloud-sync placeholder) still
     // leaves a recoverable version in app data. Fire-and-forget.
-    maybeSnapshotVersion(docId, bytes, 'manual');
+    // A .docx document's snapshot is kept as .cmir (what the history store
+    // reads and dedupes), not as the zip it just wrote to disk.
+    maybeSnapshotVersion(
+      docId,
+      file.format === 'docx'
+        ? () =>
+            serializeForSave(
+              'cmir',
+              { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false, workingCopy: true },
+              docId,
+            )
+        : bytes,
+      'manual',
+    );
     try {
       // Watchdog: a write that HANGS (cloud-sync placeholder hydration
       // stalling — the silent-save field case) warns at 10s and offers
@@ -10339,7 +10379,18 @@ async function runAutosaveAttempt(): Promise<void> {
       activeSavedDocId(),
     );
     // Same pre-write snapshot as the manual save path (see there).
-    maybeSnapshotVersion(activeSavedDocId(), bytes, 'auto');
+    maybeSnapshotVersion(
+      activeSavedDocId(),
+      file.format === 'docx'
+        ? () =>
+            serializeForSave(
+              'cmir',
+              { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false, workingCopy: true },
+              activeSavedDocId(),
+            )
+        : bytes,
+      'auto',
+    );
     // Watchdog without the dialog — never a modal mid-typing; the
     // 10s warning chip still converts a hung autosave into feedback.
     try {

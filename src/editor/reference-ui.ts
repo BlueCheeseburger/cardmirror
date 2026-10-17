@@ -27,6 +27,7 @@ import {
   captureFocusForDialog,
 } from './text-prompt.js';
 import { isBackdropClick } from './backdrop-click.js';
+import { buildKeyboardMap, type KeyboardMapHandle } from './keyboard-map.js';
 
 
 class ReferenceModal {
@@ -41,6 +42,9 @@ class ReferenceModal {
   private overlayToken: symbol | null = null;
   private removeKeys: (() => void) | null = null;
   private restoreFocus: (() => void) | null = null;
+  private map: KeyboardMapHandle | null = null;
+  private bodyEl: HTMLElement | null = null;
+  private unsubscribe: (() => void) | null = null;
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -60,6 +64,19 @@ class ReferenceModal {
 
   open(): void {
     this.render();
+    // A rebind anywhere (the Settings editor, or the map itself) redraws the
+    // map (it watches settings on its own) and the list below it.
+    this.unsubscribe?.();
+    let last = settings.get('ribbonKeyOverrides');
+    this.unsubscribe = settings.subscribe((st) => {
+      if (st.ribbonKeyOverrides === last) return;
+      last = st.ribbonKeyOverrides;
+      if (this.bodyEl) {
+        this.bodyEl.replaceChildren();
+        this.fillList(this.bodyEl);
+        this.applyFilter();
+      }
+    });
     this.overlay.style.display = '';
     if (this.overlayToken === null) {
       const token = pushOverlay();
@@ -78,6 +95,10 @@ class ReferenceModal {
 
   close(): void {
     this.overlay.style.display = 'none';
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+    this.map?.destroy();
+    this.map = null;
     if (this.overlayToken !== null) {
       popOverlay(this.overlayToken);
       this.overlayToken = null;
@@ -119,9 +140,23 @@ class ReferenceModal {
     searchRow.appendChild(searchInput);
     this.dialog.appendChild(searchRow);
 
+    // The keyboard map first: a picture of what every key does right now.
+    this.map?.destroy();
+    this.map = buildKeyboardMap();
+    this.dialog.insertBefore(this.map.el, searchRow);
+
     const body = document.createElement('div');
     body.className = 'pmd-reference-body';
+    this.bodyEl = body;
+    this.fillList(body);
+    this.dialog.appendChild(body);
 
+    // Re-apply the persisted search so the rebuilt rows reflect it.
+    this.applyFilter();
+  }
+
+  /** The grouped list of every command and its current key(s). */
+  private fillList(body: HTMLElement): void {
     for (const group of RIBBON_GROUPS) {
       // Hide commands that don't apply here (Flow off Windows, voice off
       // desktop, the cutter while disabled), and skip a group entirely
@@ -218,10 +253,6 @@ class ReferenceModal {
       body.appendChild(section);
     }
 
-    this.dialog.appendChild(body);
-
-    // Re-apply the persisted search so the rebuilt rows reflect it.
-    this.applyFilter();
   }
 
   /** Show / hide rows + group sections per `searchQuery`. Match is
