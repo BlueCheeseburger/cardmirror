@@ -202,6 +202,9 @@ function pushPaneDocInfo(uid: string, filename: string | null): void {
 
 /** Debounce window for per-DocRecord journal writes. */
 const RECORD_JOURNAL_DELAY_MS = 3000;
+/** See index.ts PENDING_WRITE_MAX_WAIT_MS: a write pending this long fires
+ *  on the next edit instead of being pushed back again. */
+const PENDING_WRITE_MAX_WAIT_MS = 30_000;
 
 // Per-record write chains: with the gzip step async, two debounce
 // rounds for the SAME record could otherwise overlap in flight and
@@ -216,8 +219,12 @@ function scheduleJournalForRecord(record: DocRecord): void {
   const host = getHost();
   if (!host.journalsSupported) return;
   if (record.journalTimer !== null) window.clearTimeout(record.journalTimer);
+  const now = Date.now();
+  if (record.journalPendingSince === null) record.journalPendingSince = now;
+  const overdue = now - record.journalPendingSince >= PENDING_WRITE_MAX_WAIT_MS;
   record.journalTimer = window.setTimeout(() => {
     record.journalTimer = null;
+    record.journalPendingSince = null;
     const prev = recordJournalChains.get(record) ?? Promise.resolve();
     recordJournalChains.set(
       record,
@@ -226,7 +233,7 @@ function scheduleJournalForRecord(record: DocRecord): void {
         .then(() => undefined)
         .catch((err) => console.warn('Journal (record) write crashed:', err)),
     );
-  }, RECORD_JOURNAL_DELAY_MS);
+  }, overdue ? 0 : RECORD_JOURNAL_DELAY_MS);
 }
 
 /** Actually serialize + write `record`'s current doc as a journal
@@ -355,8 +362,12 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
 function scheduleAutosaveForRecord(record: DocRecord): void {
   if (!record.autosaveEnabled) return;
   if (record.autosaveTimer !== null) window.clearTimeout(record.autosaveTimer);
+  const now = Date.now();
+  if (record.autosavePendingSince === null) record.autosavePendingSince = now;
+  const overdue = now - record.autosavePendingSince >= PENDING_WRITE_MAX_WAIT_MS;
   record.autosaveTimer = window.setTimeout(() => {
     record.autosaveTimer = null;
+    record.autosavePendingSince = null;
     const prev = recordAutosaveChains.get(record) ?? Promise.resolve();
     // .catch keeps the chain fulfilled — one guard-line throw must not kill
     // this record's autosave for the session (same fix as the single-doc chain).
@@ -366,7 +377,7 @@ function scheduleAutosaveForRecord(record: DocRecord): void {
         .then(() => runAutosaveForRecord(record))
         .catch((err) => reportAutosaveFailure(record.filename, err)),
     );
-  }, AUTOSAVE_DELAY_MS);
+  }, overdue ? 0 : AUTOSAVE_DELAY_MS);
 }
 
 /**
@@ -428,6 +439,8 @@ interface DocRecord {
    *  by every doc-changing transaction; fires `~3s` later with a
    *  cmir snapshot of this record's current doc. */
   journalTimer: number | null;
+  /** When the first not-yet-written edit landed (max-wait anchor). */
+  journalPendingSince: number | null;
   /** Per-doc read-mode state. Multi-doc treats read mode as a
    *  property of an individual open doc — the ribbon toggle flips
    *  this for the focused pane only, leaving other panes untouched. */
@@ -446,6 +459,7 @@ interface DocRecord {
   autosaveEnabled: boolean;
   /** Debounce timer for the per-record autosave write. */
   autosaveTimer: number | null;
+  autosavePendingSince: number | null;
   /** Stable per-document id for the Learn annotation layer (SPEC §3.1).
    *  Read from the file on open; minted on first save (`ensureActiveDocId`
    *  in index.ts, via `setFocusedDocId`); null for a never-saved doc (its
@@ -3895,6 +3909,8 @@ function buildDocRecord(
 
     heavyUpdateTimer: null,
     journalTimer: null,
+    journalPendingSince: null,
+    autosavePendingSince: null,
     // New docs always start with read mode OFF. The user toggles
     // it per-pane via the ribbon command after opening.
     readMode: false,

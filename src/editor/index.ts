@@ -9158,6 +9158,13 @@ function flashSaveSuccess(): void {
 // on startup.
 
 const AUTOSAVE_DELAY_MS = 5000;
+/** Debounces are pure trailing: every edit (a co-editing partner's too)
+ *  pushed the write back, so a busy stretch could go minutes with no
+ *  autosave or crash journal. Past this much pending time the next edit
+ *  fires the write immediately instead of re-arming the delay. */
+const PENDING_WRITE_MAX_WAIT_MS = 30_000;
+let autosavePendingSince: number | null = null;
+let journalPendingSince: number | null = null;
 const JOURNAL_DELAY_MS = 3000;
 let autosaveTimer: number | null = null;
 let journalTimer: number | null = null;
@@ -9177,8 +9184,12 @@ export function notifyEditForAutosave(): void {
   scheduleJournalWrite();
   if (!settings.get('autosaveEnabled')) return;
   if (autosaveTimer !== null) window.clearTimeout(autosaveTimer);
+  const now = Date.now();
+  if (autosavePendingSince === null) autosavePendingSince = now;
+  const overdue = now - autosavePendingSince >= PENDING_WRITE_MAX_WAIT_MS;
   autosaveTimer = window.setTimeout(() => {
     autosaveTimer = null;
+    autosavePendingSince = null;
     // .catch keeps the chain FULFILLED: runAutosaveAttempt handles its own
     // write errors, but a throw from its guard lines (before its try) used
     // to reject the chain — after which every later .then silently skipped
@@ -9190,7 +9201,7 @@ export function notifyEditForAutosave(): void {
           promptConflict: () => void runSaveFlow(),
         }),
       );
-  }, AUTOSAVE_DELAY_MS);
+  }, overdue ? 0 : AUTOSAVE_DELAY_MS);
 }
 
 /** Schedule a debounced journal write for the SINGLE-DOC session.
@@ -9201,15 +9212,19 @@ function scheduleJournalWrite(): void {
   if (!getHost().journalsSupported) return;
   if (multiDocActive) return;
   if (journalTimer !== null) window.clearTimeout(journalTimer);
+  const now = Date.now();
+  if (journalPendingSince === null) journalPendingSince = now;
+  const overdue = now - journalPendingSince >= PENDING_WRITE_MAX_WAIT_MS;
   journalTimer = window.setTimeout(() => {
     journalTimer = null;
+    journalPendingSince = null;
     // .catch keeps the chain alive — a guard-line throw must not end
     // crash-recovery journaling for the whole session.
     journalWriteChain = journalWriteChain
       .then(() => runJournalWrite())
       .then(() => undefined)
       .catch((err) => console.warn('Journal write crashed:', err));
-  }, JOURNAL_DELAY_MS);
+  }, overdue ? 0 : JOURNAL_DELAY_MS);
 }
 
 /** Returns false when the write FAILED (logged); true when it landed or
