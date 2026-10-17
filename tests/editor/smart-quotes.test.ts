@@ -89,6 +89,16 @@ describe('smart quotes plugin', () => {
     expect(typeAtBodyEnd('a “', '2').ret).toBe(false); // double quotes untouched
   });
 
+  it('the digit flip has its own toggle (on by default) under Smart quotes', () => {
+    settings.set('smartQuotes', true);
+    settings.set('smartQuoteDatesAsApostrophes', false);
+    try {
+      expect(typeAtBodyEnd('Smith ‘', '2').ret).toBe(false);
+    } finally {
+      settings.set('smartQuoteDatesAsApostrophes', true);
+    }
+  });
+
   it('does nothing when the setting is off', () => {
     settings.set('smartQuotes', false);
     const { ret, view } = typeAtBodyEnd('hello', '"');

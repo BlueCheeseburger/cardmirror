@@ -509,7 +509,8 @@ every conversion is reversible with **Backspace** right after it fires.
   or the start of a line; closing (and the apostrophe) otherwise — so `don't`
   and `(he said "hi")` come out right. A digit typed right after an opening
   `‘` flips it to an apostrophe, so cite dates like `'24` and `'10-13` come
-  out as `’24` and `’10-13`.
+  out as `’24` and `’10-13` (the "Curl '24 as an apostrophe" toggle beside
+  it, on by default; turn it off if you single-quote numbers).
 
 - **Link URLs as you type** (Settings → Editing → "Link URLs as you type", off
   by default) turns a web address into a link the moment you type a space or

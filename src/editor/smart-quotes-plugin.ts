@@ -59,7 +59,7 @@ const smartQuotesRule: AutocorrectRule = {
  *  quote in practice. Backspace restores the `‘`. */
 const digitElisionRule: AutocorrectRule = {
   triggers: (text) => text.length === 1 && text >= '0' && text <= '9',
-  enabled: () => settings.get('smartQuotes'),
+  enabled: () => settings.get('smartQuotes') && settings.get('smartQuoteDatesAsApostrophes'),
   match(state, from, to, text) {
     if (from !== to || from < 1 || state.doc.textBetween(from - 1, from) !== '‘') return null;
     return { replaceFrom: from - 1, insert: '’' + text, revertTo: '‘' + text };
