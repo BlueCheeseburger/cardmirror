@@ -287,7 +287,10 @@ const AUTOSAVE_DELAY_MS = 5000;
 async function runAutosaveForRecord(record: DocRecord): Promise<void> {
   if (!record.autosaveEnabled) return;
   if (record.format !== 'cmir') return;
-  if (typeof record.handle !== 'string' || !record.handle) return;
+  // Any on-disk handle: an Electron path string OR the web edition's
+  // FileSystemFileHandle. The old string-only check made web three-pane
+  // autosave a silent no-op while the button showed it on (audit 16).
+  if (record.handle == null || record.handle === '') return;
   const host = getHost();
   if (!host.supportsInPlaceSave) return;
   // A recovered draft may only be written by a MANUAL save until its first
@@ -2412,6 +2415,10 @@ class MultiPaneShell {
     rec.autosaveEnabled = !rec.autosaveEnabled;
     // Remember the choice per-file so it survives close + reopen.
     setAutosaveForPath(rec.handle, rec.autosaveEnabled);
+    // Turning it ON: secure write permission now, while this click's
+    // activation is fresh — the timer-fired write has no gesture to
+    // prompt from (same as the single-doc toggle).
+    if (rec.autosaveEnabled && rec.handle != null) void getHost().ensureWritable(rec.handle);
     if (!rec.autosaveEnabled && rec.autosaveTimer !== null) {
       window.clearTimeout(rec.autosaveTimer);
       rec.autosaveTimer = null;
