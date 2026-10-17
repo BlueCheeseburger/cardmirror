@@ -9236,22 +9236,34 @@ async function runJournalWrite(): Promise<boolean> {
   if (!view) return true;
   const host = getHost();
   if (!host.journalsSupported) return true;
+  // Identity and content captured TOGETHER, before the await: a doc switch
+  // landing inside the serialize would otherwise journal doc A's content
+  // under doc B's uid / filename / handle, and an in-place recovery save
+  // would write A into B's file (audit 8).
+  const uid = currentDocUid;
+  const filename = currentDocFilename;
+  const handle = currentDocHandle;
+  const format = currentDocFormat;
+  const docId = currentDocId;
   try {
     const bytes = await serializeNativeAsync(view.state.doc, {
       threads: Array.from(getCommentsState(view.state).threads.values()),
-      ...(currentDocId ? { docId: currentDocId } : {}),
+      ...(docId ? { docId } : {}),
     });
+    // The doc was swapped out while we serialized: these bytes belong to a
+    // session that is over, and its journal was cleared by the switch.
+    if (uid !== currentDocUid) return true;
     // A recovered-but-not-yet-saved draft carries its ORIGINAL journal
     // savedAt forward, so the stale-overwrite guard survives relaunches and
     // mode switches even though this write stamps savedAt = now.
-    const recoveredFrom = recoveredDraftJournalSavedAt(currentDocUid);
+    const recoveredFrom = recoveredDraftJournalSavedAt(uid);
     await host.writeJournal({
-      uid: currentDocUid,
-      filename: currentDocFilename ?? 'Untitled',
+      uid,
+      filename: filename ?? 'Untitled',
       // Keep the handle as-is: Electron path string OR the browser's
       // FileSystemFileHandle (both survive the journal round-trip).
-      handle: currentDocHandle,
-      format: currentDocFormat,
+      handle,
+      format,
       savedAt: new Date().toISOString(),
       ...(recoveredFrom ? { recoveredFromSavedAt: recoveredFrom } : {}),
       bytes,
