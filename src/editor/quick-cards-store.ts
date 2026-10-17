@@ -256,12 +256,25 @@ function sanitizeCards(raw: QuickCard[] | null): QuickCard[] {
 async function loadWebCards(): Promise<QuickCard[]> {
   const stored = sanitizeCards(await webLibrary.load());
   if (stored.length > 0) return stored;
+  // Migrate from localStorage ONCE. Without the marker an emptied library
+  // (every card deleted) looked like "never migrated" and the old cards
+  // came back on the next load (audit item 28).
+  if (legacyMigrated()) return [];
   const legacy = readLegacyLocalCards();
   if (legacy.length > 0) {
     void webLibrary.save(legacy); // persist into IndexedDB from here on
     // localStorage is left intact as a safe fallback.
   }
+  markLegacyMigrated();
   return legacy;
+}
+
+const MIGRATED_KEY = `${STORAGE_KEY}:migrated-to-idb`;
+function legacyMigrated(): boolean {
+  try { return localStorage.getItem(MIGRATED_KEY) === '1'; } catch { return false; }
+}
+function markLegacyMigrated(): void {
+  try { localStorage.setItem(MIGRATED_KEY, '1'); } catch { /* storage unavailable: re-check next load */ }
 }
 
 /** Legacy localStorage backend — read only for migration, never written. */
