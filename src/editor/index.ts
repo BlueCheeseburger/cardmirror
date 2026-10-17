@@ -21,6 +21,7 @@ import { schema, newHeadingId } from '../schema/index.js';
 import { toDocx, serializeNative, serializeNativeAsync, parseNative, parseNativeSalvage, NativeDamagedError, readDocIdFromBytes, stampDocId, setSaveHealListener } from '../index.js';
 import { openDocxOffThread } from './docx-open.js';
 import { transformForExport, countMarkedCards, bakesUnreadRedOnSave } from '../export/transform-for-export.js';
+import { nativeBytesToDocx } from './native-to-docx.js';
 import type { Thread, Comment } from './comments-plugin.js';
 import type { LocalComment } from './learn-store.js';
 import { NavigationPanel } from './nav-panel.js';
@@ -11107,8 +11108,9 @@ async function saveRecoveryEntry(entry: JournalEntry): Promise<boolean> {
 
 /** Convert a journal entry's stored cmir bytes into the requested
  *  on-disk format. cmir → cmir is a passthrough (the journal
- *  already stores cmir); cmir → docx parses the journal and runs
- *  the export pipeline. */
+ *  already stores cmir); cmir → docx runs the shared export pipeline
+ *  (native-to-docx.ts: live views flattened, unread red never baked —
+ *  this is the user's working file). */
 async function reserializeJournalAs(
   entry: JournalEntry,
   format: 'cmir' | 'docx',
@@ -11119,18 +11121,9 @@ async function reserializeJournalAs(
       ? entry.bytes
       : new Uint8Array(entry.bytes as ArrayBufferLike);
   }
-  const parsed = parseNative(entry.bytes);
-  const exportDoc = transformForExport(parsed.doc, {
-    includeComments: true,
-    includeAnalytics: true,
-    includeUndertags: true,
-    readMode: false,
-    markedCardsOnly: false,
+  return nativeBytesToDocx(entry.bytes, {
+    bodyFont: settings.get('bodyFont'),
     markUnreadAfterMarker: settings.get('markUnreadAfterMarker'),
-  });
-  return toDocx(exportDoc, {
-    ...(parsed.threads.length > 0 ? { threads: parsed.threads } : {}),
-    defaultFont: settings.get('bodyFont'),
     generator: DOCX_GENERATOR,
   });
 }

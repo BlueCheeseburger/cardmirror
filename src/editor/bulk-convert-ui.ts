@@ -13,7 +13,8 @@
  */
 
 import { zipSync } from 'fflate';
-import { fromDocxFull, parseNative, serializeNative, toDocx } from '../index.js';
+import { fromDocxFull, serializeNative } from '../index.js';
+import { nativeBytesToDocx } from './native-to-docx.js';
 import { getHost, getElectronHost } from './host/index.js';
 import { settings } from './settings.js';
 import { runWebFileTool } from './web-file-tools.js';
@@ -36,10 +37,12 @@ async function convertBytes(bytes: Uint8Array, dir: Direction): Promise<Uint8Arr
     const { doc, threads } = await fromDocxFull(bytes);
     return serializeNative(doc, threads.length ? { threads } : undefined);
   }
-  const { doc, threads } = parseNative(bytes);
-  return toDocx(doc, {
-    ...(threads.length ? { threads } : {}),
-    defaultFont: settings.get('bodyFont'),
+  // The ordinary export pipeline: comments/analytics/undertags kept,
+  // live views materialized, unread red not baked (a converted file is
+  // a working file).
+  return nativeBytesToDocx(bytes, {
+    bodyFont: settings.get('bodyFont'),
+    markUnreadAfterMarker: settings.get('markUnreadAfterMarker'),
   });
 }
 
