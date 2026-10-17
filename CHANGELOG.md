@@ -19,10 +19,12 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   detects Mac or Windows by itself and flags keys that two commands share.
 
 ### Fixed
+- **Recover Previous Version works for Word (.docx) documents.** Every version of a `.docx` showed "Unreadable version" and "could not be previewed". Versions of a `.docx` were being saved as the `.docx` zip, which the version list couldn't read. They now read (including the versions already saved), and new ones are stored in a form that previews and de-duplicates properly.
 - **Shortcuts no longer run on the document behind an open dialog.** With a dialog open (the keyboard shortcuts screen, Settings, Save As…), Ctrl/⌘+B, F9 and the like used to bold or underline the document behind it, and Ctrl/⌘+F opened Find there. They now do nothing to the document and show "Close this dialog first." File-level keys and Search Everything still work.
 - **A starred heading shows a filled star** in the outline (it was an outline star tinted gold).
 
 ### Changed
+- **The manual no longer describes the published web version** (its install-as-an-app steps, mobile layout, Chromebook notes and the upstream hosted link). This fork ships the desktop app; the browser build only runs from source.
 - **The minimize button (Alt + a pane's expand button) is now the expand icon with its arrows pointing inward**, instead of a hyphen.
 
 ## 1.15.0-bcb.6.1 — 2026-10-16

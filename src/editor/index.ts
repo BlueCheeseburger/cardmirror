@@ -9997,7 +9997,20 @@ async function runSaveFlowInner(): Promise<boolean> {
     // Version-history snapshot BEFORE the disk write is awaited: a save
     // whose destination folder hangs (cloud-sync placeholder) still
     // leaves a recoverable version in app data. Fire-and-forget.
-    maybeSnapshotVersion(docId, bytes, 'manual');
+    // A .docx document's snapshot is kept as .cmir (what the history store
+    // reads and dedupes), not as the zip it just wrote to disk.
+    maybeSnapshotVersion(
+      docId,
+      file.format === 'docx'
+        ? () =>
+            serializeForSave(
+              'cmir',
+              { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false, workingCopy: true },
+              docId,
+            )
+        : bytes,
+      'manual',
+    );
     try {
       // Watchdog: a write that HANGS (cloud-sync placeholder hydration
       // stalling — the silent-save field case) warns at 10s and offers
@@ -10348,7 +10361,18 @@ async function runAutosaveAttempt(): Promise<void> {
       activeSavedDocId(),
     );
     // Same pre-write snapshot as the manual save path (see there).
-    maybeSnapshotVersion(activeSavedDocId(), bytes, 'auto');
+    maybeSnapshotVersion(
+      activeSavedDocId(),
+      file.format === 'docx'
+        ? () =>
+            serializeForSave(
+              'cmir',
+              { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false, workingCopy: true },
+              activeSavedDocId(),
+            )
+        : bytes,
+      'auto',
+    );
     // Watchdog without the dialog — never a modal mid-typing; the
     // 10s warning chip still converts a hung autosave into feedback.
     try {

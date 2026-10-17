@@ -12,6 +12,22 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: Recover Previous Version showed every `.docx` version as unreadable (`version-history.ts`, `index.ts`)
+
+`maybeSnapshotVersion` was handed `serializeForSave`'s bytes, which are in the document's own format. For a `.docx`
+that is the zip, but the snapshot store names every file `.cmir` and the version list reads it back with
+`parseNative`, which throws on a zip — so the list said "Unreadable version" and the preview "could not be previewed".
+Reader: new `parseSnapshotBytes` sniffs `PK` and imports with `fromDocxFull`, so snapshots already on disk read.
+Writer: `maybeSnapshotVersion` now takes bytes or a function that makes them; for a `.docx` the save and autosave
+paths pass `() => serializeForSave('cmir', …)`, run only after the throttle says yes (no extra serialize per
+autosave), and the content hash in the snapshot name now de-duplicates (a re-zipped `.docx` never matched).
+
+### Changed: manual drops the published web version (`MANUAL.md`)
+
+Removed the install-the-web-app steps, the mobile-layout and "Collaboration on the web" sections, the Chromebook notes, the
+`cardmirror.app` / `lite.cardmirror.app` links, and the web-layout setting. "Desktop vs. web" became "Desktop and the
+browser build" (the browser build runs from source). `(web only)` markers stay where behavior differs in that build.
+
 ### Fixed: shortcuts ran on the document behind an open dialog (`index.ts`, `blocked-key.ts`)
 
 The global ribbon-key handler in `index.ts` had no dialog check: with the dialog focused (so the keydown never
