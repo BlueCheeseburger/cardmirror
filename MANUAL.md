@@ -54,9 +54,7 @@ they're described.
 
 Download the desktop app for Windows, macOS or Linux (AppImage, or `.pacman` for Arch) from this fork's
 [Releases page](https://github.com/BlueCheeseburger/cardmirror/releases).
-This fork doesn't publish CardMirror Lite builds. The
-[live web preview](https://cardmirror.app/) is the upstream project's hosted
-build, so it doesn't have this fork's additions. Full install
+This fork doesn't publish CardMirror Lite builds. Full install
 instructions — including the one-time "unsigned app" prompts on Windows and
 macOS — are in the project README.
 
@@ -64,55 +62,33 @@ Save often and keep a copy of anything critical in a second format —
 no editor is bug-free, and your own backups are the last line of
 defense.
 
-### Desktop vs. web
+### Desktop and the browser build
 
-You can run CardMirror two ways:
+This fork ships the **desktop app**, which is what you should use: fully
+offline, reads and writes files directly on your disk, supports autosave and
+crash recovery, and can search your file library.
 
-- **Desktop app** (recommended for tournaments). Fully offline, reads and
-  writes files directly on your disk, supports autosave and crash
-  recovery, and can search your file library.
-- **Web edition** (good for trying it out, or working from a Chromebook
-  or locked-down school machine). The same editor in a browser — and on
-  Chromium browsers you can **install it as an app** for most of the
-  desktop experience.
-
-**Installing the web edition as an app (Chrome / Edge / ChromeOS).** Open
-it and click the **Install** button in the address bar to run CardMirror in
-its own window — offline, and updating itself when you relaunch. On a
-Chromebook, this is the best way to run it. Installed, the web app covers
-most of the desktop experience; what follows is only what still differs.
-
-A few capabilities still need the **desktop app**: the background
+The same editor also runs in a browser when you [run it from
+source](https://github.com/BlueCheeseburger/cardmirror#5-run-the-web-edition)
+(`npm run dev`), which is how this fork is tested. That build isn't published,
+and a few things only work in the desktop app: the background
 **[file-library search](#the-search-everything-palette-mod-shift-space)**,
-**folder-wide** bulk operations (the web app runs Clean / Convert one
-file at a time instead),
-**[Send to Verbatim Flow](#14-send-to-verbatim-flow)**, and
-**[voice control](#15-voice-control)**. And saving in
-place needs a Chromium browser — in **Firefox and Safari** the editor runs
-but **[Save](#saving)** downloads a copy instead.
+**folder-wide** bulk operations (a browser runs Clean / Convert one file at a
+time instead), **[Send to Verbatim Flow](#14-send-to-verbatim-flow)**, and
+**[voice control](#15-voice-control)**. Saving in place needs a Chromium
+browser; in **Firefox and Safari** **[Save](#saving)** downloads a copy instead.
 
-Features that work in only one edition are marked **(desktop only)** or
-**(web only)** throughout, so you'll find the specifics in each relevant
-section as you read.
-
-**The web edition has a mobile layout.** Open CardMirror in a phone or
-tablet browser — or any browser window narrower than about 768px — and
-it switches to a view-first **mobile layout**: a slim top bar, the
-document full-bleed, a **Read** button for read mode (tap the page to
-drop or remove a reading marker), pinch-zoom, an outline drawer, and a
-touch-sized Settings page. **Use desktop layout** switches back to the
-full editor.
+Features that work in only one of the two are marked **(desktop only)** or
+**(web only)** throughout.
 
 ### CardMirror Lite
 
-**CardMirror Lite** is a third option, built for school-managed devices
+**CardMirror Lite** is a separate build, made for school-managed devices
 whose IT policies restrict AI tools or network access. It's the same
 editor — same files, same shortcuts, same formatting engine — with the
 network-dependent features removed from the build entirely: no AI
 features, no card sharing or co-editing, no account linking, no
-plugins, and no update checks. The web version at
-**lite.cardmirror.app** is locked down by a browser-enforced security
-policy so it cannot contact anything but its own address; the desktop
+plugins, and no update checks. The desktop
 version ("CardMirror Lite" installers on the upstream project's releases
 page — this fork doesn't build Lite) blocks
 network requests at the application level and installs alongside a
@@ -489,11 +465,10 @@ strikethrough is **Mod-Shift-X**).
 
 Use **F2** instead of Ctrl/Cmd-V when pasting card text from a webpage or
 PDF — this strips the source's styles, which will otherwise bloat your file. 
-On the desktop app and in Chromium browsers (Chrome /
-Edge / ChromeOS) F2 pastes immediately — the web edition reads the
-clipboard directly, so the first time it's used it will ask for permission. 
-**(Web only:)** where the browser won't grant clipboard
-access — including Firefox and Safari — F2 falls back to *arming* plain
+On the desktop app F2 pastes immediately.
+**(Web only:)** in a browser that grants clipboard access (Chromium) F2 pastes
+immediately too, after asking permission the first time; where it won't —
+including Firefox and Safari — F2 falls back to *arming* plain
 paste: the status bar shows a pill, and your next Ctrl/Cmd-V pastes as
 plain text.
 
@@ -574,7 +549,7 @@ key in Settings → Keybindings) rolls two steps into one: it pastes the
 clipboard's plain text and immediately runs a destructive condense (Alt-F3)
 over just what you pasted, merging its paragraphs into a single block. It's the
 quick way to drop in a quote you want condensed on arrival. Desktop only, since
-the web edition can't read the clipboard on a keypress.
+a browser can't read the clipboard on a keypress.
 
 ### Autocorrect: quotes, dashes, replacements, and capitalization
 
@@ -1697,7 +1672,7 @@ document stacks into the middle slot with the one you were reading on top,
 the far slot empties, and the two share the width by the same percentage.
 Opening a third document, expanding a slot, or emptying one hands the widths
 back to the normal layout. Desktop only — a browser cannot place its own
-windows, so the command does not appear in the web edition.
+windows.
 
 New Speech Document normally asks which slot to use. Turn on **Settings →
 General → Workspace → New speech documents open on the speech doc side** (off
@@ -1804,9 +1779,7 @@ There are two collaboration features: **card sharing** (send cards to
 another machine) and **co-editing** (edit a document together in real time).
 Both are off until you enable them, and both are end-to-end encrypted — the
 relay server that passes traffic along sees only scrambled data. Both work
-in the desktop app and the web editor (see
-**[Collaboration on the web](#collaboration-on-the-web)** below); the web
-edition's mobile layout has neither.
+in the desktop app.
 
 ### Setting up
 
@@ -1972,39 +1945,6 @@ into it in the meantime. Delete removes it, Esc cancels, and copying or
 pasting anything else ends the cut. Pasting into another document inserts
 a copy there and removes the original when that document is open in the
 same window. Cutting text inside a card works as usual.
-
-### Collaboration on the web
-
-Everything above works in the web editor on a desktop-layout browser —
-including a Chromebook, and including the installed web app. The
-differences:
-
-- **Invite links.** Starting a session on the web copies an **invite
-  link** (`https://cardmirror.app/#join=…`) instead of a bare share
-  code; on any edition, **Copy Session Invite Link** produces one for
-  the current session. Opening the link in a desktop-layout browser
-  offers the join directly — no account, no setup; pasting it into the
-  **Join or Rejoin Collaboration Session** dialog works too, so a Chromebook with
-  the app already open can join from a link received in a chat. Treat
-  the link like the document itself: it carries the session's
-  encryption key, and anyone holding it can join. A guest who closes
-  the tab can rejoin later from **Sessions** on the home screen — same
-  browser, same profile.
-- **Your account lives in the browser profile.** Card sharing (both
-  sending and receiving) and *hosting* sessions on the web need your
-  Debate Decoded account linked from Settings → Collaboration — the
-  same connect-code flow as desktop, and a linked browser counts as one
-  of your membership's machines. The link is stored in that browser
-  profile, so a private/incognito window or clearing site data leaves
-  it behind (relink to recover; the seat is reclaimed, not lost).
-- **Tabs coordinate.** With several CardMirror tabs open, incoming
-  cards arrive exactly once — whichever tab is leading receives for all
-  of them, the same way the timer and send-to-speech already cooperate
-  across tabs.
-
-Phones and small screens get the mobile layout, which has no
-collaboration; an invite link opened there explains it needs a
-computer. CardMirror Lite has no collaboration in either edition.
 
 ### Privacy and self-hosting
 
@@ -2957,7 +2897,7 @@ text as its page on GitHub. **Got it** (or Enter or Esc) closes it, **View on
 GitHub** opens the release page, and links inside open in your browser. It
 shows once per version. It needs a connection to fetch the notes: offline,
 nothing appears and it tries again at the next launch. A fresh install doesn't
-show one, and the Lite build and the web edition never do.
+show one, and the Lite build never does.
 
 **(fork) Plugins update the same way.** Every time CardMirror checks
 itself for updates (at launch, then hourly while the app is in the
@@ -3031,9 +2971,6 @@ headers shown inside each tab.
 - **Multi-doc layout** — with three docs open, show all three at once
   (compact) or two-and-a-bit with click-to-snap (wide). No effect with
   one or two docs.
-- **Layout on this device** *(web)* — which layout the web edition uses:
-  Auto picks the view-first mobile layout on narrow or touch screens;
-  Mobile / Desktop force one. Changing this reloads the page.
 
 **Editor behavior**
 
