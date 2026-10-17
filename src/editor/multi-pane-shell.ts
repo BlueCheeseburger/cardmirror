@@ -2426,6 +2426,25 @@ class MultiPaneShell {
     setActiveView(rec.view);
   }
 
+  /** Any open record with unsaved edits? (web unload prompt) */
+  anyDirty(): boolean {
+    return SLOT_IDS.some((id) => this.slots[id].stack.some((rec) => rec.dirty));
+  }
+
+  /** Flush every pending debounced journal NOW (page is being hidden /
+   *  closed): cancel the timers and fire the writes immediately. */
+  flushJournals(): void {
+    for (const id of SLOT_IDS) {
+      for (const rec of this.slots[id].stack) {
+        if (rec.journalTimer === null) continue;
+        window.clearTimeout(rec.journalTimer);
+        rec.journalTimer = null;
+        const prev = recordJournalChains.get(rec) ?? Promise.resolve();
+        recordJournalChains.set(rec, prev.then(() => runJournalForRecord(rec)).then(() => undefined).catch(() => undefined));
+      }
+    }
+  }
+
   /** Clean token for the focused pane — captured by the single-doc
    *  save flows right before they serialize, committed after the write
    *  lands. Pins the RECORD as well as the generation, so a save that
@@ -3981,6 +4000,8 @@ export function mountMultiPaneShell(): void {
     promptSaveAllForQuit: () => shell!.promptSaveAllForQuit(),
     onRecoveredDoc: (entry) => shell!.onRecoveredDoc(entry),
     journalAll: () => shell!.journalAll(),
+    anyDirty: () => shell!.anyDirty(),
+    flushJournals: () => shell!.flushJournals(),
     reduceToFocusedForModeSwitch: () => shell!.reduceToFocusedForModeSwitch(),
     getOpenHandles: () => shell!.getAllHandles(),
     toggleAllNav: () => shell!.toggleAllNav(),

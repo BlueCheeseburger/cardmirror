@@ -1136,6 +1136,9 @@ let multiDocFindViewForDocId: ((docId: string) => EditorView | null) | null = nu
  *  successful save in multi-doc mode. The shell knows the
  *  DocRecord's uid; the editor only knows it has a focused doc. */
 let multiDocCaptureFocusedCleanToken: (() => (() => boolean) | null) | null = null;
+/** Web unload hooks: any unsaved pane, and flush pending journals now. */
+let multiDocAnyDirty: (() => boolean) | null = null;
+let multiDocFlushJournals: (() => void) | null = null;
 /** Mode-switch hook: journal every open DocRecord across every
  *  slot's stack so the auto-recover-on-reload flow can rebuild
  *  the workspace in the new layout. Returns each doc's uid +
@@ -1214,6 +1217,8 @@ export function enableMultiDocMode(opts: {
   setFileForUid?: (uid: string, file: { filename: string; handle: unknown | null; format: 'cmir' | 'docx' | null }) => void;
   setFocusedDocId?: (docId: string) => void;
   setDocIdForUid?: (uid: string, docId: string) => void;
+  anyDirty?: () => boolean;
+  flushJournals?: () => void;
   /** Live view of any pane holding `docId` (focused or background), or null. */
   findViewForDocId?: (docId: string) => EditorView | null;
   getAllFilenames?: () => (string | null)[];
@@ -1288,6 +1293,8 @@ export function enableMultiDocMode(opts: {
   multiDocSetFilenameForUid = opts.setFilenameForUid ?? null;
   multiDocPromptSaveAllForQuit = opts.promptSaveAllForQuit ?? null;
   multiDocCaptureFocusedCleanToken = opts.captureFocusedCleanToken ?? null;
+  multiDocAnyDirty = opts.anyDirty ?? null;
+  multiDocFlushJournals = opts.flushJournals ?? null;
   multiDocOnRecoveredDoc = opts.onRecoveredDoc ?? null;
   multiDocJournalAll = opts.journalAll ?? null;
   multiDocReduceToFocused = opts.reduceToFocusedForModeSwitch ?? null;
@@ -3049,6 +3056,40 @@ function refreshFlashcardDueDot(): void {
   manageFlashcardsBtn.classList.toggle('pmd-ribbon-due-dot', show);
 }
 learnStore.subscribe(refreshFlashcardDueDot);
+// Web edition only: the desktop app's main process owns quit/close (its own
+// save prompt and journal handling via pagehide). In a browser tab nothing
+// stood between "close tab" and losing everything since the last 3 s quiet
+// gap (audit 18): ask before unloading with unsaved edits, and when the page
+// is hidden or unloading, fire any pending journal write immediately instead
+// of waiting out the debounce.
+if (!getElectronHost()) {
+  const anyDirty = (): boolean =>
+    multiDocActive ? (multiDocAnyDirty?.() ?? false) : currentDocDirty;
+  const flushJournals = (): void => {
+    if (multiDocActive) {
+      multiDocFlushJournals?.();
+      return;
+    }
+    if (journalTimer === null) return;
+    window.clearTimeout(journalTimer);
+    journalTimer = null;
+    journalWriteChain = journalWriteChain
+      .then(() => runJournalWrite())
+      .then(() => undefined)
+      .catch((err) => console.warn('Journal write crashed:', err));
+  };
+  window.addEventListener('beforeunload', (e) => {
+    if (!anyDirty()) return;
+    e.preventDefault();
+    // Legacy browsers read the return value; modern ones show their own text.
+    e.returnValue = '';
+  });
+  window.addEventListener('pagehide', flushJournals);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushJournals();
+  });
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') refreshFlashcardDueDot();
 });
