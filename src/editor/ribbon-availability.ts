@@ -65,6 +65,8 @@ const AI_COMMANDS = new Set<RibbonCommandId>([
   'translate',
   'repairText',
   'repairFormatting',
+  'aiCrossEx',
+  'aiCredibility',
 ]);
 
 export function isRibbonCommandAvailable(id: RibbonCommandId): boolean {

@@ -12,6 +12,22 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: AI revamp — Cross-Ex Practice, Card Credibility, highlight warnings (`src/editor/ai/`)
+
+New modules, no changes to the existing AI features. `tiers.ts` picks a model per tier for the active provider
+(`lite` for grading, `balanced` for generation/scoring; a Gemini Flash Lite override is bumped to Flash for scoring;
+OpenRouter always uses the user's model) and holds `parseJsonLoose`. `card-analysis.ts` reads each `card` node into
+tag / cite / body words / highlighted words / read text (highlight, underline, emphasis) / small text, cached on the
+immutable card node, and computes the highlight-ratio outliers (>= 4 cards with >= 20 body words, 1.5 SD, skipped when
+SD < 0.05). `crossex.ts` and `credibility.ts` hold prompts, input assembly (40,000 highlighted / 60,000 total character
+caps with a confirm before trimming), parsing and the model calls; the model replies in JSON and every parser drops
+malformed entries rather than inventing them (a skipped credibility card is left out, never scored 0). `ai-panel-ui.ts`
+is one right-hand drawer with two modes; `ai-panel-store.ts` keeps questions, traps, scores (keyed by a fingerprint of
+all card tags + count) and dismissed warnings in localStorage per document id. Ribbon commands `aiCrossEx` and
+`aiCredibility` (unbound) plus two buttons in the comments cluster, hidden while AI is off. The outline shows the amber
+badge through a new optional `docKey` on `NavigationPanel`. The event guides are short built-in texts, not external
+skill files. Tests: `tests/editor/ai-panels.test.ts`.
+
 ### Fixed: Recover Previous Version showed every `.docx` version as unreadable (`version-history.ts`, `index.ts`)
 
 `maybeSnapshotVersion` was handed `serializeForSave`'s bytes, which are in the document's own format. For a `.docx`

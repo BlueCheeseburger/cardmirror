@@ -1884,6 +1884,10 @@ body.pmd-multi-doc #autosave-btn { display: none; }
 .ribbon-doc-ops-panel-3col {
   grid-template-columns: auto auto auto;
 }
+/* With AI on, the Cross-Ex and Credibility buttons make it 4 across. */
+#comments-ops-panel:has(#ai-crossex-btn:not([hidden])) {
+  grid-template-columns: auto auto auto auto;
+}
 /* Custom buttons vary in count (0–10): fill column-major (2 per column,
    adding columns rightward) so a few buttons stay compact instead of leaving
    a gappy half-empty row. Columns beyond the -3col template are implicit
@@ -18249,3 +18253,93 @@ body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
 .pmd-kbmap-others { grid-column: 1 / -1; list-style: none; margin: 0.25rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 0.82rem; }
 .pmd-kbmap-others li { display: flex; gap: 0.6rem; align-items: baseline; }
 .pmd-kbmap-kc { font-family: var(--pmd-mono-font, ui-monospace, monospace); font-size: 0.72rem; background: var(--pmd-c-surface); border: 1px solid var(--pmd-c-border); border-radius: 5px; padding: 0 0.35rem; white-space: nowrap; }
+
+/* AI drawer: Cross-Ex Practice + Card Credibility. */
+.pmd-aip {
+  position: fixed;
+  top: var(--pmd-aip-top, 140px);
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  max-width: 100vw;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  background: var(--pmd-c-bg, #fff);
+  color: var(--pmd-c-text, #222);
+  border-left: 1px solid var(--pmd-c-border, #d0d0d0);
+  box-shadow: -4px 0 14px rgba(0, 0, 0, 0.12);
+}
+.pmd-aip-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--pmd-c-border, #d0d0d0);
+}
+.pmd-aip-title { flex: 1 1 auto; font-weight: 600; }
+.pmd-aip-actions { display: flex; align-items: center; gap: 0.4rem; }
+.pmd-aip-icon-btn { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0.25rem; border-radius: 4px; }
+.pmd-aip-icon-btn:hover { background: rgba(127, 127, 127, 0.18); }
+.pmd-aip-body { flex: 1 1 auto; overflow-y: auto; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.pmd-aip-select, .pmd-aip-textarea {
+  font: inherit; color: inherit; background: var(--pmd-c-bg, #fff);
+  border: 1px solid var(--pmd-c-border, #c4c4c4); border-radius: 4px; padding: 0.2rem 0.4rem;
+}
+.pmd-aip-textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+.pmd-aip-bar, .pmd-aip-q-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.pmd-aip-btn {
+  font: inherit; color: inherit; cursor: pointer; padding: 0.35rem 0.75rem;
+  border: 1px solid var(--pmd-c-border, #c4c4c4); border-radius: 5px; background: transparent;
+}
+.pmd-aip-btn:hover:not(:disabled) { background: rgba(127, 127, 127, 0.14); }
+.pmd-aip-btn:disabled { opacity: 0.55; cursor: default; }
+.pmd-aip-btn-primary { background: #1d5fd1; border-color: #1d5fd1; color: #fff; }
+.pmd-aip-btn-primary:hover:not(:disabled) { background: #1a53b8; }
+.pmd-aip-btn-small { padding: 0.2rem 0.55rem; font-size: 0.85em; }
+.pmd-aip-link { border: 0; background: none; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
+.pmd-aip-notice { background: #fff3cd; color: #5c4400; border: 1px solid #f0d27a; border-radius: 5px; padding: 0.4rem 0.6rem; font-size: 0.85em; }
+.pmd-aip-empty { margin: 0; font-size: 0.85em; color: var(--pmd-c-text-muted, #666); }
+.pmd-aip-side { font-weight: 700; font-size: 0.8em; letter-spacing: 0.05em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 4px; color: #fff; align-self: flex-start; }
+.pmd-aip-side-aff { background: #1d5fd1; }
+.pmd-aip-side-neg { background: #c62828; }
+.pmd-aip-q { border: 1px solid var(--pmd-c-border, #d0d0d0); border-radius: 6px; padding: 0.6rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.pmd-aip-q-text { margin: 0; line-height: 1.4; }
+.pmd-aip-chip { align-self: flex-start; border: 0; background: rgba(29, 95, 209, 0.12); color: #1d5fd1; border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.8em; cursor: pointer; }
+.pmd-aip-chip:hover { background: rgba(29, 95, 209, 0.22); }
+.pmd-aip-answer, .pmd-aip-press { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.45rem 0.6rem; border-radius: 5px; background: rgba(127, 127, 127, 0.12); font-size: 0.9em; }
+.pmd-aip-press { background: rgba(29, 95, 209, 0.1); }
+.pmd-aip-press-red { background: rgba(198, 40, 40, 0.1); }
+.pmd-aip-press-label { font-size: 0.72em; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--pmd-c-text-muted, #666); }
+.pmd-aip-trap-count { font-size: 0.75em; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--pmd-c-text-muted, #666); }
+.pmd-aip-grade { padding: 0.45rem 0.6rem; border-radius: 5px; font-size: 0.9em; }
+.pmd-aip-grade-avoided { background: rgba(46, 125, 50, 0.15); }
+.pmd-aip-grade-fell { background: rgba(198, 40, 40, 0.15); }
+.pmd-aip-grade-partial { background: rgba(237, 162, 0, 0.18); }
+.pmd-aip-cred-head { font-size: 0.85em; color: var(--pmd-c-text-muted, #666); }
+.pmd-aip-cred { border: 1px solid var(--pmd-c-border, #d0d0d0); border-radius: 6px; overflow: hidden; }
+.pmd-aip-cred-top { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.5rem 0.6rem; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.pmd-aip-cred-top:hover { background: rgba(127, 127, 127, 0.1); }
+.pmd-aip-score { flex: 0 0 auto; min-width: 2rem; height: 2rem; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: #fff; font-weight: 700; }
+.pmd-aip-score-good { background: #2e7d32; }
+.pmd-aip-score-ok { background: #1d5fd1; }
+.pmd-aip-score-warn { background: #d98a00; }
+.pmd-aip-score-bad { background: #c62828; }
+.pmd-aip-cred-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.pmd-aip-verdict { font-size: 0.72em; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--pmd-c-text-muted, #666); }
+.pmd-aip-cred-tag { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
+.pmd-aip-cred-detail { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.2rem 0.6rem 0.6rem; }
+.pmd-aip-bar-row { display: grid; grid-template-columns: 4.5rem 1fr 1.5rem; align-items: center; gap: 0.5rem; font-size: 0.85em; }
+.pmd-aip-bar-track { height: 0.5rem; border-radius: 3px; background: rgba(127, 127, 127, 0.2); overflow: hidden; }
+.pmd-aip-bar-fill { display: block; height: 100%; }
+.pmd-aip-reason { margin: 0; font-size: 0.9em; }
+.pmd-aip-flash { animation: pmd-aip-flash 1.8s ease-out; }
+@keyframes pmd-aip-flash { 0%, 40% { background: rgba(29, 95, 209, 0.28); } 100% { background: transparent; } }
+
+/* Outline: highlight-ratio warning badge. */
+.pmd-nav-hl-warn {
+  flex: 0 0 auto; align-self: center; margin-right: 0.25rem;
+  width: 1.05em; height: 1.05em; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.7em; font-weight: 700; background: #f0b429; color: #4a3500; cursor: help;
+}

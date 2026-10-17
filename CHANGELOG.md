@@ -11,6 +11,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 ## Unreleased
 
 ### Added
+- **Cross-Ex Practice (AI side panel).** Writes 3 to 6 questions an opponent would ask about the highlighted and underlined text in your file, split under Aff and Neg headers when the file has both. Each question has a clickable cite that jumps to the card, a hidden model answer, a **Press next** follow-up, and **3 more like this**. **Build trap drill** gives three setup questions where a careless answer walks into a follow-up; type your answer and it grades you. Saved per document.
+- **Card Credibility (AI side panel).** Scores every card 0–10 from its tag and cite only (author, recency, source, claim fit), with a reason, a red **Press** attack and **Go to card**. Cached per document; **Re-score** refreshes it.
+- **Highlight warnings.** Cards highlighted much more or less than the rest of the document get an amber **!** in the outline (no AI needed); dismiss any per document.
 - **Keyboard map on the Keyboard shortcuts screen.** A picture of your keyboard
   with the command on each key. ⌘ ⌃ ⌥ ⇧ (or ctrl, alt, shift) switch the layer; click
   them or hold the real keys. It reads your live bindings, so your own keybinds,
