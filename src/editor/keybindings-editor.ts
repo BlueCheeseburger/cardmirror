@@ -186,6 +186,39 @@ function validateKey(key: string, raw: KeyboardEvent): string | null {
   return null;
 }
 
+/** Bind `key` to command `id` from outside the editor's own capture flow
+ *  (the keyboard map). Same rules as capture: reserved keys and bare
+ *  single characters are refused, and the key is taken away from any other
+ *  command that had it. Returns an error message, or the command the key
+ *  was taken from (if any). */
+export function bindKeyToCommand(
+  id: AnyCommandId,
+  key: string,
+): { error: string } | { displaced: AnyCommandId | null } {
+  const final = key.replace(/^((Mod|Ctrl|Alt|Shift)-)*/, '');
+  const hasMod = /(^|-)(Mod|Ctrl|Alt)-/.test(key);
+  if (['Escape', 'Tab', 'Enter', 'Space'].includes(final)) return { error: 'That key is reserved.' };
+  if (final.length === 1 && !hasMod) {
+    return { error: `Single-character keys must include ${ctrlOrCmdWord()}/Alt.` };
+  }
+  const conflict = findConflict(key, id);
+  if (conflict) removeKeyFromCommand(conflict, key);
+  const next = [...resolvedKeys(id)];
+  if (!next.includes(key)) next.push(key);
+  setOverrideKeys(id, next);
+  return { displaced: conflict };
+}
+
+/** Take `key` off command `id` (the keyboard map's Remove). */
+export function unbindKeyFromCommand(id: AnyCommandId, key: string): void {
+  removeKeyFromCommand(id, key);
+}
+
+/** Unbind a keyboard macro's key (the macro itself stays). */
+export function clearMacroKey(id: string): void {
+  setMacroKey(id, '');
+}
+
 export function buildKeybindingsEditor(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-keybindings-editor';

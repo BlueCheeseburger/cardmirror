@@ -10,10 +10,25 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+- **Cross-Ex Practice (AI side panel).** Writes 3 to 6 questions an opponent would ask about your file. It sends the headings, tags, full cites and highlighted text only (never the unhighlighted card text), and splits questions under Aff and Neg headers when the file has both. Each question has a clickable cite that jumps to the card, a hidden model answer, a **Press next** follow-up, and **3 more like this**. **Build trap drill** gives three setup questions where a careless answer walks into a follow-up; type your answer and it grades you. Saved per document.
+- **Card Credibility (AI side panel).** Scores every card 0–10 from its tag and cite only (author, recency, source, tag fit), with a reason of up to 20 words and **Jump to card**. Shaky and Weak cards also get a red **Press** attack. Recency only drops when something has changed since the piece was written, so old theory that still holds scores fine. Colours: Strong blue, Solid green, Shaky amber, Weak red. Cached per document; **Re-score** refreshes it.
+- **AI replies stream in.** Comment AI replies, the deeper analysis, Cross-Ex questions and Card Credibility scores now appear as they are written instead of all at once (Anthropic, Gemini and OpenRouter). Cross-Ex and Credibility text can use **bold** and *italic*.
+- **Deeper analysis (Card Credibility).** Opens one card full screen next to a conversation with the AI. It continues the scoring exchange, asks why the card got its score, and gives the AI a policy debate reference and the whole card; replies come formatted (headings, bold, lists), and you can keep asking follow-ups. Saved per card.
+- **Keyboard map on the Keyboard shortcuts screen.** A picture of your keyboard
+  with the command on each key. ⌘ ⌃ ⌥ ⇧ (or ctrl, alt, shift) switch the layer; click
+  them or hold the real keys. It reads your live bindings, so your own keybinds,
+  plugin commands and keyboard macros show up and update straight away. Click a
+  key for details, **Remove** a binding, or pick a command for a free key. It
+  detects Mac or Windows by itself and flags keys that two commands share.
+
 ### Fixed
+- **Recover Previous Version works for Word (.docx) documents.** Every version of a `.docx` showed "Unreadable version" and "could not be previewed". Versions of a `.docx` were being saved as the `.docx` zip, which the version list couldn't read. They now read (including the versions already saved), and new ones are stored in a form that previews and de-duplicates properly.
+- **Shortcuts no longer run on the document behind an open dialog.** With a dialog open (the keyboard shortcuts screen, Settings, Save As…), Ctrl/⌘+B, F9 and the like used to bold or underline the document behind it, and Ctrl/⌘+F opened Find there. They now do nothing to the document and show "Close this dialog first." File-level keys and Search Everything still work.
 - **A starred heading shows a filled star** in the outline (it was an outline star tinted gold).
 
 ### Changed
+- **The manual no longer describes the published web version** (its install-as-an-app steps, mobile layout, Chromebook notes and the upstream hosted link). This fork ships the desktop app; the browser build only runs from source.
 - **The minimize button (Alt + a pane's expand button) is now the expand icon with its arrows pointing inward**, instead of a hyphen.
 
 ## 1.15.0-bcb.6.1 — 2026-10-16

@@ -4651,6 +4651,8 @@ export type RibbonCommandId =
   | 'translate'
   | 'repairText'
   | 'repairFormatting'
+  | 'aiCrossEx'
+  | 'aiCredibility'
   | 'repairParagraphIntegrity'
   | 'sendToFlowColumn'
   | 'sendToFlowCell'
@@ -4927,6 +4929,8 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'translate',
   'repairText',
   'repairFormatting',
+  'aiCrossEx',
+  'aiCredibility',
   'repairParagraphIntegrity',
   'sendToFlowColumn',
   'sendToFlowCell',
@@ -5148,6 +5152,8 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   translate: 'Translate Selection to Clipboard (AI)',
   repairText: 'Repair OCR/PDF Text (AI)',
   repairFormatting: 'Repair Formatting (AI)',
+  aiCrossEx: 'Cross-Ex Practice (AI)',
+  aiCredibility: 'Card Credibility (AI)',
   repairParagraphIntegrity: 'Repair Paragraph Integrity',
   sendToFlowColumn: 'Send to Flow (one cell per line)',
   sendToFlowCell: 'Send to Flow (single cell)',
@@ -5583,6 +5589,8 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   translate: 'Mod-Shift-t',
   repairText: 'Mod-Shift-r',
   repairFormatting: 'Mod-Alt-r',
+  aiCrossEx: '',
+  aiCredibility: '',
   // No default binding — rebindable in Settings → Keyboard shortcuts.
   repairParagraphIntegrity: '',
   sendToFlowColumn: '',
@@ -5869,6 +5877,9 @@ export interface RibbonContext {
   repairText: () => void;
   /** Repair body-text formatting (underline/emphasis/highlight scheme). */
   repairFormatting: () => void;
+  /** Open the Cross-Ex Practice / Card Credibility side panels. */
+  openCrossEx: () => void;
+  openCredibility: () => void;
   /** Open the Repair Paragraph Integrity workflow on the current card. */
   openRepairParagraph: () => void;
   /** Verbatim Flow (Windows COM → Excel). Send selected blocks / pull
@@ -6093,6 +6104,8 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   translate: () => {},
   repairText: () => {},
   repairFormatting: () => {},
+  openCrossEx: () => {},
+  openCredibility: () => {},
   openRepairParagraph: () => {},
   sendToFlowColumn: () => {},
   sendToFlowCell: () => {},
@@ -6463,6 +6476,18 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         if (state.selection.empty) return false;
         if (!dispatch) return true;
         ctx.repairFormatting();
+        return true;
+      };
+    case 'aiCrossEx':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.openCrossEx();
+        return true;
+      };
+    case 'aiCredibility':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.openCredibility();
         return true;
       };
     case 'repairParagraphIntegrity':

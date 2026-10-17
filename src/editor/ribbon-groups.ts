@@ -259,6 +259,8 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'translate',
       'repairText',
       'repairFormatting',
+      'aiCrossEx',
+      'aiCredibility',
     ],
   },
   {

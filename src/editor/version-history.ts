@@ -31,6 +31,7 @@ import { isTopOverlay, popOverlay, pushOverlay } from './overlay-stack.js';
 import { settings } from './settings.js';
 import { showToast } from './toast.js';
 import { parseNative } from '../native/index.js';
+import { fromDocxFull } from '../import/index.js';
 import { countReadAloudWords } from './word-count.js';
 import { NavigationPanel } from './nav-panel.js';
 import { isBackdropClick } from './backdrop-click.js';
@@ -97,9 +98,13 @@ export function currentHistoryPolicy(): TierPolicy | null {
 
 export type SnapshotTrigger = 'manual' | 'auto' | 'close';
 
+/** Snapshot bytes, or a function that makes them. The function form lets a
+ *  caller defer an expensive serialize until the throttle has said yes. */
+export type SnapshotBytes = Uint8Array | (() => Promise<Uint8Array>);
+
 export function maybeSnapshotVersion(
   docId: string | null | undefined,
-  bytes: Uint8Array,
+  bytes: SnapshotBytes,
   trigger: SnapshotTrigger,
 ): void {
   if (!docId) return; // never-saved drafts are the journal's job
@@ -111,18 +116,31 @@ export function maybeSnapshotVersion(
   const last = lastAttemptAt.get(docId) ?? 0;
   if (now - last < policy.minIntervalMs) return;
   lastAttemptAt.set(docId, now);
-  void host
-    .historySnapshot(
-      docId,
-      bytes,
-      {
-        retentionDays: policy.retentionDays,
-        maxDocBytes: policy.maxDocBytes,
-        maxTotalBytes: policy.maxTotalBytes,
-      },
-      trigger,
+  void Promise.resolve(typeof bytes === 'function' ? bytes() : bytes)
+    .then((b) =>
+      host.historySnapshot(
+        docId,
+        b,
+        {
+          retentionDays: policy.retentionDays,
+          maxDocBytes: policy.maxDocBytes,
+          maxTotalBytes: policy.maxTotalBytes,
+        },
+        trigger,
+      ),
     )
     .catch(() => {});
+}
+
+/** Read a stored snapshot. Snapshots are `.cmir`, but earlier builds stored
+ *  a `.docx` document's snapshots as the `.docx` bytes themselves (a zip,
+ *  `PK`), which `parseNative` rejects, so every version of such a document
+ *  showed as unreadable. Read those through the Word importer. */
+export async function parseSnapshotBytes(bytes: Uint8Array): Promise<PMNode> {
+  if (bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b) {
+    return (await fromDocxFull(bytes)).doc;
+  }
+  return parseNative(bytes).doc;
 }
 
 // ─── Solo version list (Recover Previous Version branch) ───────────
@@ -400,7 +418,7 @@ export async function openVersionSnapshotDialog(
     const bytes = await host.historyRead(docId, id);
     if (!bytes) return null;
     try {
-      return { doc: parseNative(bytes).doc, bytes };
+      return { doc: await parseSnapshotBytes(bytes), bytes };
     } catch {
       return null;
     }

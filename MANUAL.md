@@ -54,9 +54,7 @@ they're described.
 
 Download the desktop app for Windows, macOS or Linux (AppImage, or `.pacman` for Arch) from this fork's
 [Releases page](https://github.com/BlueCheeseburger/cardmirror/releases).
-This fork doesn't publish CardMirror Lite builds. The
-[live web preview](https://cardmirror.app/) is the upstream project's hosted
-build, so it doesn't have this fork's additions. Full install
+This fork doesn't publish CardMirror Lite builds. Full install
 instructions — including the one-time "unsigned app" prompts on Windows and
 macOS — are in the project README.
 
@@ -64,55 +62,33 @@ Save often and keep a copy of anything critical in a second format —
 no editor is bug-free, and your own backups are the last line of
 defense.
 
-### Desktop vs. web
+### Desktop and the browser build
 
-You can run CardMirror two ways:
+This fork ships the **desktop app**, which is what you should use: fully
+offline, reads and writes files directly on your disk, supports autosave and
+crash recovery, and can search your file library.
 
-- **Desktop app** (recommended for tournaments). Fully offline, reads and
-  writes files directly on your disk, supports autosave and crash
-  recovery, and can search your file library.
-- **Web edition** (good for trying it out, or working from a Chromebook
-  or locked-down school machine). The same editor in a browser — and on
-  Chromium browsers you can **install it as an app** for most of the
-  desktop experience.
-
-**Installing the web edition as an app (Chrome / Edge / ChromeOS).** Open
-it and click the **Install** button in the address bar to run CardMirror in
-its own window — offline, and updating itself when you relaunch. On a
-Chromebook, this is the best way to run it. Installed, the web app covers
-most of the desktop experience; what follows is only what still differs.
-
-A few capabilities still need the **desktop app**: the background
+The same editor also runs in a browser when you [run it from
+source](https://github.com/BlueCheeseburger/cardmirror#5-run-the-web-edition)
+(`npm run dev`), which is how this fork is tested. That build isn't published,
+and a few things only work in the desktop app: the background
 **[file-library search](#the-search-everything-palette-mod-shift-space)**,
-**folder-wide** bulk operations (the web app runs Clean / Convert one
-file at a time instead),
-**[Send to Verbatim Flow](#14-send-to-verbatim-flow)**, and
-**[voice control](#15-voice-control)**. And saving in
-place needs a Chromium browser — in **Firefox and Safari** the editor runs
-but **[Save](#saving)** downloads a copy instead.
+**folder-wide** bulk operations (a browser runs Clean / Convert one file at a
+time instead), **[Send to Verbatim Flow](#14-send-to-verbatim-flow)**, and
+**[voice control](#15-voice-control)**. Saving in place needs a Chromium
+browser; in **Firefox and Safari** **[Save](#saving)** downloads a copy instead.
 
-Features that work in only one edition are marked **(desktop only)** or
-**(web only)** throughout, so you'll find the specifics in each relevant
-section as you read.
-
-**The web edition has a mobile layout.** Open CardMirror in a phone or
-tablet browser — or any browser window narrower than about 768px — and
-it switches to a view-first **mobile layout**: a slim top bar, the
-document full-bleed, a **Read** button for read mode (tap the page to
-drop or remove a reading marker), pinch-zoom, an outline drawer, and a
-touch-sized Settings page. **Use desktop layout** switches back to the
-full editor.
+Features that work in only one of the two are marked **(desktop only)** or
+**(web only)** throughout.
 
 ### CardMirror Lite
 
-**CardMirror Lite** is a third option, built for school-managed devices
+**CardMirror Lite** is a separate build, made for school-managed devices
 whose IT policies restrict AI tools or network access. It's the same
 editor — same files, same shortcuts, same formatting engine — with the
 network-dependent features removed from the build entirely: no AI
 features, no card sharing or co-editing, no account linking, no
-plugins, and no update checks. The web version at
-**lite.cardmirror.app** is locked down by a browser-enforced security
-policy so it cannot contact anything but its own address; the desktop
+plugins, and no update checks. The desktop
 version ("CardMirror Lite" installers on the upstream project's releases
 page — this fork doesn't build Lite) blocks
 network requests at the application level and installs alongside a
@@ -489,11 +465,10 @@ strikethrough is **Mod-Shift-X**).
 
 Use **F2** instead of Ctrl/Cmd-V when pasting card text from a webpage or
 PDF — this strips the source's styles, which will otherwise bloat your file. 
-On the desktop app and in Chromium browsers (Chrome /
-Edge / ChromeOS) F2 pastes immediately — the web edition reads the
-clipboard directly, so the first time it's used it will ask for permission. 
-**(Web only:)** where the browser won't grant clipboard
-access — including Firefox and Safari — F2 falls back to *arming* plain
+On the desktop app F2 pastes immediately.
+**(Web only:)** in a browser that grants clipboard access (Chromium) F2 pastes
+immediately too, after asking permission the first time; where it won't —
+including Firefox and Safari — F2 falls back to *arming* plain
 paste: the status bar shows a pill, and your next Ctrl/Cmd-V pastes as
 plain text.
 
@@ -574,7 +549,7 @@ key in Settings → Keybindings) rolls two steps into one: it pastes the
 clipboard's plain text and immediately runs a destructive condense (Alt-F3)
 over just what you pasted, merging its paragraphs into a single block. It's the
 quick way to drop in a quote you want condensed on arrival. Desktop only, since
-the web edition can't read the clipboard on a keypress.
+a browser can't read the clipboard on a keypress.
 
 ### Autocorrect: quotes, dashes, replacements, and capitalization
 
@@ -1697,7 +1672,7 @@ document stacks into the middle slot with the one you were reading on top,
 the far slot empties, and the two share the width by the same percentage.
 Opening a third document, expanding a slot, or emptying one hands the widths
 back to the normal layout. Desktop only — a browser cannot place its own
-windows, so the command does not appear in the web edition.
+windows.
 
 New Speech Document normally asks which slot to use. Turn on **Settings →
 General → Workspace → New speech documents open on the speech doc side** (off
@@ -1804,9 +1779,7 @@ There are two collaboration features: **card sharing** (send cards to
 another machine) and **co-editing** (edit a document together in real time).
 Both are off until you enable them, and both are end-to-end encrypted — the
 relay server that passes traffic along sees only scrambled data. Both work
-in the desktop app and the web editor (see
-**[Collaboration on the web](#collaboration-on-the-web)** below); the web
-edition's mobile layout has neither.
+in the desktop app.
 
 ### Setting up
 
@@ -1972,39 +1945,6 @@ into it in the meantime. Delete removes it, Esc cancels, and copying or
 pasting anything else ends the cut. Pasting into another document inserts
 a copy there and removes the original when that document is open in the
 same window. Cutting text inside a card works as usual.
-
-### Collaboration on the web
-
-Everything above works in the web editor on a desktop-layout browser —
-including a Chromebook, and including the installed web app. The
-differences:
-
-- **Invite links.** Starting a session on the web copies an **invite
-  link** (`https://cardmirror.app/#join=…`) instead of a bare share
-  code; on any edition, **Copy Session Invite Link** produces one for
-  the current session. Opening the link in a desktop-layout browser
-  offers the join directly — no account, no setup; pasting it into the
-  **Join or Rejoin Collaboration Session** dialog works too, so a Chromebook with
-  the app already open can join from a link received in a chat. Treat
-  the link like the document itself: it carries the session's
-  encryption key, and anyone holding it can join. A guest who closes
-  the tab can rejoin later from **Sessions** on the home screen — same
-  browser, same profile.
-- **Your account lives in the browser profile.** Card sharing (both
-  sending and receiving) and *hosting* sessions on the web need your
-  Debate Decoded account linked from Settings → Collaboration — the
-  same connect-code flow as desktop, and a linked browser counts as one
-  of your membership's machines. The link is stored in that browser
-  profile, so a private/incognito window or clearing site data leaves
-  it behind (relink to recover; the seat is reclaimed, not lost).
-- **Tabs coordinate.** With several CardMirror tabs open, incoming
-  cards arrive exactly once — whichever tab is leading receives for all
-  of them, the same way the timer and send-to-speech already cooperate
-  across tabs.
-
-Phones and small screens get the mobile layout, which has no
-collaboration; an invite link opened there explains it needs a
-computer. CardMirror Lite has no collaboration in either edition.
 
 ### Privacy and self-hosting
 
@@ -2315,6 +2255,23 @@ control is hidden, and AI features gray out cleanly when you're offline.
 | **Generate alt text** | Right-click an image | Writes an alt-text description and inserts it under the image; offers to keep or regenerate if the image already has alt text. |
 | **Generate table from image** | Right-click an image | Extracts a real, editable table from a picture of one. |
 | **Draft a flashcard** | From Create Flashcard | Drafts a question/answer or cloze from the selection. |
+
+### Cross-Ex Practice and Card Credibility
+
+Two side panels sit with the comments buttons once AI is on (the target and shield buttons; also in Search Everything as **Cross-Ex Practice (AI)** and **Card Credibility (AI)**, unbound by default). Opening one closes the other.
+
+**Cross-Ex Practice** writes 3 to 6 questions an opponent would ask about your cards. It sends the AI your headings (pocket, hat, block), each card's tag and full cite, and the **highlighted** text only (the text you read aloud); unhighlighted card text is never sent. If the file is clearly Aff and Neg, questions sit under blue Aff and red Neg headers; a thin side gets fewer questions.
+
+- A question that targets a card names it ("Your Brady 25 evidence…") and shows a **clickable cite** that scrolls to the card.
+- **Show answer** reveals the answer an opponent would likely give (hidden so you can try first). **Press next** is the best follow-up to run after it.
+- **3 more like this** writes three new questions on the same line of attack, inserted under the seed.
+- **Build trap drill** gives three setup questions where a careless answer walks into a follow-up. Type your answer, **Check my answer** returns *Avoided*, *Fell* or *Partially safe* with feedback, then shows the ideal answer.
+- Under about 120 highlighted words (or a document under about 400 words) an amber notice warns you the questions may be few or shallow. A very large document asks before anything is trimmed (highlighted text is capped at 40,000 characters).
+- Questions and traps are saved per document and survive restarts; **Regenerate** replaces them (and clears the drill).
+
+**Card Credibility** (the shield) scores every card from its **tag and cite only**; the AI never reads the card body. Each card gets an overall score 0–10, coloured by verdict (Strong 8–10 blue, Solid 6–7 green, Shaky 4–5 amber, Weak 0–3 red), four bars (author, recency, source, tag fit), a reason of up to 20 words, and **Jump to card**. Shaky and Weak cards also get a red **Press**, the sharpest cross-ex attack on that card's credibility. Recency only goes down when something relevant has changed since the piece was written: an old card making a theoretical argument that still holds scores fine, but theory resting on the 1990s economy does not. The header shows the card count and average. Cards with no cite are skipped, and a card the AI skips is left out (never a made-up 0): the panel says "N of M cards scored. Re-score to try again." Results are cached per document and cost nothing to reopen; changing tags or adding or removing cards clears them. **Re-score** always makes fresh AI calls. Scoring never uses the cheapest model tier.
+
+**Deeper analysis** (in an expanded Credibility row) opens that card full screen: the card on the left with its sub-scores, a conversation on the right. It asks the AI why it scored the card that way, this time with the whole card and a policy debate reference in front of it, and the answer comes back organized with headings, bold and lists. Type a follow-up in the box at the bottom (Enter sends, Shift+Enter for a new line). The conversation is saved for that card; **New conversation** starts over, **Jump to card** closes it and scrolls to the card, and Esc goes back to the scores.
 
 You can set the author name AI notes are attributed under, customize
 the cite-formatting prompt, and — on the Anthropic provider — point AI
@@ -2957,7 +2914,7 @@ text as its page on GitHub. **Got it** (or Enter or Esc) closes it, **View on
 GitHub** opens the release page, and links inside open in your browser. It
 shows once per version. It needs a connection to fetch the notes: offline,
 nothing appears and it tries again at the next launch. A fresh install doesn't
-show one, and the Lite build and the web edition never do.
+show one, and the Lite build never does.
 
 **(fork) Plugins update the same way.** Every time CardMirror checks
 itself for updates (at launch, then hourly while the app is in the
@@ -3031,9 +2988,6 @@ headers shown inside each tab.
 - **Multi-doc layout** — with three docs open, show all three at once
   (compact) or two-and-a-bit with click-to-snap (wide). No effect with
   one or two docs.
-- **Layout on this device** *(web)* — which layout the web edition uses:
-  Auto picks the view-first mobile layout on narrow or touch screens;
-  Mobile / Desktop force one. Changing this reloads the page.
 
 **Editor behavior**
 
@@ -3678,6 +3632,23 @@ everyone, apply direct formatting in the document itself).
 
 All defaults; rebind any of them in **Settings → Keyboard shortcuts**.
 **Mod** = Ctrl (Windows/Linux) or ⌘ (macOS).
+
+**(Fork) The keyboard map.** The **Keyboard shortcuts** screen (the keyboard
+button in the top-right ribbon) opens on a picture of your keyboard. Each key
+shows the command it runs. The row of modifier buttons (⌘ command, ⌃ control,
+⌥ option, ⇧ shift on a Mac; ctrl, alt, shift elsewhere) switches the layer, so
+turning on **command** shows everything on ⌘+key. Click the buttons, or just
+hold the real keys. It detects your system on its own.
+
+- Click a key to see its command, and the same key with other modifiers below.
+- A small dot on a key means it is also used on another layer. A red **!**
+  means two commands share it (only one runs).
+- **Remove** takes the command off that key. On a free key, **Use this key
+  for** lets you pick a command from a list to bind it (a key already used by
+  another command is taken from it, like in Settings).
+- It always shows your current bindings: defaults, your changes, plugin
+  commands and keyboard macros. Rebind something in Settings and the map
+  changes with it. The full list is below the map.
 
 ### Structure and formatting
 | Shortcut | Action |
