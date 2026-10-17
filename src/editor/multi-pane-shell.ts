@@ -4806,7 +4806,6 @@ function buildDocRecord(
   const navPanel = new NavigationPanel(navEl, {
     onClose: () => record.owner.shell.setSlotNavHidden(record.owner, true),
     useLay: () => record.laySpeaking,
-    docKey: () => record.docId ?? record.uid,
   });
   navPanel.attach(view);
   // Initial caret-heading highlight so a freshly-mounted pane reflects the

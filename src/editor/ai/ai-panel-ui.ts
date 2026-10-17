@@ -12,9 +12,8 @@ import { scrollToHeadingId } from '../precise-scroll.js';
 import { setIcon } from '../icons.js';
 import {
   collectCardInfo,
+  collectOutlineHeadings,
   cardFingerprint,
-  highlightWarnings,
-  HIGHLIGHT_WARNING_TEXT,
   type CardInfo,
 } from './card-analysis.js';
 import {
@@ -25,10 +24,8 @@ import {
   gradeTrap,
   hasSideSplit,
   shortDocNotice,
-  FULL_CAP,
   HIGHLIGHT_CAP,
   type CrossExQuestion,
-  type DebateEvent,
   type TrapQuestion,
   type TrapVerdict,
 } from './crossex.js';
@@ -36,17 +33,17 @@ import {
   averageScore,
   scorableCards,
   scoreCards,
+  verdictFor,
   type CredScore,
+  type ScoreBatch,
 } from './credibility.js';
+import { openDeepDive } from './card-deep-dive-ui.js';
+import { emphasisEl } from './markdown-dom.js';
 import {
-  dismissWarning,
-  dismissedWarnings,
   loadCred,
   loadCrossEx,
-  loadEvent,
   saveCred,
   saveCrossEx,
-  saveEvent,
   type CrossExState,
 } from './ai-panel-store.js';
 
@@ -128,6 +125,19 @@ function buildDrawer(): void {
   d.append(head, body);
   document.body.appendChild(d);
   drawer = d;
+}
+
+/** Re-render shortly — streamed updates arrive faster than the panel needs
+ *  repainting. A timer, not requestAnimationFrame, which stalls while the
+ *  window is hidden. */
+let renderQueued = false;
+function renderSoon(): void {
+  if (renderQueued) return;
+  renderQueued = true;
+  setTimeout(() => {
+    renderQueued = false;
+    if (busy) render();
+  }, 50);
 }
 
 function render(): void {
@@ -212,6 +222,9 @@ let drill: DrillState | null = null;
 let cxState: CrossExState | null = null;
 let cxKey = '';
 let busyNote = '';
+/** Questions streaming in: replacing the list (`after` null) or going in
+ *  under the seed question with that id. */
+let pendingQs: { after: string | null; qs: CrossExQuestion[] } | null = null;
 
 function currentCx(): CrossExState | null {
   const key = host?.getDocKey() ?? '';
@@ -234,29 +247,12 @@ function renderCrossEx(): void {
   const view = host.getView();
   const state = currentCx();
 
-  const event = el('select', 'pmd-aip-select') as HTMLSelectElement;
-  event.title = 'Debate event';
-  for (const [v, l] of [
-    ['policy', 'Policy'],
-    ['ld', 'LD'],
-    ['pf', 'PF'],
-  ] as const) {
-    const o = el('option', undefined, l);
-    o.value = v;
-    event.appendChild(o);
-  }
-  event.value = loadEvent();
-  event.disabled = busy;
-  event.addEventListener('change', () => saveEvent(event.value as DebateEvent));
-  actionsEl.appendChild(event);
-
   if (!view) {
     body.appendChild(notice('Open a document to practice cross-ex on its cards.'));
     return;
   }
 
-  const cards = collectCardInfo(view.state.doc);
-  const input = buildCrossExInput(cards, true);
+  const input = crossExInputFor(view);
 
   if (drill && state?.traps) {
     renderDrill(state);
@@ -287,8 +283,13 @@ function renderCrossEx(): void {
 
   if (input.cards.length === 0) {
     body.appendChild(
-      notice('No highlighted or underlined text found. Questions target only what is read aloud.'),
+      notice('No highlighted text found. Questions target only what is read aloud.'),
     );
+  }
+
+  if (busy && pendingQs && pendingQs.after === null) {
+    for (const q of pendingQs.qs) body.appendChild(pendingCard(q));
+    return;
   }
 
   if (!state?.questions.length) {
@@ -297,7 +298,7 @@ function renderCrossEx(): void {
         el(
           'p',
           'pmd-aip-empty',
-          'Generates 3 to 6 questions an opponent would ask about the highlighted and underlined text in this document, with the answer they would likely give and how to press next.',
+          'Generates 3 to 6 questions an opponent would ask about the tags and highlighted text in this document, with the answer they would likely give and how to press next.',
         ),
       );
     }
@@ -310,16 +311,32 @@ function renderCrossEx(): void {
       const group = state.questions.filter((q) => q.side === side);
       if (group.length === 0) continue;
       body.appendChild(el('div', `pmd-aip-side pmd-aip-side-${side}`, side === 'aff' ? 'Aff' : 'Neg'));
-      for (const q of group) body.appendChild(questionCard(q, state));
+      for (const q of group) appendWithPending(q, state);
     }
   } else {
-    for (const q of state.questions) body.appendChild(questionCard(q, state));
+    for (const q of state.questions) appendWithPending(q, state);
   }
+}
+
+/** A question card, followed by any questions streaming in under it. */
+function appendWithPending(q: CrossExQuestion, state: CrossExState): void {
+  body?.appendChild(questionCard(q, state));
+  if (busy && pendingQs?.after === q.id) {
+    for (const p of pendingQs.qs) body?.appendChild(pendingCard(p));
+  }
+}
+
+/** A question still being written: its text only, no actions yet. */
+function pendingCard(q: CrossExQuestion): HTMLElement {
+  const card = el('div', 'pmd-aip-q pmd-aip-q-pending');
+  card.appendChild(emphasisEl('p', 'pmd-aip-q-text', q.question));
+  if (q.cardLabel) card.appendChild(el('span', 'pmd-aip-chip', q.cardLabel));
+  return card;
 }
 
 function questionCard(q: CrossExQuestion, state: CrossExState): HTMLElement {
   const card = el('div', 'pmd-aip-q');
-  card.appendChild(el('p', 'pmd-aip-q-text', q.question));
+  card.appendChild(emphasisEl('p', 'pmd-aip-q-text', q.question));
   if (q.cardTag) {
     const chip = button(q.cardLabel || q.cardTag, 'pmd-aip-chip', () => goToCard(q.cardTag!));
     chip.title = 'Go to this card';
@@ -339,15 +356,22 @@ function questionCard(q: CrossExQuestion, state: CrossExState): HTMLElement {
   row.appendChild(more);
   card.appendChild(row);
   if (shown) {
-    card.appendChild(el('div', 'pmd-aip-answer', q.answer || 'No answer was returned.'));
+    card.appendChild(emphasisEl('div', 'pmd-aip-answer', q.answer || 'No answer was returned.'));
     if (q.press) {
       const press = el('div', 'pmd-aip-press');
       press.appendChild(el('span', 'pmd-aip-press-label', 'Press next'));
-      press.appendChild(el('span', undefined, q.press));
+      press.appendChild(emphasisEl('span', undefined, q.press));
       card.appendChild(press);
     }
   }
   return card;
+}
+
+/** The cross-ex prompt input for the doc in `view`: headings, tags, cites
+ *  and highlighted text only. */
+function crossExInputFor(view: EditorView): ReturnType<typeof buildCrossExInput> {
+  const doc = view.state.doc;
+  return buildCrossExInput(collectCardInfo(doc), true, collectOutlineHeadings(doc));
 }
 
 async function confirmTrim(input: ReturnType<typeof buildCrossExInput>): Promise<boolean> {
@@ -355,9 +379,9 @@ async function confirmTrim(input: ReturnType<typeof buildCrossExInput>): Promise
   return showConfirm({
     title: 'This document is large',
     message:
-      `Highlighted text is capped at ${HIGHLIGHT_CAP.toLocaleString()} characters and the full text at ` +
-      `${FULL_CAP.toLocaleString()}. This document has ${input.highlightedChars.toLocaleString()} highlighted ` +
-      `and ${input.fullChars.toLocaleString()} total. Questions will use the first part only.`,
+      `Cross-ex sends the headings, tags, cites and highlighted text, and the highlighted text is ` +
+      `capped at ${HIGHLIGHT_CAP.toLocaleString()} characters. This document has ` +
+      `${input.highlightedChars.toLocaleString()}. Questions will use the first part only.`,
     confirmLabel: 'Trim and continue',
   });
 }
@@ -365,14 +389,21 @@ async function confirmTrim(input: ReturnType<typeof buildCrossExInput>): Promise
 async function generate(): Promise<void> {
   const view = host?.getView();
   if (!view || !aiGateToast()) return;
-  const input = buildCrossExInput(collectCardInfo(view.state.doc), true);
+  const input = crossExInputFor(view);
   if (input.cards.length === 0) {
     showToast('Highlight or underline some card text first.');
     return;
   }
   if (!(await confirmTrim(input))) return;
   busyNote = 'Writing questions…';
-  const qs = await run('Cross-Ex questions', () => generateQuestions(input, loadEvent()));
+  pendingQs = null;
+  const qs = await run('Cross-Ex questions', () =>
+    generateQuestions(input, (partial) => {
+      pendingQs = { after: null, qs: partial };
+      renderSoon();
+    }),
+  );
+  pendingQs = null;
   if (!qs) return;
   cxState = { questions: qs, traps: null, at: Date.now() };
   revealed = new Set();
@@ -383,9 +414,16 @@ async function generate(): Promise<void> {
 async function moreLike(seed: CrossExQuestion, state: CrossExState): Promise<void> {
   const view = host?.getView();
   if (!view || !aiGateToast()) return;
-  const input = buildCrossExInput(collectCardInfo(view.state.doc), true);
+  const input = crossExInputFor(view);
   busyNote = 'Writing more…';
-  const qs = await run('More questions', () => generateMoreLikeThis(seed, input, loadEvent()));
+  pendingQs = null;
+  const qs = await run('More questions', () =>
+    generateMoreLikeThis(seed, input, (partial) => {
+      pendingQs = { after: seed.id, qs: partial };
+      renderSoon();
+    }),
+  );
+  pendingQs = null;
   if (!qs) return;
   const at = state.questions.findIndex((q) => q.id === seed.id);
   state.questions.splice(at + 1, 0, ...qs);
@@ -399,9 +437,14 @@ async function startDrill(): Promise<void> {
   if (!view || !state) return;
   if (!state.traps) {
     if (!aiGateToast()) return;
-    const input = buildCrossExInput(collectCardInfo(view.state.doc), true);
+    const input = crossExInputFor(view);
     busyNote = 'Building the drill…';
-    const traps = await run('Trap drill', () => generateTraps(input, state.questions, loadEvent()));
+    const traps = await run('Trap drill', () =>
+      generateTraps(input, state.questions, (partial) => {
+        busyNote = `Building the drill… (${Math.min(partial.length, 3)} of 3)`;
+        renderSoon();
+      }),
+    );
     if (!traps) return;
     state.traps = traps;
     persistCx();
@@ -432,7 +475,7 @@ function renderDrill(state: CrossExState): void {
   const trap = traps[d.index]!;
   const card = el('div', 'pmd-aip-q');
   card.appendChild(el('div', 'pmd-aip-trap-count', `Trap ${d.index + 1} of ${traps.length}`));
-  card.appendChild(el('p', 'pmd-aip-q-text', trap.setup));
+  card.appendChild(emphasisEl('p', 'pmd-aip-q-text', trap.setup));
 
   if (!d.grade && !d.revealed) {
     const ta = el('textarea', 'pmd-aip-textarea') as HTMLTextAreaElement;
@@ -479,14 +522,14 @@ function renderDrill(state: CrossExState): void {
         d.grade.verdict === 'avoided' ? 'Avoided' : d.grade.verdict === 'fell' ? 'Fell' : 'Partially safe';
       const g = el('div', `pmd-aip-grade pmd-aip-grade-${d.grade.verdict}`);
       g.appendChild(el('strong', undefined, label));
-      g.appendChild(el('span', undefined, ` ${d.grade.feedback}`));
+      g.appendChild(emphasisEl('span', undefined, ` ${d.grade.feedback}`));
       card.appendChild(g);
     }
     const ideal = el('div', 'pmd-aip-answer');
     ideal.appendChild(el('span', 'pmd-aip-press-label', 'Ideal answer'));
-    ideal.appendChild(el('span', undefined, trap.ideal));
+    ideal.appendChild(emphasisEl('span', undefined, trap.ideal));
     card.appendChild(ideal);
-    if (trap.lesson) card.appendChild(el('p', 'pmd-aip-empty', trap.lesson));
+    if (trap.lesson) card.appendChild(emphasisEl('p', 'pmd-aip-empty', trap.lesson));
     card.appendChild(
       button(
         d.index + 1 >= traps.length ? 'Finish' : 'Next trap',
@@ -508,6 +551,8 @@ function renderDrill(state: CrossExState): void {
 
 const expanded = new Set<string>();
 let credProgress = '';
+/** Scores streaming in during a scoring run. */
+let partialScores: CredScore[] | null = null;
 
 function renderCred(): void {
   if (!body || !titleEl || !actionsEl || !host) return;
@@ -535,6 +580,16 @@ function renderCred(): void {
   rescore.disabled = busy;
   if (fresh) actionsEl.appendChild(rescore);
 
+  if (busy && partialScores) {
+    const bar = el('div', 'pmd-aip-bar');
+    const b = button(credProgress || 'Scoring…', 'pmd-aip-btn pmd-aip-btn-primary', () => {});
+    b.disabled = true;
+    bar.appendChild(b);
+    body.appendChild(bar);
+    for (const s of partialScores) body.appendChild(credRow(s, undefined, key));
+    return;
+  }
+
   if (!fresh) {
     const bar = el('div', 'pmd-aip-bar');
     const b = button(
@@ -549,7 +604,7 @@ function renderCred(): void {
       el(
         'p',
         'pmd-aip-empty',
-        'Scores each card 0 to 10 from its tag and cite only: author, recency, source and claim fit. The AI never reads the card body.' +
+        'Scores each card 0 to 10 from its tag and cite only: author, recency, source and tag fit. The AI never reads the card body.' +
           (cached ? ' The tags changed since the last scoring.' : ''),
       ),
     );
@@ -573,25 +628,16 @@ function renderCred(): void {
     );
   }
 
-  const warnings = highlightWarnings(cards);
-  const dismissed = dismissedWarnings(key);
-  const byTag = new Map(cards.map((c) => [c.tag, c]));
-  for (const s of fresh.scores) {
-    body.appendChild(credRow(s, byTag.get(s.tag), warnings, dismissed, key));
-  }
+  for (const s of fresh.scores) body.appendChild(credRow(s, fresh.batches, key));
 }
 
+/** Colour band for a 0-10 score: Strong is blue, Solid green, Shaky amber,
+ *  Weak red (the same bands as the verdict). */
 function scoreClass(n: number): string {
-  return n >= 8 ? 'good' : n >= 6 ? 'ok' : n >= 4 ? 'warn' : 'bad';
+  return verdictFor(n).toLowerCase();
 }
 
-function credRow(
-  s: CredScore,
-  info: CardInfo | undefined,
-  warnings: ReturnType<typeof highlightWarnings>,
-  dismissed: Set<string>,
-  key: string,
-): HTMLElement {
+function credRow(s: CredScore, batches: ScoreBatch[] | undefined, key: string): HTMLElement {
   const open = expanded.has(s.tag);
   const row = el('div', 'pmd-aip-cred');
   const top = el('button', 'pmd-aip-cred-top') as HTMLButtonElement;
@@ -618,7 +664,7 @@ function credRow(
     ['Author', s.author],
     ['Recency', s.recency],
     ['Source', s.source],
-    ['Claim fit', s.claimFit],
+    ['Tag fit', s.tagFit],
   ] as const) {
     const r = el('div', 'pmd-aip-bar-row');
     r.appendChild(el('span', 'pmd-aip-bar-label', label));
@@ -629,34 +675,22 @@ function credRow(
     r.append(track, el('span', 'pmd-aip-bar-num', String(v)));
     detail.appendChild(r);
   }
-  if (s.reason) detail.appendChild(el('p', 'pmd-aip-reason', s.reason));
+  if (s.reason) detail.appendChild(emphasisEl('p', 'pmd-aip-reason', s.reason));
   if (s.press) {
     const press = el('div', 'pmd-aip-press pmd-aip-press-red');
     press.appendChild(el('span', 'pmd-aip-press-label', 'Press'));
-    press.appendChild(el('span', undefined, s.press));
+    press.appendChild(emphasisEl('span', undefined, s.press));
     detail.appendChild(press);
   }
-  const w = info ? warnings.get(info.pos) : undefined;
-  if (w && !dismissed.has(s.tag)) {
-    const wEl = el('div', 'pmd-aip-notice');
-    wEl.appendChild(
-      el(
-        'span',
-        undefined,
-        `${w.flag === 'over' ? 'Over-highlighted' : 'Under-highlighted'} (${Math.round(w.ratio * 100)}% highlighted). ${HIGHLIGHT_WARNING_TEXT[w.flag]} `,
-      ),
-    );
-    wEl.appendChild(
-      button('Dismiss', 'pmd-aip-link', () => {
-        dismissWarning(key, s.tag);
-        render();
-      }),
-    );
-    detail.appendChild(wEl);
-  }
-  detail.appendChild(
-    button('Go to card in document', 'pmd-aip-btn pmd-aip-btn-small', () => goToCard(s.tag)),
-  );
+  const actions = el('div', 'pmd-aip-q-row');
+  const deeper = button('Deeper analysis', 'pmd-aip-btn pmd-aip-btn-small pmd-aip-btn-primary', () => {
+    const view = host?.getView();
+    if (!view || !aiGateToast()) return;
+    openDeepDive({ view, docKey: key, score: s, batches, onJump: () => goToCard(s.tag) });
+  });
+  deeper.title = 'Open this card with a fuller AI analysis you can ask follow-up questions about';
+  actions.append(deeper, button('Jump to card', 'pmd-aip-btn pmd-aip-btn-small', () => goToCard(s.tag)));
+  detail.appendChild(actions);
   row.appendChild(detail);
   return row;
 }
@@ -664,17 +698,33 @@ function credRow(
 async function score(cards: CardInfo[], fp: string, key: string): Promise<void> {
   if (!aiGateToast()) return;
   credProgress = 'Scoring…';
+  partialScores = null;
   const result = await run('Card credibility', () =>
-    scoreCards(cards, (done, total) => {
-      credProgress = `Scoring ${done} of ${total}…`;
-      if (mode === 'cred') render();
-    }),
+    scoreCards(
+      cards,
+      (done, total) => {
+        credProgress = `Scoring ${done} of ${total}…`;
+        if (mode === 'cred') render();
+      },
+      (soFar) => {
+        partialScores = soFar;
+        credProgress = `Scoring… ${soFar.length} of ${cards.length}`;
+        if (mode === 'cred') renderSoon();
+      },
+    ),
   );
+  partialScores = null;
   if (!result) return;
   if (result.scores.length === 0) {
     showToast('The AI returned no scores. Try again.');
     return;
   }
-  saveCred(key, { fingerprint: fp, scores: result.scores, total: result.total, at: Date.now() });
+  saveCred(key, {
+    fingerprint: fp,
+    scores: result.scores,
+    total: result.total,
+    at: Date.now(),
+    batches: result.batches,
+  });
   render();
 }

@@ -991,7 +991,7 @@ export class CommentsColumn {
       card.appendChild(this.renderComment(thread, c, c.id === thread.id));
     }
     if (this.aiInFlight.has(thread.id)) {
-      card.appendChild(this.renderAiThinkingPlaceholder());
+      card.appendChild(this.renderAiThinkingPlaceholder(false, thread.id));
     }
     card.appendChild(this.renderReplyForm(thread));
   }
@@ -1322,7 +1322,7 @@ export class CommentsColumn {
     // The opening question renders as the root (un-indented) — it begins
     // the conversation, it isn't a reply. Answers + follow-ups are replies.
     thread.comments.forEach((c, i) => card.appendChild(this.renderAiComment(c, i === 0)));
-    if (this.aiInFlight.has(threadId)) card.appendChild(this.renderAiThinkingPlaceholder(true));
+    if (this.aiInFlight.has(threadId)) card.appendChild(this.renderAiThinkingPlaceholder(true, threadId));
     card.appendChild(this.buildAiInput(threadId, 'Reply…', 'Reply'));
     card.appendChild(this.buildAiConvertButton(threadId));
   }
@@ -1503,7 +1503,12 @@ export class CommentsColumn {
 
     void (async () => {
       try {
-        const reply = await callLlm({ apiKey, system: EXPLAIN_SYSTEM_PROMPT, messages });
+        const reply = await callLlm({
+          apiKey,
+          system: EXPLAIN_SYSTEM_PROMPT,
+          messages,
+          onText: (t) => this.showAiStream(id, t),
+        });
         // Drop the in-flight flag BEFORE appending so the store-driven
         // re-render shows the reply without the Thinking… placeholder.
         this.aiInFlight.delete(id);
@@ -1519,6 +1524,7 @@ export class CommentsColumn {
       } catch (e) {
         aiFailureNotice('AI', e);
       } finally {
+        this.aiStreamText.delete(id);
         this.aiInFlight.delete(id);
         if (this.aiInFlight.size === 0) this.stopActivityTicker();
         this.render();
@@ -1778,7 +1784,7 @@ export class CommentsColumn {
         this.renderAiComment(c, i === 0, (text) => learnStore.editNoteComment(noteId, i, text)),
       ),
     );
-    if (this.aiInFlight.has(noteId)) card.appendChild(this.renderAiThinkingPlaceholder(true));
+    if (this.aiInFlight.has(noteId)) card.appendChild(this.renderAiThinkingPlaceholder(true, noteId));
     card.appendChild(this.buildNoteInput(noteId, 'Reply…', 'Reply'));
   }
 
@@ -1962,7 +1968,19 @@ export class CommentsColumn {
    *  initials + AI chip); default → match a comment-thread AI reply
    *  (fixed `'AI'` badge initials), so the placeholder doesn't visually
    *  jump when the response arrives. */
-  private renderAiThinkingPlaceholder(local = false): HTMLElement {
+  /** Text streamed so far for an in-flight AI reply, by thread id. */
+  private aiStreamText = new Map<string, string>();
+
+  /** Show the streamed text in the open placeholder for `id` without a
+   *  re-render (the card signature ignores it on purpose). */
+  private showAiStream(id: string, text: string): void {
+    this.aiStreamText.set(id, text);
+    for (const el of this.root.querySelectorAll<HTMLElement>('[data-ai-stream-for]')) {
+      if (el.dataset['aiStreamFor'] === id) el.textContent = text;
+    }
+  }
+
+  private renderAiThinkingPlaceholder(local = false, streamId?: string): HTMLElement {
     const block = document.createElement('div');
     block.className = 'pmd-comment-reply pmd-comment-ai pmd-comment-ai-thinking';
     const header = document.createElement('header');
@@ -2003,6 +2021,14 @@ export class CommentsColumn {
     // Tag with `data-activity-target` so the activity-cycling tick
     // can find this stage without re-rendering the whole column.
     stage.dataset['activityTarget'] = '1';
+    if (streamId) {
+      // The reply streams in here as it is written.
+      const body = document.createElement('div');
+      body.className = 'pmd-comment-body pmd-comment-ai-stream';
+      body.dataset['aiStreamFor'] = streamId;
+      body.textContent = this.aiStreamText.get(streamId) ?? '';
+      block.appendChild(body);
+    }
     return block;
   }
 
@@ -2430,6 +2456,7 @@ export class CommentsColumn {
           apiKey,
           system: EXPLAIN_SYSTEM_PROMPT,
           messages,
+          onText: (t) => this.showAiStream(threadId, t),
         });
         const aiComment: Comment = {
           id: replyId,
@@ -2455,6 +2482,7 @@ export class CommentsColumn {
           aiFailureNotice('AI', e);
         }
       } finally {
+        this.aiStreamText.delete(threadId);
         this.aiInFlight.delete(threadId);
         // Keep aiContextByThread so future follow-ups (multi-turn)
         // reuse the original surrounding context.

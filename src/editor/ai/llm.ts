@@ -74,6 +74,9 @@ export interface LlmRequest {
   /** System prompt. Falls back to the explainer-flavored default. */
   system?: string;
   messages: LlmMessage[];
+  /** Stream the reply: called with the full text so far each time more
+   *  arrives. The returned reply is the same as without streaming. */
+  onText?: (soFar: string) => void;
 }
 
 export interface LlmReply {
@@ -415,6 +418,123 @@ function throwAnthropicHttpError(
   throw new LlmError(`Anthropic API returned ${status}${detail ? `: ${detail}` : ''}`, status, kind);
 }
 
+/** Read a server-sent-events body, calling `onData` with each event's
+ *  `data:` payload (JSON-parsed; `[DONE]` and unparseable payloads skipped). */
+async function readSse(res: Response, providerName: string, onData: (data: unknown) => void): Promise<void> {
+  const reader = res.body?.getReader();
+  if (!reader) throw new LlmError(`${providerName} sent no response body.`, res.status, 'parse');
+  const decoder = new TextDecoder();
+  let buf = '';
+  const flush = (block: string): void => {
+    const data = block
+      .split('\n')
+      .filter((l) => l.startsWith('data:'))
+      .map((l) => l.slice(5).replace(/^ /, ''))
+      .join('\n');
+    if (!data || data === '[DONE]') return;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(data);
+    } catch {
+      return;
+    }
+    onData(parsed);
+  };
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true }).replace(/\r\n?/g, '\n');
+      let at = buf.indexOf('\n\n');
+      while (at >= 0) {
+        flush(buf.slice(0, at));
+        buf = buf.slice(at + 2);
+        at = buf.indexOf('\n\n');
+      }
+    }
+  } catch (e) {
+    if (e instanceof LlmError) throw e;
+    throw new LlmError(
+      `The connection to ${providerName} dropped mid-reply: ${e instanceof Error ? e.message : String(e)}`,
+      null,
+      'network',
+    );
+  }
+  if (buf.trim()) flush(buf);
+}
+
+/** A streamed Anthropic reply, folded back into the non-streaming shape. */
+async function readAnthropicStream(res: Response, onText: (t: string) => void): Promise<unknown> {
+  let text = '';
+  let stopReason: string | undefined;
+  await readSse(res, 'Anthropic', (d) => {
+    const ev = d as {
+      type?: string;
+      delta?: { type?: string; text?: string; stop_reason?: string };
+      error?: { message?: string };
+    };
+    if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
+      text += ev.delta.text ?? '';
+      onText(text);
+    } else if (ev.type === 'message_delta' && ev.delta?.stop_reason) {
+      stopReason = ev.delta.stop_reason;
+    } else if (ev.type === 'error') {
+      throw new LlmError(`Anthropic stopped mid-reply: ${ev.error?.message ?? 'unknown error'}`, null, 'server');
+    }
+  });
+  return { content: [{ type: 'text', text }], stop_reason: stopReason };
+}
+
+/** A streamed OpenRouter reply, folded back into the non-streaming shape. */
+async function readOpenRouterStream(res: Response, onText: (t: string) => void): Promise<unknown> {
+  let text = '';
+  let finish: string | undefined;
+  let error: unknown;
+  await readSse(res, 'OpenRouter', (d) => {
+    const ev = d as {
+      choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+      error?: unknown;
+    };
+    if (ev.error) error = ev.error;
+    const c = ev.choices?.[0];
+    if (c?.delta?.content) {
+      text += c.delta.content;
+      onText(text);
+    }
+    if (c?.finish_reason) finish = c.finish_reason;
+  });
+  if (error && !text) return { error };
+  return { choices: [{ message: { content: text }, finish_reason: finish }] };
+}
+
+/** A streamed Gemini reply, folded back into the non-streaming shape. */
+async function readGeminiStream(res: Response, onText: (t: string) => void): Promise<unknown> {
+  let text = '';
+  let finishReason: string | undefined;
+  let promptFeedback: unknown;
+  await readSse(res, 'Gemini', (d) => {
+    const ev = d as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> }; finishReason?: string }>;
+      promptFeedback?: unknown;
+    };
+    if (ev.promptFeedback) promptFeedback = ev.promptFeedback;
+    const c = ev.candidates?.[0];
+    const piece = (c?.content?.parts ?? [])
+      .filter((p) => !p.thought)
+      .map((p) => p.text ?? '')
+      .join('');
+    if (piece) {
+      text += piece;
+      onText(text);
+    }
+    if (c?.finishReason) finishReason = c.finishReason;
+  });
+  return {
+    ...(promptFeedback ? { promptFeedback } : {}),
+    candidates: [{ content: { parts: [{ text }] }, finishReason }],
+  };
+}
+
 async function callAnthropicApi(req: LlmRequest): Promise<LlmReply> {
   const requestedModel = req.model ?? resolveAiModel();
   let temperature = req.temperature;
@@ -426,6 +546,7 @@ async function callAnthropicApi(req: LlmRequest): Promise<LlmReply> {
       ...(temperature != null ? { temperature } : {}),
       ...(req.system ? { system: req.system } : {}),
       messages: req.messages,
+      ...(req.onText ? { stream: true } : {}),
     };
 
     const res = await fetchWithTimeout(
@@ -477,8 +598,9 @@ async function callAnthropicApi(req: LlmRequest): Promise<LlmReply> {
 
     let json: unknown;
     try {
-      json = await res.json();
+      json = req.onText ? await readAnthropicStream(res, req.onText) : await res.json();
     } catch (e) {
+      if (e instanceof LlmError) throw e;
       throw new LlmError(
         `Failed to parse Anthropic response: ${e instanceof Error ? e.message : String(e)}`,
         res.status,
@@ -579,6 +701,7 @@ async function callOpenRouter(req: LlmRequest): Promise<LlmReply> {
       max_tokens: req.maxTokens ?? defaultMaxTokens(),
       ...(temperature != null ? { temperature } : {}),
       messages: toOpenRouterMessages(req),
+      ...(req.onText ? { stream: true } : {}),
     };
 
     const res = await fetchWithTimeout(
@@ -631,8 +754,9 @@ async function callOpenRouter(req: LlmRequest): Promise<LlmReply> {
 
     let json: unknown;
     try {
-      json = await res.json();
+      json = req.onText ? await readOpenRouterStream(res, req.onText) : await res.json();
     } catch (e) {
+      if (e instanceof LlmError) throw e;
       throw new LlmError(
         `Failed to parse OpenRouter response: ${e instanceof Error ? e.message : String(e)}`,
         res.status,
@@ -784,7 +908,9 @@ async function callGeminiApi(req: LlmRequest): Promise<LlmReply> {
     if (req.system) body.systemInstruction = { parts: [{ text: req.system }] };
 
     const res = await fetchWithTimeout(
-      `${GEMINI_GENERATE_URL}${encodeURIComponent(requestedModel)}:generateContent`,
+      req.onText
+        ? `${GEMINI_GENERATE_URL}${encodeURIComponent(requestedModel)}:streamGenerateContent?alt=sse`
+        : `${GEMINI_GENERATE_URL}${encodeURIComponent(requestedModel)}:generateContent`,
       {
         method: 'POST',
         headers: {
@@ -826,8 +952,9 @@ async function callGeminiApi(req: LlmRequest): Promise<LlmReply> {
 
     let json: unknown;
     try {
-      json = await res.json();
+      json = req.onText ? await readGeminiStream(res, req.onText) : await res.json();
     } catch (e) {
+      if (e instanceof LlmError) throw e;
       throw new LlmError(
         `Failed to parse Gemini response: ${e instanceof Error ? e.message : String(e)}`,
         res.status,
