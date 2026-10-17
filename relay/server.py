@@ -90,6 +90,7 @@ import re
 import threading
 import time
 import uuid
+import zlib
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator, Optional
@@ -185,6 +186,33 @@ def get_db():
 
 MAX_BYTES = 25 * 1024 * 1024  # decompressed payload cap
 MAX_COMPRESSED_BYTES = 30 * 1024 * 1024  # gzip-bomb guard
+
+
+def gunzip_bounded(raw: bytes, max_bytes: int) -> bytes:
+    """Inflate `raw` but stop as soon as the output would exceed `max_bytes`.
+
+    gzip.decompress() inflates the whole body before any size check runs, so a
+    30 MiB upload could expand toward ~30 GiB (gzip's ~1032:1 ceiling) in
+    process memory first. Streaming through zlib with a running cap bounds the
+    memory a malicious body can take to max_bytes + one chunk.
+    (Security report 2026-10-08.)
+    """
+    d = zlib.decompressobj(16 + zlib.MAX_WBITS)  # gzip framing
+    out = bytearray()
+    view = memoryview(raw)
+    step = 256 * 1024
+    for i in range(0, len(view), step):
+        out += d.decompress(view[i:i + step], max_bytes + 1 - len(out))
+        if len(out) > max_bytes:
+            raise ValueError("decompressed payload too large")
+        # Input the decompressor held back because of the output cap means
+        # the body is bigger than allowed; don't keep feeding it.
+        if d.unconsumed_tail:
+            raise ValueError("decompressed payload too large")
+    out += d.flush()
+    if len(out) > max_bytes:
+        raise ValueError("decompressed payload too large")
+    return bytes(out)
 TTL = timedelta(hours=3)
 MAX_PER_POLL = 100
 HEARTBEAT_SECONDS = 25
@@ -451,7 +479,9 @@ def post_message(
 
     if "gzip" in (content_encoding or "").lower():
         try:
-            data = gzip.decompress(raw)
+            data = gunzip_bounded(raw, MAX_BYTES)
+        except ValueError:
+            raise HTTPException(413, "payload too large")
         except Exception:
             raise HTTPException(400, "invalid gzip body")
     else:
