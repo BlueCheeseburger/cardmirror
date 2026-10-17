@@ -32,6 +32,7 @@ import {
   session,
   nativeImage,
 } from 'electron';
+import { decideNavigation, decideWindowOpen } from './navigation-guard.js';
 import { existsSync } from 'node:fs';
 import { autoUpdater } from 'electron-updater';
 import { bundlePathFromExe, launchSwapHelper, macBundleSelfUpdatable } from './mac-swap-update.js';
@@ -123,6 +124,30 @@ import { hardenStdio } from './stdio-harden.js';
 hardenStdio();
 
 const DEV_SERVER_URL = 'http://localhost:5173';
+
+/** Where the app's own pages come from: the Vite dev server in development,
+ *  the packaged renderer files otherwise. Used by the navigation guard. */
+function ownOrigins(): string[] {
+  return app.isPackaged ? ['file:'] : [new URL(DEV_SERVER_URL).origin];
+}
+
+/** Apply the window-open / navigation policy (navigation-guard.ts) to a
+ *  window: no renderer-spawned BrowserWindows, no leaving the app's own
+ *  origin; http(s)/mailto targets go to the OS browser instead. Every
+ *  BrowserWindow that loads renderer code must pass through here. */
+function hardenWindow(win: BrowserWindow): void {
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    const d = decideWindowOpen(url, ownOrigins());
+    if (d.kind === 'external') void shell.openExternal(d.url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (event, url) => {
+    const d = decideNavigation(url, ownOrigins());
+    if (d.kind === 'allow') return;
+    event.preventDefault();
+    if (d.kind === 'external') void shell.openExternal(d.url);
+  });
+}
 
 // macOS scroll-perf tuning. Belt-and-suspenders: none of these
 // switches was the root fix for the historical scroll stalls (the
@@ -453,6 +478,8 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
       backgroundThrottling: false,
     },
   });
+
+  hardenWindow(win);
 
   // Mirror tagged renderer console lines to the main-process stdout —
   // renderer console output is otherwise only visible in DevTools,
@@ -3419,6 +3446,7 @@ function openTimerWindow(popoutOpts?: TimerPopoutOpts): void {
     opts.y = Math.min(Math.max(timerWindowPos.y, area.y), area.y + area.height - height);
   }
   const win = new BrowserWindow(opts);
+  hardenWindow(win);
   timerWindowZoom = zoom;
   // 'floating' sits above normal windows without fighting system
   // panels. (Fullscreen spaces are explicitly out of scope — the
