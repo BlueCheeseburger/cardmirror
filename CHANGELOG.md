@@ -19,6 +19,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
   detects Mac or Windows by itself and flags keys that two commands share.
 
 ### Fixed
+- **Shortcuts no longer run on the document behind an open dialog.** With a dialog open (the keyboard shortcuts screen, Settings, Save As…), Ctrl/⌘+B, F9 and the like used to bold or underline the document behind it, and Ctrl/⌘+F opened Find there. They now do nothing to the document and show "Close this dialog first." File-level keys and Search Everything still work.
 - **A starred heading shows a filled star** in the outline (it was an outline star tinted gold).
 
 ### Changed

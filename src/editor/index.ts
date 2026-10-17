@@ -52,6 +52,7 @@ import {
 } from './speech-doc-send.js';
 import { promptForChoice, promptForText, promptForRouteChoice, addRouteKeyHint, alertDialog, confirmDialog, installModalKeys, armDialogFocus, setModalKeyPassThrough } from './text-prompt.js';
 import { pushOverlay, popOverlay, isTopOverlay, isAnyOverlayOpen } from './overlay-stack.js';
+import { notifyKeyBlocked, CLOSE_DIALOG_FIRST } from './blocked-key.js';
 import { positionFloatingMenu } from './context-menu-position.js';
 import { registerOpenContextMenu, clearOpenContextMenu } from './context-menu-registry.js';
 import { openDocMenu } from './doc-menu-ui.js';
@@ -4964,6 +4965,14 @@ window.addEventListener('keydown', (e) => {
     targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT';
   if (inNativeField && !VIEWLESS_RIBBON_COMMANDS.has(cmdId)) return;
   e.preventDefault();
+  // A dialog has the user's attention: a document command must not run on
+  // the document behind it (Ctrl+B used to bold it, Ctrl+F opened Find
+  // there). File-level and Search Everything keys stay available. Say why
+  // nothing happened instead of going quiet.
+  if (isAnyOverlayOpen() && !VIEWLESS_RIBBON_COMMANDS.has(cmdId)) {
+    notifyKeyBlocked(CLOSE_DIALOG_FIRST);
+    return;
+  }
   // File-level commands (newDocument / openFile / saveAs) and the
   // shortcuts-dialog opener don't need a live view — invoke the
   // ctx side effect directly so the shortcut works even when no

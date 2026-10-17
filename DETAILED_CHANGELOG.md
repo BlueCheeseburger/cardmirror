@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: shortcuts ran on the document behind an open dialog (`index.ts`, `blocked-key.ts`)
+
+The global ribbon-key handler in `index.ts` had no dialog check: with the dialog focused (so the keydown never
+reached ProseMirror's own keymap) it still looked the key up and dispatched the command into `view`. Found by
+probing the web build: with the Keyboard shortcuts dialog open, Ctrl+B and F9 changed the document and Ctrl+F opened
+the find bar. Now, after the native-field check, `isAnyOverlayOpen()` plus a non-viewless command means
+`preventDefault`, no dispatch, and `notifyKeyBlocked(CLOSE_DIALOG_FIRST)`. `VIEWLESS_RIBBON_COMMANDS` (new/open/save-as,
+Search Everything, zoom…) stay available. `notifyKeyBlocked` shows a toast but keeps one on screen per message, so a
+held key does not stack them. Keys typed into a dialog's own text field are still left to the field.
+
 ### Added: keyboard map (`keyboard-map.ts`, `reference-ui.ts`, `keybindings-editor.ts`, `style.css`)
 
 `buildKeyboardMap()` draws a keyboard (Mac or PC bottom row by `isMacPlatform()`) above the Keyboard shortcuts
