@@ -4,11 +4,9 @@
  * they test without a model.
  */
 
-import { LlmError } from './llm.js';
-import { callTier, parseJsonLoose } from './tiers.js';
-import type { CardInfo } from './card-analysis.js';
+import { callTierParsed, parseJsonList, parseJsonLoose } from './tiers.js';
+import type { CardInfo, OutlineHeading } from './card-analysis.js';
 
-export type DebateEvent = 'policy' | 'ld' | 'pf';
 export type Side = 'aff' | 'neg';
 
 export interface CrossExQuestion {
@@ -39,49 +37,27 @@ export interface TrapQuestion {
 export type TrapVerdict = 'avoided' | 'fell' | 'partial';
 
 export const HIGHLIGHT_CAP = 40_000;
-export const FULL_CAP = 60_000;
-export const GUIDE_CAP = 8_000;
+/** Cites go in whole up to this (some carry long qualifications). */
+export const CITE_CAP = 1_000;
 export const SHORT_HIGHLIGHT_WORDS = 120;
 export const SHORT_DOC_WORDS = 400;
 export const PRESS_CAP = 300;
 
-const EVENT_GUIDES: Record<DebateEvent, string> = {
-  policy:
-    'Event: Policy debate (CX). Cross-examination is a tool for setting up arguments: ' +
-    'expose missing warrants, force the debater to concede the limits of their evidence, ' +
-    'pin down solvency mechanisms, and lock in concessions that later speeches use. ' +
-    'Questions should be short, closed where a concession is the goal, and open where ' +
-    'a rambling answer helps the questioner. Typical targets: plan text and solvency, ' +
-    'internal links in disadvantages, counterplan competition, kritik links and alternatives.',
-  ld:
-    'Event: Lincoln-Douglas debate. Cross-examination probes the value, criterion and ' +
-    'framework link between them, clarifies and then attacks the philosophical warrants, ' +
-    'and exposes contradictions between the case’s framework and its contentions. ' +
-    'Typical targets: how the criterion actually justifies the value, whether the ' +
-    'author’s argument was about the moral theory at all, and whether the impacts ' +
-    'function under the opponent’s own framework.',
-  pf:
-    'Event: Public Forum debate. Crossfire is brief and conversational; questions should ' +
-    'be accessible to a lay judge. Probe the link chain from the card’s claim to the ' +
-    'impact, how likely and how soon the impact happens, uniqueness, and the quality ' +
-    'and date of the evidence.',
-};
-
-export function eventGuide(event: DebateEvent): string {
-  return EVENT_GUIDES[event].slice(0, GUIDE_CAP);
-}
-
-const PLAIN_TEXT_RULE =
-  'Output plain text only: no bold, no italics, no markdown. You may wrap key phrases in ‘single quotes’.';
+/** Emphasis only: the panel renders **bold** and *italic* and shows any
+ *  other Markdown literally. */
+export const EMPHASIS_RULE =
+  'Formatting: you may use **bold** and *italic* inside the text strings for emphasis, sparingly. ' +
+  'No other formatting: no headings, lists, links, code or other Markdown.';
 
 export const CROSSEX_SYSTEM_PROMPT =
   'You are a cross-examination coach for competitive debate. You write the questions an ' +
   'OPPONENT would ask the debater about the cards in their file, and the answer that opponent ' +
   'would likely get.\n\n' +
   'Rules:\n' +
-  '- Questions must target the HIGHLIGHTED/UNDERLINED text only: that is what is read aloud.\n' +
-  '- The only exception: you may reference the small reference text if it directly and ' +
-  'completely contradicts a claim in the highlighted text of the same card.\n' +
+  '- The file is given in order. POCKET, HAT and BLOCK lines are its headings: they show which ' +
+  'argument each card belongs to. Each card has its tag, its full cite and its HIGHLIGHTED text, ' +
+  'which is what is read aloud. You are not given the unhighlighted card text.\n' +
+  '- Questions must target the tags and the highlighted text.\n' +
   '- Each question is 1-3 sentences, direct and pointed. No "can you explain..." filler.\n' +
   '- Expose missing warrants, weak internal links, unqualified authors, in-card contradictions, ' +
   'non-unique impacts and overclaims.\n' +
@@ -91,7 +67,7 @@ export const CROSSEX_SYSTEM_PROMPT =
   `- "press": ONE sentence addressed to the questioner, starting with a verb ("Push on...", ` +
   `"Make them defend..."), naming the best follow-up after that answer. At most ${PRESS_CAP} ` +
   'characters. Omit it if there is genuinely no good follow-up.\n' +
-  `- ${PLAIN_TEXT_RULE}\n\n` +
+  `- ${EMPHASIS_RULE}\n\n` +
   'Decide whether the file is Aff, Neg or both from speech labels (1AC/2AC/1AR/2AR are Aff; ' +
   '1NC/2NC/1NR/2NR are Neg), argument type (plan, advantages and solvency are Aff; DAs, CPs, Ks, ' +
   'T and AT:/A2: blocks are Neg) and tag, pocket and file names. If it is one-sided or unclear, ' +
@@ -117,7 +93,7 @@ export const TRAP_SYSTEM_PROMPT =
   'recall card wording: the debater cannot see the card during the drill.\n' +
   'Good: "Does your card say X is already happening or just that it might happen?"\n' +
   'Bad: "What specific evidence in that card supports that claim?"\n\n' +
-  `${PLAIN_TEXT_RULE}\n\n` +
+  `${EMPHASIS_RULE}\n\n` +
   'Reply with JSON only:\n' +
   '{"traps":[{"setup":"the setup question","wrongAnswer":"the tempting wrong answer",' +
   '"gotcha":"the devastating follow-up","ideal":"the ideal answer","lesson":"one-sentence lesson"}]}';
@@ -126,7 +102,7 @@ export const GRADE_SYSTEM_PROMPT =
   'You grade a debater\'s answer to a cross-examination trap. Verdicts: "avoided" (they sidestepped ' +
   'the trap; name exactly how), "fell" (they walked into it; spring the gotcha, say what went ' +
   'wrong and give the fix), "partial" (mostly safe but left an opening). Give the verdict and 2-3 ' +
-  `sentences of feedback. ${PLAIN_TEXT_RULE}\n` +
+  `sentences of feedback. ${EMPHASIS_RULE}\n` +
   'Reply with JSON only: {"verdict":"avoided"|"fell"|"partial","feedback":"..."}';
 
 // --- input assembly ---------------------------------------------------------
@@ -137,55 +113,62 @@ export interface CrossExInput {
   /** Cards that carried highlighted text, indexed as the model sees them. */
   cards: CardInfo[];
   highlightedChars: number;
-  fullChars: number;
   /** Total highlighted words across the doc. */
   highlightedWords: number;
   /** Words in the whole doc body. */
   totalWords: number;
-  /** True if the doc exceeds the size caps (needs the user's go-ahead to trim). */
+  /** True if the highlighted text exceeds the cap (needs the user's go-ahead to trim). */
   overCap: boolean;
 }
 
 const wc = (s: string): number => (s.trim() === '' ? 0 : s.trim().split(/\s+/u).length);
 
-/** Build the model input from the doc's cards. `trim` cuts to the caps. */
-export function buildCrossExInput(allCards: readonly CardInfo[], trim: boolean): CrossExInput {
-  const cards = allCards.filter((c) => c.readText.trim() !== '');
+const HEADING_LABEL: Record<OutlineHeading['type'], string> = {
+  pocket: 'POCKET',
+  hat: 'HAT',
+  block: 'BLOCK',
+};
+
+/** Build the model input: the pocket / hat / block headings and, for each
+ *  card with highlighted text, its tag, full cite and highlighted text, in
+ *  document order. Unhighlighted card text is never sent. `trim` cuts the
+ *  highlighted text to the cap. */
+export function buildCrossExInput(
+  allCards: readonly CardInfo[],
+  trim: boolean,
+  headings: readonly OutlineHeading[] = [],
+): CrossExInput {
+  const cards = allCards.filter((c) => c.highlightText.trim() !== '');
   let highlightedChars = 0;
-  let fullChars = 0;
   let highlightedWords = 0;
   let totalWords = 0;
   for (const c of allCards) totalWords += c.bodyWords;
   for (const c of cards) {
-    highlightedChars += c.readText.length;
-    fullChars += c.readText.length + c.smallText.length;
-    highlightedWords += wc(c.readText);
+    highlightedChars += c.highlightText.length;
+    highlightedWords += wc(c.highlightText);
   }
-  const overCap = highlightedChars > HIGHLIGHT_CAP || fullChars > FULL_CAP;
-  let hlBudget = trim ? HIGHLIGHT_CAP : Infinity;
-  let fullBudget = trim ? FULL_CAP : Infinity;
+  const overCap = highlightedChars > HIGHLIGHT_CAP;
+  let budget = trim ? HIGHLIGHT_CAP : Infinity;
   const parts: string[] = [];
   const kept: CardInfo[] = [];
+  let h = 0;
   for (const c of cards) {
-    if (hlBudget <= 0 || fullBudget <= 0) break;
-    const read = c.readText.slice(0, hlBudget);
-    hlBudget -= read.length;
-    fullBudget -= read.length;
-    const small = fullBudget > 0 ? c.smallText.slice(0, Math.min(fullBudget, 1500)) : '';
-    fullBudget -= small.length;
+    if (budget <= 0) break;
+    for (; h < headings.length && headings[h]!.pos < c.pos; h++) {
+      parts.push(`${HEADING_LABEL[headings[h]!.type]}: ${headings[h]!.text}`);
+    }
+    const read = c.highlightText.slice(0, budget);
+    budget -= read.length;
     const n = kept.length;
     kept.push(c);
     parts.push(
-      `[Card ${n}]\nTAG: ${c.tag}\nCITE: ${c.cite.slice(0, 300)}\n` +
-        `HIGHLIGHTED (read aloud): ${read}\n` +
-        (small ? `SMALL (reference only): ${small}\n` : ''),
+      `[Card ${n}]\nTAG: ${c.tag}\nCITE: ${c.cite.slice(0, CITE_CAP)}\nHIGHLIGHTED: ${read}\n`,
     );
   }
   return {
     text: parts.join('\n'),
     cards: kept,
     highlightedChars,
-    fullChars,
     highlightedWords,
     totalWords,
     overCap,
@@ -216,12 +199,7 @@ export function parseQuestions(
   cardCount: number,
   forcedSide?: Side | null,
 ): CrossExQuestion[] {
-  const json = parseJsonLoose(text) as { questions?: unknown } | unknown[] | null;
-  const list = Array.isArray(json)
-    ? json
-    : json && typeof json === 'object' && Array.isArray((json as { questions?: unknown }).questions)
-      ? ((json as { questions: unknown[] }).questions)
-      : [];
+  const list = parseJsonList(text, 'questions');
   const out: CrossExQuestion[] = [];
   for (const raw of list) {
     if (!raw || typeof raw !== 'object') continue;
@@ -251,12 +229,7 @@ export function hasSideSplit(qs: readonly CrossExQuestion[]): boolean {
 }
 
 export function parseTraps(text: string): TrapQuestion[] {
-  const json = parseJsonLoose(text) as { traps?: unknown } | unknown[] | null;
-  const list = Array.isArray(json)
-    ? json
-    : json && typeof json === 'object' && Array.isArray((json as { traps?: unknown }).traps)
-      ? (json as { traps: unknown[] }).traps
-      : [];
+  const list = parseJsonList(text, 'traps');
   const out: TrapQuestion[] = [];
   for (const raw of list) {
     if (!raw || typeof raw !== 'object') continue;
@@ -300,90 +273,119 @@ export function attachCards(
   return qs;
 }
 
-function systemWithGuide(base: string, event: DebateEvent): string {
-  return `${base}\n\n${eventGuide(event)}`;
-}
+const nonEmpty = <T>(list: T[]): T[] | null => (list.length > 0 ? list : null);
 
-function parseFail(): LlmError {
-  return new LlmError("Couldn't read the AI's reply. Try again.", null, 'parse');
+/** An `onText` that re-parses the streamed reply and reports the complete
+ *  items so far, only when there are more than last time. */
+function partialItems<T>(parse: (text: string) => T[], report?: (items: T[]) => void): ((t: string) => void) | undefined {
+  if (!report) return undefined;
+  let seen = 0;
+  return (text) => {
+    const items = parse(text);
+    if (items.length > seen) {
+      seen = items.length;
+      report(items);
+    }
+  };
 }
 
 export async function generateQuestions(
   input: CrossExInput,
-  event: DebateEvent,
+  onPartial?: (qs: CrossExQuestion[]) => void,
 ): Promise<CrossExQuestion[]> {
-  const reply = await callTier('balanced', {
-    maxTokens: 4096,
-    system: systemWithGuide(CROSSEX_SYSTEM_PROMPT, event),
-    messages: [{ role: 'user', content: input.text }],
-  });
-  const qs = parseQuestions(reply.text, input.cards.length);
-  if (qs.length === 0) throw parseFail();
+  const qs = await callTierParsed(
+    'balanced',
+    {
+      maxTokens: 8192,
+      system: CROSSEX_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: input.text }],
+      onText: partialItems(
+        (t) => attachCards(parseQuestions(t, input.cards.length), input.cards).slice(0, 6),
+        onPartial,
+      ),
+    },
+    (text) => nonEmpty(parseQuestions(text, input.cards.length)),
+  );
   return attachCards(qs, input.cards).slice(0, 6);
 }
 
 export async function generateMoreLikeThis(
   seed: CrossExQuestion,
   input: CrossExInput,
-  event: DebateEvent,
+  onPartial?: (qs: CrossExQuestion[]) => void,
 ): Promise<CrossExQuestion[]> {
-  const reply = await callTier('balanced', {
-    maxTokens: 3072,
-    system: systemWithGuide(MORE_LIKE_THIS_SYSTEM_PROMPT, event),
-    messages: [
-      {
-        role: 'user',
-        content: `${input.text}\n\nSEED QUESTION: ${seed.question}\n(Seed answer: ${seed.answer})`,
-      },
-    ],
-  });
-  const qs = parseQuestions(reply.text, input.cards.length, seed.side);
-  if (qs.length === 0) throw parseFail();
-  return attachCards(
-    qs.filter((q) => q.question !== seed.question).slice(0, 3),
-    input.cards,
+  const qs = await callTierParsed(
+    'balanced',
+    {
+      maxTokens: 8192,
+      system: MORE_LIKE_THIS_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: `${input.text}\n\nSEED QUESTION: ${seed.question}\n(Seed answer: ${seed.answer})`,
+        },
+      ],
+      onText: partialItems(
+        (t) =>
+          attachCards(
+            parseQuestions(t, input.cards.length, seed.side)
+              .filter((q) => q.question !== seed.question)
+              .slice(0, 3),
+            input.cards,
+          ),
+        onPartial,
+      ),
+    },
+    (text) =>
+      nonEmpty(
+        parseQuestions(text, input.cards.length, seed.side).filter((q) => q.question !== seed.question),
+      ),
   );
+  return attachCards(qs.slice(0, 3), input.cards);
 }
 
 export async function generateTraps(
   input: CrossExInput,
   questions: readonly CrossExQuestion[],
-  event: DebateEvent,
+  onPartial?: (traps: TrapQuestion[]) => void,
 ): Promise<TrapQuestion[]> {
   const asked = questions.map((q) => `- ${q.question}`).join('\n');
-  const reply = await callTier('balanced', {
-    maxTokens: 3072,
-    system: systemWithGuide(TRAP_SYSTEM_PROMPT, event),
-    messages: [
-      {
-        role: 'user',
-        content: `${input.text}\n\nQUESTIONS ALREADY GENERATED (build the traps around the same cards):\n${asked}`,
-      },
-    ],
-  });
-  const traps = parseTraps(reply.text);
-  if (traps.length === 0) throw parseFail();
-  return traps;
+  return callTierParsed(
+    'balanced',
+    {
+      maxTokens: 8192,
+      system: TRAP_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: `${input.text}\n\nQUESTIONS ALREADY GENERATED (build the traps around the same cards):\n${asked}`,
+        },
+      ],
+      onText: partialItems(parseTraps, onPartial),
+    },
+    (text) => nonEmpty(parseTraps(text)),
+  );
 }
 
 export async function gradeTrap(
   trap: TrapQuestion,
   answer: string,
 ): Promise<{ verdict: TrapVerdict; feedback: string }> {
-  const reply = await callTier('lite', {
-    maxTokens: 800,
-    system: GRADE_SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content:
-          `SETUP QUESTION: ${trap.setup}\nTEMPTING WRONG ANSWER: ${trap.wrongAnswer}\n` +
-          `GOTCHA FOLLOW-UP: ${trap.gotcha}\nIDEAL ANSWER: ${trap.ideal}\n\n` +
-          `DEBATER'S ANSWER: ${answer}`,
-      },
-    ],
-  });
-  const g = parseGrade(reply.text);
-  if (!g) throw parseFail();
-  return g;
+  return callTierParsed(
+    'lite',
+    {
+      maxTokens: 2048,
+      system: GRADE_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content:
+            `SETUP QUESTION: ${trap.setup}\nTEMPTING WRONG ANSWER: ${trap.wrongAnswer}\n` +
+            `GOTCHA FOLLOW-UP: ${trap.gotcha}\nIDEAL ANSWER: ${trap.ideal}\n\n` +
+            `DEBATER'S ANSWER: ${answer}`,
+        },
+      ],
+    },
+    parseGrade,
+  );
 }

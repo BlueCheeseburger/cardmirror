@@ -5889,7 +5889,6 @@ function refreshAutoScrollBtn(): void {
 
 const navPanel = new NavigationPanel(navEl, {
   useLay: () => laySpeakingOn,
-  docKey: () => activeDocIdentity().docId ?? activeDocIdentity().sessionUid,
 });
 
 /** The single-doc NavigationPanel instance — the mobile shell drives

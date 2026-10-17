@@ -22,8 +22,6 @@ import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js
 import { isCutInPlaceDoc, markCutInPlace } from './cut-in-place.js';
 import { showToast } from './toast.js';
 import { countReadAloudSplit, formatReadTimeFor, type ReadAloudCounts } from './word-count.js';
-import { collectCardInfo, highlightWarnings, HIGHLIGHT_WARNING_TEXT } from './ai/card-analysis.js';
-import { dismissedWarnings } from './ai/ai-panel-store.js';
 import { buildMarkCardsTransaction, computeMarkInfo, READING_MARKER_META } from './reading-marker.js';
 import { buildCardMenuSections } from './card-menu-sections.js';
 import type { DocMenuSection } from './doc-menu-ui.js';
@@ -421,8 +419,6 @@ export class NavigationPanel {
   /** Rendered match rows in order (skeleton rows excluded) — the
    *  arrow-key stops. */
   private searchHitRows: HTMLLIElement[] = [];
-  /** Document key for dismissed highlight-ratio warnings; null = no badges. */
-  private docKey: (() => string) | null = null;
   /** Keyboard-highlighted match, indexing `searchHitRows`. */
   private searchActiveIndex = 0;
   /** Last search computation, reused while the doc, query and options are
@@ -441,19 +437,11 @@ export class NavigationPanel {
       readOnly?: boolean;
       /** Whether this doc's read times are in lay mode (see `useLay`). */
       useLay?: () => boolean;
-      /** Stable key of this panel's document, for dismissed highlight warnings. */
-      docKey?: () => string;
     },
   ) {
     this.onClose = opts?.onClose ?? null;
     this.readOnly = opts?.readOnly === true;
     this.useLay = opts?.useLay ?? (() => false);
-    this.docKey = opts?.docKey ?? null;
-    if (this.docKey) {
-      window.addEventListener('pmd-ai-hl-dismiss', () => {
-        if (this.currentDoc) this.render(this.currentDoc);
-      });
-    }
     this.root = document.createElement('aside');
     this.root.className = 'pmd-nav-panel';
 
@@ -1133,10 +1121,6 @@ export class NavigationPanel {
     // Marked cards: a flag (hover for the marker's text) on each marked card,
     // and a "N marked" roll-up on the pocket / hat / block above them.
     const markInfo = computeMarkInfo(doc);
-    // Highlight-ratio outliers (over / under-highlighted cards), minus the
-    // ones the user dismissed. Per-card facts are cached on the card node.
-    const hlWarn = this.docKey ? highlightWarnings(collectCardInfo(doc)) : null;
-    const hlDismissed = this.docKey ? dismissedWarnings(this.docKey()) : null;
 
     // Clear and re-build. For doc sizes we care about (max ~600 headings
     // in the example corpus) this is fine; if profiling shows it's hot,
@@ -1278,17 +1262,6 @@ export class NavigationPanel {
           flag.title = markText;
           setIcon(flag, 'flag');
           li.appendChild(flag);
-        }
-      }
-
-      if (hlWarn && !entry.windowed && entry.type === 'tag') {
-        const w = hlWarn.get(entry.pos);
-        if (w && !hlDismissed!.has(entry.text.trim())) {
-          const badge = document.createElement('span');
-          badge.className = 'pmd-nav-hl-warn';
-          badge.textContent = '!';
-          badge.title = `${w.flag === 'over' ? 'Over' : 'Under'}-highlighted (${Math.round(w.ratio * 100)}%). ${HIGHLIGHT_WARNING_TEXT[w.flag]}`;
-          li.appendChild(badge);
         }
       }
 
