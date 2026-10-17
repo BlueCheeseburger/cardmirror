@@ -419,7 +419,7 @@ below say which fallback applies where it matters.
 | **Bold / Italic** | Mod-B / Mod-I | Standard direct formatting. With nothing selected, toggles it for the text you're about to type; while italic typing is on, the cursor tilts to match. Tags and headings are bold by default, so **Bold inside a tag un-bolds** the selected words (press it again to restore) — and .docx files with un-bolded words in tags now show that correctly. |
 
 Super/subscript and strikethrough live in the **Format** menu (super and
-subscript also have shortcuts: **Mod-Shift-=** and **Mod-=**).
+subscript: superscript has a shortcut, **Mod-Shift-=**; subscript is unbound by default, since **Mod-=** is Zoom In — give it a key in Settings → Keyboard shortcuts if you use it).
 
 <a id="paste-text-f2"></a>
 ### Paste Text (F2)
@@ -3212,7 +3212,7 @@ All defaults; rebind any of them in **Settings → Keyboard shortcuts**.
 | Mod-F11 | Background color |
 | Mod-Z / Mod-Y | Undo / Redo (Mod-Shift-Z also redoes) |
 | Mod-B / Mod-I | Bold / Italic |
-| Mod-Shift-= / Mod-= | Superscript / Subscript |
+| Mod-Shift-= | Superscript (Subscript is unbound by default; Mod-= is Zoom In) |
 | F12 | Clear formatting |
 | F2 | Paste Text |
 | F3 / Alt-F3 / Mod-Alt-F3 | Condense / no integrity / with pilcrows |
