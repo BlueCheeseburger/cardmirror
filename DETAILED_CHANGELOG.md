@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.7 — 2026-10-17
 
 ### Added: AI revamp — Cross-Ex Practice and Card Credibility (`src/editor/ai/`)
 
