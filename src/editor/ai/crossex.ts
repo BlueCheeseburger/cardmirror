@@ -5,7 +5,8 @@
  */
 
 import { callTierParsed, parseJsonList, parseJsonLoose } from './tiers.js';
-import type { CardInfo, OutlineHeading } from './card-analysis.js';
+import type { Node as PMNode } from 'prosemirror-model';
+import { collectCrossExItems, type CardInfo } from './card-analysis.js';
 
 export type Side = 'aff' | 'neg';
 
@@ -36,10 +37,10 @@ export interface TrapQuestion {
 
 export type TrapVerdict = 'avoided' | 'fell' | 'partial';
 
+/** Most characters of document text sent in one prompt. */
 export const HIGHLIGHT_CAP = 40_000;
 /** Cites go in whole up to this (some carry long qualifications). */
 export const CITE_CAP = 1_000;
-export const SHORT_HIGHLIGHT_WORDS = 120;
 export const SHORT_DOC_WORDS = 400;
 export const PRESS_CAP = 300;
 
@@ -55,9 +56,12 @@ export const CROSSEX_SYSTEM_PROMPT =
   'would likely get.\n\n' +
   'Rules:\n' +
   '- The file is given in order. POCKET, HAT and BLOCK lines are its headings: they show which ' +
-  'argument each card belongs to. Each card has its tag, its full cite and its HIGHLIGHTED text, ' +
-  'which is what is read aloud. You are not given the unhighlighted card text.\n' +
-  '- Questions must target the tags and the highlighted text.\n' +
+  'argument everything under them belongs to. [Analytic] and [Text] entries are arguments the ' +
+  'debater wrote or will say themselves (analytics, overviews, framing). Each [Card] has its tag, ' +
+  'its full cite and, when present, its HIGHLIGHTED text, which is what is read aloud. You are not ' +
+  'given the unhighlighted card text.\n' +
+  '- Questions can target any of it: headings, tags, analytics, written arguments and highlighted ' +
+  'card text. Set "card" only when a question is about a specific [Card].\n' +
   '- Each question is 1-3 sentences, direct and pointed. No "can you explain..." filler.\n' +
   '- Expose missing warrants, weak internal links, unqualified authors, in-card contradictions, ' +
   'non-unique impacts and overclaims.\n' +
@@ -110,69 +114,53 @@ export const GRADE_SYSTEM_PROMPT =
 export interface CrossExInput {
   /** The prompt body sent to the model. */
   text: string;
-  /** Cards that carried highlighted text, indexed as the model sees them. */
+  /** Cards in the prompt, indexed as the model sees them ([Card n]). */
   cards: CardInfo[];
-  highlightedChars: number;
-  /** Total highlighted words across the doc. */
-  highlightedWords: number;
-  /** Words in the whole doc body. */
+  /** Characters of document text in the prompt before any trimming. */
+  chars: number;
+  /** Words in the whole document. */
   totalWords: number;
-  /** True if the highlighted text exceeds the cap (needs the user's go-ahead to trim). */
+  /** True if the text exceeds the cap (needs the user's go-ahead to trim). */
   overCap: boolean;
 }
 
 const wc = (s: string): number => (s.trim() === '' ? 0 : s.trim().split(/\s+/u).length);
 
-const HEADING_LABEL: Record<OutlineHeading['type'], string> = {
-  pocket: 'POCKET',
-  hat: 'HAT',
-  block: 'BLOCK',
-};
-
-/** Build the model input: the pocket / hat / block headings and, for each
- *  card with highlighted text, its tag, full cite and highlighted text, in
- *  document order. Unhighlighted card text is never sent. `trim` cuts the
- *  highlighted text to the cap. */
-export function buildCrossExInput(
-  allCards: readonly CardInfo[],
-  trim: boolean,
-  headings: readonly OutlineHeading[] = [],
-): CrossExInput {
-  const cards = allCards.filter((c) => c.highlightText.trim() !== '');
-  let highlightedChars = 0;
-  let highlightedWords = 0;
-  let totalWords = 0;
-  for (const c of allCards) totalWords += c.bodyWords;
-  for (const c of cards) {
-    highlightedChars += c.highlightText.length;
-    highlightedWords += wc(c.highlightText);
-  }
-  const overCap = highlightedChars > HIGHLIGHT_CAP;
-  let budget = trim ? HIGHLIGHT_CAP : Infinity;
-  const parts: string[] = [];
+/** Build the model input from the whole document, in order: pocket / hat /
+ *  block headings, analytics, loose text, and every card's tag and full cite
+ *  with its highlighted text when it has any. Unhighlighted card text is
+ *  never sent. `trim` cuts the whole thing to the cap. */
+export function buildCrossExInput(doc: PMNode, trim: boolean): CrossExInput {
+  const items = collectCrossExItems(doc);
+  const lines: string[] = [];
   const kept: CardInfo[] = [];
-  let h = 0;
-  for (const c of cards) {
-    if (budget <= 0) break;
-    for (; h < headings.length && headings[h]!.pos < c.pos; h++) {
-      parts.push(`${HEADING_LABEL[headings[h]!.type]}: ${headings[h]!.text}`);
+  let totalWords = 0;
+  for (const it of items) {
+    if (it.kind === 'heading') {
+      lines.push(`${it.label}: ${it.text}`);
+      totalWords += wc(it.text);
+    } else if (it.kind === 'analytic') {
+      lines.push(`[Analytic]\n${it.text}\n`);
+      totalWords += wc(it.text);
+    } else if (it.kind === 'text') {
+      lines.push(`[Text]\n${it.text}\n`);
+      totalWords += wc(it.text);
+    } else {
+      const c = it.card;
+      const n = kept.length;
+      kept.push(c);
+      totalWords += wc(c.tag) + c.bodyWords;
+      lines.push(
+        `[Card ${n}]\nTAG: ${c.tag}\nCITE: ${c.cite.slice(0, CITE_CAP)}\n` +
+          (c.highlightText.trim() ? `HIGHLIGHTED: ${c.highlightText}\n` : ''),
+      );
     }
-    const read = c.highlightText.slice(0, budget);
-    budget -= read.length;
-    const n = kept.length;
-    kept.push(c);
-    parts.push(
-      `[Card ${n}]\nTAG: ${c.tag}\nCITE: ${c.cite.slice(0, CITE_CAP)}\nHIGHLIGHTED: ${read}\n`,
-    );
   }
-  return {
-    text: parts.join('\n'),
-    cards: kept,
-    highlightedChars,
-    highlightedWords,
-    totalWords,
-    overCap,
-  };
+  let text = lines.join('\n');
+  const chars = text.length;
+  const overCap = chars > HIGHLIGHT_CAP;
+  if (trim && overCap) text = text.slice(0, HIGHLIGHT_CAP);
+  return { text, cards: kept, chars, totalWords, overCap };
 }
 
 /** The amber notice for a doc too short to give good questions, or null. */
@@ -180,9 +168,6 @@ export function shortDocNotice(input: CrossExInput): string | null {
   if (input.totalWords < SHORT_DOC_WORDS) {
     const pages = Math.max(1, Math.round(input.totalWords / 500));
     return `This document is short (about ${input.totalWords} words, roughly ${pages} page${pages === 1 ? '' : 's'}): expect few or shallow questions.`;
-  }
-  if (input.highlightedWords < SHORT_HIGHLIGHT_WORDS) {
-    return `Only about ${input.highlightedWords} highlighted words: expect few or shallow questions.`;
   }
   return null;
 }

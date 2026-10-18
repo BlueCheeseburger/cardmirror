@@ -10,6 +10,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Fixed
+- **Cross-Ex Practice reads the whole file, not only highlighted card text.** A file made of headings and analytics (or cards with no highlighting) used to show "about 0 words" and nothing to ask about. It now sends the pocket, hat and block headings, analytics and other written text, and every card's tag and cite with its highlighted text.
+
 ### Changed
 - **Keyboard map: change what any key does, one key at a time.** The command picker is now on every key (not just free ones) and shows what the key does now. The **Remove** button is gone; choose **Nothing (unassigned)** in the picker to clear a key.
 

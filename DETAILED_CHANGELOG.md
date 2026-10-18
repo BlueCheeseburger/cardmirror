@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: Cross-Ex input is the whole document (`ai/card-analysis.ts`, `ai/crossex.ts`, `ai/ai-panel-ui.ts`)
+
+`buildCrossExInput` took only cards that had highlighted text, so analytic-only files read as 0 words and "no
+highlighted text". New `collectCrossExItems(doc)` walks the document in order and yields headings, analytics
+(`analytic_unit` / `analytic`), loose paragraphs and cards; `buildCrossExInput(doc, trim)` renders them as
+`POCKET/HAT/BLOCK:` lines, `[Analytic]`, `[Text]` and `[Card n]` (tag, full cite, `HIGHLIGHTED:` only when present;
+unhighlighted card text still never goes). The 40,000-character cap now covers the whole prompt. The system prompt says
+questions may target any of it and to set `card` only for a specific card. The short-document notice is by total words
+only, and the empty notice appears only when there is nothing at all to ask about. Tests in `ai-panels.test.ts`.
+
 ### Changed: keyboard map picker on every key (`keyboard-map.ts`)
 
 `buildBindPicker(mods, here)` is now shown for bound and free keys alike, preselected to the key's current command

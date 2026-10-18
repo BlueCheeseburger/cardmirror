@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { schema, newHeadingId } from '../../src/schema/index.js';
 import {
   collectCardInfo,
-  collectOutlineHeadings,
   cardFingerprint,
   type CardInfo,
 } from '../../src/editor/ai/card-analysis.js';
@@ -78,38 +77,57 @@ describe('collectCardInfo', () => {
 });
 
 describe('cross-ex input and parsing', () => {
-  const cards = collectCardInfo(
-    doc(card('Tag A', 'Brady 25', [hl('read this part')]), card('No read', 'X 20', [plain('nothing marked')])),
-  );
-  it('only cards with highlighted text are sent', () => {
-    const input = buildCrossExInput(cards, true);
-    expect(input.cards).toHaveLength(1);
-    expect(input.text).toContain('[Card 0]');
-    expect(input.text).toContain('read this part');
+  const n = schema.nodes;
+  const d1 = doc(card('Tag A', 'Brady 25', [hl('read this part')]), card('No read', 'X 20', [plain('nothing marked')]));
+  const cards = collectCardInfo(d1);
+  it('every card goes in with its tag and cite; highlighted text only when there is some', () => {
+    const input = buildCrossExInput(d1, true);
+    expect(input.cards).toHaveLength(2);
+    expect(input.text).toContain('[Card 0]\nTAG: Tag A');
+    expect(input.text).toContain('HIGHLIGHTED: read this part');
+    expect(input.text).toContain('[Card 1]\nTAG: No read');
+    expect(input.text).not.toContain('nothing marked');
     expect(input.overCap).toBe(false);
   });
-  it('sends headings, tags, full cites and highlighted text, never unhighlighted text', () => {
-    const n = schema.nodes;
+  it('reads headings, analytics and loose text even with no highlighted cards at all', () => {
+    const d = doc(
+      n['pocket']!.create(null, schema.text('Stocks')),
+      n['block']!.create(null, schema.text('2NC---O/V')),
+      n['paragraph']!.create(null, schema.text('The global stock market is booming now.')),
+      n['analytic_unit']!.create(null, [
+        n['analytic']!.create({ id: newHeadingId() }, schema.text('Rapid inflation')),
+        n['card_body']!.create(null, schema.text('Billions in developing countries are affected.')),
+      ]),
+    );
+    const input = buildCrossExInput(d, true);
+    expect(input.text).toContain('POCKET: Stocks');
+    expect(input.text).toContain('BLOCK: 2NC---O/V');
+    expect(input.text).toContain('[Text]\nThe global stock market is booming now.');
+    expect(input.text).toContain('[Analytic]\nRapid inflation\nBillions in developing countries are affected.');
+    expect(input.text.trim()).not.toBe('');
+    expect(input.totalWords).toBeGreaterThan(10);
+  });
+  it('keeps document order and never sends unhighlighted card text', () => {
     const longCite = 'Smith 24, ' + 'Professor of Economics at a long-named university, '.repeat(6);
     const d = doc(
       n['pocket']!.create(null, schema.text('Inequality Adv')),
       n['block']!.create(null, schema.text('1NC---Inequality Decreasing')),
       card('Inequality is falling', longCite, [hl('the gap shrank '), plain('SECRET unread context')]),
     );
-    const input = buildCrossExInput(collectCardInfo(d), true, collectOutlineHeadings(d));
+    const input = buildCrossExInput(d, true);
     expect(input.text).toMatch(/POCKET: Inequality Adv\nBLOCK: 1NC---Inequality Decreasing\n\[Card 0\]/);
-    expect(input.text).toContain('TAG: Inequality is falling');
     expect(input.text).toContain(longCite.trim());
     expect(input.text).toContain('HIGHLIGHTED: the gap shrank');
     expect(input.text).not.toContain('SECRET');
   });
   it('flags and trims a document over the cap', () => {
-    const big: CardInfo[] = [{ ...cards[0]!, highlightText: 'x'.repeat(HIGHLIGHT_CAP + 5000) }];
+    const big = doc(card('Big', 'Cite 24', [hl('x'.repeat(HIGHLIGHT_CAP + 5000))]));
     expect(buildCrossExInput(big, true).overCap).toBe(true);
-    expect(buildCrossExInput(big, true).text.length).toBeLessThan(HIGHLIGHT_CAP + 500);
+    expect(buildCrossExInput(big, true).text.length).toBeLessThanOrEqual(HIGHLIGHT_CAP);
+    expect(buildCrossExInput(big, false).text.length).toBeGreaterThan(HIGHLIGHT_CAP);
   });
   it('shows the short-doc notice', () => {
-    expect(shortDocNotice(buildCrossExInput(cards, true))).toMatch(/short/);
+    expect(shortDocNotice(buildCrossExInput(d1, true))).toMatch(/short/);
   });
   it('parses questions, caps press, validates card index', () => {
     const json = JSON.stringify({

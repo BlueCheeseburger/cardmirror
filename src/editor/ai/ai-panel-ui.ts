@@ -12,7 +12,6 @@ import { scrollToHeadingId } from '../precise-scroll.js';
 import { setIcon } from '../icons.js';
 import {
   collectCardInfo,
-  collectOutlineHeadings,
   cardFingerprint,
   type CardInfo,
 } from './card-analysis.js';
@@ -281,10 +280,8 @@ function renderCrossEx(): void {
   }
   body.appendChild(bar);
 
-  if (input.cards.length === 0) {
-    body.appendChild(
-      notice('No highlighted text found. Questions target only what is read aloud.'),
-    );
+  if (input.text.trim() === '') {
+    body.appendChild(notice('Nothing to ask about yet. Add some headings, analytics or cards.'));
   }
 
   if (busy && pendingQs && pendingQs.after === null) {
@@ -298,7 +295,7 @@ function renderCrossEx(): void {
         el(
           'p',
           'pmd-aip-empty',
-          'Generates 3 to 6 questions an opponent would ask about the tags and highlighted text in this document, with the answer they would likely give and how to press next.',
+          'Generates 3 to 6 questions an opponent would ask about the headings, analytics, tags and highlighted text in this document, with the answer they would likely give and how to press next.',
         ),
       );
     }
@@ -367,11 +364,10 @@ function questionCard(q: CrossExQuestion, state: CrossExState): HTMLElement {
   return card;
 }
 
-/** The cross-ex prompt input for the doc in `view`: headings, tags, cites
- *  and highlighted text only. */
+/** The cross-ex prompt input for the doc in `view`: headings, analytics,
+ *  loose text, and each card's tag, cite and highlighted text. */
 function crossExInputFor(view: EditorView): ReturnType<typeof buildCrossExInput> {
-  const doc = view.state.doc;
-  return buildCrossExInput(collectCardInfo(doc), true, collectOutlineHeadings(doc));
+  return buildCrossExInput(view.state.doc, true);
 }
 
 async function confirmTrim(input: ReturnType<typeof buildCrossExInput>): Promise<boolean> {
@@ -379,9 +375,9 @@ async function confirmTrim(input: ReturnType<typeof buildCrossExInput>): Promise
   return showConfirm({
     title: 'This document is large',
     message:
-      `Cross-ex sends the headings, tags, cites and highlighted text, and the highlighted text is ` +
-      `capped at ${HIGHLIGHT_CAP.toLocaleString()} characters. This document has ` +
-      `${input.highlightedChars.toLocaleString()}. Questions will use the first part only.`,
+      `Cross-ex sends the headings, analytics, tags, cites and highlighted text, capped at ` +
+      `${HIGHLIGHT_CAP.toLocaleString()} characters. This document has ` +
+      `${input.chars.toLocaleString()}. Questions will use the first part only.`,
     confirmLabel: 'Trim and continue',
   });
 }
@@ -390,8 +386,8 @@ async function generate(): Promise<void> {
   const view = host?.getView();
   if (!view || !aiGateToast()) return;
   const input = crossExInputFor(view);
-  if (input.cards.length === 0) {
-    showToast('Highlight or underline some card text first.');
+  if (input.text.trim() === '') {
+    showToast('Nothing to ask about yet. Add some headings, analytics or cards.');
     return;
   }
   if (!(await confirmTrim(input))) return;
