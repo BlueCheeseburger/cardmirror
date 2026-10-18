@@ -133,3 +133,56 @@ export function collectOutlineHeadings(doc: PMNode): OutlineHeading[] {
   });
   return out;
 }
+
+// --- the whole document, in order, for cross-ex ------------------------------
+
+export type CrossExItem =
+  | { kind: 'heading'; label: 'POCKET' | 'HAT' | 'BLOCK'; text: string }
+  | { kind: 'analytic'; text: string }
+  | { kind: 'text'; text: string }
+  | { kind: 'card'; card: CardInfo };
+
+const HEADING_LABELS = { pocket: 'POCKET', hat: 'HAT', block: 'BLOCK' } as const;
+
+/** Everything a question could be about, in document order: pocket / hat /
+ *  block headings, analytics (with their text), loose paragraphs, and cards. */
+export function collectCrossExItems(doc: PMNode): CrossExItem[] {
+  const cards = collectCardInfo(doc);
+  let ci = 0;
+  const out: CrossExItem[] = [];
+  doc.descendants((node) => {
+    const t = node.type.name;
+    if (t === 'self_ref' || t === 'table') return false;
+    if (t === 'card') {
+      const c = cards[ci++];
+      if (c) out.push({ kind: 'card', card: c });
+      return false;
+    }
+    if (t === 'pocket' || t === 'hat' || t === 'block') {
+      const text = node.textContent.trim();
+      if (text) out.push({ kind: 'heading', label: HEADING_LABELS[t], text });
+      return false;
+    }
+    if (t === 'analytic_unit') {
+      const lines: string[] = [];
+      node.forEach((child) => {
+        const x = child.textContent.trim();
+        if (x) lines.push(x);
+      });
+      if (lines.length) out.push({ kind: 'analytic', text: lines.join('\n') });
+      return false;
+    }
+    if (t === 'analytic') {
+      const x = node.textContent.trim();
+      if (x) out.push({ kind: 'analytic', text: x });
+      return false;
+    }
+    if (t === 'paragraph' || t === 'undertag' || t === 'card_body' || t === 'cite_paragraph') {
+      const x = node.textContent.trim();
+      if (x) out.push({ kind: 'text', text: x });
+      return false;
+    }
+    return true;
+  });
+  return out;
+}
