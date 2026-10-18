@@ -12,6 +12,19 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: Standardize Formatting (`standardize-formatting.ts`, `ribbon-commands.ts`)
+
+`planStandardizeFormatting(state, deps)` builds ONE transaction from five ordered steps over the selection (or the
+whole document when empty): `collectExoticWhitespaceFixes` text cleanup, `font_family` and `font_size` mark removal on
+body blocks only (`card_body` and top-level `paragraph`; never tags, cites, headings or analytics), a highlight pass
+that rewrites visible highlights to `ctx.highlightColor()` and skips blank (white) ones and ones already that color
+(the existing `uniHighlight` was not reused because it also recolors erased white highlights), then the ordinary
+`shrinkText` command run on a bare state over the remapped scope. Each step's step count feeds the confirm dialog;
+`runStandardizeFormatting` plans, asks, re-plans against the live document (it may have changed while the dialog was
+open) and dispatches once. Command `standardizeFormatting` (unbound; Doc menu "Standardize Formatting…"). Not built
+yet: the model stage for cards whose underline/emphasis scheme is ambiguous (that is still the separate Repair
+Formatting command). Tests: `tests/editor/standardize-formatting.test.ts`.
+
 ### Fixed: Cross-Ex input is the whole document (`ai/card-analysis.ts`, `ai/crossex.ts`, `ai/ai-panel-ui.ts`)
 
 `buildCrossExInput` took only cards that had highlighted text, so analytic-only files read as 0 words and "no

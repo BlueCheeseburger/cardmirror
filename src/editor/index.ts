@@ -3006,6 +3006,11 @@ if (docMenuBtn) {
         title: 'Highlighting',
         items: [
           {
+            label: 'Standardize Formatting…',
+            commandId: 'standardizeFormatting',
+            run: () => runRibbon('standardizeFormatting'),
+          },
+          {
             label: 'Standardize Highlighting',
             commandId: 'standardizeHighlight',
             run: () => runRibbon('standardizeHighlight'),

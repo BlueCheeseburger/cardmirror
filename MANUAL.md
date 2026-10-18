@@ -757,6 +757,23 @@ background) to convert every color in scope to your active one (with the
 "no color" pen active, they remove every highlight or background in
 scope), and converters between highlight and background.
 
+**Standardize Formatting…** (Doc menu, in the Highlighting section; also in Search
+Everything, unbound by default) cleans up a pasted or imported file in one go,
+with no AI. It works on the selection, or the whole document when nothing is
+selected, and always shows what it will change before it does anything:
+
+1. odd spaces and invisible characters become ordinary text,
+2. stray per-run fonts on body text are cleared (tags, cites, headings and
+   analytics keep their own),
+3. stray per-run text sizes on body text are cleared,
+4. every visible highlight becomes your default highlight color (an erased,
+   white highlight stays erased), and
+5. text that isn't underlined, emphasized or highlighted is shrunk again, with
+   the normal **Shrink** command's rules.
+
+Because sizes are reset before the shrink, a size you set on purpose in body
+text is lost, which is why it asks first. The whole run is one undo step.
+
 Each standardize command also has a **(with Exception)** variant in the
 Doc menu that works the same way but leaves one color of your choice
 completely untouched — pick the protected colors under **Settings →
