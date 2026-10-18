@@ -104,16 +104,27 @@ describe('the map', () => {
     map.destroy();
   });
 
-  it('binds a free key from the picker and removes it again', () => {
+  it('binds a free key, changes what it does, and can clear it, with no Remove button', () => {
     const map = buildKeyboardMap();
     document.body.append(map.el);
+    const pick = (value: string): void => {
+      const select = map.el.querySelector<HTMLSelectElement>('.pmd-kbmap-select')!;
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+    };
     keyEl(map.el, 'J').click();
-    const select = map.el.querySelector<HTMLSelectElement>('.pmd-kbmap-select')!;
-    select.value = 'toggleItalic';
-    select.dispatchEvent(new Event('change'));
+    pick('toggleItalic');
     expect(settings.get('ribbonKeyOverrides')['toggleItalic']).toContain('Mod-j');
     expect(keyEl(map.el, 'J').textContent).toContain('Italic');
-    [...map.el.querySelectorAll<HTMLButtonElement>('.pmd-kbmap-btn')].find((b) => b.textContent === 'Remove')!.click();
+    expect([...map.el.querySelectorAll('.pmd-kbmap-btn')].some((b) => b.textContent === 'Remove')).toBe(false);
+    // A bound key shows its command and can be switched to another one.
+    expect(map.el.querySelector<HTMLSelectElement>('.pmd-kbmap-select')!.value).toBe('toggleItalic');
+    pick('toggleBold');
+    expect(settings.get('ribbonKeyOverrides')['toggleBold']).toContain('Mod-j');
+    expect(settings.get('ribbonKeyOverrides')['toggleItalic'] ?? []).not.toContain('Mod-j');
+    expect(keyEl(map.el, 'J').textContent).toContain('Bold');
+    // "Nothing" clears it.
+    pick('');
     expect(keyEl(map.el, 'J').classList.contains('pmd-kbmap-bound')).toBe(false);
     map.destroy();
   });

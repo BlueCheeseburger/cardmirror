@@ -313,21 +313,7 @@ export function buildKeyboardMap(): KeyboardMapHandle {
     detail.append(left);
 
     const actions = el('div', 'pmd-kbmap-actions');
-    if (here.length) {
-      const rm = el('button', 'pmd-kbmap-btn', 'Remove');
-      rm.type = 'button';
-      rm.onclick = () => {
-        // The note goes first: changing a binding redraws the map right away.
-        state.note = `Removed ${comboDisplay([...MOD_ORDER.filter((m) => mods.has(m))], state.sel, mac)}.`;
-        for (const h of here) {
-          if (h.id.startsWith('macro:')) clearMacroKey(h.id.slice(6));
-          else unbindKeyFromCommand(h.id as AnyCommandId, h.raw);
-        }
-      };
-      actions.append(rm);
-    } else {
-      actions.append(buildBindPicker(mods));
-    }
+    actions.append(buildBindPicker(mods, here));
     detail.append(actions);
 
     // The same key on other layers, so every use of it is in one place.
@@ -343,30 +329,58 @@ export function buildKeyboardMap(): KeyboardMapHandle {
     }
   }
 
-  /** "Bind a command" for a free key: one dropdown, grouped like the keybindings editor. */
-  function buildBindPicker(mods: Set<MapMod>): HTMLElement {
+  /** One dropdown for any key, grouped like the keybindings editor: it shows what the
+   *  key does now (or "Choose a command…" when free) and changes it on pick. */
+  function buildBindPicker(mods: Set<MapMod>, here: MapBinding[]): HTMLElement {
     const wrap = el('label', 'pmd-kbmap-bind');
     wrap.append(el('span', undefined, 'Use this key for'));
     const sel = el('select', 'pmd-kbmap-select');
-    sel.append(Object.assign(el('option', undefined, 'Choose a command…'), { value: '' }));
+    const current = here[0];
+    sel.append(Object.assign(el('option', undefined, current ? 'Nothing (unassigned)' : 'Choose a command…'), { value: '' }));
+    const listed = new Set<string>();
     for (const g of RIBBON_GROUPS) {
       const ids = g.commands.filter(isRibbonCommandAvailable);
       if (!ids.length) continue;
       const og = el('optgroup');
       og.label = g.title;
-      for (const id of ids) og.append(Object.assign(el('option', undefined, commandLabelFor(id)), { value: id }));
+      for (const id of ids) {
+        listed.add(id);
+        og.append(Object.assign(el('option', undefined, commandLabelFor(id)), { value: id }));
+      }
       sel.append(og);
     }
+    // A macro or plugin command isn't in the groups: still show it as the current choice.
+    if (current && !listed.has(current.id)) {
+      sel.insertBefore(Object.assign(el('option', undefined, current.label), { value: current.id }), sel.children[1] ?? null);
+    }
+    sel.value = current ? current.id : '';
+    const keyName = comboDisplay([...MOD_ORDER.filter((m) => mods.has(m))], state.sel, mac);
+    const clearHolders = (except: string): void => {
+      for (const h of here) {
+        if (h.id === except) continue;
+        if (h.id.startsWith('macro:')) clearMacroKey(h.id.slice(6));
+        else unbindKeyFromCommand(h.id as AnyCommandId, h.raw);
+      }
+    };
     sel.onchange = () => {
-      if (!sel.value) return;
+      const target = sel.value;
+      if (current && target === current.id && here.length === 1) return;
+      if (!target) {
+        // The note goes first: changing a binding redraws the map right away.
+        state.note = `${keyName} is now unassigned.`;
+        clearHolders('');
+        return;
+      }
       const raw = [...MOD_ORDER.filter((m) => mods.has(m)), state.sel].join('-');
-      state.note = `Bound ${comboDisplay([...MOD_ORDER.filter((m) => mods.has(m))], state.sel, mac)} to ${commandLabelFor(sel.value as AnyCommandId)}.`;
-      const res = bindKeyToCommand(sel.value as AnyCommandId, raw);
+      state.note = `${keyName} now runs ${commandLabelFor(target as AnyCommandId)}.`;
+      const res = bindKeyToCommand(target as AnyCommandId, raw);
       if ('error' in res) {
         state.note = res.error;
-        sel.value = '';
+        sel.value = current ? current.id : '';
         drawDetail();
+        return;
       }
+      clearHolders(target);
     };
     wrap.append(sel);
     return wrap;

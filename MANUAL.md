@@ -3645,9 +3645,10 @@ hold the real keys. It detects your system on its own.
 - Click a key to see its command, and the same key with other modifiers below.
 - A small dot on a key means it is also used on another layer. A red **!**
   means two commands share it (only one runs).
-- **Remove** takes the command off that key. On a free key, **Use this key
-  for** lets you pick a command from a list to bind it (a key already used by
-  another command is taken from it, like in Settings).
+- **Use this key for** is on every key. It shows what the key does now and
+  lets you pick a different command from the list, one key at a time (a key
+  already used by another command is taken from it, like in Settings). Choose
+  **Nothing (unassigned)** to clear a key.
 - It always shows your current bindings: defaults, your changes, plugin
   commands and keyboard macros. Rebind something in Settings and the map
   changes with it. The full list is below the map.

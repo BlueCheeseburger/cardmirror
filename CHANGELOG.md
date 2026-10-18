@@ -8,6 +8,11 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+- **Keyboard map: change what any key does, one key at a time.** The command picker is now on every key (not just free ones) and shows what the key does now. The **Remove** button is gone; choose **Nothing (unassigned)** in the picker to clear a key.
+
 ## 1.15.0-bcb.7 — 2026-10-17
 
 ### Added
