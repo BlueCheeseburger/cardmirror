@@ -137,11 +137,11 @@ jobs:
           BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
           {
             printf '%s\n' '<!-- download-guide:start -->'
-            printf '%s\n' '**New to CardMirror? Download one file for your computer:**' ''
+            printf '%s\n' '**Installing this fork (BlueCheeseburger/cardmirror) for the first time? Download one file for your computer:**' ''
             printf '%s\n' "- **Mac** (Apple Silicon and Intel): [CardMirror-${VERSION}-universal.dmg](${BASE}/CardMirror-${VERSION}-universal.dmg)"
             printf '%s\n' "- **Windows**: [CardMirror-Setup-${VERSION}.exe](${BASE}/CardMirror-Setup-${VERSION}.exe)"
             printf '%s\n' "- **Linux**: [cardmirror-${VERSION}.AppImage](${BASE}/cardmirror-${VERSION}.AppImage) (any distro: make it executable, then run it), or on Arch [cardmirror-${VERSION}.pacman](${BASE}/cardmirror-${VERSION}.pacman)" ''
-            printf '%s\n' 'Already have CardMirror? It updates itself, so there is nothing to download. The other files below (.zip, .yml, .blockmap) are what the automatic updater reads.' ''
+            printf '%s\n' 'Already running this fork? It updates itself, so there is nothing to download. The official upstream CardMirror (ant981228/cardmirror) is a separate app and does not update to this build. The other files below (.zip, .yml, .blockmap) are what the automatic updater reads.' ''
             printf '%s\n' '---' '<!-- download-guide:end -->' ''
             cat release-notes.md
           } > release-notes.full.md

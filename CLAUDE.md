@@ -308,7 +308,7 @@ Linux, as links built from the tag (the names electron-builder produces; if thos
 ever change, change them there too). It sits between `<!-- download-guide:start
 -->` / `<!-- download-guide:end -->` markers so the in-app What's new popup can
 strip it (`stripDownloadGuide` in `whats-new.ts`) — people updating already have
-the app. Don't paste a block like it into `CHANGELOG.md` by hand; it's generated.
+the app. Its wording names this fork and says upstream's CardMirror is a separate app that does not update to our builds (the user, 2026-10-18: "what if its talking about upstream cardmirror"); keep it explicit about which app it means. Don't paste a block like it into `CHANGELOG.md` by hand; it's generated.
 Releases published before `v1.15.0-bcb.6` don't have it.
 
 ## When trimming release assets, the .zip + .yml files are NOT optional
