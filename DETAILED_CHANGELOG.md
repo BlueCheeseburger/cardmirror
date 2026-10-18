@@ -10,6 +10,16 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: keyboard map picker on every key (`keyboard-map.ts`)
+
+`buildBindPicker(mods, here)` is now shown for bound and free keys alike, preselected to the key's current command
+(macro/plugin commands outside `RIBBON_GROUPS` are added as the current option). Picking binds first
+(`bindKeyToCommand`, which also reports a reserved or bare single-character key without changing anything) and only
+then clears the other holders of that key, so a refused pick never loses the old binding. An empty pick is
+"Nothing (unassigned)". The Remove button is removed. Test updated in `tests/editor/keyboard-map.test.ts`.
+
 ## 1.15.0-bcb.7 — 2026-10-17
 
 ### Added: AI revamp — Cross-Ex Practice and Card Credibility (`src/editor/ai/`)
