@@ -11,6 +11,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 ## Unreleased
 
 ### Added
+- **Flow or lay read times are remembered per file.** Click a pane's read time to switch between flow and lay speeds and the choice now sticks for that saved file after you close it, reopen it or restart CardMirror. Unsaved documents still start on flow.
 - **Standardize Formatting… (no AI).** One command in the Doc menu cleans up a pasted or imported file: odd spaces and invisible characters, stray fonts and text sizes on body text, every highlight to your default color (erased white highlights stay erased), and un-read text shrunk again. It works on the selection or the whole document, shows what it will change and asks first, and is one undo step.
 ### Fixed
 - **Cross-Ex Practice reads the whole file, not only highlighted card text.** A file made of headings and analytics (or cards with no highlighting) used to show "about 0 words" and nothing to ask about. It now sends the pocket, hat and block headings, analytics and other written text, and every card's tag and cite with its highlighted text.

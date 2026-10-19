@@ -93,6 +93,7 @@ import {
 } from './live-read-time.js';
 import { openWordCount } from './word-count-ui.js';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
+import { isLaySpeakingForPath, setLaySpeakingForPath } from './lay-speaking-store.js';
 import {
   autosaveBlockedForRecoveredDraft,
   recoveredDraftJournalSavedAt,
@@ -1013,6 +1014,7 @@ class Slot {
       const rec = this.visible;
       if (!rec || !canSwitchSpeedMode(rec.laySpeaking)) return;
       rec.laySpeaking = !rec.laySpeaking;
+      setLaySpeakingForPath(rec.handle, rec.laySpeaking);
       this.refreshWordCount();
       refreshTimerPace(); // the "Left" readout under the ribbon timer follows it
     });
@@ -4843,10 +4845,10 @@ function buildDocRecord(
     // New docs always start with read mode OFF. The user toggles
     // it per-pane via the ribbon command after opening.
     readMode: false,
-    // New docs always start showing flow speeds — same story as read
-    // mode: session-only, toggled per-pane by clicking that pane's
-    // footer readout.
-    laySpeaking: false,
+    // Flow speeds unless this file was last left on lay (remembered per
+    // path — see lay-speaking-store.ts), toggled per-pane by clicking
+    // that pane's footer readout.
+    laySpeaking: isLaySpeakingForPath(opts.handle),
     zoomPct: settings.get('defaultZoomPct'),
     // Autosave is per-pane in multi-doc — same intent as read mode.
     // On by default (2026-09-07); a file the user previously turned

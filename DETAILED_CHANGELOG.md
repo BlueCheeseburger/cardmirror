@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: Flow/lay read-time choice persists per file (`lay-speaking-store.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+The lay-speaking toggle was session-only. It now follows `autosave-prefs-store.ts`: a localStorage set (`pmd-lay-speaking-paths`) of absolute paths left on lay, restored when a file opens (single-doc open paths and multi-pane record creation) and written on each toggle. Keyed by path, so unsaved docs and web handles (no string path) still start on flow. Not verified: moving or renaming a file drops its remembered choice.
+
 ### Added: Standardize Formatting (`standardize-formatting.ts`, `ribbon-commands.ts`)
 
 `planStandardizeFormatting(state, deps)` builds ONE transaction from five ordered steps over the selection (or the

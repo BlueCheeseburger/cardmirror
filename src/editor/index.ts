@@ -165,6 +165,7 @@ import {
  *  helpers further down would have been reached. */
 const MODE_SWITCH_MARKER_KEY = 'cardmirror:mode-switch-recovery';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
+import { isLaySpeakingForPath, setLaySpeakingForPath } from './lay-speaking-store.js';
 import {
   settings,
   condenseWarningCloseFor,
@@ -5709,8 +5710,9 @@ function effectiveFontSizeForDisplay(state: EditorState): FontSizeInfo {
  *  just to restore the whole-doc readout. */
 let lastWholeDocWords: ReadAloudCounts | null = null;
 
-/** Per-doc lay-speaking toggle for the single-doc status bar — session
- *  state, never persisted. Flipped by
+/** Per-doc lay-speaking toggle for the single-doc status bar. Remembered
+ *  per file path (`lay-speaking-store.ts`) and restored when that file is
+ *  opened. Flipped by
  *  clicking the readout itself (`word-count-text`); switches every
  *  reader shown from their flow rate (`wpm`/`tagWpm`) to their lay rate
  *  (`layWpm`), or "—" for a reader with no lay rate configured. */
@@ -5718,6 +5720,7 @@ let laySpeakingOn = false;
 
 function toggleLaySpeaking(): void {
   laySpeakingOn = !laySpeakingOn;
+  setLaySpeakingForPath(activeFile().handle, laySpeakingOn);
   refreshWordCount();
   refreshTimerPace();
 }
@@ -7596,6 +7599,7 @@ function mountOpenedSingleDoc(args: {
   currentDocFormat = args.format;
   // Restore this file's remembered autosave toggle (off if unknown).
   settings.set('autosaveEnabled', isAutosaveOnForPath(args.handle));
+  laySpeakingOn = isLaySpeakingForPath(args.handle);
   currentDocUid = newSessionDocUid();
   adoptDocId(args.docId, args.name, args.handle ?? null, args.format);
   // A recovered journal / salvaged copy mounts dirty (no on-disk file
@@ -7756,6 +7760,7 @@ async function loadFileInPlace(file: {
   currentDocFormat = file.format;
   // Restore this file's remembered autosave toggle (off if unknown).
   settings.set('autosaveEnabled', isAutosaveOnForPath(file.handle));
+  laySpeakingOn = isLaySpeakingForPath(file.handle);
   currentDocUid = newSessionDocUid();
   adoptDocId(docId, file.filename, file.handle, file.format);
   if (file.recovered) markCurrentDocDirty();
