@@ -2311,7 +2311,7 @@ class MultiPaneShell {
         first.visible?.view.focus();
       }
     });
-    const anchor = document.getElementById('status-file-badge');
+    const anchor = document.getElementById('status-search-btn') ?? document.getElementById('status-file-badge');
     bar.insertBefore(chip, anchor ? anchor.nextSibling : bar.firstChild);
     this.hiddenChipEl = chip;
     this.refreshHiddenChip();
