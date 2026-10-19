@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.8 — 2026-10-19
 
 ### Added
 - **A blue line beside the speech document shows where you should be reading.** Once the speech clock has started and the first reader has a speed set, a large blue bar in the margin between the outline and the document starts at the top of the document and glides down smoothly (not line by line) at the steady pace that finishes the whole document exactly when the speech time runs out, whatever the document's length or your wpm. It stays where it is when you pause the timer and goes away only when you reset it. Unhighlighted text takes no reading time, so the bar rushes through it at a visible speed instead of jumping. While **Auto-Scroll** runs, a second, outlined bar marks the line it thinks you're reading. It follows read mode and the flow / lay toggle, and hides for a document more than a minute longer than the speech (probably a masterfile). Turn it off with **Show a reading-position marker beside the document** (Settings → Appearance → Timer display).
