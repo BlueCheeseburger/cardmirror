@@ -130,9 +130,10 @@ class WordCountModal {
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
     const heads = anyLay ? ['Reader', 'Flow WPM', 'Flow time', 'Lay WPM', 'Lay time'] : ['Reader', 'WPM', 'Time'];
-    for (const h of heads) {
+    for (const [i, h] of heads.entries()) {
       const th = document.createElement('th');
       th.textContent = h;
+      if (i > 0) th.className = 'pmd-wc-numeric';
       trh.appendChild(th);
     }
     thead.appendChild(trh);
