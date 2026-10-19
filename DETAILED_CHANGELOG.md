@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: Bold and italic in AI comment replies (`explain-context.ts`, `comments-ui.ts`)
+
+`EXPLAIN_SYSTEM_PROMPT` used to forbid all markdown because comment bodies were raw text. It now allows `**bold**` and `*italic*` only, and `renderComment` runs AI-authored comments through `appendEmphasis` (same helper the AI panels use, which renders only those two and leaves everything else literal). Human comments are untouched. Collapsed previews show the first comment (the question), so no marker stripping was added. Existing saved replies have no markers and are unchanged.
+
 ### Added: Flow/lay read-time choice persists per file (`lay-speaking-store.ts`, `index.ts`, `multi-pane-shell.ts`)
 
 The lay-speaking toggle was session-only. It now follows `autosave-prefs-store.ts`: a localStorage set (`pmd-lay-speaking-paths`) of absolute paths left on lay, restored when a file opens (single-doc open paths and multi-pane record creation) and written on each toggle. Keyed by path, so unsaved docs and web handles (no string path) still start on flow. Not verified: moving or renaming a file drops its remembered choice.

@@ -51,6 +51,7 @@ import {
 import { openCardEditor, type NewCardDef } from './learn-create-ui.js';
 import { requestFlashcard } from './ai/flashcard-gen.js';
 import { isDue } from './learn-scheduler.js';
+import { appendEmphasis } from './ai/markdown-dom.js';
 import {
   setFlashcardRangesTr,
   setActiveAnnotationRangeTr,
@@ -1384,7 +1385,9 @@ export class CommentsColumn {
     body.className = 'pmd-comment-body';
     for (const line of c.text.split('\n')) {
       const p = document.createElement('p');
-      p.textContent = line;
+      // AI replies may use **bold** and *italic*; nothing else is rendered.
+      if (c.ai) appendEmphasis(p, line);
+      else p.textContent = line;
       body.appendChild(p);
     }
     if (onEdit) {
