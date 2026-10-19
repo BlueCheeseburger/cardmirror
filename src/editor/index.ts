@@ -27,6 +27,7 @@ import { NavigationPanel, setNavCommandRunner } from './nav-panel.js';
 import { initUpdateChip } from './update-chip.js';
 import { mountTimerUI } from './timer-ui.js';
 import { mountTimerPace, refreshTimerPace } from './timer-pace.js';
+import { mountPaceMarker, refreshPaceMarker } from './pace-marker.js';
 import { initTimerAudio } from './timer-audio.js';
 import {
   getTimerState as getTimerStateNow,
@@ -4773,7 +4774,7 @@ applyPillVisibility(); // default-off dropzone pill + quick-card cluster, at boo
 // stays hidden in the DOM until the user toggles ⏱ in the
 // ribbon.
 mountTimerUI();
-mountTimerPace(() => {
+const paceTarget = (): { view: EditorView; useLay: boolean } | null => {
   const speech = getSpeechDocResolver().getSpeechView();
   const target = speech ?? view;
   if (!target) return null;
@@ -4783,7 +4784,9 @@ mountTimerPace(() => {
   const useLay =
     multiDocActive && multiDocLaySpeakingForView ? multiDocLaySpeakingForView(target) : laySpeakingOn;
   return { view: target, useLay };
-});
+};
+mountTimerPace(paceTarget);
+mountPaceMarker(paceTarget);
 // The bottom bar's "Left" readout moves under the ribbon timer (and back)
 // as the timer is shown, hidden or popped out.
 subscribeTimer(() => {
@@ -5723,6 +5726,7 @@ function toggleLaySpeaking(): void {
   setLaySpeakingForPath(activeFile().handle, laySpeakingOn);
   refreshWordCount();
   refreshTimerPace();
+  refreshPaceMarker();
 }
 
 function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
@@ -5893,6 +5897,7 @@ function refreshReadModeBtn(): void {
  *  directly rather than going through a resolver. */
 function refreshAutoScrollBtn(): void {
   autoScrollBtn?.classList.toggle('pmd-active', isAutoScrolling());
+  refreshPaceMarker();
 }
 
 const navPanel = new NavigationPanel(navEl, {

@@ -1605,10 +1605,26 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   Start to count the overtime, still in red. Prep clocks never count up: a
   prep balance at 0:00 is spent.
 
+- **Reading-position marker** *(fork)*. A blue bar in the margin between the
+  outline and the speech document shows where you should be reading by the clock.
+  It appears once the **speech** clock has started and the first reader has a
+  speed set (it stays when you pause and goes away when you reset), starts at the top of the document and moves down at the steady pace
+  that finishes the whole document exactly when the speech time runs out (whatever
+  the document's length or your wpm), so you can see how far ahead or behind you
+  are without looking at the timer. It follows read mode and the flow / lay toggle. It stays hidden when the
+  document is more than a minute longer than the speech, which is probably a
+  masterfile. The bar glides down smoothly rather than line by line; unhighlighted
+  text takes no reading time, so it rushes through that text instead of jumping.
+  While **Auto-Scroll** runs, a second, outlined bar marks
+  the line it thinks you are reading. Turn both off with **Show a reading-position
+  marker beside the document** (Settings → Appearance → Timer display).
+
 - **Pace under the timer** *(fork)*. With **Live read time for what is left to
   read** on (Settings → General → Word counts), a line under the timer compares
   the clock with the **first reader's** read time for what's still unread in the
-  speech document: **On time**, **Too slow** or **Too fast**, with how many
+  speech document, judged against the pace that fits the whole document into the
+  whole speech (so you start **On time** whatever the document's length):
+  **On time**, **Too slow** or **Too fast**, with how many
   minutes and seconds you're off by. It only appears while the **speech** clock is
   counting down: not when it's paused, on a prep clock, or counting up as a
   stopwatch. Turn on **Show time left under the timer** (Settings → Appearance →

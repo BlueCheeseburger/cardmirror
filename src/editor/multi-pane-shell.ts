@@ -39,6 +39,7 @@ import {
 } from './disk-conflict.js';
 import { getTimerState, subscribeTimer } from './timer-state.js';
 import { refreshTimerPace } from './timer-pace.js';
+import { refreshPaceMarker } from './pace-marker.js';
 import { EditorView } from 'prosemirror-view';
 import { setViewDocPath } from './transclusion-doc-path.js';
 import { Node as PMNode } from 'prosemirror-model';
@@ -1017,6 +1018,7 @@ class Slot {
       setLaySpeakingForPath(rec.handle, rec.laySpeaking);
       this.refreshWordCount();
       refreshTimerPace(); // the "Left" readout under the ribbon timer follows it
+      refreshPaceMarker(); // and so does the blue reading-position line
     });
     footer.appendChild(this.wcEl);
     // Per-slot co-editing indicator (this doc's session status + who's here).

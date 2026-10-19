@@ -848,6 +848,10 @@ export interface Settings {
    *  own box (a small line under the digits) instead of a separate row below
    *  it, so the ribbon doesn't grow and the timer isn't squeezed. */
   timerLeftInline: boolean;
+  /** A blue line in the gutter beside the speech document: where the speaker
+   *  should be reading by the speech clock (while it runs), and where
+   *  auto-scroll thinks they are reading (while it runs). */
+  paceMarker: boolean;
   /** How to label the Aff / Neg prep buttons:
    *    'text'  → "A: 10:00" / "N: 10:00", no special color
    *    'color' → "10:00" / "10:00", blue + red border
@@ -1971,6 +1975,7 @@ const DEFAULTS: Settings = {
   timerCompact: false,
   timerLeftUnderTimer: false,
   timerLeftInline: false,
+  paceMarker: true,
   timerPrepLabel: 'both',
   timerPosition: 'beside',
   jumpToDocTopOnReadModeToggle: false,
@@ -3698,6 +3703,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['time left inside timer', 'left in timer box', 'compact time left', 'no extra row'],
   },
   {
+    key: 'paceMarker',
+    label: 'Show a reading-position marker beside the document',
+    description:
+      "On by default. Draws a thick blue line in the margin between the outline and the speech document. Once the speech clock has started and the first reader has a speed set (it stays when paused and goes away on reset), it starts at the top of the document and moves down at the steady pace that finishes the whole document exactly when the speech time runs out. While Auto-Scroll runs, a second, fainter line marks the line it thinks you are reading. Both follow read mode and the lay speaking toggle. The line stays hidden when the document is more than a minute longer than the speech (probably a masterfile).",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Timer display',
+    aliases: ['pace marker', 'blue line', 'reading line', 'where to be reading', 'teleprompter marker', 'progress marker'],
+  },
+  {
     key: 'timerFlashEnabled',
     label: 'Flash timer when countdown is low',
     description:
@@ -5143,6 +5158,7 @@ function sanitize(s: Settings): Settings {
     timerCompact: !!s.timerCompact,
     timerLeftUnderTimer: !!s.timerLeftUnderTimer,
     timerLeftInline: !!s.timerLeftInline,
+    paceMarker: s.paceMarker !== false,
     timerPrepLabel:
       s.timerPrepLabel === 'text' || s.timerPrepLabel === 'color'
         ? s.timerPrepLabel

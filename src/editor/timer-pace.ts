@@ -86,9 +86,50 @@ export function speechCountdownRunning(s: TimerState): boolean {
   return s.running && s.mode === 'speech' && !isStopwatch(s);
 }
 
-/** A speech doc that reads at least this much faster than the clock is
- *  judged against its own length rather than the clock (see `paceRowModel`). */
-export const SHORT_DOC_SLACK_SEC = 120;
+/** What the unread part of the doc takes on the clock at the pace that fits
+ *  the WHOLE doc into the WHOLE speech: the reader's own time for it, scaled by
+ *  speech length over doc length (a doc shorter than the speech is read more
+ *  slowly, a longer one faster). With either length unknown, the reader's own
+ *  time, unscaled. */
+export function pacedNeedSec(needSec: number, totalSec: number | null, speechTotalSec: number): number {
+  if (totalSec !== null && totalSec > 0 && speechTotalSec > 0) return (needSec * speechTotalSec) / totalSec;
+  return needSec;
+}
+
+/** Whether the speech clock has been started and not reset: counting down now,
+ *  or paused part-way. Not a prep clock, not the stopwatch, and not a fresh
+ *  or reset clock (a reset zeroes the armed speech length; a loaded preset
+ *  sits at its full length). The reading-position marker shows in this state,
+ *  so pausing leaves it where it is and only a reset takes it away. */
+export function speechClockStarted(s: TimerState): boolean {
+  if (s.mode !== 'speech' || isStopwatch(s)) return false;
+  if (s.running) return true;
+  return s.speechTotalMs > 0 && getVisibleRemainingMs(s) < s.speechTotalMs;
+}
+
+/** A doc that reads this much longer than the speech is almost certainly a
+ *  masterfile, not a speech, so the reading-position marker stays hidden. */
+export const MASTERFILE_OVER_SEC = 60;
+
+/** How many seconds of the doc (at the reader's own rate), read from the top,
+ *  the speaker should have got through by now if they read the whole doc at a
+ *  steady pace across the whole speech: the doc's read time times the share of
+ *  the speech already used. It starts at 0 whatever the doc's length and
+ *  reaches the end of the doc when the clock does. With the speech length
+ *  unknown it falls back to total minus the clock. Null when the marker should
+ *  not show: an empty doc, or a doc `MASTERFILE_OVER_SEC` over the speech. */
+export function expectedReadSec(input: {
+  clockSec: number;
+  totalSec: number;
+  speechTotalSec: number;
+}): number | null {
+  const { clockSec, totalSec, speechTotalSec } = input;
+  if (!(totalSec > 0)) return null;
+  if (speechTotalSec > 0 && totalSec - speechTotalSec > MASTERFILE_OVER_SEC) return null;
+  const done =
+    speechTotalSec > 0 ? (totalSec * (speechTotalSec - clockSec)) / speechTotalSec : totalSec - clockSec;
+  return Math.max(0, Math.min(totalSec, done));
+}
 
 export interface PaceRowModel {
   /** "Left 9:50" (or "Left —" with no usable rate); '' when it isn't shown. */
@@ -133,25 +174,21 @@ export function paceRowModel(input: PaceRowInput): PaceRowModel {
     out.leftTip = `${reader.name}'s read time for what's left in the speech document`;
   }
   if (input.speechCountdownRunning && need !== null) {
-    // A doc far shorter than the speech would read "Too fast" the whole way.
-    // When it is at least SHORT_DOC_SLACK_SEC shorter, compare the pace
-    // instead: take the spare time off the clock, as if the speech were
-    // exactly as long as the doc.
-    let clockSec = input.clockSec;
+    // Judge the pace that fits the whole doc into the whole speech, not the
+    // reader's own wpm: scale what is left by speech length over doc length.
     const total = input.totalCounts ? readTimeSeconds(input.totalCounts, reader, input.useLay) : null;
-    const speechTotal = input.speechTotalSec ?? 0;
-    if (total !== null && speechTotal > 0 && speechTotal - total >= SHORT_DOC_SLACK_SEC) {
-      clockSec -= speechTotal - total;
-    }
-    const { verdict, deltaSec } = paceVerdict(clockSec, need);
+    const paced = pacedNeedSec(need, total, input.speechTotalSec ?? 0);
+    const clockSec = input.clockSec;
+    const { verdict, deltaSec } = paceVerdict(clockSec, paced);
     const off = verdict === 'on-time' ? '' : ` ${deltaSec < 0 ? '−' : '+'}${formatSeconds(Math.abs(deltaSec))}`;
     out.verdict = verdict;
-    out.hue = paceHue(deltaSec, need);
+    out.hue = paceHue(deltaSec, paced);
     out.verdictText = VERDICT_LABEL[verdict] + off;
     out.verdictTip =
-      `${reader.name} needs ${formatSeconds(need)} for what's left; ` +
-      `${formatSeconds(clockSec)} on the clock` +
-      (clockSec !== input.clockSec ? ' (not counting the time the speech has to spare).' : '.');
+      paced === need
+        ? `${reader.name} needs ${formatSeconds(need)} for what's left; ${formatSeconds(clockSec)} on the clock.`
+        : `Reading the whole document across the whole speech, what's left takes ${formatSeconds(paced)} ` +
+          `(${reader.name}'s own time for it is ${formatSeconds(need)}); ${formatSeconds(clockSec)} on the clock.`;
   }
   return out;
 }

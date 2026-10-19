@@ -95,10 +95,10 @@ describe('outline context menu read times', () => {
     expect(menu.lastElementChild).toBe(rows[0]);
 
     await settle();
-    // Block headings aren't read; tag "One" is 1 word at tag speed,
-    // plus 58 highlighted body words.
-    // Alice: 58s + 2s = 1:00. Bob: 29s + 0.5s = 0:29.
-    expect(infoRows(menu).map((r) => r.textContent)).toEqual(['Alice: 1:00', 'Bob: 0:29']);
+    // Headings are read aloud at tag speed: the block title "Econ" and tag "One"
+    // are 1 word each, plus 58 highlighted body words.
+    // Alice: 58s + 4s = 1:02. Bob: 29s + 1s = 0:30.
+    expect(infoRows(menu).map((r) => r.textContent)).toEqual(['Alice: 1:02', 'Bob: 0:30']);
     expect(menu.querySelector('.pmd-nav-context-item-pending')).toBeNull();
   });
 
@@ -106,8 +106,8 @@ describe('outline context menu read times', () => {
     const { nav } = setup(block('Econ'), card('One', 30), card('Two', 30), block('Other'), card('Three', 600));
     const menu = openMenu(nav, 'Econ');
     await settle();
-    // 60 body words + 2 tag words → Alice 60s + 4s.
-    expect(infoRows(menu)[0]!.textContent).toBe('Alice: 1:04');
+    // 60 body words + 2 tag words + the block title → Alice 60s + 6s.
+    expect(infoRows(menu)[0]!.textContent).toBe('Alice: 1:06');
   });
 
   it('adds up every heading in a multi-selection', async () => {
@@ -118,7 +118,8 @@ describe('outline context menu read times', () => {
     ]);
     const menu = openMenu(nav, 'Econ');
     await settle();
-    expect(infoRows(menu)[0]!.textContent).toBe('Alice: 1:04');
+    // 60 body + 2 tag + 2 block titles → 60s + 8s.
+    expect(infoRows(menu)[0]!.textContent).toBe('Alice: 1:08');
   });
 
   it('uses lay speeds when the doc is in lay mode, "—" for a reader without one', async () => {
@@ -126,8 +127,8 @@ describe('outline context menu read times', () => {
     const { nav } = setup(block('Econ'), card('One', 29));
     const menu = openMenu(nav, 'Econ');
     await settle();
-    // Alice lay 30 wpm over 30 words = 1:00; Bob has no lay rate.
-    expect(infoRows(menu).map((r) => r.textContent)).toEqual(['Alice: 1:00', 'Bob: —']);
+    // Alice lay 30 wpm over 31 words (29 body + tag + block title) = 1:02; Bob has no lay rate.
+    expect(infoRows(menu).map((r) => r.textContent)).toEqual(['Alice: 1:02', 'Bob: —']);
   });
 
   it('clicking a time does nothing and leaves the menu open', async () => {

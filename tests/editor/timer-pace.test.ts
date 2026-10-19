@@ -116,23 +116,34 @@ describe('paceRowModel', () => {
     expect(paceRowModel({ ...base, showLeft: false, speechCountdownRunning: true }).left).toBe('');
   });
 
-  it('judges a doc much shorter than the speech by its own length, not the clock', () => {
-    // Whole doc: 30 s of reading in a 10:00 speech. 30 s read, 30 s left, 9:30 on the clock.
-    const short = { ...base, speechCountdownRunning: true, totalCounts: { body: 100, other: 0 }, speechTotalSec: 600 };
-    // At the start the whole doc is unread: the clock is full (600), need 30 → on time.
-    expect(paceRowModel({ ...short, clockSec: 600 }).verdict).toBe('on-time');
-    // 20 s of the 30 s doc read after 20 s elapsed: clock 580, need 10 → on time.
-    expect(paceRowModel({ ...short, counts: { body: 33, other: 0 }, clockSec: 580 }).verdict).toBe('on-time');
-    // Read faster than the clock: 25 s elapsed, only 10 s of reading left.
-    expect(paceRowModel({ ...short, counts: { body: 33, other: 0 }, clockSec: 575 }).verdict).toBe('on-time');
-    expect(paceRowModel({ ...short, counts: { body: 33, other: 0 }, clockSec: 560 }).verdict).toBe('too-slow');
-    expect(paceRowModel({ ...short, counts: { body: 33, other: 0 }, clockSec: 600 }).verdict).toBe('too-fast');
+  it('judges the pace that fits the whole doc into the whole speech', () => {
+    // Whole doc: 30 s of reading (100 words at 200 wpm) in a 10:00 speech, so
+    // the fitting pace is 20x slower than the reader's own.
+    const doc = { ...base, speechCountdownRunning: true, totalCounts: { body: 100, other: 0 }, speechTotalSec: 600 };
+    // Start: everything unread, the clock full → on time.
+    expect(paceRowModel({ ...doc, clockSec: 600 }).verdict).toBe('on-time');
+    // Half the doc read (15 s of reading left = 5:00 at the fitting pace).
+    const half = { ...doc, counts: { body: 50, other: 0 } };
+    expect(paceRowModel({ ...half, clockSec: 300 }).verdict).toBe('on-time');
+    expect(paceRowModel({ ...half, clockSec: 330 }).verdictText).toBe('Too fast +0:30');
+    expect(paceRowModel({ ...half, clockSec: 270 }).verdictText).toBe('Too slow −0:30');
   });
 
-  it('keeps the plain clock comparison when the doc nearly fills the speech', () => {
-    // Doc 30 s in a 60 s speech: only 30 s spare (< 2 min), so no adjustment.
-    const m = paceRowModel({ ...base, speechCountdownRunning: true, totalCounts: { body: 100, other: 0 }, speechTotalSec: 60, clockSec: 90 });
-    expect(m.verdictText).toBe('Too fast +1:00');
+  it('scales a doc a little shorter or longer than the speech the same way', () => {
+    // 30 s doc in a 60 s speech, half unread: 15 s of reading = 30 s on the clock.
+    const half = {
+      ...base,
+      speechCountdownRunning: true,
+      counts: { body: 50, other: 0 },
+      totalCounts: { body: 100, other: 0 },
+      speechTotalSec: 60,
+    };
+    expect(paceRowModel({ ...half, clockSec: 30 }).verdict).toBe('on-time');
+    expect(paceRowModel({ ...half, clockSec: 45 }).verdictText).toBe('Too fast +0:15');
+    // A 30 s doc in a 20 s speech must be read faster: half left is 7 s on the clock.
+    const long = { ...half, speechTotalSec: 20 };
+    expect(paceRowModel({ ...long, clockSec: 10 }).verdict).toBe('on-time');
+    expect(paceRowModel({ ...long, clockSec: 3 }).verdict).toBe('too-slow');
   });
 
   it('uses the lay rate in lay mode, and shows a dash (no verdict) for a reader without one', () => {
@@ -270,11 +281,15 @@ describe('mounted pace row', () => {
 
   it('shows the verdict only while the speech clock runs, and never as a native title', () => {
     setTimerVisible(true);
-    loadSpeechPreset(1); // 1:00 on the clock vs 0:10 needed → too fast
+    loadSpeechPreset(1); // a 0:10 doc in a 1:00 speech: at the start, on the fitting pace
     expect(pace().textContent).toBe('');
     startTimer();
-    expect(pace().dataset['verdict']).toBe('too-fast');
-    expect(pace().textContent).toMatch(/^Too fast \+0:\d\d$/);
+    expect(pace().dataset['verdict']).toBe('on-time');
+    expect(pace().textContent).toBe('On time');
+    // 30 s later the doc should be half read; it is not, so we are behind.
+    vi.advanceTimersByTime(30_000);
+    expect(pace().dataset['verdict']).toBe('too-slow');
+    expect(pace().textContent).toMatch(/^Too slow −0:\d\d$/);
     pauseTimer();
     expect(pace().textContent).toBe('');
     expect(pace().dataset['verdict']).toBeUndefined();
@@ -332,7 +347,7 @@ describe('mounted pace row', () => {
       settings.set('timerLeftInline', true);
       loadSpeechPreset(1);
       startTimer();
-      expect(row().dataset['verdict']).toBe('too-fast');
+      expect(row().dataset['verdict']).toBe('on-time');
       expect(pace().textContent).toBe('');
       expect(row().textContent).toBe('Left 0:11');
     });

@@ -59,7 +59,9 @@ import {
   totalWords,
   formatReadTimeFor,
   formatNumber,
+  readTimeSeconds,
   type ReadAloudCounts,
+  type ReaderRates,
 } from './word-count.js';
 import { TYPE_TO_LEVEL, sectionEndFromHeading } from './headings.js';
 import { getTimerState } from './timer-state.js';
@@ -302,6 +304,56 @@ function countRemaining(doc: PMNode, pos: number): ReadAloudCounts {
   return { body: partial.body + rest.body, other: partial.other + rest.other };
 }
 
+
+/** The read-aloud counts of the whole document. Unlike `wholeReadCounts`
+ *  this ignores the `liveRemainingReadTime` setting, for features (the
+ *  reading-position marker) that need the length of the doc on their own. */
+export function docReadCounts(doc: PMNode): ReadAloudCounts {
+  return { ...suffixTable(doc).suffix[0]! };
+}
+
+/** The document position where `seconds` of reading (from the very top of
+ *  the doc, at `reader`'s rate — lay when `useLay`) have been used up: the
+ *  inverse of "how long does the text before this point take to read".
+ *  Null when the reader has no usable rate. Past the end of the doc it is
+ *  the end. Finds the top-level child by binary search over the suffix
+ *  table, then the spot inside that child by binary search over partial
+ *  counts, so it never walks the whole doc. */
+export function posAtReadSeconds(
+  doc: PMNode,
+  seconds: number,
+  reader: ReaderRates,
+  useLay = false,
+): number | null {
+  const table = suffixTable(doc);
+  const n = doc.childCount;
+  const whole = table.suffix[0]!;
+  const timeOf = (c: ReadAloudCounts): number | null => readTimeSeconds(c, reader, useLay);
+  const before = (i: number): number | null =>
+    timeOf({ body: whole.body - table.suffix[i]!.body, other: whole.other - table.suffix[i]!.other });
+  const total = before(n);
+  if (total === null) return null;
+  if (seconds <= 0) return 0;
+  if (seconds >= total) return doc.content.size;
+  // First child whose end (the time before child i+1) reaches `seconds`.
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if ((before(mid + 1) ?? 0) >= seconds) hi = mid;
+    else lo = mid + 1;
+  }
+  const child = doc.child(lo);
+  const want = seconds - (before(lo) ?? 0);
+  let a = 0;
+  let b = child.content.size;
+  while (a < b) {
+    const mid = (a + b) >> 1;
+    if ((timeOf(countReadAloudSplit(child, 0, mid)) ?? 0) >= want) b = mid;
+    else a = mid + 1;
+  }
+  return table.starts[lo]! + 1 + a;
+}
 
 /** Call `refresh` (at most every 100 ms, trailing) while `scroller`
  *  scrolls and the remaining-time segment is on. Returns a disposer. */
