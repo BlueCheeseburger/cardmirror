@@ -201,8 +201,9 @@ changes they ask for (a UI tweak, a docs fix, a `CLAUDE.md` note), commit
 and push directly to `main` after running the usual local checks
 (`npm run typecheck`, `npm run check:links`, the tests the change
 touches). Still open a PR for anything bigger: new features, multi-file
-refactors, upstream merges, and release prep, where CI on the PR is the
-safety net before a release. If it's unclear which side a change falls
+refactors and upstream merges, where CI on the PR is the safety net before
+a release. Release prep does not get its own PR: it rides in the last
+feature PR (see "Cutting releases"). If it's unclear which side a change falls
 on, a PR is the safe default.
 
 ## Never include a chat/session link in commits or PRs
@@ -311,6 +312,13 @@ strip it (`stripDownloadGuide` in `whats-new.ts`) — people updating already ha
 the app. Its wording names this fork and says upstream's CardMirror is a separate app that does not update to our builds (the user, 2026-10-18: "what if its talking about upstream cardmirror"); keep it explicit about which app it means. Don't paste a block like it into `CHANGELOG.md` by hand; it's generated.
 Releases published before `v1.15.0-bcb.6` don't have it.
 
+**2026-10-21:** `v1.15.0-bcb.7` was published with the old, ambiguous
+download-block wording and the user chose NOT to have it edited ("i won't
+paste the corrected lines into bcb.7, just remember to do corrected in
+future releases"). So that release keeps the old text; every release from
+`v1.15.0-bcb.8` on has the corrected wording from `release.yml`. Don't offer
+to fix bcb.7's notes again.
+
 ## How release notes are made (the framework)
 
 The user asked (2026-10-18) that this be written down. A release's notes are
@@ -344,7 +352,7 @@ release, see above). Create the heading you need if it isn't there yet.
 a fix, the design choice and what was rejected, what is NOT verified. This is
 where implementation detail lives; the notes never include it.
 
-**4. At release prep** (the PR in "Cutting releases"), rename
+**4. At release prep** (the last feature PR in "Cutting releases"), rename
 `## Unreleased` to `## X.Y.Z-bcb.N — YYYY-MM-DD` in both files. Start a fresh
 empty `## Unreleased` only when the next change lands. The `## X.Y.Z-bcb.N`
 heading must match the tag exactly (minus the `v`): the extractor matches on
@@ -430,14 +438,19 @@ upstream version the fork is synced to.
 - If a release has any new feature, it's `bcb.N+1`, not a `.M`.
 
 **How.**
-1. Release prep goes through a PR, not straight to `main`:
+1. **Fold release prep into the last feature PR** (the user, 2026-10-21:
+   "fold release prep into the last feature PR"; by then the repo had ~70
+   PRs, about a third of them release bookkeeping). Don't open a separate
+   "Prepare X" PR. When the batch is ready, add these to the PR that holds
+   the last feature, as its final commit, and say in the PR body that it is
+   also release prep and which tag it will be:
    - bump `version` in both `package.json` and
      `apps/desktop/package.json`;
    - rename `## Unreleased` to `## X.Y.Z-bcb.N — YYYY-MM-DD` in both
      changelogs;
    - add the `### From upstream` sections if it's a sync (see the
      section above).
-2. Once CI is green, merge.
+2. Once CI is green, merge that PR.
 3. Run `release.yml` by `workflow_dispatch` on `main` with the `tag`
    input (`vX.Y.Z-bcb.N`).
 4. When the build finishes, check the release is live (not a draft, and not
