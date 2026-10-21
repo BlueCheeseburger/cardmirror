@@ -65,7 +65,13 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return e;
 }
 
-export function showMoveTray(slots: readonly MoveTraySlot[], initialWindows: readonly MoveTrayWindow[]): MoveTray {
+/** `withWindows` is false on a host that cannot move a document to another
+ *  window (the browser), where the tray offers this window's slots only. */
+export function showMoveTray(
+  slots: readonly MoveTraySlot[],
+  initialWindows: readonly MoveTrayWindow[],
+  withWindows = true,
+): MoveTray {
   const root = el('div', 'pmd-move-tray');
   root.setAttribute('aria-hidden', 'true');
 
@@ -116,7 +122,8 @@ export function showMoveTray(slots: readonly MoveTraySlot[], initialWindows: rea
   };
   renderWindows(initialWindows);
 
-  root.append(slotGroup, el('div', 'pmd-move-tray-divider'), windowGroup);
+  if (withWindows) root.append(slotGroup, el('div', 'pmd-move-tray-divider'), windowGroup);
+  else root.append(slotGroup);
   document.body.appendChild(root);
   // Next frame so the slide-in transition has a starting state.
   requestAnimationFrame(() => root.classList.add('pmd-move-tray-in'));

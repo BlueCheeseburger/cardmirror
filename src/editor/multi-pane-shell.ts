@@ -2775,11 +2775,9 @@ class MultiPaneShell {
       else slot.showAsDropZone();
     }
     this.moveTrayWindows = [];
-    const tray = showMoveTray(this.moveTraySlots, this.moveTrayWindows);
+    const tray = showMoveTray(this.moveTraySlots, this.moveTrayWindows, getElectronHost() !== null);
     this.moveTray = tray;
-    // MOCKUP ONLY: lets a browser screenshot show other windows.
-    const demo = (window as unknown as { __pmdDemoWindows?: MoveTrayWindow[] }).__pmdDemoWindows;
-    void (demo ? Promise.resolve(demo) : listMoveDocTargets()).then((targets) => {
+    void listMoveDocTargets().then((targets) => {
       if (this.moveTray !== tray) return; // the drag already ended
       this.moveTrayWindows = targets.map((t) => ({ id: t.id, label: t.label }));
       tray.setWindows(this.moveTrayWindows);
