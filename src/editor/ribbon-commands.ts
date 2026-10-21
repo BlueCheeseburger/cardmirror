@@ -67,6 +67,7 @@ import { applyPlainPasteFromText, togglePlainPaste } from './paste-plugin.js';
 import { lockHighlighting } from './create-reference.js';
 import { unhighlightCard, rehighlightCard } from './card-highlight-toggle.js';
 import { showToast } from './toast.js';
+import { runStandardizeFormatting } from './standardize-formatting.js';
 import { surfaceError } from './error-surface.js';
 import { TYPE_TO_LEVEL, TYPE_LABEL } from './headings.js';
 import { selectedTransclusion, enclosingZonePos, isTransclusionNode } from './transclusion.js';
@@ -4633,6 +4634,7 @@ export type RibbonCommandId =
   | 'standardizeShading'
   | 'standardizeHighlightExcept'
   | 'standardizeShadingExcept'
+  | 'standardizeFormatting'
   | 'convertCardsToReadMode'
   | 'toggleReadMode'
   | 'toggleAutoScroll'
@@ -4911,6 +4913,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'standardizeShading',
   'standardizeHighlightExcept',
   'standardizeShadingExcept',
+  'standardizeFormatting',
   'convertCardsToReadMode',
   'toggleReadMode',
   'toggleAutoScroll',
@@ -5134,6 +5137,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   standardizeShading: 'Standardize Background Color',
   standardizeHighlightExcept: 'Standardize Highlighting (with Exception)',
   standardizeShadingExcept: 'Standardize Background Color (with Exception)',
+  standardizeFormatting: 'Standardize Formatting (fonts, sizes, highlight, shrink)',
   convertCardsToReadMode: 'Convert Cards to Read Mode',
   toggleReadMode: 'Toggle Read Mode',
   toggleAutoScroll: 'Toggle Auto-Scroll (Paced to Reading Speed)',
@@ -5370,6 +5374,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   rehighlightCard: ['restore highlighting', 'bring back highlights', 'undo unhighlight', 'rehighlight'],
   standardizeHighlightExcept: ['standardize except', 'standardize highlighting except', 'exception highlight'],
   standardizeShadingExcept: ['standardize background except', 'standardize shading except', 'exception shading'],
+  standardizeFormatting: ['standardize', 'clean up formatting', 'fix formatting', 'fix fonts', 'fix sizes', 'unshrunk', 'weird text', 'cleanup'],
   regrow: ['unshrink', 'regrow', 'restore text size', 'unshrink card text'],
   smartShrink: ['smart shrink', 'deep shrink'],
   condenseAndShrink: ['fast condense', 'condense and shrink', 'condense shrink'],
@@ -5562,6 +5567,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   standardizeShading: '',
   standardizeHighlightExcept: '',
   standardizeShadingExcept: '',
+  standardizeFormatting: '',
   convertCardsToReadMode: '',
   toggleReadMode: '',
   toggleAutoScroll: '',
@@ -6341,6 +6347,23 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
           ctx.highlightColor,
           state.selection.empty ? 'document' : 'selection',
         )(state, dispatch, view);
+    case 'standardizeFormatting':
+      // Plans first and asks before changing anything; the whole run is
+      // one undo step. Over the selection, or the document when empty.
+      return (_state, dispatch, view) => {
+        if (!view) return false;
+        if (!dispatch) return true;
+        void runStandardizeFormatting(view, {
+          highlightColor: ctx.highlightColor,
+          shrink: shrinkText(
+            ctx.effectivePtForNode,
+            ctx.normalPt,
+            ctx.shrinkRestoresOmissionsToNormal,
+            ctx.shrinkProtectionPatterns,
+          ),
+        });
+        return true;
+      };
     case 'standardizeShading':
       return (state, dispatch, view) =>
         uniShade(

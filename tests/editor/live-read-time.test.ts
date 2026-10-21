@@ -187,8 +187,8 @@ describe('remainingReadSegment', () => {
   /**
    * A doc whose top-level children mix every read-aloud kind with the
    * kinds that must NOT count — plain body text and shaded highlight.
-   * Read-aloud totals: body 9 (4 + 2 + 3), other 7 (3 tag + 2 tag +
-   * 2 cite) = 16, against 27 words of raw text.
+   * Read-aloud totals: body 9 (4 + 2 + 3), other 9 (2 block heading +
+   * 3 tag + 2 tag + 2 cite) = 18, against 27 words of raw text.
    */
   function fixture(): PMNode[] {
     return [
@@ -268,7 +268,7 @@ describe('remainingReadSegment', () => {
   it('cursor at the doc start counts the whole doc', () => {
     const state = EditorState.create({ doc, selection: TextSelection.atStart(doc) });
     expect(left(state)).toBe(totalWords(countReadAloudSplit(doc)));
-    expect(left(state)).toBe(16);
+    expect(left(state)).toBe(18); // 16 + the 2-word block heading, read aloud at tag speed
   });
 
   it('cursor at the doc end counts nothing', () => {

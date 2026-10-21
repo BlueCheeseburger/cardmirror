@@ -311,6 +311,77 @@ strip it (`stripDownloadGuide` in `whats-new.ts`) — people updating already ha
 the app. Its wording names this fork and says upstream's CardMirror is a separate app that does not update to our builds (the user, 2026-10-18: "what if its talking about upstream cardmirror"); keep it explicit about which app it means. Don't paste a block like it into `CHANGELOG.md` by hand; it's generated.
 Releases published before `v1.15.0-bcb.6` don't have it.
 
+## How release notes are made (the framework)
+
+The user asked (2026-10-18) that this be written down. A release's notes are
+NOT written at release time: they are the finished `CHANGELOG.md` entry,
+copied out by `release.yml`. So the quality of the notes is decided while the
+work lands, not when the tag is cut.
+
+**1. Write the entry as the change lands.** Every user-facing change adds a
+bullet under `## Unreleased` in BOTH `CHANGELOG.md` and
+`DETAILED_CHANGELOG.md`, in the same commit as the code (see "Update
+DETAILED_CHANGELOG.md and CHANGELOG.md" above). Sort bullets under
+`### Added`, `### Changed` and `### Fixed` (plus `### From upstream` on a sync
+release, see above). Create the heading you need if it isn't there yet.
+
+**2. Bullet style in `CHANGELOG.md`** (this is the text users read):
+- One bullet per change: a **bold lead sentence** naming what the user sees,
+  then one to three plain sentences on how it behaves. Write for a debater,
+  not a developer: say what the key or button does, not which function.
+- Name the exact UI words in bold (button labels, menu items) so they can be
+  found. Say what is saved, what is not, and what costs an AI call when that
+  matters.
+- Fixed bullets say what was wrong from the user's side, then what happens now.
+- No file paths, function names or PR numbers. Those go in
+  `DETAILED_CHANGELOG.md`.
+- Hand-wrap long lines if you like: the workflow joins a bullet's continuation
+  lines (indented more than the `-`) into one line, because GitHub renders a
+  single newline in release notes as a visible line break.
+
+**3. `DETAILED_CHANGELOG.md`** gets a `###` section per change, titled
+`Added|Changed|Fixed: <what> (<files>)`, with the rationale: the root cause for
+a fix, the design choice and what was rejected, what is NOT verified. This is
+where implementation detail lives; the notes never include it.
+
+**4. At release prep** (the PR in "Cutting releases"), rename
+`## Unreleased` to `## X.Y.Z-bcb.N — YYYY-MM-DD` in both files. Start a fresh
+empty `## Unreleased` only when the next change lands. The `## X.Y.Z-bcb.N`
+heading must match the tag exactly (minus the `v`): the extractor matches on
+it.
+
+**5. What `release.yml` does** (the "Extract release notes" step):
+1. `awk` copies everything between `## <VERSION>` and the next `## ` heading
+   of `CHANGELOG.md`. No matching section means the release gets a
+   placeholder body ("maintainer should edit"), so check the heading.
+2. A second `awk` unwraps hand-wrapped bullet lines.
+3. It prepends the generated "which file do I download?" block between the
+   `<!-- download-guide:start -->` / `<!-- download-guide:end -->` markers
+   (see "Release notes start with a ... block"). Never write it by hand.
+4. "Ensure draft release exists" creates the release as a draft with that file
+   as the body (or, for an existing tag, re-drafts it and refreshes the body
+   from CHANGELOG with `gh release edit --notes-file`), and `publish-release`
+   makes it live after every build succeeds.
+
+**6. After the release is live, check the body.** Read it with the release API
+and confirm: the download block is first, the right version's section follows,
+and no bullet is cut off. Fix wording problems in `CHANGELOG.md` on `main`
+first, so the source stays the truth.
+
+**7. Editing a published release's text.** Cloud sessions are blocked from
+editing releases (the REST call returns HTTP 403, "Creating, editing, or
+deleting releases is not permitted for this session type"), so don't try:
+give the user the exact replacement text to paste through the release page's
+pencil icon. Re-running `release.yml` for the same tag also refreshes the
+notes, but it re-drafts the release and rebuilds and re-uploads every
+installer, so only do that if the user asks for it. The What's new popup
+reads the same body (`whats-new.ts`, with the download block stripped), so a
+wording fix reaches both.
+
+**8. What the notes are NOT.** No upstream release notes copied in (only the
+short `### From upstream` summary on a sync release), no internal
+test-count or CI chatter, and no promises about unreleased work.
+
 ## When trimming release assets, the .zip + .yml files are NOT optional
 
 If a release's asset list gets trimmed down (e.g. "just mac and

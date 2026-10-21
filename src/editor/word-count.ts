@@ -6,6 +6,8 @@
  *   - `other` — the structural read:
  *       · All text inside a `tag` paragraph
  *       · All text inside an `analytic` paragraph
+ *       · All text inside a `pocket`, `hat` or `block` heading (the
+ *         speaker says the titles; added 2026-10-19)
  *       · Text carrying the `cite_mark` mark (typically inside
  *         `cite_paragraph`)
  *       (Highlighted non-shaded text inside a cite counts as `body`,
@@ -98,7 +100,17 @@ export function countCards(doc: PMNode, from?: number, to?: number): number {
 
 function readAloudBucket(node: PMNode, parent: PMNode): 'body' | 'other' | null {
   const parentType = parent.type.name;
-  if (parentType === 'tag' || parentType === 'analytic') return 'other';
+  // Headings are read aloud too (the speaker says the pocket, hat and block
+  // titles), at the structural read speed like tags.
+  if (
+    parentType === 'tag' ||
+    parentType === 'analytic' ||
+    parentType === 'pocket' ||
+    parentType === 'hat' ||
+    parentType === 'block'
+  ) {
+    return 'other';
+  }
   if (parentType === 'cite_paragraph') {
     // Highlighted (non-shaded) text in a cite reads at BODY speed —
     // it's evidence the reader delivers in full, and read mode shows

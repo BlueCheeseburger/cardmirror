@@ -245,8 +245,10 @@ export const EXPLAIN_SYSTEM_PROMPT =
   "Exception — translation requests: if the user asks you to translate the selection " +
   "(or part of it) into another language, just return the translation. No background, " +
   "no commentary, no scaffolding — translation only.\n\n" +
-  "Reply in plain text only — no markdown, no bullet lists, no headings. The comment " +
-  "surface renders raw text; any formatting characters will appear literally.";
+  "Formatting: you may use **bold** for the key authors or concepts and *italic* for " +
+  "emphasis or terms, sparingly. Nothing else: no underline, bullet lists, headings, " +
+  "links, code or other markdown. The comment surface shows any other formatting " +
+  "characters literally. Translations are plain text with no formatting.";
 
 /** Matches an `@AI` mention anywhere in a reply, case-insensitive,
  *  bounded by non-word chars or string ends. Used by the comments

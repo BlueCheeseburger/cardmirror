@@ -18585,3 +18585,24 @@ body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
 }
 .pmd-comment-ai-stream:empty { display: none; }
 .pmd-comment-ai-stream { white-space: pre-wrap; }
+
+/* Reading-position marker (pace-marker.ts): blue bars in the margin between
+   the outline and the document, inside the scroller. The expected bar scrolls
+   with the text and glides down as the clock runs; the Auto-Scroll bar
+   (outlined) is re-placed on every scroll event. */
+.pmd-pace-mark {
+  position: absolute;
+  left: 3px;
+  width: 8px;
+  border-radius: 4px;
+  background: var(--pmd-pace-mark, #1d6fe8);
+  pointer-events: none;
+  z-index: 3;
+  box-sizing: border-box;
+}
+.pmd-pace-mark[hidden] { display: none; }
+.pmd-pace-mark-prompter {
+  background: transparent;
+  border: 2px solid var(--pmd-pace-mark, #1d6fe8);
+}
+:root[data-theme="dark"] .pmd-pace-mark { --pmd-pace-mark: #5aa2ff; }
