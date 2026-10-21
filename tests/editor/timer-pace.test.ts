@@ -14,7 +14,6 @@ import { EditorView } from 'prosemirror-view';
 import { schema } from '../../src/schema/index.js';
 import { settings } from '../../src/editor/settings.js';
 import {
-  PACE_ROW_HTML_CLASS,
   formatSeconds,
   mountTimerPace,
   paceRowModel,
@@ -23,7 +22,6 @@ import {
   PACE_HUE_RED,
   paceHue,
   paceInline,
-  paceRowReserved,
   paceTolerance,
   refreshTimerPace,
   paceVerdict,
@@ -197,17 +195,22 @@ describe('timer state rules', () => {
     expect(speechCountdownRunning(getTimerState())).toBe(false);
   });
 
-  it('the row’s space is reserved only while the timer is in this ribbon and the feature is on', () => {
+  it('the time left shows in the timer box only while the timer is in this ribbon and both settings are on', () => {
     settings.set('liveRemainingReadTime', true);
-    expect(paceRowReserved()).toBe(false); // timer hidden
+    settings.set('timerLeftUnderTimer', true);
+    expect(paceInline()).toBe(false); // timer hidden
     setTimerVisible(true);
-    expect(paceRowReserved()).toBe(true);
+    expect(paceInline()).toBe(true);
     setTimerPoppedOut(true); // floating window: this ribbon's panel is hidden
-    expect(paceRowReserved()).toBe(false);
+    expect(paceInline()).toBe(false);
     setTimerPoppedOut(false);
-    expect(paceRowReserved()).toBe(true);
+    expect(paceInline()).toBe(true);
+    settings.set('timerLeftUnderTimer', false);
+    expect(paceInline()).toBe(false);
+    settings.set('timerLeftUnderTimer', true);
     settings.set('liveRemainingReadTime', false);
-    expect(paceRowReserved()).toBe(false);
+    expect(paceInline()).toBe(false);
+    settings.set('timerLeftUnderTimer', false);
   });
 });
 
@@ -229,7 +232,6 @@ describe('mounted pace row', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     document.body.innerHTML = '<section id="timer-panel" hidden></section>';
-    document.documentElement.classList.remove(PACE_ROW_HTML_CLASS);
     resetTimer();
     setTimerVisible(false);
     settings.set('readers', [
@@ -237,7 +239,7 @@ describe('mounted pace row', () => {
       { name: 'Ben', wpm: 100 },
     ]);
     settings.set('liveRemainingReadTime', true);
-    settings.set('timerLeftUnderTimer', false);
+    settings.set('timerLeftUnderTimer', true);
     view = docView('one two three four five six seven eight nine ten');
     lay = false;
     mountTimerPace(() => ({ view, useLay: lay }));
@@ -247,7 +249,6 @@ describe('mounted pace row', () => {
     setTimerVisible(false);
     settings.set('liveRemainingReadTime', false);
     settings.set('timerLeftUnderTimer', false);
-    settings.set('timerLeftInline', false);
     view.destroy();
     vi.useRealTimers();
   });
@@ -256,43 +257,45 @@ describe('mounted pace row', () => {
   const times = (): HTMLElement => row().querySelector('.pmd-timer-left-times')!;
   const pace = (): HTMLElement => row().querySelector('.pmd-timer-pace')!;
 
-  it('is hidden, with no space reserved, while the timer is hidden', () => {
+  it('is hidden while the timer is hidden', () => {
     expect(row().hidden).toBe(true);
-    expect(document.documentElement.classList.contains(PACE_ROW_HTML_CLASS)).toBe(false);
   });
 
-  it('reserves its space once the timer shows, even with nothing to say', () => {
+  it('shows in the timer box once the timer shows, and adds no ribbon height', () => {
     setTimerVisible(true);
     expect(row().hidden).toBe(false);
-    expect(document.documentElement.classList.contains(PACE_ROW_HTML_CLASS)).toBe(true);
-    expect(document.getElementById('timer-panel')!.classList.contains('pmd-timer-has-left')).toBe(true);
-    expect(times().textContent).toBe('');
-    expect(pace().textContent).toBe('');
+    expect(row().classList.contains('pmd-timer-left-inline')).toBe(true);
+    expect(document.getElementById('timer-panel')!.classList.contains('pmd-timer-has-left-inline')).toBe(true);
+    expect(document.documentElement.className).not.toContain('pmd-ribbon-pace-row');
+    expect(times().textContent).toBe('Left 0:11');
+  });
+
+  it('is hidden unless the time left is shown under the timer', () => {
+    setTimerVisible(true);
+    settings.set('timerLeftUnderTimer', false);
+    expect(row().hidden).toBe(true);
   });
 
   it('shows only the first reader’s time left when the setting is on', () => {
     setTimerVisible(true);
-    settings.set('timerLeftUnderTimer', true);
     // 10 highlighted words + the 1-word tag at 60 wpm = 11 s (the count
     // starts at the cursor, at the top of the doc); Ben (100 wpm) never appears.
     expect(times().textContent).toBe('Left 0:11');
     expect(row().textContent).not.toContain('Ben');
   });
 
-  it('shows the verdict only while the speech clock runs, and never as a native title', () => {
+  it('shows the verdict only while the speech clock runs, as a colour, and never as a native title', () => {
     setTimerVisible(true);
     loadSpeechPreset(1); // a 0:10 doc in a 1:00 speech: at the start, on the fitting pace
-    expect(pace().textContent).toBe('');
+    expect(row().dataset['verdict']).toBeUndefined();
     startTimer();
-    expect(pace().dataset['verdict']).toBe('on-time');
-    expect(pace().textContent).toBe('On time');
+    expect(row().dataset['verdict']).toBe('on-time');
+    expect(pace().textContent).toBe('');
     // 30 s later the doc should be half read; it is not, so we are behind.
     vi.advanceTimersByTime(30_000);
-    expect(pace().dataset['verdict']).toBe('too-slow');
-    expect(pace().textContent).toMatch(/^Too slow −0:\d\d$/);
+    expect(row().dataset['verdict']).toBe('too-slow');
     pauseTimer();
-    expect(pace().textContent).toBe('');
-    expect(pace().dataset['verdict']).toBeUndefined();
+    expect(row().dataset['verdict']).toBeUndefined();
     for (const el of [times(), pace(), row()]) expect(el.hasAttribute('title')).toBe(false);
   });
 
@@ -309,13 +312,11 @@ describe('mounted pace row', () => {
     setTimerVisible(true);
     settings.set('liveRemainingReadTime', false);
     expect(row().hidden).toBe(true);
-    expect(document.documentElement.classList.contains(PACE_ROW_HTML_CLASS)).toBe(false);
   });
 
   it('follows the lay toggle as soon as refreshTimerPace runs (three-pane keeps lay per pane)', () => {
     settings.set('readers', [{ name: 'Amy', wpm: 60, layWpm: 30 }]);
     setTimerVisible(true);
-    settings.set('timerLeftUnderTimer', true);
     expect(times().textContent).toBe('Left 0:11');
     lay = true; // the pane's lay readout was switched on
     refreshTimerPace();
@@ -325,40 +326,13 @@ describe('mounted pace row', () => {
     expect(times().textContent).toBe('Left 0:11');
   });
 
-  describe('inline placement (Fit time left inside the timer)', () => {
-    it('adds no row and no ribbon height, and puts the text in the timer box', () => {
-      setTimerVisible(true);
-      settings.set('timerLeftUnderTimer', true);
-      settings.set('timerLeftInline', true);
-      expect(paceInline()).toBe(true);
-      expect(paceRowReserved()).toBe(false);
-      expect(document.documentElement.classList.contains(PACE_ROW_HTML_CLASS)).toBe(false);
-      const panel = document.getElementById('timer-panel')!;
-      expect(panel.classList.contains('pmd-timer-has-left')).toBe(false);
-      expect(panel.classList.contains('pmd-timer-has-left-inline')).toBe(true);
-      expect(row().hidden).toBe(false);
-      expect(row().classList.contains('pmd-timer-left-inline')).toBe(true);
-      expect(times().textContent).toBe('Left 0:11');
-    });
-
-    it('shows the verdict as a colour and a tooltip, not as text', () => {
-      setTimerVisible(true);
-      settings.set('timerLeftUnderTimer', true);
-      settings.set('timerLeftInline', true);
-      loadSpeechPreset(1);
-      startTimer();
-      expect(row().dataset['verdict']).toBe('on-time');
-      expect(pace().textContent).toBe('');
-      expect(row().textContent).toBe('Left 0:11');
-    });
-
-    it('is ignored unless the time left is shown under the timer', () => {
-      setTimerVisible(true);
-      settings.set('timerLeftUnderTimer', false);
-      settings.set('timerLeftInline', true);
-      expect(paceInline()).toBe(false);
-      expect(paceRowReserved()).toBe(true);
-    });
+  it('shows the verdict as a colour and a tooltip, not as text', () => {
+    setTimerVisible(true);
+    loadSpeechPreset(1);
+    startTimer();
+    expect(row().dataset['verdict']).toBe('on-time');
+    expect(pace().textContent).toBe('');
+    expect(row().textContent).toBe('Left 0:11');
   });
 });
 

@@ -840,14 +840,10 @@ export interface Settings {
   /** Compact layout: drops the 9/6/3 preset column and stacks
    *  Reset under Start/Pause. */
   timerCompact: boolean;
-  /** Show the first reader's time left to read under the ribbon timer
+  /** Show the first reader's time left to read inside the ribbon timer's box
    *  (whenever the timer panel is in the ribbon) instead of in the bottom
    *  bar's "Left" readout. Needs `liveRemainingReadTime`. */
   timerLeftUnderTimer: boolean;
-  /** With `timerLeftUnderTimer` on: put the time-left text inside the timer's
-   *  own box (a small line under the digits) instead of a separate row below
-   *  it, so the ribbon doesn't grow and the timer isn't squeezed. */
-  timerLeftInline: boolean;
   /** A blue line in the gutter beside the speech document: where the speaker
    *  should be reading by the speech clock (while it runs), and where
    *  auto-scroll thinks they are reading (while it runs). */
@@ -1974,7 +1970,6 @@ const DEFAULTS: Settings = {
   timerSoundVolume: 70,
   timerCompact: false,
   timerLeftUnderTimer: false,
-  timerLeftInline: false,
   paceMarker: true,
   timerPrepLabel: 'both',
   timerPosition: 'beside',
@@ -2318,7 +2313,6 @@ export interface SettingMeta {
     | 'acronymPatterns'
     | 'createReferenceHighlightMode'
     | 'createReferenceDelimiter'
-    | 'keybindings'
     | 'ribbonCustomButtons'
     | 'customStyles'
     | 'text'
@@ -2356,7 +2350,6 @@ export interface SettingMeta {
     | 'timerProfileDurations'
     | 'timerFlashSeconds'
     | 'timerPrepLabel'
-    | 'timerPosition'
     | 'enterAfterStyle'
     | 'wordCountOrder'
     | 'arrangeSpeechSide'
@@ -3653,16 +3646,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['substructure indent', 'sub indent'],
   },
   {
-    key: 'timerPosition',
-    label: 'Timer position in the ribbon',
-    description:
-      'Where the timer panel sits in the ribbon when shown: beside the right-hand buttons (default) or at the far left edge, where it used to be.',
-    kind: 'timerPosition',
-    category: 'appearance',
-    section: 'Timer display',
-    aliases: ['timer left', 'timer right', 'timer side', 'move timer'],
-  },
-  {
     key: 'timerPrepLabel',
     label: 'Prep button label style',
     description:
@@ -3690,17 +3673,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Timer display',
     dependsOn: 'liveRemainingReadTime',
     aliases: ['time left', 'left under timer', 'remaining time timer', 'move left time'],
-  },
-  {
-    key: 'timerLeftInline',
-    label: 'Fit time left inside the timer',
-    description:
-      "Off by default. Puts the \"Left\" time in a small line under the timer's digits, inside the same box, instead of in a separate row beneath the timer. The ribbon keeps its normal height and nothing is squeezed. While the speech clock runs, a small dot before the time shades from red (well behind) through green (on pace) to blue (well ahead); hover the text for the numbers. Needs \"Show time left under the timer\".",
-    kind: 'toggle',
-    category: 'appearance',
-    section: 'Timer display',
-    dependsOn: 'timerLeftUnderTimer',
-    aliases: ['time left inside timer', 'left in timer box', 'compact time left', 'no extra row'],
   },
   {
     key: 'paceMarker',
@@ -4231,16 +4203,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['logos', 'logos highlight', 'import highlight color'],
   },
 
-  // ─── Keyboard shortcuts ─────────────────────────────────────────
-  {
-    key: 'ribbonKeyOverrides',
-    label: 'Keyboard shortcuts',
-    description:
-      'Rebind any ribbon / menu command to your own keys. Click + on a row to add a binding; click × on a chip to remove one; click ↺ to restore that row\'s defaults.',
-    kind: 'keybindings',
-    category: 'shortcuts',
-  },
-
   // ─── Comments & AI ──────────────────────────────────────────────
   {
     key: 'commentAuthor',
@@ -4703,13 +4665,6 @@ export const CYCLABLE_SETTINGS: readonly CyclableSetting[] = [
     ],
   },
   {
-    key: 'timerPosition',
-    values: [
-      { value: 'beside', label: 'Beside the right-hand buttons' },
-      { value: 'far-left', label: 'Far left' },
-    ],
-  },
-  {
     key: 'multiDocLayoutMode',
     values: [
       { value: 'compact', label: 'Compact' },
@@ -5157,7 +5112,6 @@ function sanitize(s: Settings): Settings {
         : 70,
     timerCompact: !!s.timerCompact,
     timerLeftUnderTimer: !!s.timerLeftUnderTimer,
-    timerLeftInline: !!s.timerLeftInline,
     paceMarker: s.paceMarker !== false,
     timerPrepLabel:
       s.timerPrepLabel === 'text' || s.timerPrepLabel === 'color'

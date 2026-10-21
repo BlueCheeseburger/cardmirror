@@ -10,13 +10,15 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
-### Changed
-- **Dragging a document's title chip is clearer, and can send it to another window.** While you drag, every pane shows its slot number and what dropping does (**Move here** or **Swap places** with the other document's name), and the label under the pointer says the same. A tray at the bottom of the window has a tile for each slot and, on the desktop app, **New window** and one tile per other open window. Drop the chip on a tile to move the document there with its unsaved edits.
-
-## Unreleased
-
 ### Added
 - **A What's new button in About this install.** **Settings → General → About this install** has a **What's new** button beside **Check for updates** that shows the release notes for the version you're running, any time, not only right after an update. If the notes can't be loaded (no connection), it says so.
+
+### Changed
+- **The Keyboard tab in Settings opens the Keyboard shortcuts screen.** The old shortcut list in Settings is gone. On the **Keyboard shortcuts** screen, under the keyboard map, every command's row now works for rebinding: **+** adds a key, **×** removes one, **↺** restores that command's defaults, and **Restore all defaults** and the **Keyboard macros** are at the very bottom.
+- **Settings is bigger.** The window now fills most of the screen, wider and taller, and keeps the same size on every tab.
+- **Time left always sits inside the timer.** The **Fit time left inside the timer** option is gone: with **Show time left under the timer** on, the time and its pace dot always go in a small line under the timer's digits, and the ribbon never grows a row.
+- **The timer-position setting is no longer in Settings.** The timer sits beside the right-hand buttons. People who want it at the far left can still set `timerPosition` to `far-left` in the settings file.
+- **Dragging a document's title chip is clearer, and can send it to another window.** While you drag, every pane shows its slot number and what dropping does (**Move here** or **Swap places** with the other document's name), and the label under the pointer says the same. A tray at the bottom of the window has a tile for each slot and, on the desktop app, **New window** and one tile per other open window. Drop the chip on a tile to move the document there with its unsaved edits.
 
 ## 1.15.0-bcb.8 — 2026-10-19
 

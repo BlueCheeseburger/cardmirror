@@ -1637,14 +1637,12 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   timer is open, even with the clock stopped. That moves it out of the bottom bar's
   "Left" readout; if the timer is hidden or popped out, the bottom bar shows it
   again. The time reads **Left 3:07** and follows the lay-speaking toggle of the
-  document it's counting (in three-pane mode, that pane's). Hover the verdict to
-  see the numbers behind it. **Fit time left inside the timer** (right below that
-  setting) puts the text in a small line under the timer's digits, inside the same
-  box, instead of in a row of its own (on by default): the ribbon keeps its normal
-  height, and a small dot before the time shows the verdict on a sliding scale: green when
-  you're on pace, shading through yellow and orange to red the further behind you
-  are, and through teal to blue the further ahead (hover the text for the words
-  and numbers).
+  document it's counting (in three-pane mode, that pane's). It sits in a small
+  line under the timer's digits, inside the timer's own box, so the ribbon keeps
+  its normal height. A small dot before the time shows the verdict on a sliding
+  scale: green when you're on pace, shading through yellow and orange to red the
+  further behind you are, and through teal to blue the further ahead (hover the
+  text for the words and numbers).
 
 - **Pop the timer out** *(desktop)*. The **⇱** button moves the timer into a
   small floating window that stays on top of every app — handy for keeping
@@ -3312,9 +3310,6 @@ How things look. None of these change the file — only your view (see
 
 **Timer display**
 
-- **Timer position in the ribbon** — where the timer panel sits when
-  shown: beside the right-hand buttons (default) or at the far left of the
-  ribbon, where it used to be.
 - **Prep button label style** — how the Aff / Neg prep buttons are
   marked: text (A: / N:), color, or both.
 - **Compact timer layout** — drop the 9 / 6 / 3 presets and collapse the
@@ -3530,8 +3525,9 @@ on the line below the card.
 
 ### Keyboard shortcuts
 
-Rebind any command: search for it, click **+** to add a binding, **×** to
-remove one, **↺** to restore its default. A few window-level shortcuts
+Rebind any command on the **Keyboard shortcuts** screen (Settings → Keyboard
+opens it): search for it, click **+** to add a binding, **×** to remove one,
+**↺** to restore its default. A few window-level shortcuts
 (like Mod-W) are handled by the OS and can't be overridden (see
 [Keyboard shortcuts](#19-keyboard-shortcuts)).
 
@@ -3674,7 +3670,8 @@ All defaults; rebind any of them in **Settings → Keyboard shortcuts**.
 **Mod** = Ctrl (Windows/Linux) or ⌘ (macOS).
 
 **(Fork) The keyboard map.** The **Keyboard shortcuts** screen (the keyboard
-button in the top-right ribbon) opens on a picture of your keyboard. Each key
+button in the top-right ribbon, or the **Keyboard** tab in Settings, which
+opens the same screen) opens on a picture of your keyboard. Each key
 shows the command it runs. The row of modifier buttons (⌘ command, ⌃ control,
 ⌥ option, ⇧ shift on a Mac; ctrl, alt, shift elsewhere) switches the layer, so
 turning on **command** shows everything on ⌘+key. Click the buttons, or just
@@ -3688,8 +3685,11 @@ hold the real keys. It detects your system on its own.
   already used by another command is taken from it, like in Settings). Choose
   **Nothing (unassigned)** to clear a key.
 - It always shows your current bindings: defaults, your changes, plugin
-  commands and keyboard macros. Rebind something in Settings and the map
-  changes with it. The full list is below the map.
+  commands and keyboard macros. Rebind something and the map changes with it.
+- Below the map is the list of every command with its keys. Search it, click
+  **+** on a row to add a binding, **×** on a key to remove it, or **↺** to
+  restore that command's defaults. **Restore all defaults** and the **Keyboard
+  macros** are at the very bottom.
 
 ### Structure and formatting
 | Shortcut | Action |

@@ -6322,13 +6322,14 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   background: var(--pmd-c-bg);
   border-radius: 8px;
   box-shadow: 0 8px 32px var(--pmd-c-shadow-deep);
-  width: 90%;
-  /* Max-width sized to fit the full tab strip at the dialog's
-     largest rendering — otherwise the scroll-arrow buttons would
-     show even at max width, which defeats the point of having a
-     "natural" max-width. Update this if the tab labels grow. */
-  max-width: 720px;
-  max-height: 80vh;
+  width: 94%;
+  /* Large on purpose (2026-10-21: "make the settings pop up bigger both
+     vertically and horizontally"). Wide enough for the full tab strip with no
+     scroll arrows, and a fixed tall height so the dialog doesn't change size
+     from one tab to the next. */
+  max-width: 1100px;
+  height: 92vh;
+  max-height: 92vh;
   display: flex;
   flex-direction: column;
   font-family: var(--pmd-ui-font);
@@ -8244,6 +8245,20 @@ body.pmd-steady-cursor .pmd-italic-caret,
 }
 
 
+
+/* In the Keyboard shortcuts popup the whole dialog scrolls, so the list isn't
+   its own scroll box, and the group titles don't stick. */
+.pmd-keybindings-editor-embedded .pmd-keybindings-list {
+  max-height: none;
+  overflow: visible;
+}
+.pmd-keybindings-editor-embedded .pmd-keybindings-group-title {
+  position: static;
+}
+/* Opened from Settings → Keyboard: above the Settings dialog. */
+.pmd-reference-overlay {
+  z-index: 1100;
+}
 
 .pmd-keybindings-help {
   margin: 0 0 0.25rem 0;
@@ -14134,14 +14149,9 @@ html.pmd-emphasis-box .pmd-pane-editor .pmd-emphasis {
   font-family: var(--pmd-ui-font);
 }
 .pmd-timer-panel[hidden] { display: none; }
-/* Pace row: the first reader's time left (when "Show time left under the
-   timer" is on) on the left, and the on-time / too-slow / too-fast verdict
-   on the right while the speech clock runs. A third grid row of fixed height
-   — its space is reserved whenever it could show, so the clock starting or
-   stopping never shifts the ribbon. */
-.pmd-timer-panel.pmd-timer-has-left {
-  grid-template-rows: repeat(2, auto) var(--pmd-pace-row-h);
-}
+/* The first reader's time left (when "Show time left under the timer" is
+   on), shown inside the timer's own box (see .pmd-timer-left-inline below).
+   The on-time / too-slow / too-fast verdict is the colour of its dot. */
 #timer-panel .pmd-timer-left-row {
   grid-row: 3;
   grid-column: 1 / -1;
@@ -14245,30 +14255,6 @@ html.pmd-timer-far-left #timer-panel {
   margin-right: 0.4rem;
   padding-right: 0.4rem;
   border-right: 1px solid var(--pmd-c-border-soft);
-}
-
-/* The timer's pace row is reserved (timer showing + "live read time for
-   what is left" on; timer-pace.ts toggles the class). The ribbon is a fixed
-   height, so make it taller by the row and align every section to the top
-   at the SAME inset the 4rem ribbon centers its button stacks with: the
-   timer's two button rows then line up with every other button and keep
-   their distance from the window's top edge, with the pace row hanging
-   below. (Centering instead would leave the 3-row timer jammed against the
-   top while the other stacks sit lower.) */
-html.pmd-ribbon-pace-row {
-  --ribbon-height: 4.8rem;
-}
-html.pmd-ribbon-pace-row #ribbon {
-  align-items: flex-start;
-  padding-top: calc((4rem - var(--ribbon-stack-h)) / 2);
-}
-/* Sections without a full stack of their own (the doc-name chip's) still
-   center against the button rows. */
-html.pmd-ribbon-pace-row #ribbon > .ribbon-section {
-  min-height: var(--ribbon-stack-h);
-}
-html.pmd-ribbon-pace-row #timer-panel {
-  align-self: flex-start;
 }
 
 /* `#ribbon` prefix is required to beat the generic `#ribbon

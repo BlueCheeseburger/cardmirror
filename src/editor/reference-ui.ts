@@ -1,24 +1,11 @@
 /**
- * Keyboard-shortcut reference modal. A read-only "cheat sheet" view
- * of the ribbon's bound F-keys / Mod-keys, grouped conceptually.
- *
- * The thematic grouping is shared with the Settings → Keybindings
- * editor — see `ribbon-groups.ts`. The drift-guard assertion lives
- * there too, so both surfaces stay in sync.
+ * Keyboard shortcuts popup: the keyboard map on top, then one row per command
+ * (grouped as in `ribbon-groups.ts`) that you can rebind in place: × removes a
+ * binding, + adds one, ↺ restores that command's defaults; Restore all defaults
+ * and the keyboard macros sit at the very bottom. This is also where the
+ * Settings → Keyboard tab leads (the old settings editor is gone).
  */
 
-import {
-  DEFAULT_RIBBON_KEYS,
-  RIBBON_COMMAND_LABELS,
-  formatKeyForDisplay,
-  commandLabelFor,
-  effectivePluginDefaultKeys,
-  type RibbonCommandId,
-} from './ribbon-commands.js';
-import { RIBBON_GROUPS } from './ribbon-groups.js';
-import { isRibbonCommandAvailable } from './ribbon-availability.js';
-import { pluginCommandIds } from './plugin-registry.js';
-import { settings } from './settings.js';
 import { setIcon } from './icons';
 import { pushOverlay, popOverlay } from './overlay-stack.js';
 import {
@@ -28,6 +15,7 @@ import {
 } from './text-prompt.js';
 import { isBackdropClick } from './backdrop-click.js';
 import { buildKeyboardMap, type KeyboardMapHandle } from './keyboard-map.js';
+import { buildKeybindingsEditor, type KeybindingsEditorHandle } from './keybindings-editor.js';
 
 
 class ReferenceModal {
@@ -43,8 +31,7 @@ class ReferenceModal {
   private removeKeys: (() => void) | null = null;
   private restoreFocus: (() => void) | null = null;
   private map: KeyboardMapHandle | null = null;
-  private bodyEl: HTMLElement | null = null;
-  private unsubscribe: (() => void) | null = null;
+  private editor: KeybindingsEditorHandle | null = null;
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -64,19 +51,6 @@ class ReferenceModal {
 
   open(): void {
     this.render();
-    // A rebind anywhere (the Settings editor, or the map itself) redraws the
-    // map (it watches settings on its own) and the list below it.
-    this.unsubscribe?.();
-    let last = settings.get('ribbonKeyOverrides');
-    this.unsubscribe = settings.subscribe((st) => {
-      if (st.ribbonKeyOverrides === last) return;
-      last = st.ribbonKeyOverrides;
-      if (this.bodyEl) {
-        this.bodyEl.replaceChildren();
-        this.fillList(this.bodyEl);
-        this.applyFilter();
-      }
-    });
     this.overlay.style.display = '';
     if (this.overlayToken === null) {
       const token = pushOverlay();
@@ -95,8 +69,7 @@ class ReferenceModal {
 
   close(): void {
     this.overlay.style.display = 'none';
-    this.unsubscribe?.();
-    this.unsubscribe = null;
+    this.editor = null;
     this.map?.destroy();
     this.map = null;
     if (this.overlayToken !== null) {
@@ -135,7 +108,7 @@ class ReferenceModal {
     searchInput.value = this.searchQuery;
     searchInput.addEventListener('input', () => {
       this.searchQuery = searchInput.value;
-      this.applyFilter();
+      this.editor?.setQuery(this.searchQuery);
     });
     searchRow.appendChild(searchInput);
     this.dialog.appendChild(searchRow);
@@ -145,142 +118,16 @@ class ReferenceModal {
     this.map = buildKeyboardMap();
     this.dialog.insertBefore(this.map.el, searchRow);
 
+    // The rebindable rows (the map watches settings and redraws itself, and
+    // the rows re-render themselves).
     const body = document.createElement('div');
     body.className = 'pmd-reference-body';
-    this.bodyEl = body;
-    this.fillList(body);
+    this.editor = buildKeybindingsEditor();
+    body.appendChild(this.editor.el);
     this.dialog.appendChild(body);
 
-    // Re-apply the persisted search so the rebuilt rows reflect it.
-    this.applyFilter();
-  }
-
-  /** The grouped list of every command and its current key(s). */
-  private fillList(body: HTMLElement): void {
-    for (const group of RIBBON_GROUPS) {
-      // Hide commands that don't apply here (Flow off Windows, voice off
-      // desktop, the cutter while disabled), and skip a group entirely
-      // when none of its commands are available.
-      const ids = group.commands.filter(isRibbonCommandAvailable);
-      if (ids.length === 0) continue;
-
-      const section = document.createElement('section');
-      section.className = 'pmd-reference-group';
-
-      const heading = document.createElement('h3');
-      heading.className = 'pmd-reference-group-title';
-      heading.textContent = group.title;
-      section.appendChild(heading);
-
-      const rows = document.createElement('div');
-      rows.className = 'pmd-reference-group-rows';
-
-      for (const id of ids) {
-        const row = document.createElement('div');
-        row.className = 'pmd-reference-row';
-
-        // Live overrides from settings take precedence over defaults
-        // so the cheat sheet always reflects the user's current
-        // bindings (including unbound / freshly-customized commands).
-        const overrides = settings.get('ribbonKeyOverrides');
-        const keySpec = overrides[id] ?? DEFAULT_RIBBON_KEYS[id];
-        const keys = Array.isArray(keySpec) ? keySpec : [keySpec];
-        const keyText = keys
-          .map((k) => formatKeyForDisplay(k))
-          .filter((s) => s.length > 0)
-          .join(' / ');
-
-        const keyEl = document.createElement('span');
-        keyEl.className = 'pmd-reference-key';
-        keyEl.textContent = keyText || '—';
-        row.appendChild(keyEl);
-
-        const labelEl = document.createElement('span');
-        labelEl.className = 'pmd-reference-label';
-        labelEl.textContent = RIBBON_COMMAND_LABELS[id];
-        row.appendChild(labelEl);
-
-        rows.appendChild(row);
-      }
-
-      section.appendChild(rows);
-      body.appendChild(section);
-    }
-
-    // Registered plugin commands get their own section, appended after
-    // the static groups — reusing `effectivePluginDefaultKeys` so the
-    // printed keys match what actually dispatches (a plugin default
-    // that loses to a static key prints as unbound, not as a lie).
-    // Skipped entirely while no plugin has registered commands.
-    const pluginIds = pluginCommandIds();
-    if (pluginIds.length > 0) {
-      const section = document.createElement('section');
-      section.className = 'pmd-reference-group';
-
-      const heading = document.createElement('h3');
-      heading.className = 'pmd-reference-group-title';
-      heading.textContent = 'Plugins';
-      section.appendChild(heading);
-
-      const rows = document.createElement('div');
-      rows.className = 'pmd-reference-group-rows';
-
-      const overrides = settings.get('ribbonKeyOverrides');
-      for (const id of pluginIds) {
-        const row = document.createElement('div');
-        row.className = 'pmd-reference-row';
-
-        const keys = effectivePluginDefaultKeys(id, overrides);
-        const keyText = keys
-          .map((k) => formatKeyForDisplay(k))
-          .filter((s) => s.length > 0)
-          .join(' / ');
-
-        const keyEl = document.createElement('span');
-        keyEl.className = 'pmd-reference-key';
-        keyEl.textContent = keyText || '—';
-        row.appendChild(keyEl);
-
-        const labelEl = document.createElement('span');
-        labelEl.className = 'pmd-reference-label';
-        labelEl.textContent = commandLabelFor(id);
-        row.appendChild(labelEl);
-
-        rows.appendChild(row);
-      }
-
-      section.appendChild(rows);
-      body.appendChild(section);
-    }
-
-  }
-
-  /** Show / hide rows + group sections per `searchQuery`. Match is
-   *  case-insensitive substring against each row's label OR its
-   *  current keybinding text. Empty groups collapse so a stranded
-   *  section heading doesn't sit alone. */
-  private applyFilter(): void {
-    const q = this.searchQuery.trim().toLowerCase();
-    const sections = this.dialog.querySelectorAll<HTMLElement>(
-      '.pmd-reference-group',
-    );
-    for (const section of sections) {
-      let anyVisible = false;
-      for (const row of section.querySelectorAll<HTMLElement>(
-        '.pmd-reference-row',
-      )) {
-        const label = (
-          row.querySelector('.pmd-reference-label')?.textContent ?? ''
-        ).toLowerCase();
-        const keyText = (
-          row.querySelector('.pmd-reference-key')?.textContent ?? ''
-        ).toLowerCase();
-        const hit = !q || label.includes(q) || keyText.includes(q);
-        row.style.display = hit ? '' : 'none';
-        if (hit) anyVisible = true;
-      }
-      section.style.display = anyVisible ? '' : 'none';
-    }
+    // Re-apply the persisted search to the fresh rows.
+    this.editor.setQuery(this.searchQuery);
   }
 }
 

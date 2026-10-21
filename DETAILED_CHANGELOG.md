@@ -12,11 +12,25 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: Keyboard tab opens the Keyboard shortcuts popup; rebindable rows move into it (`reference-ui.ts`, `keybindings-editor.ts`, `settings-ui.ts`, `settings.ts`, `style.css`)
+
+Two surfaces edited the same bindings: Settings → Keyboard (chips with ×, +, ↺, Restore all defaults, macros) and the read-only Keyboard shortcuts popup (map plus a cheat sheet). The popup now embeds the editor instead of its own read-only list: `buildKeybindingsEditor()` returns `{ el, setQuery }`, with the popup's search box driving the filter, no search field of its own, and the list no longer its own scroll box. Row order is unchanged from the old tab, so Restore all defaults and Keyboard macros are the last things in the popup. The `ribbonKeyOverrides` row (kind `keybindings`) is gone from `SETTING_METADATA`; the Settings Keyboard tab stays in the strip but clicking it, or a deep link to category `shortcuts` (the palette's Keyboard macros result), calls `openReference()` over Settings instead of showing a panel. The popup's z-index is raised above Settings. Not verified: the palette's Keyboard macros result no longer scrolls to the macros anchor (the popup opens at the top).
+
+### Changed: Settings dialog size (`style.css`)
+
+`.pmd-settings-dialog` is `width: 94%` up to 1100px and a fixed `height: 92vh` (was 90% up to 720px, `max-height: 80vh`), so it no longer changes size between tabs.
+
+### Changed: Time left always inside the timer; `timerLeftInline` removed (`timer-pace.ts`, `settings.ts`, `style.css`)
+
+The separate third row under the timer (and the extra ribbon height it reserved) is deleted. `paceInline()` is now `paceAvailable() && timerLeftUnderTimer`; `paceRowReserved`, `PACE_ROW_HTML_CLASS`, the `pmd-timer-has-left` class and the `html.pmd-ribbon-pace-row` CSS are gone, and the verdict text is only the dot colour plus the tooltip. The `timerLeftInline` setting is removed from `Settings`, its defaults, sanitize and the Settings UI, so a stored value is dropped on the next save. A side effect: with **Show time left under the timer** off, the pace line no longer shows at all (before, its verdict text could still show in a row under the timer).
+
+### Changed: Timer position setting hidden from the UI (`settings.ts`, `settings-ui.ts`)
+
+`timerPosition` stays in `Settings` (default `beside`, still sanitized, still applied by `applyTimerPosition`), so `far-left` still works from the settings file. Its `SETTING_METADATA` row, segmented-control editor and the palette's cycle entry are removed.
+
 ### Changed: Move tray and clearer chip-drag targets (`pane-move-tray.ts`, `pane-drag.ts`, `multi-pane-shell.ts`, `style.css`)
 
 The chip drag used to show only a thin blue edge on the target pane (and dashed slivers for empty slots), and could not reach another window. New `showMoveTray` draws a bottom strip while a chip is dragged: one tile per slot (the source tile says "Here", empty ones "Move here", occupied ones "Swap") and, when the host is Electron, "New window" plus a tile per window from `listMoveDocTargets()`. Tiles are drop targets found through `data-move-target` in `slotIdAtPoint`, which now returns a string (`slot1..3`, `win:new`, `win:<id>`). `dropChipOnSlot` sends `win:*` through the existing `moveFocusedDocToWindow` (same path as the right-click Move to… menu, including its refusal for a document in a live collab session), after focusing the source slot. Occupied panes get the same cover as empty drop zones (`showAsSwapTarget`), which does not change the layout; empty slots keep the narrow reveal. `installPaneChipDrag` takes an optional `armedLabel` so the pointer label names the action, and flips left/above near the window edge. Rejected: a tray under the pane title bars (the user chose the bottom). Not verified: dropping onto a window tile in the real desktop app (browser-only testing); dark theme.
-
-## Unreleased
 
 ### Added: What's new button in About this install (`whats-new.ts`, `settings-ui.ts`)
 
