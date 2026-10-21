@@ -36,6 +36,10 @@ The chip drag used to show only a thin blue edge on the target pane (and dashed 
 
 The release-notes popup only appeared once, on the first launch after an update (`maybeShowWhatsNew`, guarded by a stored marker). New `showWhatsNewNow` fetches and shows the running version's notes on demand through the same `fetchReleaseNotes` and `showWhatsNewDialog`, never reads or writes the marker, and returns false when the fetch fails so the button can toast. The button sits in the Electron, non-Lite actions row of `buildInstallInfoSection` (Lite never touches the network; the web edition has no About actions). Not verified: in the packaged desktop app.
 
+### Changed: Card preview actions (`card-preview-modal.ts`, `quick-card-search-ui.ts`, `style.css`)
+
+Removed the footer **Close** button from the shared card preview (so also the Dropzone and received-card previews): the × in the header, Escape and a backdrop click already close it. The Read mode button now shows the ribbon's `pmd-icon-read-mode` icon (label kept as `aria-label`). New optional `onOpenSource` shows **Open source document** beside Insert; the search palette passes it for file cards (`source === 'tagline'` with a path), which records usage, closes the palette and calls `openFilePath`. Tests that clicked `.pmd-card-preview-close` now click `.pmd-bulk-close`.
+
 ## 1.15.0-bcb.8 — 2026-10-19
 
 ### Changed: Headings count toward read time (`word-count.ts`)

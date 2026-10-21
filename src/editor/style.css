@@ -17450,6 +17450,12 @@ body.pmd-multi-doc .pmd-cardcutter-trim {
    the left, the rendered cards on the right — and Copy / Close below. */
 /* The preview's Read mode toggle: a plain button that reads as pressed
    while on (same active tint the ribbon's inline-format buttons use). */
+.pmd-card-preview-readmode {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0.6rem;
+}
+
 .pmd-card-preview-readmode[aria-pressed="true"] {
   background: var(--pmd-c-button-active);
   box-shadow: inset 0 0 0 1px var(--pmd-c-border);
