@@ -219,9 +219,18 @@ export function clearMacroKey(id: string): void {
   setMacroKey(id, '');
 }
 
-export function buildKeybindingsEditor(): HTMLElement {
+export interface KeybindingsEditorHandle {
+  el: HTMLElement;
+  /** Filter the rows to those matching `query` (blank shows everything). */
+  setQuery(query: string): void;
+}
+
+/** The rows live in the Keyboard shortcuts popup (reference-ui.ts), under the
+ *  keyboard map, which has its own search box: so there is no search field here
+ *  and the popup drives the filter through `setQuery`. */
+export function buildKeybindingsEditor(): KeybindingsEditorHandle {
   const wrap = document.createElement('div');
-  wrap.className = 'pmd-keybindings-editor';
+  wrap.className = 'pmd-keybindings-editor pmd-keybindings-editor-embedded';
 
   // Group order + within-group order both come from RIBBON_GROUPS
   // — same taxonomy + ordering the Keyboard Shortcuts reference
@@ -634,20 +643,6 @@ export function buildKeybindingsEditor(): HTMLElement {
       'A key bound here only fires one command at a time — if you reuse a key, the previous command loses that binding.';
     wrap.appendChild(help);
 
-    const searchRow = document.createElement('div');
-    searchRow.className = 'pmd-keybindings-search';
-    const searchInput = document.createElement('input');
-    searchInput.type = 'search';
-    searchInput.className = 'pmd-keybindings-search-input';
-    searchInput.placeholder = 'Search shortcuts…';
-    searchInput.value = searchQuery;
-    searchInput.addEventListener('input', () => {
-      searchQuery = searchInput.value;
-      applyFilter();
-    });
-    searchRow.appendChild(searchInput);
-    wrap.appendChild(searchRow);
-
     const list = document.createElement('div');
     list.className = 'pmd-keybindings-list';
     for (const group of RIBBON_GROUPS) {
@@ -732,5 +727,11 @@ export function buildKeybindingsEditor(): HTMLElement {
   obs.observe(document.documentElement, { childList: true, subtree: true });
 
   render();
-  return wrap;
+  return {
+    el: wrap,
+    setQuery(query: string): void {
+      searchQuery = query;
+      applyFilter();
+    },
+  };
 }

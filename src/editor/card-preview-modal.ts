@@ -6,7 +6,7 @@
  * preview Recover Previous Version uses — a real ProseMirror view under
  * the document stylesheet (no outline pane — a preview is one card or a
  * few) — plus Read mode, Insert at cursor (when the opener supplies an
- * insert) and Close.
+ * insert). The × (and Escape, and a click outside) closes it.
  */
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
@@ -40,6 +40,9 @@ export interface CardPreviewOptions {
    *  palette passes "Open in new document" when there is no document to
    *  insert into (home screen). */
   insertLabel?: string;
+  /** Opens the document the card came from. Shown as a button beside Insert
+   *  when given; runs after the dialog closes. */
+  onOpenSource?: () => void;
 }
 
 export const CARD_PREVIEW_UNREADABLE_MESSAGE = 'This card could not be previewed.';
@@ -171,7 +174,11 @@ export function openCardPreview(opts: CardPreviewOptions): boolean {
   const readBtn = document.createElement('button');
   readBtn.type = 'button';
   readBtn.className = 'pmd-bulk-btn pmd-card-preview-readmode';
-  readBtn.textContent = 'Read mode';
+  readBtn.setAttribute('aria-label', 'Read mode');
+  const readIcon = document.createElement('span');
+  readIcon.className = 'pmd-icon pmd-icon-read-mode';
+  readIcon.setAttribute('aria-hidden', 'true');
+  readBtn.appendChild(readIcon);
   readBtn.addEventListener('click', () => {
     const on = readBtn.getAttribute('aria-pressed') !== 'true';
     setPreviewReadMode(on);
@@ -188,12 +195,21 @@ export function openCardPreview(opts: CardPreviewOptions): boolean {
     close();
     onInsert?.();
   });
-  const doneBtn = document.createElement('button');
-  doneBtn.type = 'button';
-  doneBtn.className = 'pmd-bulk-btn pmd-bulk-btn-primary pmd-card-preview-close';
-  doneBtn.textContent = 'Close';
-  doneBtn.addEventListener('click', close);
-  actions.append(readBtn, ...(onInsert ? [insertBtn] : []), doneBtn);
+  const onOpenSource = opts.onOpenSource;
+  const sourceBtn = document.createElement('button');
+  sourceBtn.type = 'button';
+  sourceBtn.className = 'pmd-bulk-btn pmd-card-preview-source';
+  sourceBtn.textContent = 'Open source document';
+  sourceBtn.title = opts.sourcePath ?? 'Open the document this card is from';
+  sourceBtn.addEventListener('click', () => {
+    close();
+    onOpenSource?.();
+  });
+  actions.append(
+    readBtn,
+    ...(onOpenSource ? [sourceBtn] : []),
+    ...(onInsert ? [insertBtn] : []),
+  );
   dialog.appendChild(actions);
 
   // Escape closes; every other key aimed at the dialog's own surfaces (the

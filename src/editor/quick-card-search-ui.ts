@@ -1810,7 +1810,7 @@ class QuickCardSearchUI {
   }
 
   /** Right-click on a Logos row: fetch the full card and show it in the
-   *  shared card preview (read-only, Insert at cursor / Close). Built exactly as an
+   *  shared card preview (read-only, Insert at cursor). Built exactly as an
    *  insert would build it, so the preview matches what Enter inserts
    *  (with the automatic condense/shrink applied). */
   private async previewLogosCard(result: PaletteResult): Promise<void> {
@@ -2428,6 +2428,16 @@ class QuickCardSearchUI {
       sliceJson,
       ...(toNewDoc ? { insertLabel: 'Open in new document' } : {}),
       onInsert: () => this.activateSelected(false),
+      ...(result.source === 'tagline' && result.filePath
+        ? {
+            onOpenSource: () => {
+              const path = result.filePath!;
+              recordUsage(path);
+              this.close();
+              this.openFilePath(path, result.fileName ?? path);
+            },
+          }
+        : {}),
     });
   }
 
