@@ -8,6 +8,11 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+- **Dragging a document's title chip is clearer, and can send it to another window.** While you drag, every pane shows its slot number and what dropping does (**Move here** or **Swap places** with the other document's name), and the label under the pointer says the same. A tray at the bottom of the window has a tile for each slot and, on the desktop app, **New window** and one tile per other open window. Drop the chip on a tile to move the document there with its unsaved edits.
+
 ## 1.15.0-bcb.8 — 2026-10-19
 
 ### Added

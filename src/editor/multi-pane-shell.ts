@@ -168,6 +168,13 @@ import { installInlineRename, isInlineRenaming, docDisplayName } from './doc-ren
 import { createChipSpeechButton, type ChipSpeechButton } from './chip-speech-button.js';
 import { filePathOf, startNativeFileDrag } from './file-drag.js';
 import { installPaneChipDrag } from './pane-drag.js';
+import {
+  describeMoveTarget,
+  showMoveTray,
+  type MoveTray,
+  type MoveTrayWindow,
+  type MoveTraySlot,
+} from './pane-move-tray.js';
 import { installMoveMenuTrigger } from './pane-move-menu.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { sendViewToRecipient } from './pairing/send-to-recipient.js';
@@ -866,6 +873,7 @@ class Slot {
       canDrag: () => this.visible !== null && !this.shell.isExpanded(),
       label: () => (this.visible ? docDisplayName(this.visible.filename) : ''),
       slotAtPoint: (x, y) => this.shell.slotIdAtPoint(x, y),
+      armedLabel: (target) => this.shell.describeDropTarget(target),
       // Dragged out of the window: hand the document's file to whatever app is
       // under the pointer (nothing happens for a document with no file yet).
       onExitWindow: () => startNativeFileDrag(getElectronHost(), filePathOf(this.visible?.handle)),
@@ -1477,12 +1485,37 @@ class Slot {
    *  than the layout jumping under the user's cursor mid-drag. */
   showAsDropZone(): void {
     if (this.dropHintEl) return;
+    this.paneEl.appendChild(this.buildDropHint(null));
+    this.paneEl.classList.add('pmd-pane-dropzone');
+  }
+
+  /** Cover an OCCUPIED pane with the same hint for the length of a drag:
+   *  dropping here swaps the two documents. Unlike an empty slot the pane
+   *  keeps its place in the layout, so nothing moves under the cursor. */
+  showAsSwapTarget(): void {
+    if (this.dropHintEl) return;
+    this.paneEl.appendChild(this.buildDropHint(this.visible ? docDisplayName(this.visible.filename) : null));
+    this.paneEl.classList.add('pmd-pane-swap-target');
+  }
+
+  private buildDropHint(swapWith: string | null): HTMLElement {
     const hint = document.createElement('div');
     hint.className = 'pmd-pane-dropzone-hint';
-    hint.textContent = `Drop in ${this.id.replace('slot', 'Slot ')}`;
+    const num = document.createElement('span');
+    num.className = 'pmd-pane-dropzone-num';
+    num.textContent = this.id.replace('slot', '');
+    const verb = document.createElement('span');
+    verb.className = 'pmd-pane-dropzone-verb';
+    verb.textContent = swapWith === null ? 'Move here' : 'Swap places';
+    hint.append(num, verb);
+    if (swapWith !== null) {
+      const name = document.createElement('span');
+      name.className = 'pmd-pane-dropzone-name';
+      name.textContent = swapWith;
+      hint.appendChild(name);
+    }
     this.dropHintEl = hint;
-    this.paneEl.appendChild(hint);
-    this.paneEl.classList.add('pmd-pane-dropzone');
+    return hint;
   }
 
   /** Undo `showAsDropZone` + any hover highlight. Safe on a slot that
@@ -1490,7 +1523,7 @@ class Slot {
   clearDropZone(): void {
     this.dropHintEl?.remove();
     this.dropHintEl = null;
-    this.paneEl.classList.remove('pmd-pane-dropzone', 'pmd-pane-drop-target');
+    this.paneEl.classList.remove('pmd-pane-dropzone', 'pmd-pane-swap-target', 'pmd-pane-drop-target');
   }
 
   /** Light this pane up as the drag's pending destination. */
@@ -2692,29 +2725,63 @@ class MultiPaneShell {
     return this.expandedSlot !== null;
   }
 
-  /** Which slot's pane sits under this viewport point, or null. Used
-   *  by the chip drag to find its drop target — `elementFromPoint`
-   *  rather than per-pane rects so a pane scrolled out of the
-   *  wide-scroll row, or covered by a dropdown, answers honestly. */
-  slotIdAtPoint(x: number, y: number): SlotId | null {
+  /** The drop target under this viewport point, or null: a tray tile
+   *  (`win:new`, `win:<id>`, or a slot tile) first, then the pane under the
+   *  pointer. `elementFromPoint` rather than per-pane rects so a pane scrolled
+   *  out of the wide-scroll row, or covered by a dropdown, answers honestly. */
+  slotIdAtPoint(x: number, y: number): string | null {
     const el = document.elementFromPoint(x, y);
-    const pane = el instanceof Element ? el.closest('.pmd-pane') : null;
+    if (!(el instanceof Element)) return null;
+    const tile = el.closest('[data-move-target]');
+    if (tile instanceof HTMLElement) {
+      const t = tile.dataset['moveTarget'] ?? null;
+      if (t) return t;
+    }
+    const pane = el.closest('.pmd-pane');
     if (!(pane instanceof HTMLElement)) return null;
     const id = pane.dataset['slot'];
     return SLOT_IDS.find((s) => s === id) ?? null;
   }
 
-  /** A chip drag started: dress the row for dropping, and bring the
-   *  EMPTY slots back into the layout as drop zones. An empty pane is
-   *  `hidden`, so without this the one place you'd most want to drop a
-   *  doc — the slot with nothing in it — isn't on screen to aim at. */
+  private moveTray: MoveTray | null = null;
+  private moveTraySlots: MoveTraySlot[] = [];
+  private moveTrayWindows: MoveTrayWindow[] = [];
+
+  /** What dropping on `target` would do, for the label on the dragged chip. */
+  describeDropTarget(target: string): string {
+    return describeMoveTarget(target, this.moveTraySlots, this.moveTrayWindows);
+  }
+
+  /** A chip drag started: dress the row for dropping. EMPTY slots come back
+   *  into the layout as drop zones (an empty pane is `hidden`, so the one
+   *  place you'd most want to drop a doc wouldn't otherwise be on screen),
+   *  occupied panes get a swap overlay, and the move tray offers every slot
+   *  plus another or a new window. */
   beginChipDrag(source: Slot): void {
     this.rowEl.classList.add('pmd-multi-row-dragging');
+    this.moveTraySlots = SLOT_IDS.map((id, i) => {
+      const slot = this.slots[id];
+      return {
+        id,
+        num: i + 1,
+        name: slot.visible ? docDisplayName(slot.visible.filename) : null,
+        source: slot === source,
+      };
+    });
     for (const id of SLOT_IDS) {
       const slot = this.slots[id];
-      if (slot === source || slot.stack.length > 0) continue;
-      slot.showAsDropZone();
+      if (slot === source) continue;
+      if (slot.stack.length > 0) slot.showAsSwapTarget();
+      else slot.showAsDropZone();
     }
+    this.moveTrayWindows = [];
+    const tray = showMoveTray(this.moveTraySlots, this.moveTrayWindows, getElectronHost() !== null);
+    this.moveTray = tray;
+    void listMoveDocTargets().then((targets) => {
+      if (this.moveTray !== tray) return; // the drag already ended
+      this.moveTrayWindows = targets.map((t) => ({ id: t.id, label: t.label }));
+      tray.setWindows(this.moveTrayWindows);
+    });
   }
 
   /** The drag ended (dropped, cancelled, or abandoned): undo
@@ -2722,19 +2789,21 @@ class MultiPaneShell {
   endChipDrag(): void {
     this.rowEl.classList.remove('pmd-multi-row-dragging');
     for (const id of SLOT_IDS) this.slots[id].clearDropZone();
+    this.moveTray?.destroy();
+    this.moveTray = null;
   }
 
-  /** Mark the hovered slot as the pending destination. The source
+  /** Mark the hovered target as the pending destination. The source
    *  slot never lights up — dropping a doc back where it started is a
    *  no-op, and pretending otherwise would promise a move. */
-  highlightDropSlot(source: Slot, slotId: string | null): void {
-    for (const id of SLOT_IDS) {
-      const slot = this.slots[id];
-      slot.setDropHighlight(slot !== source && slot.id === slotId);
-    }
+  highlightDropSlot(source: Slot, target: string | null): void {
+    const hot = target !== null && target !== source.id ? target : null;
+    for (const id of SLOT_IDS) this.slots[id].setDropHighlight(id === hot);
+    this.moveTray?.setHover(hot);
   }
 
-  /** Commit a chip drag: move `source`'s visible doc into `slotId`.
+  /** Commit a chip drag: move `source`'s visible doc to `target`, a slot id
+   *  or a window (`win:new`, `win:<id>`).
    *
    *  Dropping onto an EMPTY slot is a plain move. Dropping onto an
    *  OCCUPIED one is a SWAP — the target's visible doc comes back and
@@ -2757,6 +2826,13 @@ class MultiPaneShell {
    *  all-empty instant that must not be mistaken for the workspace
    *  actually emptying out. */
   dropChipOnSlot(source: Slot, slotId: string): void {
+    if (slotId.startsWith('win:')) {
+      const win = slotId === 'win:new' ? 'new-window' : Number(slotId.slice(4));
+      if (win !== 'new-window' && !Number.isFinite(win)) return;
+      this.focusSlot(source);
+      void moveFocusedDocToWindow(win);
+      return;
+    }
     const target = SLOT_IDS.find((s) => s === slotId);
     if (!target) return;
     const targetSlot = this.slots[target];
