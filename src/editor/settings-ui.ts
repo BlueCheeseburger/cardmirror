@@ -76,11 +76,12 @@ import {
   captureFocusForDialog,
   promptForText,
 } from './text-prompt.js';
-import { getInstallInfo } from './install-info.js';
+import { appVersion, getInstallInfo } from './install-info.js';
 import { launchBenchmarkOverlay } from './benchmark-ui.js';
 import { resetTimer } from './timer-state.js';
 import { applyTimerProfile } from './timer-profile.js';
 import { showToast } from './toast.js';
+import { showWhatsNewNow } from './whats-new.js';
 import { revealDismissedUpdateChips } from './update-chip.js';
 import { setIcon, CUSTOM_BUTTON_ICONS, type IconName } from './icons';
 import { availableRibbonCommandIds } from './ribbon-availability.js';
@@ -2067,6 +2068,32 @@ function buildInstallInfoSection(): HTMLElement {
       });
     });
     actions.appendChild(updatesBtn);
+
+    // The release notes the popup showed after the last update, on request.
+    const notesBtn = document.createElement('button');
+    notesBtn.type = 'button';
+    notesBtn.className = 'pmd-install-info-btn';
+    notesBtn.textContent = 'What’s new';
+    notesBtn.title = 'Show the release notes for this version';
+    notesBtn.addEventListener('click', () => {
+      notesBtn.disabled = true;
+      void showWhatsNewNow({
+        version: appVersion,
+        openExternal: (url) => {
+          void electronHost.openExternal(url).catch((err) => console.warn('openExternal failed:', err));
+        },
+      })
+        .then((shown) => {
+          if (!shown) showToast('Couldn’t load the release notes. Check your connection and try again.');
+        })
+        .catch((err: unknown) => {
+          showToast(`Couldn’t load the release notes: ${err instanceof Error ? err.message : String(err)}`);
+        })
+        .finally(() => {
+          notesBtn.disabled = false;
+        });
+    });
+    actions.appendChild(notesBtn);
     // Order (user spec, 2026-08-18): auto-check checkbox, then the
     // manual Check button, then the tournament-pause area.
     wrap.appendChild(actions);

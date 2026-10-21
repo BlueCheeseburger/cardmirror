@@ -336,4 +336,21 @@ export async function maybeShowWhatsNew(deps: MaybeShowDeps): Promise<WhatsNewDe
   return 'show';
 }
 
+/** Show this version's notes on request (Settings → About this install),
+ *  whether or not they were already seen. Returns false when the notes could
+ *  not be fetched (offline, or no release page for this version) so the caller
+ *  can say so. Leaves the "seen" marker alone. */
+export async function showWhatsNewNow(
+  deps: Pick<MaybeShowDeps, 'version' | 'fetchNotes' | 'show' | 'openExternal'>,
+): Promise<boolean> {
+  const notes = await (deps.fetchNotes ?? fetchReleaseNotes)(deps.version);
+  if (notes === null) return false;
+  await (deps.show ?? showWhatsNewDialog)({
+    version: deps.version,
+    notes,
+    openExternal: deps.openExternal,
+  });
+  return true;
+}
+
 export const __whatsNewMarkerForTests = MARKER;
