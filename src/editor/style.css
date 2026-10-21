@@ -12578,32 +12578,31 @@ body.pmd-pane-dragging * {
 
 /* The label following the pointer. Positioned from the top-left
    corner by `transform`, so a move is one compositor-level write per
-   pointer event. */
+   pointer event. It names what letting go would do. */
 .pmd-pane-drag-ghost {
   position: fixed;
   top: 0;
   left: 0;
   z-index: 2100;
   pointer-events: none;
-  max-width: 18rem;
+  max-width: 20rem;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
   font-size: 0.78rem;
+  font-weight: 500;
   line-height: 1.2;
   background: var(--pmd-c-surface);
   color: var(--pmd-c-text);
   border: 1px solid var(--pmd-c-border-soft);
-  box-shadow: 0 6px 16px var(--pmd-c-shadow);
-  opacity: 0.92;
+  box-shadow: 0 8px 22px var(--pmd-c-shadow);
 }
-/* Over a slot that will take the drop — same accent the target pane
-   picks up, so the two read as one answer. */
 .pmd-pane-drag-ghost-armed {
+  background: var(--pmd-c-accent);
   border-color: var(--pmd-c-accent);
-  box-shadow: 0 6px 16px var(--pmd-c-shadow), 0 0 0 2px var(--pmd-c-accent);
+  color: #fff;
 }
 
 /* An empty slot, revealed for the drag only. It is normally `hidden`
@@ -12614,31 +12613,188 @@ body.pmd-pane-dragging * {
   display: flex;
 }
 .pmd-pane-dropzone {
-  flex: 0 0 clamp(110px, 13%, 200px) !important;
+  flex: 0 0 clamp(120px, 14%, 220px) !important;
   min-width: 0;
-  background: var(--pmd-c-surface);
+  background: color-mix(in srgb, var(--pmd-c-accent) 5%, var(--pmd-c-surface));
 }
-.pmd-pane-dropzone-hint {
-  position: absolute;
-  inset: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 0.5rem;
-  border: 2px dashed var(--pmd-c-border-soft);
-  border-radius: 6px;
-  font-size: 0.78rem;
-  color: var(--pmd-c-text-muted);
-  pointer-events: none;
+.pmd-pane-swap-target {
+  position: relative;
 }
 
-/* The pending destination — occupied pane or revealed drop zone. */
-.pmd-pane-drop-target {
-  box-shadow: inset 0 0 0 2px var(--pmd-c-accent);
+/* The cover each pane wears during a drag: the slot's number, what
+   dropping does, and (over a document) which one it trades places with. One
+   look for empty and occupied panes, so the whole row reads as a set of
+   places to put the document. */
+.pmd-pane-dropzone-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.75rem;
+  text-align: center;
+  pointer-events: none;
+  color: var(--pmd-c-text-muted);
+  transition: background 120ms ease, color 120ms ease;
 }
-.pmd-pane-drop-target .pmd-pane-dropzone-hint {
+.pmd-pane-swap-target > .pmd-pane-dropzone-hint {
+  background: color-mix(in srgb, var(--pmd-c-surface) 72%, transparent);
+}
+.pmd-pane-dropzone-num {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  font-weight: 600;
+  background: var(--pmd-c-surface);
+  border: 1px solid var(--pmd-c-border-soft);
+  color: var(--pmd-c-text);
+  box-shadow: 0 2px 8px var(--pmd-c-shadow);
+  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
+}
+.pmd-pane-dropzone-verb {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.pmd-pane-dropzone-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+}
+
+/* The pending destination. */
+.pmd-pane-drop-target {
+  box-shadow: inset 0 0 0 3px var(--pmd-c-accent);
+}
+.pmd-pane-drop-target > .pmd-pane-dropzone-hint {
+  background: color-mix(in srgb, var(--pmd-c-accent) 16%, transparent);
+  color: var(--pmd-c-accent);
+}
+.pmd-pane-drop-target .pmd-pane-dropzone-num {
+  background: var(--pmd-c-accent);
   border-color: var(--pmd-c-accent);
+  color: #fff;
+  transform: scale(1.12);
+}
+
+/* The move tray: where a dragged document can go, in this window and in
+   others. Floats over the bottom of the workspace for the length of a drag. */
+.pmd-move-tray {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 2090;
+  display: flex;
+  align-items: stretch;
+  gap: 0.9rem;
+  max-width: calc(100vw - 32px);
+  padding: 0.55rem 0.8rem 0.7rem;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--pmd-c-surface) 94%, transparent);
+  border: 1px solid var(--pmd-c-border-soft);
+  box-shadow: 0 14px 38px var(--pmd-c-shadow);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  transform: translate(-50%, 14px);
+  transition: opacity 140ms ease, transform 160ms ease;
+}
+.pmd-move-tray-in {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.pmd-move-tray-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.pmd-move-tray-heading {
+  padding-left: 0.2rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-move-tray-row {
+  display: flex;
+  gap: 0.4rem;
+}
+.pmd-move-tray-divider {
+  width: 1px;
+  margin: 0.2rem 0;
+  background: var(--pmd-c-border-soft);
+}
+.pmd-move-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 7.5rem;
+  max-width: 11rem;
+  padding: 0.45rem 0.65rem 0.45rem 0.45rem;
+  border-radius: 11px;
+  border: 1px solid var(--pmd-c-border-soft);
+  background: var(--pmd-c-surface);
+  color: var(--pmd-c-text);
+  transition: background 110ms ease, border-color 110ms ease, transform 110ms ease;
+}
+.pmd-move-tile-num {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--pmd-c-text) 8%, transparent);
+}
+.pmd-move-tile-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+.pmd-move-tile-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.pmd-move-tile-verb {
+  font-size: 0.68rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-move-tile-empty {
+  border-style: dashed;
+  background: transparent;
+}
+.pmd-move-tile-empty .pmd-move-tile-name {
+  color: var(--pmd-c-text-muted);
+}
+.pmd-move-tile-source {
+  opacity: 0.55;
+  background: transparent;
+}
+.pmd-move-tile-hot {
+  background: color-mix(in srgb, var(--pmd-c-accent) 14%, var(--pmd-c-surface));
+  border-color: var(--pmd-c-accent);
+  transform: translateY(-2px);
+}
+.pmd-move-tile-hot .pmd-move-tile-num {
+  background: var(--pmd-c-accent);
+  color: #fff;
+}
+.pmd-move-tile-hot .pmd-move-tile-verb {
   color: var(--pmd-c-accent);
 }
 

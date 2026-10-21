@@ -185,4 +185,27 @@ describe('pane chip drag', () => {
     chip.dispatchEvent(pointer('pointermove', 60, 0));
     expect(opts.onDragStart).not.toHaveBeenCalled();
   });
+
+  it('names what dropping would do while over a target, and goes back to the doc name off it', () => {
+    let over: string | null = 'slot2';
+    const chip = document.createElement('div');
+    document.body.appendChild(chip);
+    installPaneChipDrag(chip, {
+      canDrag: () => true,
+      label: () => 'Case.docx',
+      slotAtPoint: () => over,
+      armedLabel: (id) => `Swap with ${id}`,
+      onDragStart: () => {},
+      onDragEnd: () => {},
+      onHover: () => {},
+      onDrop: () => {},
+    });
+    chip.dispatchEvent(pointer('pointerdown', 10, 10));
+    document.dispatchEvent(pointer('pointermove', 40, 40));
+    expect(ghost()?.textContent).toBe('Swap with slot2');
+    over = null;
+    document.dispatchEvent(pointer('pointermove', 60, 60));
+    expect(ghost()?.textContent).toBe('Case.docx');
+    document.dispatchEvent(pointer('pointerup', 60, 60));
+  });
 });

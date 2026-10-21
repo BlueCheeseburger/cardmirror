@@ -10,6 +10,12 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: Move tray and clearer chip-drag targets (`pane-move-tray.ts`, `pane-drag.ts`, `multi-pane-shell.ts`, `style.css`)
+
+The chip drag used to show only a thin blue edge on the target pane (and dashed slivers for empty slots), and could not reach another window. New `showMoveTray` draws a bottom strip while a chip is dragged: one tile per slot (the source tile says "Here", empty ones "Move here", occupied ones "Swap") and, when the host is Electron, "New window" plus a tile per window from `listMoveDocTargets()`. Tiles are drop targets found through `data-move-target` in `slotIdAtPoint`, which now returns a string (`slot1..3`, `win:new`, `win:<id>`). `dropChipOnSlot` sends `win:*` through the existing `moveFocusedDocToWindow` (same path as the right-click Move to… menu, including its refusal for a document in a live collab session), after focusing the source slot. Occupied panes get the same cover as empty drop zones (`showAsSwapTarget`), which does not change the layout; empty slots keep the narrow reveal. `installPaneChipDrag` takes an optional `armedLabel` so the pointer label names the action, and flips left/above near the window edge. Rejected: a tray under the pane title bars (the user chose the bottom). Not verified: dropping onto a window tile in the real desktop app (browser-only testing); dark theme.
+
 ## 1.15.0-bcb.8 — 2026-10-19
 
 ### Changed: Headings count toward read time (`word-count.ts`)
