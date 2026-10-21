@@ -8,7 +8,7 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.9 — 2026-10-21
 
 ### Added
 - **A What's new button in About this install.** **Settings → General → About this install** has a **What's new** button beside **Check for updates** that shows the release notes for the version you're running, any time, not only right after an update. If the notes can't be loaded (no connection), it says so.

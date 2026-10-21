@@ -10,7 +10,7 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.9 — 2026-10-21
 
 ### Changed: Keyboard tab opens the Keyboard shortcuts popup; rebindable rows move into it (`reference-ui.ts`, `keybindings-editor.ts`, `settings-ui.ts`, `settings.ts`, `style.css`)
 
