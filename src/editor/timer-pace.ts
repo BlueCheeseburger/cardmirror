@@ -200,26 +200,13 @@ function paceAvailable(): boolean {
   return s.visible && !s.poppedOut && settings.get('liveRemainingReadTime');
 }
 
-/** "Fit time left inside the timer" is in effect: the text sits in the timer's
- *  own box, so the row takes no space of its own. Only meaningful while the
- *  time left is shown under the timer. */
+/** The time left shows in the timer's own box: the timer panel is in this
+ *  window's ribbon, "live read time for what is left" is on, and "Show time
+ *  left under the timer" is on. The text sits under the digits and takes no
+ *  space of its own, so the ribbon keeps one height. */
 export function paceInline(): boolean {
-  return paceAvailable() && settings.get('timerLeftUnderTimer') && settings.get('timerLeftInline');
+  return paceAvailable() && settings.get('timerLeftUnderTimer');
 }
-
-/** Whether the pace row's space is reserved in the ribbon: the timer
- *  panel is showing in this window's ribbon and the feature behind the row
- *  ("live read time for what is left") is on. Deliberately NOT tied to the
- *  clock running or a document being open, so the ribbon holds one height
- *  while the feature is available. Not reserved at all in the inline
- *  placement, which adds no row. */
-export function paceRowReserved(): boolean {
-  return paceAvailable() && !paceInline();
-}
-
-/** Class on <html> while the row's space is reserved: the ribbon grows by
- *  the row's height and its contents align to the top (see style.css). */
-export const PACE_ROW_HTML_CLASS = 'pmd-ribbon-pace-row';
 
 export interface PaceTarget {
   view: EditorView;
@@ -253,14 +240,11 @@ export function mountTimerPace(getTarget: () => PaceTarget | null): void {
 
   function update(): void {
     const inline = paceInline();
-    const reserved = paceRowReserved();
-    document.documentElement.classList.toggle(PACE_ROW_HTML_CLASS, reserved);
-    panel!.classList.toggle('pmd-timer-has-left', reserved);
-    // Inline: the same element rides over the timer's own box (CSS), the
-    // digits make room for it, and the verdict is its colour instead of text.
+    // The row rides over the timer's own box (CSS), the digits make room for
+    // it, and the verdict is its colour instead of text.
     panel!.classList.toggle('pmd-timer-has-left-inline', inline);
     row.classList.toggle('pmd-timer-left-inline', inline);
-    row.hidden = !(reserved || inline);
+    row.hidden = !inline;
     if (row.hidden) return;
 
     const state = getTimerState();
@@ -277,7 +261,7 @@ export function mountTimerPace(getTarget: () => PaceTarget | null): void {
       speechTotalSec: state.speechTotalMs / 1000,
     });
     times.textContent = model.left;
-    pace.textContent = inline ? '' : model.verdictText;
+    pace.textContent = '';
     if (model.verdict) {
       pace.dataset['verdict'] = model.verdict;
       row.dataset['verdict'] = model.verdict;
@@ -289,13 +273,13 @@ export function mountTimerPace(getTarget: () => PaceTarget | null): void {
     }
     // Custom tooltips only: assigning `title` on every tick (these change
     // each second) would put the native tooltip back beside ours.
-    // Inline there's no room for the verdict text, so its words ride along
-    // in the left time's tooltip.
+    // There's no room for the verdict text, so its words ride along in the
+    // left time's tooltip.
     setElementTooltip(
       times,
-      inline && model.verdictText ? [model.leftTip, `${model.verdictText}. ${model.verdictTip}`].filter(Boolean).join('\n') : model.leftTip,
+      model.verdictText ? [model.leftTip, `${model.verdictText}. ${model.verdictTip}`].filter(Boolean).join('\n') : model.leftTip,
     );
-    setElementTooltip(pace, inline ? '' : model.verdictTip);
+    setElementTooltip(pace, '');
   }
 
   refreshPaceNow = update;

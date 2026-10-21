@@ -2,7 +2,7 @@
 /**
  * Card preview (field request 2026-09-09): a Dropzone or Receive row's
  * Preview button opens the cards full-size, read-only, with the nav pane,
- * and offers Insert at cursor / Close — without inserting anything.
+ * and offers Insert at cursor — without inserting anything.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Node as PMNode } from 'prosemirror-model';
@@ -47,7 +47,7 @@ beforeEach(() => {
   writeClipboardHtml.mockImplementation(async () => true);
 });
 afterEach(() => {
-  document.querySelector<HTMLButtonElement>('.pmd-card-preview-close')?.click();
+  document.querySelector<HTMLButtonElement>('.pmd-bulk-close')?.click();
   document.body.innerHTML = '';
   vi.restoreAllMocks();
 });
@@ -69,7 +69,7 @@ describe('docFromSliceJson', () => {
 });
 
 describe('openCardPreview', () => {
-  it('shows the cards read-only without a nav pane, and Close removes everything', () => {
+  it('shows the cards read-only without a nav pane, and × removes everything', () => {
     expect(openCardPreview({ title: 'Alpha tag', sliceJson: sliceJson(card('Alpha tag', 'alpha body'), card('Beta tag', 'beta body')) })).toBe(true);
     const d = dialog()!;
     expect(d).toBeTruthy();
@@ -80,7 +80,7 @@ describe('openCardPreview', () => {
     expect(pm.textContent).toContain('beta body');
     expect(pm.getAttribute('contenteditable')).toBe('false');
     expect(d.querySelector('.pmd-nav-panel')).toBeNull();
-    (d.querySelector('.pmd-card-preview-close') as HTMLButtonElement).click();
+    (d.querySelector('.pmd-bulk-close') as HTMLButtonElement).click();
     expect(dialog()).toBeNull();
     expect(isAnyOverlayOpen()).toBe(false);
   });
@@ -157,9 +157,9 @@ describe('the Preview button on the rows', () => {
     expect(dialog()!.querySelector('.ProseMirror')!.textContent).toContain('alpha body');
     // Clicking inside the preview (its Close button, say) is a pointerdown
     // outside the shelf — it must not collapse the list being browsed.
-    document.querySelector('.pmd-card-preview-close')!.dispatchEvent(new PointerEvent('pointerdown', { button: 0, bubbles: true }));
+    document.querySelector('.pmd-bulk-close')!.dispatchEvent(new PointerEvent('pointerdown', { button: 0, bubbles: true }));
     expect(root.dataset['open']).toBe('true');
-    (document.querySelector('.pmd-card-preview-close') as HTMLButtonElement).click();
+    (document.querySelector('.pmd-bulk-close') as HTMLButtonElement).click();
     expect(dialog()).toBeNull();
     // With the preview gone, an outside pointerdown closes the shelf as before.
     document.body.dispatchEvent(new PointerEvent('pointerdown', { button: 0, bubbles: true }));
@@ -198,7 +198,7 @@ describe('read mode in the preview', () => {
   afterEach(() => setPreviewReadMode(false));
   const host = (): HTMLElement => dialog()!.querySelector<HTMLElement>('.pmd-recover-preview-editor')!;
   const readBtn = (): HTMLButtonElement => dialog()!.querySelector<HTMLButtonElement>('.pmd-card-preview-readmode')!;
-  const closePreview = (): void => document.querySelector<HTMLButtonElement>('.pmd-card-preview-close')!.click();
+  const closePreview = (): void => document.querySelector<HTMLButtonElement>('.pmd-bulk-close')!.click();
 
   it('is off by default, flips the pane into read mode, and stays on for the next preview until turned off', () => {
     openCardPreview({ title: 'One', sliceJson: sliceJson(card('Tag', 'body')) });
@@ -248,5 +248,20 @@ describe('previewMostRecentReceived (the Preview Received Card command)', () => 
     expect(dialog()!.querySelector('.pmd-bulk-header h2')!.textContent).toBe('Newer tag');
     expect(dialog()!.querySelector('.pmd-card-preview-subtitle')!.textContent).toContain('Cora');
     expect(dialog()!.querySelector('.ProseMirror')!.textContent).toContain('Newer tag body');
+  });
+});
+
+describe('Open source document button', () => {
+  it('shows only when the opener supplies it, closes the preview, then runs it', () => {
+    const json = sliceJson(card('Alpha tag', 'alpha body'));
+    openCardPreview({ title: 'T', sliceJson: json });
+    expect(document.querySelector('.pmd-card-preview-source')).toBeNull();
+    document.querySelector<HTMLButtonElement>('.pmd-bulk-close')!.click();
+
+    const opened = vi.fn(() => expect(dialog()).toBeNull());
+    openCardPreview({ title: 'T', sliceJson: json, sourcePath: '/f.docx', onOpenSource: opened });
+    document.querySelector<HTMLButtonElement>('.pmd-card-preview-source')!.click();
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.pmd-card-preview-close')).toBeNull();
   });
 });

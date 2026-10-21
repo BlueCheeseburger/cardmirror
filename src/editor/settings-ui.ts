@@ -66,7 +66,6 @@ import {
   highlightColorLabel,
   shadingColorLabel,
 } from './color-palette.js';
-import { buildKeybindingsEditor } from './keybindings-editor.js';
 import { TRANSLATION_LANGUAGES } from './translate.js';
 import { getHost, getElectronHost, isWindowsHost } from './host/index.js';
 import { pushOverlay, popOverlay } from './overlay-stack.js';
@@ -454,7 +453,9 @@ class SettingsModal {
     // e.g. when reached from the search palette's `s` shortcuts. Ignore a
     // category that isn't visible on this host (e.g. a stale link to the
     // desktop-only Collaboration tab on web) so we don't strand a blank panel.
-    if (
+    if (target?.category === 'shortcuts') {
+      openKeyboardPopup();
+    } else if (
       target?.category &&
       visibleCategoryTabs().some((t) => t.id === target.category)
     ) {
@@ -594,7 +595,12 @@ class SettingsModal {
       btn.className = 'pmd-settings-tab';
       btn.setAttribute('role', 'tab');
       btn.textContent = label;
-      btn.addEventListener('click', () => this.setActiveCategory(id));
+      // Keyboard has no panel of its own: it opens the Keyboard shortcuts popup
+      // (the keyboard map and the rebindable rows) over Settings.
+      btn.addEventListener('click', () => {
+        if (id === 'shortcuts') openKeyboardPopup();
+        else this.setActiveCategory(id);
+      });
       tabStrip.appendChild(btn);
       tabButtons[id] = btn;
     }
@@ -1205,10 +1211,6 @@ class SettingsModal {
       row.appendChild(text);
       row.appendChild(buildTimerFlashSecondsEditor());
       return row;
-    } else if (meta.kind === 'timerPosition') {
-      row.appendChild(text);
-      row.appendChild(buildTimerPositionEditor());
-      return row;
     } else if (meta.kind === 'enterAfterStyle') {
       row.appendChild(text);
       row.appendChild(buildEnterAfterStyleEditor());
@@ -1272,17 +1274,6 @@ class SettingsModal {
     } else if (meta.kind === 'fileSearchTiebreak') {
       row.appendChild(text);
       row.appendChild(buildFileSearchTiebreakEditor());
-      return row;
-    } else if (meta.kind === 'keybindings') {
-      row.appendChild(text);
-      // The per-command keybindings list (~150 rows) is the single
-      // heaviest part of opening Settings, and it lives under the
-      // Keyboard tab — which isn't the default. Build it on the next
-      // frame instead of blocking the open: the dialog appears instantly
-      // and the list fills in invisibly (its panel starts hidden).
-      const slot = document.createElement('div');
-      row.appendChild(slot);
-      requestAnimationFrame(() => slot.appendChild(buildKeybindingsEditor()));
       return row;
     } else if (meta.kind === 'ribbonCustomButtons') {
       row.appendChild(text);
@@ -1917,6 +1908,12 @@ function buildColorsEditor(): HTMLElement {
   registerRowCleanup(wrap, () => unsubscribe());
 
   return wrap;
+}
+
+/** The Keyboard tab: the keyboard map and rebindable rows live in the Keyboard
+ *  shortcuts popup, not in a Settings panel. Loaded on demand. */
+function openKeyboardPopup(): void {
+  void import('./reference-ui.js').then((m) => m.openReference());
 }
 
 /** Read-only "About this install" diagnostic block. Lives at the
@@ -5516,34 +5513,6 @@ function buildArrangeSpeechSideEditor(): HTMLElement {
   }
   function refresh(): void {
     const cur = settings.get('arrangeSpeechSide');
-    for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
-      btn.setAttribute('aria-pressed', btn.dataset['value'] === cur ? 'true' : 'false');
-    }
-  }
-  refresh();
-  const unsub = settings.subscribe(refresh);
-  registerRowCleanup(wrap, () => unsub());
-  return wrap;
-}
-
-function buildTimerPositionEditor(): HTMLElement {
-  const wrap = document.createElement('div');
-  wrap.className = 'pmd-theme-editor';
-  const options: { value: Settings['timerPosition']; label: string }[] = [
-    { value: 'beside', label: 'Beside the right-hand buttons' },
-    { value: 'far-left', label: 'Far left' },
-  ];
-  for (const o of options) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pmd-theme-editor-btn';
-    btn.textContent = o.label;
-    btn.dataset['value'] = o.value;
-    btn.addEventListener('click', () => settings.set('timerPosition', o.value));
-    wrap.appendChild(btn);
-  }
-  function refresh(): void {
-    const cur = settings.get('timerPosition');
     for (const btn of wrap.querySelectorAll<HTMLButtonElement>('.pmd-theme-editor-btn')) {
       btn.setAttribute('aria-pressed', btn.dataset['value'] === cur ? 'true' : 'false');
     }
