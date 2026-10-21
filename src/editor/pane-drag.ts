@@ -41,6 +41,9 @@ export interface PaneChipDragOptions {
   onHover: (slotId: string | null) => void;
   /** Committed: move the dragged doc into this slot. */
   onDrop: (slotId: string) => void;
+  /** Text for the thing following the pointer while it is over a drop
+   *  target ("Swap with Case.docx"). Without it the label never changes. */
+  armedLabel?: (slotId: string) => string;
   /** The pointer left the window mid-drag — nothing in here to drop on any
    *  more. Return true to take over (the gesture is ended first, as a cancel):
    *  the shell starts a native drag of the document's file so another app can
@@ -70,6 +73,7 @@ export function installPaneChipDrag(
   let active = false;
   let ghost: HTMLElement | null = null;
   let hovered: string | null = null;
+  let lastPoint: { x: number; y: number } | null = null;
 
   /** The chip's own controls (close, save, the stack switcher, the
    *  rename field) keep their clicks — a drag must not start on them. */
@@ -82,9 +86,16 @@ export function installPaneChipDrag(
 
   function moveGhost(x: number, y: number): void {
     if (!ghost) return;
+    lastPoint = { x, y };
     // Offset so the label sits down-right of the cursor and never
     // under it — the drop target has to stay visible.
-    ghost.style.transform = `translate(${x + 14}px, ${y + 12}px)`;
+    // Flip to the pointer's left near the right edge so the label stays on screen.
+    const w = ghost.offsetWidth;
+    const left = x + 14 + w > window.innerWidth - 8 ? x - 14 - w : x + 14;
+    // ...and above it near the bottom, where the move tray sits.
+    const h = ghost.offsetHeight;
+    const top = y + 12 + h > window.innerHeight - 8 ? y - 12 - h : y + 12;
+    ghost.style.transform = `translate(${Math.max(8, left)}px, ${Math.max(8, top)}px)`;
   }
 
   function begin(x: number, y: number): void {
@@ -106,6 +117,8 @@ export function installPaneChipDrag(
     hovered = slotId;
     opts.onHover(slotId);
     ghost?.classList.toggle('pmd-pane-drag-ghost-armed', slotId !== null);
+    if (ghost) ghost.textContent = (slotId !== null && opts.armedLabel?.(slotId)) || opts.label();
+    if (ghost && lastPoint) moveGhost(lastPoint.x, lastPoint.y);
   }
 
   /** Tear the gesture down and return the slot it ended over (null
