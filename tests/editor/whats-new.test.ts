@@ -12,6 +12,7 @@ import {
   stripDownloadGuide,
   renderReleaseNotes,
   maybeShowWhatsNew,
+  showWhatsNewNow,
   showWhatsNewDialog,
   __whatsNewMarkerForTests as MARKER,
 } from '../../src/editor/whats-new.js';
@@ -133,6 +134,25 @@ describe('maybeShowWhatsNew', () => {
     expect(await maybeShowWhatsNew({ ...base, version: '2.0.0', fetchNotes: async () => null, show })).toBe('none');
     expect(show).not.toHaveBeenCalled();
     expect(localStorage.getItem(MARKER)).toBe('1.0.0');
+  });
+});
+
+describe('showWhatsNewNow', () => {
+  const openExternal = vi.fn();
+
+  it('shows the notes even when they were already seen, and leaves the marker alone', async () => {
+    localStorage.setItem(MARKER, '2.0.0');
+    const show = vi.fn(async () => {});
+    const shown = await showWhatsNewNow({ version: '2.0.0', openExternal, fetchNotes: async () => '- A thing', show });
+    expect(shown).toBe(true);
+    expect(show).toHaveBeenCalledWith(expect.objectContaining({ version: '2.0.0', notes: '- A thing' }));
+    expect(localStorage.getItem(MARKER)).toBe('2.0.0');
+  });
+
+  it('returns false without showing when the notes cannot be fetched', async () => {
+    const show = vi.fn(async () => {});
+    expect(await showWhatsNewNow({ version: '2.0.0', openExternal, fetchNotes: async () => null, show })).toBe(false);
+    expect(show).not.toHaveBeenCalled();
   });
 });
 
