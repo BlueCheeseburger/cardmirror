@@ -27,6 +27,7 @@ import { NavigationPanel, setNavCommandRunner } from './nav-panel.js';
 import { initUpdateChip } from './update-chip.js';
 import { mountTimerUI } from './timer-ui.js';
 import { mountTimerPace, refreshTimerPace } from './timer-pace.js';
+import { mountPaceMarker, refreshPaceMarker } from './pace-marker.js';
 import { initTimerAudio } from './timer-audio.js';
 import {
   getTimerState as getTimerStateNow,
@@ -165,6 +166,7 @@ import {
  *  helpers further down would have been reached. */
 const MODE_SWITCH_MARKER_KEY = 'cardmirror:mode-switch-recovery';
 import { isAutosaveOnForPath, setAutosaveForPath } from './autosave-prefs-store.js';
+import { isLaySpeakingForPath, setLaySpeakingForPath } from './lay-speaking-store.js';
 import {
   settings,
   condenseWarningCloseFor,
@@ -3006,6 +3008,11 @@ if (docMenuBtn) {
         title: 'Highlighting',
         items: [
           {
+            label: 'Standardize Formatting…',
+            commandId: 'standardizeFormatting',
+            run: () => runRibbon('standardizeFormatting'),
+          },
+          {
             label: 'Standardize Highlighting',
             commandId: 'standardizeHighlight',
             run: () => runRibbon('standardizeHighlight'),
@@ -4767,7 +4774,7 @@ applyPillVisibility(); // default-off dropzone pill + quick-card cluster, at boo
 // stays hidden in the DOM until the user toggles ⏱ in the
 // ribbon.
 mountTimerUI();
-mountTimerPace(() => {
+const paceTarget = (): { view: EditorView; useLay: boolean } | null => {
   const speech = getSpeechDocResolver().getSpeechView();
   const target = speech ?? view;
   if (!target) return null;
@@ -4777,7 +4784,9 @@ mountTimerPace(() => {
   const useLay =
     multiDocActive && multiDocLaySpeakingForView ? multiDocLaySpeakingForView(target) : laySpeakingOn;
   return { view: target, useLay };
-});
+};
+mountTimerPace(paceTarget);
+mountPaceMarker(paceTarget);
 // The bottom bar's "Left" readout moves under the ribbon timer (and back)
 // as the timer is shown, hidden or popped out.
 subscribeTimer(() => {
@@ -5704,8 +5713,9 @@ function effectiveFontSizeForDisplay(state: EditorState): FontSizeInfo {
  *  just to restore the whole-doc readout. */
 let lastWholeDocWords: ReadAloudCounts | null = null;
 
-/** Per-doc lay-speaking toggle for the single-doc status bar — session
- *  state, never persisted. Flipped by
+/** Per-doc lay-speaking toggle for the single-doc status bar. Remembered
+ *  per file path (`lay-speaking-store.ts`) and restored when that file is
+ *  opened. Flipped by
  *  clicking the readout itself (`word-count-text`); switches every
  *  reader shown from their flow rate (`wpm`/`tagWpm`) to their lay rate
  *  (`layWpm`), or "—" for a reader with no lay rate configured. */
@@ -5713,8 +5723,10 @@ let laySpeakingOn = false;
 
 function toggleLaySpeaking(): void {
   laySpeakingOn = !laySpeakingOn;
+  setLaySpeakingForPath(activeFile().handle, laySpeakingOn);
   refreshWordCount();
   refreshTimerPace();
+  refreshPaceMarker();
 }
 
 function refreshWordCount(opts?: { selectionOnly?: boolean }): void {
@@ -5885,6 +5897,7 @@ function refreshReadModeBtn(): void {
  *  directly rather than going through a resolver. */
 function refreshAutoScrollBtn(): void {
   autoScrollBtn?.classList.toggle('pmd-active', isAutoScrolling());
+  refreshPaceMarker();
 }
 
 const navPanel = new NavigationPanel(navEl, {
@@ -7591,6 +7604,7 @@ function mountOpenedSingleDoc(args: {
   currentDocFormat = args.format;
   // Restore this file's remembered autosave toggle (off if unknown).
   settings.set('autosaveEnabled', isAutosaveOnForPath(args.handle));
+  laySpeakingOn = isLaySpeakingForPath(args.handle);
   currentDocUid = newSessionDocUid();
   adoptDocId(args.docId, args.name, args.handle ?? null, args.format);
   // A recovered journal / salvaged copy mounts dirty (no on-disk file
@@ -7751,6 +7765,7 @@ async function loadFileInPlace(file: {
   currentDocFormat = file.format;
   // Restore this file's remembered autosave toggle (off if unknown).
   settings.set('autosaveEnabled', isAutosaveOnForPath(file.handle));
+  laySpeakingOn = isLaySpeakingForPath(file.handle);
   currentDocUid = newSessionDocUid();
   adoptDocId(docId, file.filename, file.handle, file.format);
   if (file.recovered) markCurrentDocDirty();

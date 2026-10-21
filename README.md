@@ -23,15 +23,19 @@
 >    entirely.
 > 2. **On-time / too-slow / too-fast pace indicator** — with the speech
 >    clock running, the timer compares the time left on the clock with how
->    long the rest of your doc takes to read aloud at your pace and shows
->    whether you're on time, too slow or too fast (words under the timer, or
->    a small dot that shades from red through green to blue), plus the time
->    left to read. It works in read mode, and counts from
->    the line you're actually reading, a third of the way down the screen.
+>    long the rest of your doc takes to read aloud, at the steady pace that
+>    fits the whole doc into the whole speech, and shows whether you're on
+>    time, too slow or too fast (words under the timer, or a small dot that
+>    shades from red through green to blue), plus the time left to read. It
+>    works in read mode, and counts from the line you're actually reading, a
+>    third of the way down the screen. A thick blue bar in the margin beside
+>    the doc glides down the page at that same pace, so you can see where you
+>    should be reading without looking at the timer.
 > 3. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
 >    text and speeding through everything else. It works in read mode
->    and follows the lay-speaking toggle.
+>    and follows the lay-speaking toggle. An outlined bar in the margin
+>    marks the line it thinks you're reading.
 > 4. **Compare and merge documents** — the home screen's top row has a
 >    "Compare documents" card: pick two `.cmir`/`.docx` files and see a
 >    side-by-side line diff of their text, with the changed words

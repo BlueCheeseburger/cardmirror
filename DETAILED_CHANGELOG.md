@@ -10,7 +10,42 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.15.0-bcb.8 — 2026-10-19
+
+### Changed: Headings count toward read time (`word-count.ts`)
+
+`readAloudBucket` now returns `other` (the tag-speed bucket) for text whose parent is a `pocket`, `hat` or `block`, so every consumer of `countReadAloudSplit` includes headings: the word-count bars, the outline context-menu read times, the Left time and pace verdict, the reading-position marker (and its position map) and Auto-Scroll's pacing. Asked for by the user after the marker crossed headings in no time; counting them only in the marker was rejected because it would disagree with the Left time and verdict. No new setting. `live-read-time.test.ts` and `nav-context-read-times.test.ts` expectations moved by the heading words. Not changed: read mode's own visibility rules, and the AI input.
+
+### Added: Reading-position marker (`pace-marker.ts`, `timer-pace.ts`, `live-read-time.ts`, `settings.ts`, `index.ts`, `multi-pane-shell.ts`, `style.css`)
+
+Continuous motion (second revision): the first version snapped the bar to the caret's line rect, so it stepped line by line and jumped across unhighlighted text (zero reading time). Now the bar's target is the caret position with its vertical offset slid along the line's height by how far across the editor the caret is (so it runs on from the end of one line to the start of the next), re-measured every 100 ms; a `requestAnimationFrame` loop moves the bar toward it with exponential smoothing (τ 0.12 s) capped at 1400 px/s, so unhighlighted runs are crossed fast but visibly, and steady reading lags the target by only a few px. A 1 s tick also steps it so a window that isn't painting still updates. Both bars are 8 px wide, 40 px tall; the Auto-Scroll one is an outline so the two can share a column when they coincide.
+
+Two plain elements are appended to the speech document's scroller (`#app` or `.pmd-pane-body`), outside the ProseMirror DOM. The expected line is `expectedReadSec` (new, `timer-pace.ts`): `total * (speechTotal - clock) / speechTotal` read-seconds from the top, i.e. the doc is read at a steady pace across the whole speech. It starts at 0 whatever the doc's length and reaches the end at 0:00 (the first version used "where the rest takes exactly the clock", which starts mid-document when the doc is longer than the speech; rejected after the user saw it start in the third card). With the speech length unknown it falls back to total minus the clock. A doc more than `MASTERFILE_OVER_SEC` (60 s) longer than the armed speech time returns null and the marker hides. `posAtReadSeconds` (`live-read-time.ts`) turns seconds into a position: binary search over the existing suffix table for the top-level child, then over partial `countReadAloudSplit` counts inside it, so it never walks the whole doc. It uses the first reader's flow or lay rate per the target's lay toggle (null with no lay rate, so no marker). It is placed with `coordsAtPos` in scroller content coordinates, so it scrolls with the text; read mode needs no special case (it measures the laid-out line, trying both sides of the position, and hides if the line has no box), but a `ResizeObserver` on the editor re-measures when read mode, zoom or the window change the layout. The Auto-Scroll line is a fixed-height bar at the same reading line auto-scroll samples from (`readingLineOffset`), re-placed on every scroll event from geometry alone because it stays put on screen. Shows once the speech clock has started (`speechClockStarted`: speech mode, not the stopwatch, running or paused part-way; a reset zeroes the armed length and a loaded preset sits at full, so both hide it); the frame loop idles while paused and settled. The Auto-Scroll bar shows while `autoScrollingView()` is set. New setting `paceMarker` (default on). It does not depend on `liveRemainingReadTime`.
+
+The verdict uses the same idea (`pacedNeedSec`): what is left is scaled by speech length over doc length before comparing with the clock, so it starts On time for any doc length. This replaces the earlier short-doc rule (spare time of 2:00 or more taken off the clock, `SHORT_DOC_SLACK_SEC`, removed). The "Left" time is unchanged, still the reader's own time. The first dev-window check below used the earlier version of the maths.
+
+Checked in the dev window with a generated 18-card file: the line starts at the top, lands on a highlighted line (about 315 words in at 42 s of reading at 450 wpm), stays on a highlighted line after toggling read mode, and the Auto-Scroll line stays fixed on screen while the text scrolls and is removed when Auto-Scroll stops. Not checked in a real three-pane window or with a popped-out timer; the lay case is covered by unit tests only.
+
+### Added: Bold and italic in AI comment replies (`explain-context.ts`, `comments-ui.ts`)
+
+`EXPLAIN_SYSTEM_PROMPT` used to forbid all markdown because comment bodies were raw text. It now allows `**bold**` and `*italic*` only, and `renderComment` runs AI-authored comments through `appendEmphasis` (same helper the AI panels use, which renders only those two and leaves everything else literal). Human comments are untouched. Collapsed previews show the first comment (the question), so no marker stripping was added. Existing saved replies have no markers and are unchanged.
+
+### Added: Flow/lay read-time choice persists per file (`lay-speaking-store.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+The lay-speaking toggle was session-only. It now follows `autosave-prefs-store.ts`: a localStorage set (`pmd-lay-speaking-paths`) of absolute paths left on lay, restored when a file opens (single-doc open paths and multi-pane record creation) and written on each toggle. Keyed by path, so unsaved docs and web handles (no string path) still start on flow. Not verified: moving or renaming a file drops its remembered choice.
+
+### Added: Standardize Formatting (`standardize-formatting.ts`, `ribbon-commands.ts`)
+
+`planStandardizeFormatting(state, deps)` builds ONE transaction from five ordered steps over the selection (or the
+whole document when empty): `collectExoticWhitespaceFixes` text cleanup, `font_family` and `font_size` mark removal on
+body blocks only (`card_body` and top-level `paragraph`; never tags, cites, headings or analytics), a highlight pass
+that rewrites visible highlights to `ctx.highlightColor()` and skips blank (white) ones and ones already that color
+(the existing `uniHighlight` was not reused because it also recolors erased white highlights), then the ordinary
+`shrinkText` command run on a bare state over the remapped scope. Each step's step count feeds the confirm dialog;
+`runStandardizeFormatting` plans, asks, re-plans against the live document (it may have changed while the dialog was
+open) and dispatches once. Command `standardizeFormatting` (unbound; Doc menu "Standardize Formatting…"). Not built
+yet: the model stage for cards whose underline/emphasis scheme is ambiguous (that is still the separate Repair
+Formatting command). Tests: `tests/editor/standardize-formatting.test.ts`.
 
 ### Fixed: Cross-Ex input is the whole document (`ai/card-analysis.ts`, `ai/crossex.ts`, `ai/ai-panel-ui.ts`)
 
