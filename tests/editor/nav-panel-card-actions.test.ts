@@ -5,14 +5,15 @@
  * Rehighlight row that flips after the unhighlight (card-highlight-toggle.ts).
  */
 import { describe, expect, it, afterEach, beforeEach } from 'vitest';
-import { EditorState } from 'prosemirror-state';
+import { EditorState, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { history } from 'prosemirror-history';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
 import { NavigationPanel, setNavCommandRunner } from '../../src/editor/nav-panel.js';
 import { cardHighlightPlugin } from '../../src/editor/card-highlight-toggle.js';
-import { shrinkText, compileShrinkProtections } from '../../src/editor/ribbon-commands.js';
+import { shrinkText, compileShrinkProtections, removeHyperlinks } from '../../src/editor/ribbon-commands.js';
+import { markCardsCommand } from '../../src/editor/reading-marker.js';
 
 const NORMAL_PT = 11;
 const mark = (name: string, attrs?: Record<string, unknown>) => schema.marks[name]!.create(attrs);
@@ -69,6 +70,15 @@ const menuRows = (): string[] =>
     .map((el) => el.firstChild?.textContent ?? '');
 const submenuRows = (): string[] =>
   [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-submenu .pmd-nav-context-item')].map((el) => el.textContent ?? '');
+/** One submenu's rows, by the label of the row that opens it ("Doc" / "Card"). */
+const rowsOfSubmenu = (label: string): string[] => {
+  const host = [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-submenu-host')].find(
+    (h) => h.firstElementChild?.firstChild?.textContent === label,
+  );
+  return [...(host?.querySelectorAll<HTMLElement>('.pmd-nav-context-submenu .pmd-nav-context-item') ?? [])].map(
+    (el) => el.textContent ?? '',
+  );
+};
 
 function clickRow(prefix: string): void {
   const row = [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-item')].find((el) =>
@@ -139,20 +149,13 @@ describe('outline right-click menu', () => {
       'Unhighlight Card',
       'Highlight to Background',
       'Background to Highlight',
-      'Mark Card',
       'Shrink',
     ]);
   });
 
-  it('marks the card from the submenu, and the row then reads Unmark Card', () => {
-    const { view, nav } = setup(card('Alpha tag', schema.text('body')));
-    openMenu(nav, 'Alpha tag');
-    clickRow('Mark Card');
-    expect(view.state.doc.textContent).toMatch(/Marked/);
-    nav.update(view.state.doc);
-    document.body.querySelector('.pmd-nav-context-menu')?.remove();
-    openMenu(nav, 'Alpha tag');
-    expect(submenuRows()).toContain('Unmark Card');
+  it('leaves Mark Card out of the outline Card submenu', () => {
+    openMenu(setup(card('Alpha tag', schema.text('body'))).nav, 'Alpha tag');
+    expect(submenuRows().some((r) => /Mark Card|Unmark Card/.test(r))).toBe(false);
   });
 
   it('shrinks the card text under the heading, in one undo step', () => {
@@ -212,11 +215,88 @@ describe('outline right-click menu', () => {
     const { view, nav } = setup(block('Blk'), card('One', schema.text('a')), card('Two', schema.text('b')));
     (nav as unknown as { setMaxLevel: (n: number) => void }).setMaxLevel(4);
     nav.update(view.state.doc);
-    openMenu(nav, 'One');
-    clickRow('Mark Card');
+    // Mark from the keyboard command, with the caret in card One.
+    let inOne = 0;
+    view.state.doc.descendants((n, pos) => {
+      if (n.isText && n.text === 'One') inOne = pos + 1;
+      return true;
+    });
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, inOne)));
+    markCardsCommand(view.state, view.dispatch.bind(view));
     nav.update(view.state.doc);
     const root = (nav as unknown as { listEl: HTMLElement }).listEl;
     expect(root.querySelectorAll('.pmd-nav-mark-flag').length).toBe(1);
     expect(root.querySelector('.pmd-nav-mark-count')?.textContent).toBe('1 marked');
+  });
+});
+
+describe('outline right-click Doc submenu', () => {
+  const link = (t: string): PMNode => schema.text(t, [mark('link', { href: 'https://example.com' })]);
+  const hasLink = (doc: PMNode, needle: string): boolean => {
+    let found = false;
+    doc.descendants((node) => {
+      if (node.isText && node.text!.includes(needle)) found = node.marks.some((m) => m.type.name === 'link');
+      return true;
+    });
+    return found;
+  };
+
+  beforeEach(() => {
+    setNavCommandRunner((id, state) => {
+      let out: import('prosemirror-state').Transaction | null = null;
+      if (id === 'removeHyperlinks') removeHyperlinks()(state, (tr) => { out = tr; });
+      return out;
+    });
+  });
+
+  it('is on a block, with the toolbar Doc menu rows', () => {
+    openMenu(setup(block('Blk'), card('One', schema.text('a'))).nav, 'Blk');
+    expect(rowsOfSubmenu('Doc')).toEqual([
+      'Convert Analytics to Tags',
+      'Convert Cited Analytics to Tags',
+      'Fix Formatting Gaps',
+      'Remove Hyperlinks',
+      'Link URLs',
+      'Standardize Highlighting',
+      'Standardize Background Color',
+      expect.stringMatching(/^Standardize Highlighting \(except /),
+      expect.stringMatching(/^Standardize Background Color \(except /),
+      'Select Similar Formatting',
+    ]);
+    expect(rowsOfSubmenu('Card').length).toBeGreaterThan(0);
+  });
+
+  it('is on pockets and hats too', () => {
+    const pocket = schema.nodes['pocket']!.create({ id: newHeadingId() }, schema.text('Pkt'));
+    const hat = schema.nodes['hat']!.create({ id: newHeadingId() }, schema.text('Hat'));
+    const { nav } = setup(pocket, hat, block('Blk'), card('One', schema.text('a')));
+    openMenu(nav, 'Pkt');
+    expect(rowsOfSubmenu('Doc').length).toBeGreaterThan(0);
+    document.querySelector('.pmd-nav-context-menu')?.remove();
+    openMenu(nav, 'Hat');
+    expect(rowsOfSubmenu('Doc').length).toBeGreaterThan(0);
+  });
+
+  it('is not on a tag or an analytic', () => {
+    const { view, nav } = setup(block('Blk'), card('One', schema.text('a')));
+    (nav as unknown as { setMaxLevel: (n: number) => void }).setMaxLevel(4);
+    nav.update(view.state.doc);
+    const rows = openMenu(nav, 'One');
+    expect(rows).toContain('Card');
+    expect(rows).not.toContain('Doc');
+    expect(rowsOfSubmenu('Doc')).toEqual([]);
+  });
+
+  it('acts on the clicked block only, not the whole document', () => {
+    const { view, nav } = setup(
+      block('First'),
+      card('One', link('alpha link')),
+      block('Second'),
+      card('Two', link('beta link')),
+    );
+    openMenu(nav, 'First');
+    clickRow('Remove Hyperlinks');
+    expect(hasLink(view.state.doc, 'alpha')).toBe(false);
+    expect(hasLink(view.state.doc, 'beta')).toBe(true);
   });
 });

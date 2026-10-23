@@ -22,8 +22,9 @@ import { CLIPBOARD_BUSY_MESSAGE, writeClipboardHtml } from './clipboard-write.js
 import { isCutInPlaceDoc, markCutInPlace } from './cut-in-place.js';
 import { showToast } from './toast.js';
 import { countReadAloudSplit, formatReadTimeFor, type ReadAloudCounts } from './word-count.js';
-import { buildMarkCardsTransaction, computeMarkInfo, READING_MARKER_META } from './reading-marker.js';
+import { computeMarkInfo, READING_MARKER_META } from './reading-marker.js';
 import { buildCardMenuSections } from './card-menu-sections.js';
+import { buildDocMenuSections } from './doc-menu-sections.js';
 import type { DocMenuSection } from './doc-menu-ui.js';
 import type { RibbonCommandId } from './ribbon-commands.js';
 import { cardHighlightAction, rehighlightRanges, unhighlightRanges } from './card-highlight-toggle.js';
@@ -2889,15 +2890,30 @@ export class NavigationPanel {
         action: () => this.deleteHeadingAndContents(entry),
       },
       { kind: 'separator' },
+      // The toolbar's Doc dropdown, on pockets, hats and blocks only (a tag or
+      // analytic is one card: the Card menu covers it). Same list as the
+      // toolbar (`buildDocMenuSections`), but every row acts on the clicked
+      // heading and what is under it, not the whole document.
+      ...(targets.every((t) => t.level < 4)
+        ? [
+            {
+              kind: 'submenu' as const,
+              label: 'Doc',
+              sections: buildDocMenuSections({ run: (id) => this.runHeadingCommand(entry, id) }),
+            },
+          ]
+        : []),
       // Everything the toolbar's Card dropdown offers, as a hover submenu —
-      // built from the same list (`buildCardMenuSections`), so it mirrors it.
+      // built from the same list (`buildCardMenuSections`), so it mirrors it,
+      // except Mark Card, which the outline doesn't offer.
       {
         kind: 'submenu',
         label: 'Card',
         sections: buildCardMenuSections({
           state: () => this.view?.state ?? null,
           ranges: () => this.headingRanges(targets),
-          run: (id) => this.runCardCommand(entry, id),
+          run: (id) => this.runHeadingCommand(entry, id),
+          marking: false,
         }),
       },
     ];
@@ -3049,7 +3065,7 @@ export class NavigationPanel {
   }
 
   /** The submenu row: "Card ▸", opening a side panel with the Card menu's
-   *  sections while hovered (or focused). Rows run through `runCardCommand`. */
+   *  sections while hovered (or focused). Rows run through `runHeadingCommand`. */
   private buildSubmenuRow(menu: HTMLElement, item: ContextMenuSubmenu): HTMLElement {
     const wrap = document.createElement('div');
     wrap.className = 'pmd-nav-context-submenu-host';
@@ -3108,14 +3124,15 @@ export class NavigationPanel {
     return wrap;
   }
 
-  /** Run a Card-menu command over the right-clicked heading(s)' cards, as one
-   *  undo step. Most run on a scratch state per range (back to front, so
-   *  earlier positions stay valid when a command changes the structure) and
-   *  their steps are merged into one transaction; the editor's own selection
-   *  and scroll don't move. Unhighlight / Rehighlight / Mark work from the
-   *  ranges directly, and Create Reference reads the live selection, so it
-   *  gets the first range selected first. */
-  private runCardCommand(entry: HeadingEntry, id: RibbonCommandId): void {
+  /** Run a Card- or Doc-menu command over the right-clicked heading(s) and
+   *  everything under them, as one undo step. Most run on a scratch state per
+   *  range (back to front, so earlier positions stay valid when a command
+   *  changes the structure) with that range selected, and their steps are
+   *  merged into one transaction; the editor's own selection and scroll don't
+   *  move. Unhighlight / Rehighlight work from the ranges directly, and Create
+   *  Reference and Select Similar Formatting work on the live selection, so
+   *  they get the first range selected first. */
+  private runHeadingCommand(entry: HeadingEntry, id: RibbonCommandId): void {
     const view = this.view;
     if (!view) return;
     const ranges = this.headingRanges(this.contextTargets(entry));
@@ -3124,11 +3141,7 @@ export class NavigationPanel {
       this.toggleHeadingHighlight(entry);
       return;
     }
-    if (id === 'markCards') {
-      this.toggleHeadingMark(entry);
-      return;
-    }
-    if (id === 'createReference') {
+    if (id === 'createReference' || id === 'selectSimilar') {
       const first = ranges[0]!;
       const doc = view.state.doc;
       view.dispatch(
@@ -3169,14 +3182,6 @@ export class NavigationPanel {
         ? rehighlightRanges(ranges)
         : unhighlightRanges(ranges);
     cmd(view.state, view.dispatch.bind(view));
-  }
-
-  /** Mark (or unmark) every card under the heading(s) with a reading marker. */
-  private toggleHeadingMark(entry: HeadingEntry): void {
-    const view = this.view;
-    if (!view) return;
-    const tr = buildMarkCardsTransaction(view.state, this.headingRanges(this.contextTargets(entry)));
-    if (tr) view.dispatch(tr);
   }
 
   private selectHeadingAndContents(entry: HeadingEntry): void {

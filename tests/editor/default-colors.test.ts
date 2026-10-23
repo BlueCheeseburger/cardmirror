@@ -69,3 +69,16 @@ describe('distinguishShading default flip', () => {
     expect(settings.get('distinguishShading'), 'marker present: the user\'s off sticks').toBe(false);
   });
 });
+
+describe('showExtraFormattingButtons default flip', () => {
+  it('is on by default, flips a stored false once, and respects a later off', async () => {
+    const { migrateExtraFormattingDefault } = await import('../../src/editor/settings.js');
+    expect(settings.get('showExtraFormattingButtons')).toBe(true);
+    settings.set('showExtraFormattingButtons', false);
+    migrateExtraFormattingDefault();
+    expect(settings.get('showExtraFormattingButtons'), 'flipped once').toBe(true);
+    settings.set('showExtraFormattingButtons', false);
+    migrateExtraFormattingDefault();
+    expect(settings.get('showExtraFormattingButtons'), 'marker present: the user\'s off sticks').toBe(false);
+  });
+});

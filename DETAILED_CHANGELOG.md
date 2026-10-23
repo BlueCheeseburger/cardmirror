@@ -10,6 +10,32 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.15.0-bcb.10 — 2026-10-23
+
+### Added: Extra formatting buttons: undo / redo, B / I / U / S, on by default (`index.html`, `style.css`, `index.ts`, `settings.ts`)
+
+`#undo-redo-stack` moved from the far left of the ribbon into the extra formatting group and lost its own `showUndoRedoButtons` setting (removed from `Settings`, defaults, sanitize and the Settings UI). The group is now three panels, all hidden together by `html.pmd-extra-format-hidden` and by one step of the ribbon's overflow cascade: the Undo / Redo stack, a new `#text-marks-panel` (bold, italic, underline, strikethrough, superscript, subscript in a 2×3 grid), and `#format-menu-panel`, now Table over Insert image. Bold runs `toggleBold`, italic `toggleItalic`, underline `applyUnderline` (the same command as the Underline style button and F9), the rest their existing commands. `showExtraFormattingButtons` defaults to true, sanitize reads `!== false`, and `migrateExtraFormattingDefault` flips a stored `false` once per install (marker `cm-extra-formatting-migrated`, same pattern as `migrateDistinguishShadingDefault`). The panel is wider than before; narrow windows hide it early in the cascade. Not verified: the packaged desktop app.
+
+### Added: Doc submenu on pockets, hats and blocks in the outline's right-click menu (`doc-menu-sections.ts`, `nav-panel.ts`, `index.ts`)
+
+The toolbar's Doc dropdown rows moved out of `index.ts` into `buildDocMenuSections(host)`, the same way the Card rows live in `buildCardMenuSections`, so the toolbar and the outline's submenu are one list. The outline adds a **Doc ▸** row above **Card ▸** when every right-clicked target is level 1 to 3 (pocket, hat, block); tags and analytics (level 4) don't get it. Rows go through `runHeadingCommand` (the renamed `runCardCommand`): each range is selected on a scratch `EditorState`, the ribbon command runs there, its steps are merged into one transaction, and the editor's own selection and scroll don't move. These commands already read "selection if non-empty, whole doc otherwise", so selecting the heading's range is what scopes them. Select Similar Formatting keeps its state in a plugin, not in steps, so like Create Reference it selects the first range in the live editor and runs live (it then asks for a click inside that scope). With several headings selected it uses the first range. Not verified in the running desktop app.
+
+### Changed: Mark Card left out of the outline's Card submenu (`card-menu-sections.ts`, `nav-panel.ts`)
+
+`CardMenuHost` got an optional `marking` flag (default true); the outline passes `marking: false`, the toolbar's Card menu doesn't, so only the outline loses the row. The command (`markCards`, Mod-Alt-D), the toolbar row, the flag and "N marked" count in the outline, and Marked Doc are untouched. The outline's now-unused `toggleHeadingMark` and its `buildMarkCardsTransaction` import were deleted.
+
+### Changed: Standardize Formatting removed (`standardize-formatting.ts`, `ribbon-commands.ts`, `ribbon-groups.ts`, `keyboard-map.ts`, `index.ts`)
+
+Added in 1.15.0-bcb.8 and extended with Emphasis and Condense steps and a `Mod-F10` default earlier in this batch; removed entirely at the user's request before release. Deleted: `standardize-formatting.ts` and its test, the `standardizeFormatting` command (id, label, synonyms, default key, ribbon group entry, run case), the Doc menu row, the "Fix fmt" keyboard-map label, and the MANUAL section. `Mod-F10` has no default binding again. `fixFormattingGaps` (the older **Fix Formatting Gaps** row) and the Standardize Highlighting / Background Color rows are separate and unchanged. A stored `ribbonKeyOverrides` entry for the removed id stays in the settings file but nothing reads it (the keymap is built from the live command list). The 1.15.0-bcb.8 entries below describe it as shipped.
+
+### Fixed: No spellcheck squiggles in read mode (`viewport-spellcheck.ts`, `style.css`)
+
+The viewport spellcheck plugin (`.pmd-misspelled` decorations, gated on `editorSpellcheck`) knew nothing about read mode, which keeps the editor editable and blocks edits in a filter instead. `recompute` now clears the decorations and does no work when `view.dom` is inside `.pmd-read-mode` (`isInReadMode`), the plugin view reschedules a recheck when that class flips (the host element's class is toggled before the toggle transaction, so `update` sees the new state), and `.pmd-read-mode .pmd-misspelled { text-decoration: none }` hides any decoration left in the gap before the debounce (~120 ms) fires. With no decorations the right-click suggestion menu doesn't open on a word in read mode either. The browser's own checker was already off for the editor (`spellcheck="false"`).
+
+### Fixed: Reload From Disk: error notice, and layout left alone (`multi-pane-shell.ts`, `index.ts`, `disk-conflict.ts`)
+
+`reloadFromDisk` used to close the old record and push a fresh one. Closing the only document in a slot ran the empty-slot path: it ended expand mode (`notifySlotEmptied`), un-hid hidden panes when no shown slot was left (`handleSlotEmptied` → `revealAllSlots`), reset the slot's outline-closed and hidden flags, and re-evened the layout; the fresh record then went on top of the slot's stack instead of back where it was. Now a `reloadingSlot` guard makes `teardownClosingRecord` return early for that slot (pane, expand and hide state untouched), `Slot.push` takes an index so the new record goes back at the old stack position, a stacked-behind document stays behind, and the hidden / outline flags are restored and `applyExpandedState` re-run. Failures (file unreadable, parse error) now call `reportReloadFailure`, which posts a keyed `error` status notice (the red chip a failed autosave uses; it also toasts), cleared by the next successful reload; single-pane's parse-error modal became the same notice. Not verified in the running desktop app: reload needs the Electron host.
+
 ## 1.15.0-bcb.9 — 2026-10-21
 
 ### Changed: Keyboard tab opens the Keyboard shortcuts popup; rebindable rows move into it (`reference-ui.ts`, `keybindings-editor.ts`, `settings-ui.ts`, `settings.ts`, `style.css`)

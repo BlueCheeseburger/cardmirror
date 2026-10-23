@@ -143,7 +143,6 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
   {
     title: 'Highlight tools',
     commands: [
-      'standardizeFormatting',
       'standardizeHighlight',
       'standardizeShading',
       'standardizeHighlightExcept',
