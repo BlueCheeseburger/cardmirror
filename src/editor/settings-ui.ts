@@ -4917,6 +4917,18 @@ function buildSpeechFilenameTemplateEditor(): HTMLElement {
   input.spellcheck = false;
   input.value = settings.get('speechDocFilenameTemplate');
 
+  // A small icon button that puts the default template back.
+  const reset = document.createElement('button');
+  reset.type = 'button';
+  reset.className = 'pmd-speech-filename-reset';
+  setIcon(reset, 'reset');
+  reset.title = 'Reset to default';
+  reset.setAttribute('aria-label', 'Reset the speech document filename to its default');
+
+  const inputRow = document.createElement('div');
+  inputRow.className = 'pmd-speech-filename-input-row';
+  inputRow.append(input, reset);
+
   const preview = document.createElement('div');
   preview.className = 'pmd-speech-filename-preview';
   // A screen reader should hear the corrected preview, not each
@@ -4939,7 +4951,21 @@ function buildSpeechFilenameTemplateEditor(): HTMLElement {
   };
   refresh();
 
-  input.addEventListener('input', refresh);
+  const syncReset = () => {
+    reset.disabled = input.value === DEFAULT_SPEECH_FILENAME_TEMPLATE;
+  };
+  syncReset();
+  reset.addEventListener('click', () => {
+    input.value = DEFAULT_SPEECH_FILENAME_TEMPLATE;
+    settings.set('speechDocFilenameTemplate', DEFAULT_SPEECH_FILENAME_TEMPLATE);
+    refresh();
+    syncReset();
+  });
+
+  input.addEventListener('input', () => {
+    refresh();
+    syncReset();
+  });
   input.addEventListener('change', () => {
     // Blank reverts to the default rather than storing an empty
     // template. `sanitize` enforces the same rule on load.
@@ -4947,6 +4973,7 @@ function buildSpeechFilenameTemplateEditor(): HTMLElement {
     input.value = next;
     settings.set('speechDocFilenameTemplate', next);
     refresh();
+    syncReset();
   });
 
   // Keep the preview honest when the format radio above changes,
@@ -4957,10 +4984,11 @@ function buildSpeechFilenameTemplateEditor(): HTMLElement {
       input.value = cur;
     }
     refresh();
+    syncReset();
   });
   registerRowCleanup(wrap, () => unsub());
 
-  wrap.appendChild(input);
+  wrap.appendChild(inputRow);
   wrap.appendChild(preview);
   return wrap;
 }

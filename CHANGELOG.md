@@ -14,6 +14,8 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **Mod-F10 removes Emphasis.** Select text and press **Mod-F10** to take the Emphasis style off it, the way **Mod-F11** takes highlighting off. It works on the selection (or the words picked by Select Similar Formatting), does nothing with just a cursor or when nothing selected has Emphasis, and leaves the text plain: use **F9** to underline it again. It is also in Search Everything as **Remove Emphasis**.
 
 ### Changed
+- **Four settings are gone from Settings.** **Remember my last workspace**, **Open several files at once** and **Pinch / Ctrl+Scroll to zoom** are now simply on, and **Opening a file replaces an untouched Untitled doc** is simply off. Anyone who had one of the first three off gets it turned on once. All four can still be changed in the settings file.
+- **The speech document filename has a reset button.** A small circular-arrow icon next to the field puts the default name back (it is greyed out while the default is in use).
 - **One setting, Show pace guides, replaces Show time left under the timer and Show a reading-position marker beside the document.** It is on by default and switches both together: the time left under the timer and the blue reading-position line. Someone who had either one on keeps both on; someone who had both off keeps both off. The time-left part still needs **Live read time for what is left to read** (**Settings → General → Word counts**).
 - **Mark Card is gone from the toolbar's Card menu too.** It was already left out of the outline's Card submenu. Mark a card with **Mod-Alt-D** (or rebind it in the keyboard map) or from Search Everything; marking, the outline flags and Marked Doc work as before.
 

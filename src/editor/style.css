@@ -7033,6 +7033,31 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   gap: 0.3rem;
   align-items: flex-start;
 }
+.pmd-speech-filename-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+}
+.pmd-speech-filename-reset {
+  flex: 0 0 auto;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 4px;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  cursor: pointer;
+  line-height: 1;
+}
+.pmd-speech-filename-reset:hover:not(:disabled) {
+  background: var(--pmd-c-hover);
+}
+.pmd-speech-filename-reset:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 .pmd-speech-filename-editor .pmd-settings-text {
   flex: 0 0 auto;
   width: 20rem;

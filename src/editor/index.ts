@@ -183,7 +183,8 @@ import {
   ZOOM_MAX_PCT,
   CHROME_SCALE_MIN_PCT,
   CHROME_SCALE_MAX_PCT,
-  migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, migrateExtraFormattingDefault, effectiveDocTypeFormat } from './settings.js';
+  migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, migrateExtraFormattingDefault,
+  migrateWorkspaceDefaults, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
 import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.js';
 import { resolveRenameFilename, docDisplayName } from './doc-rename.js';
@@ -11847,6 +11848,7 @@ async function initSingleDocBoot(): Promise<void> {
     // default (2026-09-21): flip an older install's stored `false` once.
     migrateDistinguishShadingDefault();
     migrateExtraFormattingDefault();
+    migrateWorkspaceDefaults();
   }
   // Automatic update checks start from `startUpdateChecks` (module level),
   // which covers both layouts and every window.

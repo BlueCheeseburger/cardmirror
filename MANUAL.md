@@ -1299,8 +1299,8 @@ workspace while another shows a single document.
   in the slots that are showing, the hidden ones come back.
 - When you have more than one document in a slot, jump between them using
   the drop-down in the document's title bar or by using **Ctrl-Tab**.
-- Turn on **Opening a file replaces an untouched Untitled doc**
-  (Settings → General → Workspace; off by default) and opening a file into
+- If you set `openReplacesUntitled` to `true` in the settings file (it has no
+  Settings row and is off by default), opening a file into
   a slot that's showing a blank **Untitled** document you haven't touched
   (never typed in, never saved) replaces it instead of stacking on top.
   Once you've typed anything, even if you delete it again, the Untitled
@@ -2559,15 +2559,13 @@ home screen — to open it, exactly like File → Open (including the unsaved-ch
 prompt, and focusing a copy that's already open). Other file types are ignored,
 and dragging cards around inside the editor is unaffected.
 
-**Opening several files at once.** Turn on **Settings → General → Workspace →
-Open several files at once** (off by default, desktop only) and the Open dialog
+**Opening several files at once.** On the desktop app the Open dialog
 takes a multi-selection (Shift-click or Mod-click). In the three-pane workspace you
 pick one slot for the whole batch, and every file lands in that slot's stack,
 so **Ctrl-Tab** cycles through them; a slot's own Open button does the same
 without asking. In one-window-per-document mode each file gets its own window.
 
-**Reopening your last set of documents.** Turn on **Settings → General →
-Workspace → Remember my last workspace** (off by default) and CardMirror
+**Reopening your last set of documents.** On the desktop app, CardMirror
 remembers which files you had open when you last quit and lists them on the Home screen under
 **Last workspace**, each with a tick box. **Reopen** opens the ticked ones —
 untick the ones you don't want, or use **All** / **None** to flip the whole
@@ -3028,10 +3026,6 @@ headers shown inside each tab.
   Right-click a flagged word for suggestions, Add to Dictionary, or
   Ignore. Off by default — debate evidence (author names, jargon) trips a
   lot of false positives.
-- **Pinch / Ctrl+Scroll to zoom** — zoom the document with a trackpad
-  pinch or Ctrl + mouse-wheel, in the same 10% steps as the zoom buttons
-  and Mod-= / Mod--. Off by default; enable it if you'd rather zoom by
-  gesture.
 - **Drag to rearrange** — the drag gestures that move content:
   navigation-pane row drags and the editor's pickup drag. On by
   default. Turn it off on touch devices (iPads) where scrolling with a
@@ -3649,8 +3643,7 @@ everyone, apply direct formatting in the document itself).
   sync across windows or persist; instead documents open at a default you can
   set (Settings → Accessibility → **Default document zoom**, 100% by default)
   and reset to it on reload. You can also pinch on a trackpad or hold Ctrl and
-  scroll, once you turn that on under Settings → General → **Pinch /
-  Ctrl+Scroll to zoom** (off by default). **(Desktop only:)** **Mod-Alt-=** /
+  scroll. **(Desktop only:)** **Mod-Alt-=** /
   **Mod-Alt--** scale the whole interface uniformly across windows, not just
   the document.
 
