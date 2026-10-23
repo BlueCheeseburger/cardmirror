@@ -4,10 +4,11 @@
  * flagged) as the whole word, not the fragments.
  */
 
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import type { Mark, Node as PMNode } from 'prosemirror-model';
 import { schema } from '../../src/schema/index.js';
-import { misspelledRangesIn } from '../../src/editor/viewport-spellcheck.js';
+import { isInReadMode, misspelledRangesIn } from '../../src/editor/viewport-spellcheck.js';
 
 const { marks } = schema;
 const u = marks['underline_mark']!.create();
@@ -83,5 +84,18 @@ describe('misspelledRangesIn — styling-split words', () => {
     // "James" + "'" with a style change before the apostrophe.
     const { node, base } = para(t('Jame', u), t("s'"));
     expect(misspelledRangesIn(node, base, dict('james'))).toEqual([]);
+  });
+});
+
+describe('isInReadMode', () => {
+  it('is true inside a read-mode pane or surface and false elsewhere', () => {
+    const pane = document.createElement('div');
+    const dom = document.createElement('div');
+    pane.appendChild(dom);
+    expect(isInReadMode(dom)).toBe(false);
+    pane.classList.add('pmd-read-mode');
+    expect(isInReadMode(dom)).toBe(true);
+    pane.classList.remove('pmd-read-mode');
+    expect(isInReadMode(dom)).toBe(false);
   });
 });

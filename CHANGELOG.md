@@ -8,16 +8,18 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.15.0-bcb.10 — 2026-10-23
 
 ### Added
 - **Undo, Redo, bold, italic, underline and strikethrough buttons in the ribbon.** They join superscript, subscript, Table and Insert image in the extra formatting buttons, which are now **on by default**, even for people who had them off (turn them off again under **Settings → Appearance → Show extra formatting buttons**). The separate **Show undo / redo buttons** setting is gone.
-- **Mod-F10 runs Standardize Formatting.**
+- **Right-click a Pocket, Hat or Block in the outline for a Doc submenu.** It has the rows of the toolbar's **Doc** menu (Cleanup, Highlighting and Select Similar Formatting), but each one acts only on that heading and everything under it, not the whole document. A tag or analytic doesn't get it; its **Card** submenu covers it.
 
 ### Changed
-- **Standardize Formatting does more.** Besides cleaning odd spaces, fonts, sizes and highlight color and re-shrinking, it now turns bold words inside underlined card text into **Emphasis**, and condenses every card the way your Condense key does. It still asks first and is one undo step. Background color is left alone.
+- **Standardize Formatting… is removed.** The Doc menu no longer has it and **Mod-F10** is free again. **Fix Formatting Gaps** and the **Standardize Highlighting** and **Background Color** rows are still there.
+- **Mark Card is no longer in the outline's Card submenu.** Mark a card with **Mod-Alt-D** or the toolbar's **Card** menu, as before.
 
 ### Fixed
+- **Read mode no longer shows red spelling squiggles.** With **Editor spellcheck** on, misspelled words stayed underlined in red while you read; the underlines now disappear in read mode and come back when you leave it.
 - **Reload From Disk shows a red notice when the file is gone.** "Couldn't reload — the file is no longer readable" now also appears as the red notice in the status bar, like a failed autosave, not only as a pop-up.
 - **Reloading in three-pane mode changes only the focused document.** Reloading no longer un-expands an expanded pane or brings back panes you had hidden, and the document stays in the same place in its pane.
 

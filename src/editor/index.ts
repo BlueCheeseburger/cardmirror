@@ -297,6 +297,7 @@ import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
 import { cardHighlightPlugin, cardRangesForSelection } from './card-highlight-toggle.js';
 import { buildCardMenuSections } from './card-menu-sections.js';
+import { buildDocMenuSections } from './doc-menu-sections.js';
 import { emojiUprightPlugin } from './emoji-upright-plugin.js';
 import { headingIdGuardPlugin } from './heading-id-guard.js';
 import { smartQuotesPlugin } from './smart-quotes-plugin.js';
@@ -2972,83 +2973,10 @@ if (docMenuBtn) {
   docMenuBtn.addEventListener('mousedown', (e) => e.preventDefault());
   docMenuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    // Sections alphabetical by title — Cleanup, Highlighting, Select.
-    // Each entry that touches body text is selection-sensitive
-    // (selection if non-empty, doc-wide otherwise).
-    openDocMenu(docMenuBtn, view, [
-      {
-        title: 'Cleanup',
-        items: [
-          {
-            label: 'Convert Analytics to Tags',
-            commandId: 'convertAnalyticsToTags',
-            run: () => runRibbon('convertAnalyticsToTags'),
-          },
-          {
-            label: 'Convert Cited Analytics to Tags',
-            commandId: 'convertCitedAnalyticsToTags',
-            run: () => runRibbon('convertCitedAnalyticsToTags'),
-          },
-          {
-            label: 'Fix Formatting Gaps',
-            commandId: 'fixFormattingGaps',
-            run: () => runRibbon('fixFormattingGaps'),
-          },
-          {
-            label: 'Remove Hyperlinks',
-            commandId: 'removeHyperlinks',
-            run: () => runRibbon('removeHyperlinks'),
-          },
-          {
-            label: 'Link URLs',
-            commandId: 'linkUrls',
-            run: () => runRibbon('linkUrls'),
-          },
-        ],
-      },
-      {
-        title: 'Highlighting',
-        items: [
-          {
-            label: 'Standardize Formatting…',
-            commandId: 'standardizeFormatting',
-            run: () => runRibbon('standardizeFormatting'),
-          },
-          {
-            label: 'Standardize Highlighting',
-            commandId: 'standardizeHighlight',
-            run: () => runRibbon('standardizeHighlight'),
-          },
-          {
-            label: 'Standardize Background Color',
-            commandId: 'standardizeShading',
-            run: () => runRibbon('standardizeShading'),
-          },
-          // The menu is rebuilt on every open, so these labels show
-          // the live exception colors from settings.
-          {
-            label: `Standardize Highlighting (except ${highlightColorLabel(settings.get('standardizeHighlightException'))})`,
-            commandId: 'standardizeHighlightExcept',
-            run: () => runRibbon('standardizeHighlightExcept'),
-          },
-          {
-            label: `Standardize Background Color (except ${shadingColorLabel(settings.get('standardizeShadingException'))})`,
-            commandId: 'standardizeShadingExcept',
-            run: () => runRibbon('standardizeShadingExcept'),
-          },
-        ],
-      },
-      {
-        title: 'Select',
-        items: [
-          {
-            label: 'Select Similar Formatting',
-            commandId: 'selectSimilar',
-            run: () => runRibbon('selectSimilar'),
-          },
-        ],
-      },
-    ]);
+    // The rows come from `buildDocMenuSections`, shared with the outline's
+    // right-click "Doc" submenu. Each one that touches body text is
+    // selection-sensitive (selection if non-empty, doc-wide otherwise).
+    openDocMenu(docMenuBtn, view, buildDocMenuSections({ run: (id) => runRibbon(id) }));
   });
 }
 

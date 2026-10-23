@@ -130,7 +130,7 @@ const SHORT: Record<string, string> = {
   'Find Without Category Grouping': 'Find flat', 'Open Settings': 'Settings', 'Minimize Window': 'Minimize',
   'Switch Window': 'Switch win', 'Focus Slot 1': 'Pane 1', 'Focus Slot 2': 'Pane 2', 'Focus Slot 3': 'Pane 3',
   'Send Doc to Slot 1': 'Send → 1', 'Send Doc to Slot 2': 'Send → 2', 'Send Doc to Slot 3': 'Send → 3',
-  'Toggle Slot Expand / Restore': 'Expand pane', 'Standardize Formatting (clean up, emphasis, condense, shrink)': 'Fix fmt', 'Close Doc or Window': 'Close',
+  'Toggle Slot Expand / Restore': 'Expand pane', 'Close Doc or Window': 'Close',
 };
 export const shortLabel = (label: string): string => SHORT[label] ?? label;
 

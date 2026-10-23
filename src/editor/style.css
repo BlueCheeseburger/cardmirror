@@ -14802,6 +14802,11 @@ body.pmd-timer-popout-page .pmd-timer-display {
   text-decoration: var(--pmd-c-spellcheck) wavy underline;
   text-decoration-skip-ink: none;
 }
+/* Read mode is for reading aloud: no squiggles (the plugin also clears them;
+   this hides any left over for the moment between the toggle and the recheck). */
+.pmd-read-mode .pmd-misspelled {
+  text-decoration: none;
+}
 
 /* ── Voice card ─────────────────────────────────────────────
    Floating status card for the voice session: mode dot + badge in a
