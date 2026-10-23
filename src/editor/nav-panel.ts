@@ -2904,8 +2904,7 @@ export class NavigationPanel {
           ]
         : []),
       // Everything the toolbar's Card dropdown offers, as a hover submenu —
-      // built from the same list (`buildCardMenuSections`), so it mirrors it,
-      // except Mark Card, which the outline doesn't offer.
+      // built from the same list (`buildCardMenuSections`), so it mirrors it.
       {
         kind: 'submenu',
         label: 'Card',
@@ -2913,7 +2912,6 @@ export class NavigationPanel {
           state: () => this.view?.state ?? null,
           ranges: () => this.headingRanges(targets),
           run: (id) => this.runHeadingCommand(entry, id),
-          marking: false,
         }),
       },
     ];

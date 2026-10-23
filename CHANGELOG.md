@@ -13,6 +13,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 ### Added
 - **Mod-F10 removes Emphasis.** Select text and press **Mod-F10** to take the Emphasis style off it, the way **Mod-F11** takes highlighting off. It works on the selection (or the words picked by Select Similar Formatting), does nothing with just a cursor or when nothing selected has Emphasis, and leaves the text plain: use **F9** to underline it again. It is also in Search Everything as **Remove Emphasis**.
 
+### Changed
+- **Mark Card is gone from the toolbar's Card menu too.** It was already left out of the outline's Card submenu. Mark a card with **Mod-Alt-D** (or rebind it in the keyboard map) or from Search Everything; marking, the outline flags and Marked Doc work as before.
+
 ## 1.15.0-bcb.10 — 2026-10-23
 
 ### Added

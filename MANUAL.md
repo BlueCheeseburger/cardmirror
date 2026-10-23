@@ -366,8 +366,8 @@ mirrors Word's Navigation Pane, but does more:
   toolbar's Card menu has — Condense, Excerpt, Highlighting and Shrink —
   acting on the card under the right-clicked heading, or on every card under a
   Pocket, Hat or Block. It is the same list as the toolbar menu, built from one
-  definition, except that **Mark Card** isn't in the outline's copy (mark with
-  **Mod-Alt-D** or the toolbar's Card menu). Unhighlight turns into
+  definition. (**Mark Card** isn't in either menu; mark with **Mod-Alt-D** or
+  Search Everything.) Unhighlight turns into
   **Rehighlight** (and back) as in the toolbar. On a **Pocket, Hat or Block**
   there is also a **Doc ▸** row with the toolbar's Doc menu — Cleanup
   (convert analytics to tags, fix formatting gaps, remove hyperlinks, link
@@ -1455,7 +1455,7 @@ timer stopped it falls back to the clock ("Marked 7:32").
 
 **Mark Card** marks the whole card the cursor is in (rather than a spot inside
 it) — **Mod-Alt-D** by default, rebindable under Settings → Keyboard, and in
-the toolbar's **Card** menu under *Marking*. It drops the same red marker at the
+Search Everything (it is not in the Card menus). It drops the same red marker at the
 end of the card and counts for Marked Doc; run it again to unmark. It works in
 read mode too.
 
