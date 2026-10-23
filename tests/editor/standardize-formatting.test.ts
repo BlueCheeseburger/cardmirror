@@ -3,6 +3,7 @@ import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema, newHeadingId } from '../../src/schema/index.js';
 import { planStandardizeFormatting } from '../../src/editor/standardize-formatting.js';
 import { shrinkText } from '../../src/editor/ribbon-commands.js';
+import { condenseMerge } from '../../src/editor/condense.js';
 
 const m = schema.marks;
 const n = schema.nodes;
@@ -23,6 +24,8 @@ const font = (name: string) => m['font_family']!.create({ name });
 const size = (pt: number) => m['font_size']!.create({ size: pt * 2, origin: null });
 const hl = (color: string) => m['highlight']!.create({ color });
 const ul = () => m['underline_mark']!.create();
+const bold = () => m['bold']!.create();
+const condense = condenseMerge({ withPilcrows: false, headingMode: 'respect' });
 
 function markNames(doc: any, text: string): string[] {
   let out: string[] = [];
@@ -82,5 +85,58 @@ describe('Standardize Formatting', () => {
     const plan = planStandardizeFormatting(state, { ...deps, highlightColor: () => null })!;
     expect(plan.steps.map((s) => s.id)).not.toContain('highlight');
     expect(markNames(state.apply(plan.tr).doc, 'read this')).toContain('highlight:green');
+  });
+
+  it('makes bold words inside underlined card text Emphasis, and leaves other bold alone', () => {
+    const doc = docOf(
+      card(
+        tag('T'),
+        body(t('plain '), t('both', bold(), ul()), t(' and '), t('bold only', bold()), t(' and '), t('under only', ul())),
+      ),
+    );
+    const state = EditorState.create({ doc });
+    const plan = planStandardizeFormatting(state, { ...deps, shrink: () => false })!;
+    expect(plan.steps.map((x) => x.id)).toEqual(['emphasis']);
+    const after = state.apply(plan.tr).doc;
+    expect(markNames(after, 'both')).toEqual(['emphasis_mark']); // not bold, not underlined any more
+    expect(markNames(after, 'bold only')).toEqual(['bold']);
+    expect(markNames(after, 'under only')).toEqual(['underline_mark']);
+  });
+
+  it('condenses every card with the ordinary condense command, one card at a time', () => {
+    const doc = docOf(
+      card(tag('One'), body(t('first paragraph')), body(t('second paragraph'))),
+      card(tag('Two'), body(t('third paragraph')), body(t('fourth paragraph'))),
+    );
+    const state = EditorState.create({ doc });
+    const plan = planStandardizeFormatting(state, { ...deps, shrink: () => false, condense })!;
+    expect(plan.steps.map((x) => x.id)).toEqual(['condense']);
+    const after = state.apply(plan.tr).doc;
+    const bodies: string[] = [];
+    after.descendants((nd) => {
+      if (nd.type.name === 'card_body') bodies.push(nd.textContent);
+      return true;
+    });
+    expect(bodies).toEqual(['first paragraph second paragraph', 'third paragraph fourth paragraph']);
+    // the whole run is one transaction
+    expect(plan.tr.docChanged).toBe(true);
+  });
+
+  it('only condenses the cards the selection touches', () => {
+    const doc = docOf(
+      card(tag('One'), body(t('first paragraph')), body(t('second paragraph'))),
+      card(tag('Two'), body(t('third paragraph')), body(t('fourth paragraph'))),
+    );
+    const base = EditorState.create({ doc });
+    // select inside the first card's first body only
+    const inFirst = base.doc.resolve(6);
+    const state = base.apply(base.tr.setSelection(TextSelection.create(base.doc, inFirst.pos, inFirst.pos + 3)));
+    const plan = planStandardizeFormatting(state, { ...deps, shrink: () => false, condense })!;
+    const bodies: string[] = [];
+    state.apply(plan.tr).doc.descendants((nd) => {
+      if (nd.type.name === 'card_body') bodies.push(nd.textContent);
+      return true;
+    });
+    expect(bodies).toEqual(['first paragraph second paragraph', 'third paragraph', 'fourth paragraph']);
   });
 });

@@ -32,6 +32,8 @@ import {
   noteSavedInPlace,
   noteKeptCopy,
   noteReloaded,
+  reportReloadFailure,
+  clearReloadFailure,
   conflictedCopyUserName,
   createPaneDiskBadge,
   type DiskBadgeDeps,
@@ -1209,7 +1211,7 @@ class Slot {
   /** Adopt a freshly-built DocRecord into this slot's stack. New doc
    *  becomes the visible one; previously-visible (if any) drops into
    *  the stack but its EditorView stays live (memory-resident). */
-  push(record: DocRecord): void {
+  push(record: DocRecord, index?: number): void {
     // Detach the OLD visible record first — `detachVisible` reads
     // `this.visible`, which derives from `visibleIndex`, so it must
     // run before we push the new record and shift the index.
@@ -1217,9 +1219,12 @@ class Slot {
     // `mountVisible` appends the new one alongside it, rendering
     // both docs on top of each other.
     this.detachVisible();
-    this.stack.push(record);
+    // `index` puts the record back where it sat in the stack (a reload
+    // replaces a document in place); by default it goes on top.
+    const at = index === undefined ? this.stack.length : Math.max(0, Math.min(index, this.stack.length));
+    this.stack.splice(at, 0, record);
     record.owner = this; // keep the dispatch closure pointed at the live slot
-    this.visibleIndex = this.stack.length - 1;
+    this.visibleIndex = at;
     this.mountVisible();
     // Visibility is owned by the shell: when expand mode is active,
     // a newly-populated non-expanded slot stays hidden until the
@@ -1382,6 +1387,10 @@ class Slot {
     this.stack.splice(idx, 1);
     if (this.stack.length === 0) {
       this.visibleIndex = -1;
+      // A reload swaps the document in place and puts the new one right
+      // back: the pane, the expand / hide state and the outline stay as
+      // they are.
+      if (this.shell.holdsLayoutFor(this)) return;
       this.paneEl.hidden = true;
       // Reset the per-slot outline-closed flag so a doc opened into
       // this slot later starts with its outline shown.
@@ -3514,7 +3523,9 @@ class MultiPaneShell {
     if (!electron) return;
     const file = await electron.readFileAtPath(handle);
     if (!file) {
-      showToast("Couldn't reload — the file is no longer readable at its location.");
+      reportReloadFailure(
+        `Couldn't reload "${docDisplayName(record.filename)}" — the file is no longer readable at its location.`,
+      );
       return;
     }
     let parsed: { doc: PMNode; threads: import('./comments-plugin.js').Thread[]; docId: string | null };
@@ -3523,7 +3534,9 @@ class MultiPaneShell {
       parsed = file.format === 'docx' ? await openDocxOffThread(bytes) : parseNative(bytes);
     } catch (err) {
       if (err instanceof OpenCancelledError) return;
-      showToast(`Reload failed: ${err instanceof Error ? err.message : String(err)}`);
+      reportReloadFailure(
+        `Couldn't reload "${docDisplayName(record.filename)}": ${err instanceof Error ? err.message : String(err)}`,
+      );
       return;
     }
     // The fresh record's outline starts at the default depth; carry over
@@ -3532,15 +3545,33 @@ class MultiPaneShell {
     // Closing the old record clears the speech designation; the reloaded
     // document is the same document, so it keeps it.
     const wasSpeech = getSpeechDocResolver().isSpeechByUid(record.uid);
+    // Only this document changes: it goes back into the same place in its
+    // slot's stack, and the layout (which pane is expanded, which are
+    // hidden, whether this outline was closed) is left exactly as it was.
+    const stackIndex = slot.stack.indexOf(record);
+    const shownBefore = slot.visible;
+    const paneHiddenBefore = slot.paneHidden;
+    const navHiddenBefore = slot.navHidden;
     record.dirty = false; // discarding is the option's stated effect: close without prompting
-    await slot.closeRecord(record);
-    const fresh = buildDocRecord(file.name, parsed.doc, slot, {
-      handle: file.handle,
-      format: file.format,
-      docId: parsed.docId,
-      threads: parsed.threads,
-    });
-    slot.push(fresh);
+    this.reloadingSlot = slot;
+    let fresh: DocRecord;
+    try {
+      await slot.closeRecord(record);
+      fresh = buildDocRecord(file.name, parsed.doc, slot, {
+        handle: file.handle,
+        format: file.format,
+        docId: parsed.docId,
+        threads: parsed.threads,
+      });
+      slot.push(fresh, stackIndex);
+      // A stacked-behind document stays behind.
+      if (shownBefore && shownBefore !== record) slot.showRecord(shownBefore);
+    } finally {
+      this.reloadingSlot = null;
+    }
+    slot.paneHidden = paneHiddenBefore;
+    slot.navHidden = navHiddenBefore;
+    this.applyExpandedState();
     fresh.navPanel.restoreViewState(navState);
     if (wasSpeech) {
       getSpeechDocResolver().setSpeech(fresh.view);
@@ -3548,6 +3579,7 @@ class MultiPaneShell {
     }
     this.focusSlot(slot);
     noteReloaded(file.handle);
+    clearReloadFailure();
     showToast(`Reloaded “${file.name}” from disk.`);
   }
 
@@ -3639,6 +3671,14 @@ class MultiPaneShell {
     // which matches the visible end state (last pushed doc is
     // focused-slot). Hidden-pane guard: focus follows visibility.
     if (!slot.paneEl.hidden) record.view.focus();
+  }
+
+  /** The slot whose document a reload is swapping in place, or null. While
+   *  set, that slot emptying and refilling must not touch the layout. */
+  private reloadingSlot: Slot | null = null;
+
+  holdsLayoutFor(slot: Slot): boolean {
+    return this.reloadingSlot === slot;
   }
 
   /** A slot's stack just became empty. If it was the expanded

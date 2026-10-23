@@ -29,6 +29,7 @@
  */
 import { promptForRouteChoice } from './text-prompt.js';
 import { showToast } from './toast.js';
+import { postNotice, clearNotice } from './status-notices.js';
 import { settings } from './settings.js';
 import type { CloudProvider } from './host/types.js';
 import type { AutoApplyOutcome } from './disk-auto-apply.js';
@@ -183,6 +184,17 @@ export function noteKeptCopy(copyHandle: string, originalHandle: string): void {
     copyOf: originalHandle,
   });
   notifyDiskStateChanged();
+}
+
+/** A reload that could not read or open the file: the red notice in the status
+ *  bar (the same one a failed autosave leaves), with its toast. */
+export function reportReloadFailure(body: string): void {
+  postNotice({ severity: 'error', title: 'Reload problem', body, key: 'reload' });
+}
+
+/** A reload went through: the failure notice no longer applies. */
+export function clearReloadFailure(): void {
+  clearNotice('reload');
 }
 
 /** Reload from disk replaced the in-memory doc with the file. */

@@ -8,10 +8,13 @@
  *   3. stray sizes: per-run size overrides on body text
  *   4. highlight color: every visible highlight to the default color
  *      (an erased, white highlight stays erased)
- *   5. shrink: un-read text back to the shrunk size (the normal Shrink
+ *   5. emphasis: bold words inside underlined text in a card body become
+ *      Emphasis instead of just bold
+ *   6. condense: each card, with the user's ordinary Condense (F3) settings
+ *   7. shrink: un-read text back to the shrunk size (the normal Shrink
  *      command, so its protection rules apply)
  *
- * Steps 2 and 3 clear sizes and fonts first so step 5 can re-shrink from a
+ * Steps 2 and 3 clear sizes and fonts first so step 7 can re-shrink from a
  * clean base; a size someone set on purpose is lost, which is why the
  * command shows a count and asks first. Everything lands as one undo step.
  */
@@ -25,7 +28,7 @@ import { collectExoticWhitespaceFixes } from './exotic-whitespace.js';
 import { showConfirm } from './confirm-dialog.js';
 import { showToast } from './toast.js';
 
-export type StandardizeStepId = 'text' | 'fonts' | 'sizes' | 'highlight' | 'shrink';
+export type StandardizeStepId = 'text' | 'fonts' | 'sizes' | 'highlight' | 'emphasis' | 'condense' | 'shrink';
 
 export interface StandardizeStep {
   id: StandardizeStepId;
@@ -46,6 +49,9 @@ export interface StandardizeDeps {
   highlightColor: () => string | null;
   /** The ordinary Shrink command. */
   shrink: Command;
+  /** The ordinary Condense command (F3, with the user's settings). It reads
+   *  the cursor's card, so it is run once per card. Omitted: no condense step. */
+  condense?: Command;
 }
 
 const LABELS: Record<StandardizeStepId, string> = {
@@ -53,6 +59,8 @@ const LABELS: Record<StandardizeStepId, string> = {
   fonts: 'Stray fonts',
   sizes: 'Stray text sizes',
   highlight: 'Highlight color',
+  emphasis: 'Bold underlined words made Emphasis',
+  condense: 'Cards condensed',
   shrink: 'Un-read text shrunk',
 };
 
@@ -185,7 +193,69 @@ export function planStandardizeFormatting(
     });
   }
 
-  // 5. shrink what is not read
+  // 5. bold inside underlined card text becomes Emphasis. Emphasis excludes
+  // the underline mark, so adding it replaces the underline on those words.
+  const boldType = schema.marks['bold'];
+  const underlineType = schema.marks['underline_mark'];
+  const emphasisType = schema.marks['emphasis_mark'];
+  if (boldType && underlineType && emphasisType) {
+    apply('emphasis', (tr) => {
+      const ranges: { from: number; to: number }[] = [];
+      tr.doc.nodesBetween(from, to, (n, pos, parent) => {
+        const t = n.type.name;
+        if (t === 'self_ref' || t === 'transclusion_ref') return false;
+        if (
+          n.isText &&
+          parent?.type.name === 'card_body' &&
+          boldType.isInSet(n.marks) &&
+          underlineType.isInSet(n.marks)
+        ) {
+          ranges.push({ from: Math.max(from, pos), to: Math.min(to, pos + n.nodeSize) });
+        }
+        return true;
+      });
+      for (const r of ranges) {
+        if (r.from >= r.to) continue;
+        tr.removeMark(r.from, r.to, boldType);
+        tr.addMark(r.from, r.to, emphasisType.create());
+      }
+    });
+  }
+
+  // 6. condense every card in scope. The command acts on the card the cursor
+  // is in, so it runs once per card, last card first so earlier positions
+  // stay valid.
+  const condense = deps.condense;
+  if (condense) {
+    apply('condense', (tr) => {
+      const cards: number[] = [];
+      tr.doc.nodesBetween(from, to, (n, pos) => {
+        if (n.type.name !== 'card') return true;
+        cards.push(pos);
+        return false;
+      });
+      for (const pos of cards.reverse()) {
+        const card = tr.doc.nodeAt(pos);
+        if (!card) continue;
+        let bodyPos = -1;
+        card.forEach((child, offset) => {
+          if (bodyPos < 0 && child.type.name === 'card_body') bodyPos = pos + 1 + offset + 1;
+        });
+        if (bodyPos < 0) continue;
+        // A bare state over the current doc, so plugins add no steps of
+        // their own that would be missing from `tr`.
+        const at = EditorState.create({
+          doc: tr.doc,
+          selection: TextSelection.create(tr.doc, bodyPos),
+        });
+        condense(at, (condenseTr) => {
+          for (const step of condenseTr.steps) tr.step(step);
+        });
+      }
+    });
+  }
+
+  // 7. shrink what is not read
   {
     const before = master.steps.length;
     const cur = stateWithScope(master.doc, from, to);
@@ -223,7 +293,8 @@ export async function runStandardizeFormatting(
     message:
       `This will change ${scope}:\n` +
       plan.steps.map((s) => `• ${s.label}: ${s.count}`).join('\n') +
-      '\n\nFonts and sizes are reset to the body style and un-read text is shrunk again. ' +
+      '\n\nFonts and sizes are reset to the body style, bold underlined words become Emphasis, ' +
+      'cards are condensed and un-read text is shrunk again. ' +
       'You can undo it in one step.',
     confirmLabel: 'Standardize',
   });

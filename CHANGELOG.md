@@ -8,6 +8,19 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+- **Undo, Redo, bold, italic, underline and strikethrough buttons in the ribbon.** They join superscript, subscript, Table and Insert image in the extra formatting buttons, which are now **on by default**, even for people who had them off (turn them off again under **Settings → Appearance → Show extra formatting buttons**). The separate **Show undo / redo buttons** setting is gone.
+- **Mod-F10 runs Standardize Formatting.**
+
+### Changed
+- **Standardize Formatting does more.** Besides cleaning odd spaces, fonts, sizes and highlight color and re-shrinking, it now turns bold words inside underlined card text into **Emphasis**, and condenses every card the way your Condense key does. It still asks first and is one undo step. Background color is left alone.
+
+### Fixed
+- **Reload From Disk shows a red notice when the file is gone.** "Couldn't reload — the file is no longer readable" now also appears as the red notice in the status bar, like a failed autosave, not only as a pop-up.
+- **Reloading in three-pane mode changes only the focused document.** Reloading no longer un-expands an expanded pane or brings back panes you had hidden, and the document stays in the same place in its pane.
+
 ## 1.15.0-bcb.9 — 2026-10-21
 
 ### Added

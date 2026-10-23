@@ -757,8 +757,8 @@ background) to convert every color in scope to your active one (with the
 "no color" pen active, they remove every highlight or background in
 scope), and converters between highlight and background.
 
-**Standardize Formatting…** (Doc menu, in the Highlighting section; also in Search
-Everything, unbound by default) cleans up a pasted or imported file in one go,
+**Standardize Formatting…** (Doc menu, in the Highlighting section; **Mod-F10**; also in Search
+Everything, where "fix formatting" finds it) cleans up a pasted or imported file in one go,
 with no AI. It works on the selection, or the whole document when nothing is
 selected, and always shows what it will change before it does anything:
 
@@ -768,11 +768,16 @@ selected, and always shows what it will change before it does anything:
 3. stray per-run text sizes on body text are cleared,
 4. every visible highlight becomes your default highlight color (an erased,
    white highlight stays erased), and
-5. text that isn't underlined, emphasized or highlighted is shrunk again, with
+5. bold words inside underlined text in a card body become **Emphasis**
+   instead of just bold,
+6. every card is condensed, the way your **Condense** key (F3) does with your
+   paragraph-integrity and pilcrow settings, and
+7. text that isn't underlined, emphasized or highlighted is shrunk again, with
    the normal **Shrink** command's rules.
 
 Because sizes are reset before the shrink, a size you set on purpose in body
-text is lost, which is why it asks first. The whole run is one undo step.
+text is lost, which is why it asks first. Background color is left alone (use
+**Standardize Background Color** for that). The whole run is one undo step.
 
 Each standardize command also has a **(with Exception)** variant in the
 Doc menu that works the same way but leaves one color of your choice
@@ -2611,7 +2616,11 @@ its file, for any saved file, and a toast confirms it. The outline keeps
 which headings were open. If the document has unsaved edits it asks before
 discarding them; a document that hosts a co-editing session can't be
 reloaded until the session ends; an unsaved document has no file to reload.
-There's no button for it, on purpose. *(Desktop only.)*
+There's no button for it, on purpose. In three-pane mode it only touches the
+focused document: it stays in the same spot in its pane, and an expanded pane
+stays expanded and hidden panes stay hidden. If the file can't be read (moved
+or deleted), a red notice appears in the status bar, the same one a failed
+autosave leaves. *(Desktop only.)*
 
 **Finding a file on disk.** The **Open Containing Folder** command
 (desktop; command bar — try "reveal in finder" — or a custom ribbon
@@ -3239,13 +3248,11 @@ How things look. None of these change the file — only your view (see
   document tracks whichever theme the chrome is currently showing.
 - **Icon style** — modern line icons (default) or classic glyphs;
   interface only.
-- **Show undo / redo buttons** — a stacked Undo / Redo button pair at the
-  far left of the ribbon, before the file buttons. Off by default —
-  undo/redo always work by keyboard either way.
-- **Show extra formatting buttons** — the general word-processor buttons
-  (Table, Insert image, superscript, subscript, strikethrough and the
-  card-numbering buttons) are hidden by default; turn this on to show them.
-  Their commands and shortcuts work either way.
+- **Show extra formatting buttons** — the general word-processor buttons:
+  Undo and Redo, bold, italic, underline, strikethrough, superscript,
+  subscript, Table, Insert image and the card-numbering buttons. On by
+  default; turn it off to hide them. Their commands and shortcuts work either
+  way.
 - **Ribbon tooltips** — what a hovered ribbon button shows: both, label
   only, shortcut only, or none.
 

@@ -183,7 +183,7 @@ import {
   ZOOM_MAX_PCT,
   CHROME_SCALE_MIN_PCT,
   CHROME_SCALE_MAX_PCT,
-  migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, effectiveDocTypeFormat } from './settings.js';
+  migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, migrateExtraFormattingDefault, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
 import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.js';
 import { resolveRenameFilename, docDisplayName } from './doc-rename.js';
@@ -340,6 +340,8 @@ import {
   noteSavedInPlace,
   noteKeptCopy,
   noteReloaded,
+  reportReloadFailure,
+  clearReloadFailure,
   reloadActiveDocFromDisk,
   setAutoApplyHandler,
   noteDocReleased,
@@ -3082,6 +3084,16 @@ if (tableMenuBtn) {
 // uniformly. Press state isn't reflected on these buttons — they're
 // not in the formatting-panel active-state loop
 // (`refreshFormattingPanelButtonStates`).
+for (const [btnId, cmd] of [
+  ['bold-btn', 'toggleBold'],
+  ['italic-btn', 'toggleItalic'],
+  ['plain-underline-btn', 'applyUnderline'],
+] as const) {
+  const btn = document.getElementById(btnId);
+  if (!btn) continue;
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('click', () => runRibbon(cmd));
+}
 const superscriptBtn = document.getElementById('superscript-btn') as HTMLButtonElement | null;
 if (superscriptBtn) {
   superscriptBtn.addEventListener('mousedown', (e) => e.preventDefault());
@@ -4338,13 +4350,10 @@ function applyPillVisibility(): void {
     'pmd-quickcards-hidden',
     !settings.get('showQuickCardButtons'),
   );
-  document.documentElement.classList.toggle(
-    'pmd-undoredo-hidden',
-    !settings.get('showUndoRedoButtons'),
-  );
-  // The general word-processor buttons (Table, image, super/subscript,
-  // strikethrough, and the numbering cluster) are off by default. The class
-  // carries `!important` so it wins over the shrink waterfall.
+  // The general word-processor buttons (undo / redo, bold / italic /
+  // underline / strikethrough / super- / subscript, Table, image, and the
+  // numbering cluster) show by default and hide when this setting is off. The
+  // class carries `!important` so it wins over the shrink waterfall.
   const extraFormatting = settings.get('showExtraFormattingButtons');
   document.documentElement.classList.toggle('pmd-extra-format-hidden', !extraFormatting);
   // The numbering cluster also has its own switch; it only shows with both on.
@@ -4525,7 +4534,9 @@ function initRibbonResizer(): void {
     ['formatting-panel'],        // (b) Structural styles
     ['numbering-panel'],         // (c) Card numbering cluster — hide THIRD
     ['custom-ribbon-panel'],     // (d) User custom buttons
-    ['format-menu-panel'],       // (d) Table / image / sub / sup / strike
+    ['undo-redo-stack',          // (d) Extra formatting group: undo / redo,
+     'text-marks-panel',         //     bold / italic / underline / strike /
+     'format-menu-panel'],       //     sup / sub, then Table / image.
     ['doc-ops-panel'],           // (e) Paragraph integrity
     ['color-panel'],             // (g) Highlight / shading / font color
                                  //     / font-size input + picker.
@@ -4645,7 +4656,7 @@ function initRibbonResizer(): void {
   // ribbon-only observer never fires. Observing these specific
   // elements catches the show / hide → 0 ↔ N transition and
   // re-runs the cascade.
-  for (const id of ['timer-panel', 'custom-ribbon-panel', 'numbering-panel', 'format-menu-panel']) {
+  for (const id of ['timer-panel', 'custom-ribbon-panel', 'numbering-panel', 'format-menu-panel', 'text-marks-panel', 'undo-redo-stack']) {
     const el = document.getElementById(id);
     if (el) observer.observe(el);
   }
@@ -4796,8 +4807,8 @@ subscribeTimer(() => {
 // owner lock (the pop-out wins while it exists). No-op while the
 // setting is off.
 initTimerAudio();
-// Undo / redo ribbon stack (showUndoRedoButtons setting; visibility
-// via html.pmd-undoredo-hidden in applyPillVisibility). Operates on
+// Undo / redo ribbon stack (part of the extra formatting group; visibility
+// via html.pmd-extra-format-hidden in applyPillVisibility). Operates on
 // the focused pane's view; mousedown is swallowed so the click keeps
 // the editor's selection and focus.
 for (const [btnId, cmd] of [
@@ -4871,6 +4882,11 @@ if (timerToggleBtn) {
   button('card-menu-btn', 'openCardToolsMenu', 'Card utilities');
   button('table-menu-btn', 'openTableMenu', 'Table operations');
   button('image-btn', 'insertImage');
+  button('undo-btn', 'undo');
+  button('redo-btn', 'redo');
+  button('bold-btn', 'toggleBold');
+  button('italic-btn', 'toggleItalic');
+  button('plain-underline-btn', 'applyUnderline');
   button('superscript-btn', 'toggleSuperscript');
   button('subscript-btn', 'toggleSubscript');
   button('strikethrough-btn', 'toggleStrikethrough');
@@ -9849,7 +9865,9 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
   if (!electron) return;
   const file = await electron.readFileAtPath(handle);
   if (!file) {
-    showToast('Couldn\'t reload — the file is no longer readable at its location.');
+    reportReloadFailure(
+      `Couldn't reload "${docDisplayName(currentDocFilename ?? 'This document')}" — the file is no longer readable at its location.`,
+    );
     return;
   }
   try {
@@ -9890,10 +9908,11 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
     // fresh read as the baseline explicitly.
     await registerDocPath(file.handle);
     noteReloaded(file.handle);
+    clearReloadFailure();
     showToast(`Reloaded “${file.name}” from disk.`);
   } catch (err) {
     if (err instanceof OpenCancelledError) return;
-    void alertDialog(`Reload failed: ${err instanceof Error ? err.message : String(err)}`);
+    reportReloadFailure(`Couldn't reload: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -11899,6 +11918,7 @@ async function initSingleDocBoot(): Promise<void> {
     // "Distinguish background color from highlighting" became ON by
     // default (2026-09-21): flip an older install's stored `false` once.
     migrateDistinguishShadingDefault();
+    migrateExtraFormattingDefault();
   }
   // Automatic update checks start from `startUpdateChecks` (module level),
   // which covers both layouts and every window.

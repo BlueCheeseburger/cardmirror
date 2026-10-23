@@ -5137,7 +5137,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   standardizeShading: 'Standardize Background Color',
   standardizeHighlightExcept: 'Standardize Highlighting (with Exception)',
   standardizeShadingExcept: 'Standardize Background Color (with Exception)',
-  standardizeFormatting: 'Standardize Formatting (fonts, sizes, highlight, shrink)',
+  standardizeFormatting: 'Standardize Formatting (clean up, emphasis, condense, shrink)',
   convertCardsToReadMode: 'Convert Cards to Read Mode',
   toggleReadMode: 'Toggle Read Mode',
   toggleAutoScroll: 'Toggle Auto-Scroll (Paced to Reading Speed)',
@@ -5567,7 +5567,8 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   standardizeShading: '',
   standardizeHighlightExcept: '',
   standardizeShadingExcept: '',
-  standardizeFormatting: '',
+  // Mod-F10 sits beside Emphasis (F10) and Emphasize Acronym (Alt-F10).
+  standardizeFormatting: 'Mod-F10',
   convertCardsToReadMode: '',
   toggleReadMode: '',
   toggleAutoScroll: '',
@@ -6355,6 +6356,7 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         if (!dispatch) return true;
         void runStandardizeFormatting(view, {
           highlightColor: ctx.highlightColor,
+          condense: commandFor('condenseDefault', ctx),
           shrink: shrinkText(
             ctx.effectivePtForNode,
             ctx.normalPt,

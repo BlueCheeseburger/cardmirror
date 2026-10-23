@@ -10,6 +10,20 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: Extra formatting buttons: undo / redo, B / I / U / S, on by default (`index.html`, `style.css`, `index.ts`, `settings.ts`)
+
+`#undo-redo-stack` moved from the far left of the ribbon into the extra formatting group and lost its own `showUndoRedoButtons` setting (removed from `Settings`, defaults, sanitize and the Settings UI). The group is now three panels, all hidden together by `html.pmd-extra-format-hidden` and by one step of the ribbon's overflow cascade: the Undo / Redo stack, a new `#text-marks-panel` (bold, italic, underline, strikethrough, superscript, subscript in a 2×3 grid), and `#format-menu-panel`, now Table over Insert image. Bold runs `toggleBold`, italic `toggleItalic`, underline `applyUnderline` (the same command as the Underline style button and F9), the rest their existing commands. `showExtraFormattingButtons` defaults to true, sanitize reads `!== false`, and `migrateExtraFormattingDefault` flips a stored `false` once per install (marker `cm-extra-formatting-migrated`, same pattern as `migrateDistinguishShadingDefault`). The panel is wider than before; narrow windows hide it early in the cascade. Not verified: the packaged desktop app.
+
+### Changed: Standardize Formatting gains Emphasis and Condense steps, and Mod-F10 (`standardize-formatting.ts`, `ribbon-commands.ts`, `keyboard-map.ts`)
+
+Two steps added before the shrink. **Emphasis:** in `card_body` text, runs carrying both `bold` and `underline_mark` lose bold and get `emphasis_mark` (which excludes the underline mark, so adding it replaces the underline). Bold without underline, and underline without bold, are untouched. **Condense:** the ordinary Condense command (`condenseDefault`, so the user's paragraph-integrity, pilcrow and heading-mode settings apply) runs once per card in scope, last card first so earlier positions stay valid, each from a bare `EditorState` with the cursor in the card's first body, and its steps are copied into the master transaction (the same technique as the shrink step). Selection scope condenses only the cards it touches. Background color (shading) is deliberately not standardized here: the user may shade on purpose, and **Standardize Background Color** exists. `standardizeFormatting` default key is `Mod-F10` (next to Emphasis F10 and Alt-F10); the palette finds it under "fix formatting".
+
+### Fixed: Reload From Disk: error notice, and layout left alone (`multi-pane-shell.ts`, `index.ts`, `disk-conflict.ts`)
+
+`reloadFromDisk` used to close the old record and push a fresh one. Closing the only document in a slot ran the empty-slot path: it ended expand mode (`notifySlotEmptied`), un-hid hidden panes when no shown slot was left (`handleSlotEmptied` → `revealAllSlots`), reset the slot's outline-closed and hidden flags, and re-evened the layout; the fresh record then went on top of the slot's stack instead of back where it was. Now a `reloadingSlot` guard makes `teardownClosingRecord` return early for that slot (pane, expand and hide state untouched), `Slot.push` takes an index so the new record goes back at the old stack position, a stacked-behind document stays behind, and the hidden / outline flags are restored and `applyExpandedState` re-run. Failures (file unreadable, parse error) now call `reportReloadFailure`, which posts a keyed `error` status notice (the red chip a failed autosave uses; it also toasts), cleared by the next successful reload; single-pane's parse-error modal became the same notice. Not verified in the running desktop app: reload needs the Electron host.
+
 ## 1.15.0-bcb.9 — 2026-10-21
 
 ### Changed: Keyboard tab opens the Keyboard shortcuts popup; rebindable rows move into it (`reference-ui.ts`, `keybindings-editor.ts`, `settings-ui.ts`, `settings.ts`, `style.css`)
