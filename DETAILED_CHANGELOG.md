@@ -10,6 +10,12 @@ For this fork's own features, the implementation details are in
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Added: Remove Emphasis, Mod-F10 (`ribbon-commands.ts`, `ribbon-groups.ts`)
+
+New command `removeEmphasis` (label "Remove Emphasis", default key `Mod-F10`, palette synonyms "unemphasize", "erase emphasis", "clear emphasis"), next to F10 Emphasis and Alt-F10 Emphasize Acronym the way Mod-F11 sits next to F11. F10 is apply-only (`applyBodyMark`), and the only ways back were Clear (F12), which strips every direct format, or F9, which swaps the mark for underline (`emphasis_mark` and `underline_mark` exclude each other), so there was no way to take just the Emphasis off. Shaped like Mod-F11 (`applyHighlight`): it runs on `getOperatingRangesForFormatting` (the selection, or the shadow-selection matches), returns false on a bare cursor with no word expansion, skips no structural block, and returns false (no transaction, no history entry) when nothing in range carries the mark. Otherwise one `removeMark(emphasis_mark)` per range inside `withGapFix(..., { appliesNamedStyle: true })`, so the gaps around the change are normalized like every other character-style command and it is one undo step. It does NOT restore an underline: Emphasis replaced the underline when it was applied, so what was underneath is not known, and plain is the literal result; F9 adds the underline back. It is not a toggle (a second press finds nothing to remove). Mod-F10 was briefly the default key of Standardize Formatting, removed in 1.15.0-bcb.10. Tests: `removeEmphasis (Mod-F10)` in `tests/editor/ribbon-commands.test.ts`. Not verified: the packaged desktop app, or Cmd+F10 on macOS, where the OS may claim the key before the app sees it.
+
 ## 1.15.0-bcb.10 — 2026-10-23
 
 ### Added: Extra formatting buttons: undo / redo, B / I / U / S, on by default (`index.html`, `style.css`, `index.ts`, `settings.ts`)

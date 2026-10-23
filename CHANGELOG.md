@@ -8,6 +8,11 @@ this fork has added, see
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+- **Mod-F10 removes Emphasis.** Select text and press **Mod-F10** to take the Emphasis style off it, the way **Mod-F11** takes highlighting off. It works on the selection (or the words picked by Select Similar Formatting), does nothing with just a cursor or when nothing selected has Emphasis, and leaves the text plain: use **F9** to underline it again. It is also in Search Everything as **Remove Emphasis**.
+
 ## 1.15.0-bcb.10 — 2026-10-23
 
 ### Added

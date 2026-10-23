@@ -5936,7 +5936,7 @@ function makeStarterDoc(): PMNode {
         t('F10 emphasizes', [m['emphasis_mark']!.create()]),
         t(', and '),
         t('F11 highlights', [m['highlight']!.create({ color: 'yellow' })]),
-        t(' (F9 and F11 toggle; F10 is apply-only). Mod-8 shrinks the un-underlined text for reading. The cite mark (F8) is on "Smith 24" above.',
+        t(' (F9 and F11 toggle; F10 is apply-only, and Mod-F10 removes it). Mod-8 shrinks the un-underlined text for reading. The cite mark (F8) is on "Smith 24" above.',
         ),
       ]),
     ]),
