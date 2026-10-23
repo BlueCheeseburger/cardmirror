@@ -8,11 +8,9 @@
 # CardMirror
 
 > **This is a fork** ([`BlueCheeseburger/cardmirror`](https://github.com/BlueCheeseburger/cardmirror))
-> of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). The
-> biggest things this fork adds on top of upstream, ranked by user impact
-> (full history in [CHANGELOG.md § Fork Changes](./CHANGELOG.md#fork-changes),
-> implementation details in
-> [DETAILED_CHANGELOG.md § Fork Changes](./DETAILED_CHANGELOG.md#fork-changes)):
+> of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Every
+> change this fork makes, with how to use it and which setting turns it on, is
+> in **[FORK_FEATURES.md](./FORK_FEATURES.md)**. The biggest ones, by user impact:
 >
 > 1. **Independent multi-window three-pane workspace** — additional windows
 >    are fully independent, each with its own three-pane (or single-doc)
@@ -63,8 +61,9 @@
 >    - d. **Mark as active speech doc** — a microphone that
 >      appears on hover to mark the speech doc, so you don't have to teach 
 >      newcomers how to use keyboard shortcuts.
->    - e. **A decluttered toolbar** — table, image, super/subscript,
->      strikethrough and numbering buttons are hidden (you turn them back on).
+>    - e. **Handy formatting buttons in the ribbon** — Undo, Redo, bold,
+>      italic, underline, strikethrough, table and image are one click away
+>      (turn them off in Settings → Appearance if you want a cleaner ribbon).
 >      
 
 CardMirror is a debate text editor focused on high school and college
