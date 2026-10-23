@@ -12,43 +12,32 @@
 > change this fork makes, with how to use it and which setting turns it on, is
 > in **[FORK_FEATURES.md](./FORK_FEATURES.md)**. The biggest ones, by user impact:
 >
-> 1. **Independent multi-window three-pane workspace** — additional windows
->    are fully independent, each with its own three-pane (or single-doc)
->    layout and open documents, instead of all windows sharing one layout
->    mode. Documents move between panes by drag: grab a pane's title chip
->    and drop it on the slot you want, empty ones included; right-click the
->    chip to move a doc — unsaved edits and all — to a different window
->    entirely.
-> 2. **On-time / too-slow / too-fast pace indicator** — with the speech
+> 1. **Independent multi-window three-pane workspace** — You can now open
+>    multiple three-pane windows, where upstream was limited to one 
+>    three-pane window. Also, Documents also move between panes by drag:
+>    grab a pane's title chip and drop it on the slot or window you want.
+> 3. **On-time / too-slow / too-fast pace indicator** — with the speech
 >    clock running, the timer compares the time left on the clock with how
->    long the rest of your doc takes to read aloud, at the steady pace that
->    fits the whole doc into the whole speech, and shows whether you're on
->    time, too slow or too fast (words under the timer, or a small dot that
->    shades from red through green to blue), plus the time left to read. It
->    works in read mode, and counts from the line you're actually reading, a
->    third of the way down the screen. A thick blue bar in the margin beside
->    the doc glides down the page at that same pace, so you can see where you
->    should be reading without looking at the timer.
-> 3. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
+>    long the rest of your doc takes to read aloud, and shows whether you're on
+>    time, too slow or too fast, plus the time left to read. A blue mark in the margin beside
+>    the doc glides down the page at that same pace, so you can see where
+>    exactly you should be reading. This on by default, just start a timer to see.
+> 4. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
->    text and speeding through everything else. It works in read mode
->    and follows the lay-speaking toggle. An outlined bar in the margin
->    marks the line it thinks you're reading.
-> 4. **Compare and merge documents** — the home screen's top row has a
+>    text and speeding through everything else. 
+> 5. **Compare and merge documents** — the home screen's top row has a
 >    "Compare documents" card: pick two `.cmir`/`.docx` files and see a
 >    side-by-side line diff of their text, with the changed words
 >    in an edited line struck through or underlined, and an outline on each
 >    side (green for added, red for removed, yellow for partly changed) to
 >    jump to a heading. From the same view you can merge the two into one
 >    new document, choosing a side for each conflicting line.
-> 5. **Autosave for `.docx` files**, not just `.cmir` — plus a time-boxed,
->    logged fallback for the zip worker and a ribbon button that
->    distinguishes "saving" from "paused" (e.g. a doc with a live view Word
->    can't hold open).
-> 6. **Index Logos for cards in Search Everything** — type `g ` to search
->    Logos's index of open-source round-doc cards (from opencaselist
->    and insert a full card, cite and formatting intact, at your cursor.
-> 7. **Easier to use, especially for newcomers** — small changes that make
+> 6. **Autosave for `.docx` files**, not just `.cmir` — plus a ribbon button that
+>    distinguishes shows when it's saving.
+> 7. **Index Logos for cards in Search Everything** — type `g ` to search
+>    Logos's index of open-source round-doc cards (from opencaselist)
+>    and insert a full, intact card.
+> 8. **Easier to use, especially for newcomers** — small changes that make
 >    CardMirror discoverable without a manual:
 >    - a. **A visible Search button** (a magnifying glass at the bottom left)
 >      for Search Everything, plus a hint on how to use it.
@@ -58,12 +47,10 @@
 >    - c. **Number keys shown on dialogs** — "Save before closing?" and the
 >      pane and window choosers print 1, 2, 3 on their buttons, so you can see
 >      you can just press the number immediately.
->    - d. **Mark as active speech doc** — a microphone that
+>    - d. **Mark as active speech doc button** — a microphone that
 >      appears on hover to mark the speech doc, so you don't have to teach 
 >      newcomers how to use keyboard shortcuts.
->    - e. **Handy formatting buttons in the ribbon** — Undo, Redo, bold,
->      italic, underline, strikethrough, table and image are one click away
->      (turn them off in Settings → Appearance if you want a cleaner ribbon).
+>    - e. **A decluttered toolbar** — you can toggle off irrelevant formatting buttons that won't be used in debate.
 >      
 
 CardMirror is a debate text editor focused on high school and college
