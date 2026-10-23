@@ -2,9 +2,9 @@
 
 User-facing release notes for CardMirror. Brief summaries of what
 changes in each release, written for users of the editor. For
-in-depth rationale and implementation context behind each feature
-this fork has added, see
-[DETAILED_CHANGELOG.md § Fork Changes](./DETAILED_CHANGELOG.md#fork-changes).
+in-depth rationale and implementation context behind each change, see
+[DETAILED_CHANGELOG.md](./DETAILED_CHANGELOG.md). For a guide to the features
+this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.md).
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
@@ -1105,7 +1105,7 @@ user report, but each was a real race with a real bad outcome if hit:
 ## Upstream Releases
 
 *The sections below are upstream CardMirror's own release notes, synced into
-this fork. This fork's own changes are covered above in [Fork Changes](#fork-changes).*
+this fork. This fork's own changes are the release sections above.*
 
 ## 1.15.0 — 2026-10-07
 
