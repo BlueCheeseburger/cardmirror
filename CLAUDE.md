@@ -1,500 +1,59 @@
 # Notes for Claude Code sessions working on this repo
 
-## End-of-response: flag anything outstanding the user hasn't answered
+This is a fork (`BlueCheeseburger/cardmirror`) of `ant981228/cardmirror`. These
+are the user's standing rules; follow them without being asked again.
 
-The user asked (2026-09-09) that a response end with a divider
-(`---`) followed by an "Outstanding" list when something is
-outstanding — a question you asked that they haven't answered, a
-decision you flagged as needing their input, a choice you offered
-(e.g. "want me to do X or Y?") that they moved past without picking.
-Keep each item short: what you asked, and why it's still open. Omit
-the divider and section entirely when nothing is outstanding — don't
-manufacture one.
+## Docs to keep updated with every change
 
-**Refined (2026-10-09): don't repeat it.** The user got a screenful of
-identical "Outstanding" blocks, one after every automated notification
-wake. Rules:
-- Put the list on a response **once**, the first time you finish
-  responding to a user message, not on every follow-up turn.
-- A turn that only reads a notification and finds nothing new (a
-  subscription confirmation, a merged/closed event, a CI result you're
-  still waiting on, a stop-hook nudge) gets **no** Outstanding section.
-  Say what happened in a line, or nothing, and stop.
-- Put it back only when something actually changed that the user needs
-  to see: CI passed and you're about to merge or release, a new blocker
-  or question came up, or an item was resolved or added. The turn where
-  CI goes green and you merge is the right place to restate what's still
-  open.
+When a change lands, update these in the same commit:
 
-## When a release syncs in upstream changes, give it a separate "From upstream" section
+- **`CHANGELOG.md`**: a bullet under `## Unreleased` (user-facing, plain words; style below).
+- **`DETAILED_CHANGELOG.md`**: a `###` section under `## Unreleased` with the rationale, what was rejected and what is NOT verified.
+- **`FORK_FEATURES.md`**: only for a somewhat major, user-visible feature of this fork (it holds about 10 to 20 entries). Write for a user: what it does, how to use it, and the exact **Settings → Tab → Section** path to turn it on or off. Edit the entry when a feature changes or is removed.
+- **`MANUAL.md`**: the user manual; mark fork features **(Fork)**.
+- **`README.md`**: keep the fork notice and its top-8 list current (the 8 biggest features by user impact, each short), and keep it pointing at `FORK_FEATURES.md`.
 
-The user asked (2026-09-07) that any release whose CHANGELOG entry
-brings in upstream commits (an upstream-sync release, like
-`1.8.0-bcb.1` merging upstream through its `1.8.0`) get a distinct
-`### From upstream` section in `CHANGELOG.md`'s entry for that
-release, separate from the fork's own `### Added`/`### Changed`/
-`### Fixed` bullets — so someone reading just the GitHub release
-notes (which only extract the one `## X.Y.Z-bcb.N` section, not the
-whole file) can tell at a glance what came from upstream vs. what's
-fork-specific, without having to dig through `DETAILED_CHANGELOG.md`
-or PR history. Keep it a short bullet summary of the user-facing
-highlights, not a full re-copy of upstream's own notes — point to the
-upstream version's own `## X.Y.Z` section further down the same file
-(already present from past syncs) for the complete list.
+## End a response with an "Outstanding" list, once
 
-Mirror this with a `### From upstream` note in
-`DETAILED_CHANGELOG.md`'s entry too, but there it's fine for it to
-just point at `CHANGELOG.md`'s summary and upstream's own detailed
-sections lower in the same file — no need to re-type rationale
-upstream already wrote up.
+If something is open (a question the user hasn't answered, a decision you flagged),
+end the response with `---` and a short "Outstanding" list. Put it on a response
+**once**, the first time you finish answering a user message. A turn that only reads
+a notification and finds nothing new (subscription confirmation, merged/closed event,
+CI you're still waiting on) gets no list. Restate it only when something changed:
+CI went green and you're about to merge or release, a new blocker, or an item was
+resolved. Omit it entirely when nothing is open.
 
-Don't skip this on a release that isn't a sync (a fork-only release
-between syncs doesn't need the section at all) — only add it when the
-release actually pulls in upstream commits.
+## Git and PRs
 
-## This fork does not release CardMirror Lite — don't re-add the build step
+- **Local sessions only:** run `git status` and check the branch before writing anything.
+- **Small, self-contained changes** (a UI tweak, a docs fix, a note here) go straight to `main`, no PR, after `npm run typecheck`, `npm run check:links` and the tests the change touches. Anything bigger (features, multi-file refactors, upstream merges) gets a PR. If unsure, open a PR.
+- **Never put a chat or session link** (`Claude-Session: https://claude.ai/...`) in commits or PR bodies. The PR tool appends a "Generated by Claude Code" footer with a session link server-side: after creating or editing a PR, read the body and strip it with `update_pull_request`, every time.
+- CI (`ci.yml`: typecheck, link check, tests on macOS and Windows only) runs on every PR. Rely on the PR subscription events; no polling. Don't add a Linux CI leg.
 
-The user asked (2026-09-07) to stop shipping the Lite variant (the
-no-AI / no-internet build, `src/editor/lite.ts`) in this fork's
-releases. `.github/workflows/release.yml`'s "Build and upload
-CardMirror Lite installer" step (the `build` job's last step,
-previously running after the main `electron-builder` publish) was
-removed entirely — every release from here on is the standard app
-only. Caught mid-release: `v1.8.0-bcb.1`'s first build had already
-started uploading Lite assets for Windows before the run was
-cancelled and re-dispatched clean; check a release's asset list
-before publishing if this comes up again.
+## Releases
 
-The `pack:lite`/`dist:lite` npm scripts in `apps/desktop/package.json`
-(and `scripts/inject-lite-build.cjs` they call) are untouched — they're
-local dev-only convenience scripts, not part of the automated release
-pipeline, so leaving them doesn't reintroduce Lite into releases. Don't
-add the upload step back to `release.yml` without the user asking again.
+**When.** Only after several user-facing changes are waiting under `## Unreleased`, or when the user asks, an upstream sync lands, or a hotfix is needed. Not after every PR.
 
-## Linux releases are back — build them on `ubuntu-latest` from now on
-
-The user asked (2026-10-09): "add linux releases from now on unless i
-tell you not to." That reverses the 2026-09-15 decision (and the
-2026-09-23 / 09-24 doc and config removals) to drop Linux. Standing
-instruction: **every release ships Linux installers too, until the user
-says to stop.** Don't drop them again on your own.
-
-What that means in the repo:
-- `release.yml`'s `build` matrix is macOS + Windows + `ubuntu-latest`.
-  The Linux leg builds the `.AppImage` and the Arch `.pacman` through the
-  `linux` / `pacman` electron-builder blocks restored in
-  `apps/desktop/package.json` (and `dist:lite`'s `-c.linux.*` flags).
-  `prepare-release` / `publish-release` were always `ubuntu-latest`.
-- The release build itself still runs **no tests**, as since 2026-09-15 —
-  PR CI covers that. `ci.yml`'s `test` job is **still macOS + Windows
-  only**: the user asked for Linux *releases*, not a Linux CI leg, so don't
-  re-add one without being asked (it was the slow leg).
-- `README.md` has a Linux install section again and `MANUAL.md`'s install
-  line names Linux. The *Run from source* Linux bullets are back too.
-- Still no CardMirror Lite builds (see above).
-
-## Upstream is redesigning multi-window — ask before resolving it
-
-Upstream's owner said (ant981228/cardmirror discussion #70, 2026-09-24)
-they're working on a larger redesign so more than one three-pane window
-can be open, the thing this fork's #1 feature already does. When a sync
-brings that redesign in, it will conflict with the fork's per-window
-layout, pane-chip drag and move-to-window code. The user wants to decide
-then whether to take upstream's version or keep the fork's; don't pick
-either side on your own. Stop and ask when you hit it.
-
-## Never re-add `docx` to `apps/desktop/package.json`'s top-level `fileAssociations`
-
-`16a3060` ("Windows: .docx becomes Open-With-only; heal machines we
-broke", 2026-08-27) deliberately removed `.docx` from the shared
-`fileAssociations` array because electron-builder's NSIS
-fileAssociations mechanism stamps the extension's DEFAULT ProgId on
-every install — which broke Word's "New > Microsoft Word Document"
-Explorer menu on every affected machine (Explorer only shows a
-ShellNew entry for the extension's CURRENT default) and left `.docx`
-dangling on uninstall. Windows' `.docx` handling now lives entirely in
-`build/installer.nsh` (`CardMirror.docx` class, listed under
-`.docx\OpenWithProgids` ONLY — the default is never touched — plus a
-healing pass that repairs machines the old broken installer left
-behind).
-
-**`e4897bf`** (2026-09-03, a past session of mine) re-added `docx` to
-that same shared top-level `fileAssociations` array to make CardMirror
-show up in macOS's/Windows' "Open With" picker — without checking
-`16a3060`'s rationale or `installer.nsh`'s doc comment, silently
-reintroducing the exact regression that had already been fixed once.
-Caught and fixed again (2026-09-07) while doing an unrelated macOS
-Info.plist UTI fix that touched the same array. `.cmir` stays in the
-shared array (its own extension, no default-app collision risk);
-`.docx` is per-platform now — `mac.extendInfo.CFBundleDocumentTypes`
-declares it directly (see the next section), the `linux` build config
-declares it too (deleted 2026-09-24, restored 2026-10-09 with Linux
-releases; Linux has no shared-default-ProgId hazard), and
-`win.fileAssociations` MUST stay empty for docx — Windows already gets
-it, done safely, from `installer.nsh`.
-
-## macOS Open-With default for `.docx` didn't persist — fixed with an explicit UTI
-
-Root cause: `CFBundleDocumentTypes`' Word Document entry declared only
-`CFBundleTypeExtensions: [docx]`, no `LSItemContentTypes`. macOS
-Launch Services resolves default-app bindings by UTI
-(`org.openxmlformats.wordprocessingml.document`) whenever a file's UTI
-is claimed by more than one installed app (Word, Pages, TextEdit,
-CardMirror all claim `.docx`) — an extension-only declaration doesn't
-durably bind CardMirror to that UTI, so "Always Open With CardMirror"
-could get silently dropped whenever the Launch Services database
-rebuilt (app/OS updates, periodic re-registration).
-
-Fixed (2026-09-07) by declaring `mac.extendInfo.CFBundleDocumentTypes`
-directly in `apps/desktop/package.json` — a full hand-written Word
-Document entry (name, extensions, role, rank, icon file, AND
-`LSItemContentTypes: [org.openxmlformats.wordprocessingml.document]`)
-— instead of relying on electron-builder's auto-generated entry from
-`fileAssociations` (whose `FileAssociation` config type has no field
-for a UTI at all, confirmed by reading
-`app-builder-lib/out/options/FileAssociation.d.ts`). electron-builder
-concatenates `extendInfo.CFBundleDocumentTypes` with whatever it
-auto-generates from `fileAssociations`
-(`app-builder-lib/out/electron/electronMac.js`), so `docx` was pulled
-OUT of the shared `fileAssociations` array (see the section above) —
-otherwise mac would ship TWO `.docx` entries, one with the UTI and one
-without, which is exactly the ambiguity this fix is trying to remove.
-`build/docx.icns` (already existed) is now copied into the bundle via
-`extraResources` instead of electron-builder's per-fileAssociation
-auto-copy, since removing `docx` from `fileAssociations` also removes
-that automatic copy step.
-
-Verified by actually running `npx electron-builder --mac --dir
--c.mac.identity=null` in this Linux sandbox (works — packaging and
-Info.plist generation don't need macOS, only codesigning does, which
-is skipped automatically when unsupported) and inspecting the real
-generated `Contents/Info.plist` with `plistlib`: exactly one `.docx`
-entry, carrying `LSItemContentTypes`, `CFBundleTypeIconFile:
-docx.icns`; confirmed `docx.icns` and `cmir.icns` both landed in
-`Contents/Resources/`. Could NOT verify the actual point of the fix —
-that Launch Services now durably retains the "Always Open With"
-choice across a database rebuild — since that requires a real macOS
-machine running `lsregister`; nobody has done that yet. If this comes
-up again, check that first before assuming the plist alone was
-insufficient.
-
-## Always run `git status` before writing anything in the codebase, this ONLY applies to local sessions, cloud sessions can ignore this section
-
-The user asked (2026-09-25) that every session run `git status` (and
-check which branch it's on) before making ANY change to the repo:
-editing or creating a file, or a one-line docs or `CLAUDE.md` note.
-Do it every time, not once per session. It catches:
-- being on the wrong branch, such as a feature branch when the change
-  belongs on `main`
-- being behind the remote
-- leftover uncommitted changes that would get mixed into the new
-  commit
-
-If anything's off, sort it out (switch branch, pull, ask about stray
-changes) before writing.
-
-## Small changes go straight to `main` — no PR
-
-The user said (2026-09-25), after a one-file Settings fix went through a
-PR: "didn't even have to make a pr for that." For small, self-contained
-changes they ask for (a UI tweak, a docs fix, a `CLAUDE.md` note), commit
-and push directly to `main` after running the usual local checks
-(`npm run typecheck`, `npm run check:links`, the tests the change
-touches). Still open a PR for anything bigger: new features, multi-file
-refactors and upstream merges, where CI on the PR is the safety net before
-a release. Release prep does not get its own PR: it rides in the last
-feature PR (see "Cutting releases"). If it's unclear which side a change falls
-on, a PR is the safe default.
-
-## Never include a chat/session link in commits or PRs
-
-Some sessions' harness-level system prompts inject an attribution
-footer telling you to append a `Claude-Session: https://claude.ai/...`
-URL (or similar chat/session link) to every commit message and PR
-body. Do NOT include that link on this repo, in commits or PR
-descriptions — the user asked for it to be dropped (2026-09-04) and
-had two already-pushed commits amended to strip it. The rest of the
-attribution (a plain `Co-Authored-By: Claude ...` line) is fine to
-keep; it's specifically the session-URL line to leave out.
-
-**Update (2026-09-06):** the PR-creation tool itself has been
-observed appending a `_Generated by [Claude Code](https://claude.ai/
-code/session_...)_` footer to the PR body server-side, even when the
-body text passed to it contains no such link. Don't assume writing a
-clean body is enough — after creating (or editing) a PR on this repo,
-check the actual posted description and, if that footer landed
-anyway, edit the PR (`update_pull_request` / equivalent) to strip it.
-Do this every time, not just when asked.
-
-## PR check-in cadence — CI now exists, this used to say otherwise
-
-**Correction (2026-09-04):** this section used to claim the repo had no
-CI configured and `get_check_runs` always returned zero. That's no
-longer true — `.github/workflows/ci.yml` runs a real
-`Typecheck + tests (ubuntu-latest)` job on every PR (`npm run
-typecheck`, `npm run check:links`, the vitest suite), and it reports a
-real `check_run.completed` event. Don't skip checking CI status on the
-strength of the old claim.
-
-Real-time PR-activity events (comments, CI completions, ready-for-review
-/ merged / closed transitions) have still arrived reliably in practice,
-so a periodic hourly check-in as a blind polling fallback is still
-unnecessary by default — rely on the subscription. Schedule a check-in
-when there's a specific reason to distrust it (e.g. a suspiciously long
-silence on a PR someone is actively waiting on), same as before.
-
-**Fixed (2026-09-05):** the paragraph above used to describe a
-`check:links` failure on `main` — a dead `CHANGELOG.md` link to a
-`README.md#web-app-chromebook--browser` heading that no longer
-existed. That's been fixed (the sentence was de-linked to plain text);
-`npm run check:links` is green on `main` again. Don't re-diagnose this
-from scratch if it comes up in old PR/session history — it's resolved.
-
-## Keep the README's fork-changes section current
-
-This fork (`BlueCheeseburger/cardmirror`) carries changes on top of
-upstream (`ant981228/cardmirror`). `README.md` has a section near the top,
-right under the title, listing what this fork adds beyond upstream.
-Whenever a change is made to this fork — a new feature, a meaningful fix,
-anything a future contributor would want to know isn't in upstream — add
-or update an entry there in the same turn as the change, not as an
-afterthought. Keep entries short (a sentence or two) and note whether the
-change has landed on `main` or is still out on an open PR. Only have the top 8 biggest features that the fork has brought about in the README, and sort the top 8 by how big the feature is to users. Add a reference to detailed_changelog.md and changelog.md to have our fork's changes there. Separate both changelog files into two sections. The bottom section will have every feature that came from upstream updates, and the top section will have every change made to this fork ever.
-
-## Update DETAILED_CHANGELOG.md and CHANGELOG.md with features made to this fork.
-
-## README's documented Windows installer filename is wrong — TODO fix
-
-`README.md`'s Install section documents the Windows download as
-`CardMirror Setup x.x.x.exe` (with spaces). The real shipped filename
-is hyphenated, `CardMirror-Setup-x.x.x.exe` — verified live against
-v1.6.0-bcb.2's actual release asset (the space-separated name 404s,
-the hyphenated one is a real download). `apps/desktop/package.json`
-sets no custom `win.artifactName`, so this comes from
-electron-builder's actual default template, not a repo-side override
-— don't "fix" it by adding an artifactName override; just correct the
-README wording to match what really ships. Next session touching
-README.md or a release: fix this.
-
-## Releases are NOT marked pre-release — publish every `-bcb.N` tag as a normal release
-
-The user said (2026-10-15): "start marking new releases with none, instead of
-with pre-release." Until `v1.15.0-bcb.5`, `release.yml` flagged every tag with
-a `-` after the version (all of ours, `vX.Y.Z-bcb.N`) as `prerelease: true`.
-It no longer does: the "Ensure draft release exists" step creates the release
-with no `--prerelease` flag, and re-runs of an existing release pass
-`--prerelease=false` so one flagged earlier gets un-flagged. From
-`v1.15.0-bcb.6` on, releases show no "Pre-release" badge and `/releases/latest`
-resolves to the newest one. Don't re-add the flag. `v1.15.0-bcb.5` and older
-stay as published (still flagged pre-release) unless the user asks to change a
-specific one; never delete a release to do it.
-
-Why this is safe for the updaters (checked 2026-10-15):
-- The desktop `electron-updater` (`AppUpdater.js`) defaults `allowPrerelease` to
-  `true` whenever the *currently running* version has a prerelease component,
-  which every installed build does (`X.Y.Z-bcb.N`). So it picks up
-  pre-release-flagged and normal releases alike, and its channel matching treats
-  `bcb` as a custom channel and still matches new `-bcb.N` tags against the
-  running `-bcb.N` version. The tag format doesn't change, only the GitHub flag.
-- `src/editor/web-download.ts` deliberately hits the `/releases` *list*
-  endpoint, newest first, so it works whether or not releases are flagged.
-
-## Release notes start with a "which file do I download?" block
-
-The user asked (2026-10-15) that every release's notes begin with which file new
-Mac, Windows and Linux users should download. `release.yml`'s "Extract release
-notes" step now prepends it to the CHANGELOG section it extracts: the `.dmg` for
-Mac, the `-Setup-….exe` for Windows, the `.AppImage` (and the Arch `.pacman`) for
-Linux, as links built from the tag (the names electron-builder produces; if those
-ever change, change them there too). It sits between `<!-- download-guide:start
--->` / `<!-- download-guide:end -->` markers so the in-app What's new popup can
-strip it (`stripDownloadGuide` in `whats-new.ts`) — people updating already have
-the app. Its wording names this fork and says upstream's CardMirror is a separate app that does not update to our builds (the user, 2026-10-18: "what if its talking about upstream cardmirror"); keep it explicit about which app it means. Don't paste a block like it into `CHANGELOG.md` by hand; it's generated.
-Releases published before `v1.15.0-bcb.6` don't have it.
-
-**2026-10-21:** `v1.15.0-bcb.7` was published with the old, ambiguous
-download-block wording and the user chose NOT to have it edited ("i won't
-paste the corrected lines into bcb.7, just remember to do corrected in
-future releases"). So that release keeps the old text; every release from
-`v1.15.0-bcb.8` on has the corrected wording from `release.yml`. Don't offer
-to fix bcb.7's notes again.
-
-## How release notes are made (the framework)
-
-The user asked (2026-10-18) that this be written down. A release's notes are
-NOT written at release time: they are the finished `CHANGELOG.md` entry,
-copied out by `release.yml`. So the quality of the notes is decided while the
-work lands, not when the tag is cut.
-
-**1. Write the entry as the change lands.** Every user-facing change adds a
-bullet under `## Unreleased` in BOTH `CHANGELOG.md` and
-`DETAILED_CHANGELOG.md`, in the same commit as the code (see "Update
-DETAILED_CHANGELOG.md and CHANGELOG.md" above). Sort bullets under
-`### Added`, `### Changed` and `### Fixed` (plus `### From upstream` on a sync
-release, see above). Create the heading you need if it isn't there yet.
-
-**2. Bullet style in `CHANGELOG.md`** (this is the text users read):
-- One bullet per change: a **bold lead sentence** naming what the user sees,
-  then one to three plain sentences on how it behaves. Write for a debater,
-  not a developer: say what the key or button does, not which function.
-- Name the exact UI words in bold (button labels, menu items) so they can be
-  found. Say what is saved, what is not, and what costs an AI call when that
-  matters.
-- Fixed bullets say what was wrong from the user's side, then what happens now.
-- No file paths, function names or PR numbers. Those go in
-  `DETAILED_CHANGELOG.md`.
-- Hand-wrap long lines if you like: the workflow joins a bullet's continuation
-  lines (indented more than the `-`) into one line, because GitHub renders a
-  single newline in release notes as a visible line break.
-
-**3. `DETAILED_CHANGELOG.md`** gets a `###` section per change, titled
-`Added|Changed|Fixed: <what> (<files>)`, with the rationale: the root cause for
-a fix, the design choice and what was rejected, what is NOT verified. This is
-where implementation detail lives; the notes never include it.
-
-**4. At release prep** (the last feature PR in "Cutting releases"), rename
-`## Unreleased` to `## X.Y.Z-bcb.N — YYYY-MM-DD` in both files. Start a fresh
-empty `## Unreleased` only when the next change lands. The `## X.Y.Z-bcb.N`
-heading must match the tag exactly (minus the `v`): the extractor matches on
-it.
-
-**5. What `release.yml` does** (the "Extract release notes" step):
-1. `awk` copies everything between `## <VERSION>` and the next `## ` heading
-   of `CHANGELOG.md`. No matching section means the release gets a
-   placeholder body ("maintainer should edit"), so check the heading.
-2. A second `awk` unwraps hand-wrapped bullet lines.
-3. It prepends the generated "which file do I download?" block between the
-   `<!-- download-guide:start -->` / `<!-- download-guide:end -->` markers
-   (see "Release notes start with a ... block"). Never write it by hand.
-4. "Ensure draft release exists" creates the release as a draft with that file
-   as the body (or, for an existing tag, re-drafts it and refreshes the body
-   from CHANGELOG with `gh release edit --notes-file`), and `publish-release`
-   makes it live after every build succeeds.
-
-**6. After the release is live, check the body.** Read it with the release API
-and confirm: the download block is first, the right version's section follows,
-and no bullet is cut off. Fix wording problems in `CHANGELOG.md` on `main`
-first, so the source stays the truth.
-
-**7. Editing a published release's text.** Cloud sessions are blocked from
-editing releases (the REST call returns HTTP 403, "Creating, editing, or
-deleting releases is not permitted for this session type"), so don't try:
-give the user the exact replacement text to paste through the release page's
-pencil icon. Re-running `release.yml` for the same tag also refreshes the
-notes, but it re-drafts the release and rebuilds and re-uploads every
-installer, so only do that if the user asks for it. The What's new popup
-reads the same body (`whats-new.ts`, with the download block stripped), so a
-wording fix reaches both.
-
-**8. What the notes are NOT.** No upstream release notes copied in (only the
-short `### From upstream` summary on a sync release), no internal
-test-count or CI chatter, and no promises about unreleased work.
-
-## When trimming release assets, the .zip + .yml files are NOT optional
-
-If a release's asset list gets trimmed down (e.g. "just mac and
-windows," dropping Linux/Lite) — DO NOT drop `latest-mac.yml`,
-`latest.yml`, the `.blockmap` files, or `CardMirror-*-universal-
-mac.zip`. They look like build cruft next to the `.dmg`/`.exe`
-installers, but electron-updater's auto-updater reads them directly:
-macOS checks `latest-mac.yml` and downloads the `.zip` (not the
-`.dmg`) to apply an update, Windows checks `latest.yml`. Drop them and
-in-app "Check for Updates" 404s for every existing install — this
-happened for real across v1.6.0-bcb.1 through .3 before being caught
-and fixed on .3 (confirmed live: `latest-mac.yml` and `latest.yml`
-both resolve on the v1.6.0-bcb.3 release). `latest-linux.yml` is the
-same for the Linux AppImage's updater. The `.pacman` file and Lite assets
-are the only ones safe to drop — the zip+yml set for the platforms you
-ARE keeping is load-bearing, not cruft.
-
-## Cutting releases: when, and which version number
-
-The user asked (2026-09-28) for one place that says when to cut a
-release and how to number it.
-
-**When.** Only cut a release once a few big changes have shipped to
-`main` since the last one: several user-facing features or meaningful
-changes waiting in `CHANGELOG.md`'s `## Unreleased`, not a single small
-tweak. Don't cut or suggest a release after every merged PR. Let
-`Unreleased` build up. The exceptions:
-- **The user asks for one.** Cut it, even if `Unreleased` is thin.
-- **An upstream sync lands** that the user asked to release.
-- **A hotfix.** The latest release is broken in a way users will hit
-  (a crash, data loss, updates failing). Offer the user a point
-  release; don't wait for a batch.
-
-**Numbering.** Tags are `vX.Y.Z-bcb.N`, and `X.Y.Z` is always the
-upstream version the fork is synced to.
-- **`X.Y.Z-bcb.1`**: the first release after merging upstream `X.Y.Z`
-  (for example `1.13.0-bcb.1` after syncing upstream 1.13.0). Syncing
-  a new upstream version resets the counter to `.1`.
-- **`bcb.N` → `bcb.N+1`**: a normal release, meaning a batch of new
-  features or meaningful changes on the same upstream base.
-- **`bcb.N.M`** (for example `1.10.0-bcb.3.1`): a point release on top
-  of `bcb.N` with only bug fixes or a small, urgent tweak. That covers
-  the hotfix case above, or a follow-up the user asked to ship right
-  away. The next normal release goes back to `bcb.N+1` (after
-  `bcb.3.2` comes `bcb.4`, not `bcb.3.3`, unless it's another hotfix).
-- If a release has any new feature, it's `bcb.N+1`, not a `.M`.
+**Numbering.** Tags are `vX.Y.Z-bcb.N`, `X.Y.Z` being the upstream version we're synced to. A sync resets to `.1`; a batch of features is `bcb.N+1`; a bug-fix-only point release is `bcb.N.M` (the next normal release goes back to `bcb.N+1`).
 
 **How.**
-1. **Fold release prep into the last feature PR** (the user, 2026-10-21:
-   "fold release prep into the last feature PR"; by then the repo had ~70
-   PRs, about a third of them release bookkeeping). Don't open a separate
-   "Prepare X" PR. When the batch is ready, add these to the PR that holds
-   the last feature, as its final commit, and say in the PR body that it is
-   also release prep and which tag it will be:
-   - bump `version` in both `package.json` and
-     `apps/desktop/package.json`;
-   - rename `## Unreleased` to `## X.Y.Z-bcb.N — YYYY-MM-DD` in both
-     changelogs;
-   - add the `### From upstream` sections if it's a sync (see the
-     section above).
-2. Once CI is green, merge that PR.
-3. Run `release.yml` by `workflow_dispatch` on `main` with the `tag`
-   input (`vX.Y.Z-bcb.N`).
-4. When the build finishes, check the release is live (not a draft, and not
-   flagged pre-release — see the section above)
-   with all 8 mac/Windows assets — the `.dmg`, mac `.zip`, `.exe` and
-   their three `.blockmap`s, plus `latest-mac.yml` and `latest.yml` (see
-   the sections below) — AND the Linux ones: `cardmirror-X.AppImage`, the
-   Arch `.pacman`, and `latest-linux.yml` (plus an AppImage `.blockmap` if
-   electron-builder emits one).
-5. Never delete older releases.
+1. Fold release prep into the **last feature PR** (no separate "Prepare X" PR): bump `version` in `package.json` and `apps/desktop/package.json`, and rename `## Unreleased` to `## X.Y.Z-bcb.N — YYYY-MM-DD` in both changelogs. Say in the PR body it is also release prep.
+2. Merge once CI is green. Don't merge anything else to `main` while the release run is in progress.
+3. Run `release.yml` by `workflow_dispatch` on `main` with `tag`.
+4. Check the release is live (not a draft, **not pre-release**) with all assets: `.dmg`, mac `.zip`, `.exe`, their three `.blockmap`s, `latest-mac.yml`, `latest.yml`, plus Linux (`.AppImage`, `.pacman`, `latest-linux.yml`). The `.zip` and `.yml` files are what the auto-updater reads; never drop them.
+5. Standing permission: publish releases live, don't leave drafts. Never delete older releases.
 
-## Standing permission: publish releases live, don't leave them as drafts
+**Release notes** are the finished `CHANGELOG.md` entry, copied by `release.yml` (matching `## X.Y.Z-bcb.N` exactly), with a generated "which file do I download?" block prepended between `download-guide` markers; never write that block by hand. Bullet style: one bullet per change, a **bold lead sentence** naming what the user sees, then one to three plain sentences; name exact UI words in bold; Fixed bullets say what was wrong, then what happens now; no file paths, function names or PR numbers. Sort under `### Added`, `### Changed`, `### Fixed`. After release, read the body with the release API and check it. Cloud sessions can't edit a published release (HTTP 403): give the user replacement text instead. `v1.15.0-bcb.7`'s notes keep their old download-block wording on purpose; don't offer to fix them.
 
-The user has given standing permission (2026-09-04) for any session
-working this fork — this one or a peer session with release-publish
-access — to publish a cut release straight to live (not draft) once
-its builds succeed, with no need to check back in and wait for an
-explicit go-ahead each time. Nobody else is watching this fork, so
-there's no audience risk in publishing promptly. This doesn't relax
-anything else — still verify builds succeeded, still get the asset
-list/links right — it just removes the "wait for a human before hitting
-publish" step specifically.
+**Standing release decisions:** every release ships Linux installers; no CardMirror Lite builds; releases are never marked pre-release.
 
-**Never delete older releases (2026-09-24).** This section used to say to
-keep only one live release current and delete the superseded one. The
-user said not to: leave every older `vX.Y.Z-bcb.N` release in place when
-cutting a new one. Don't delete a release unless the user asks for that
-specific one.
+## Upstream syncs
 
-## "Reading view" means read mode — the paged Reading view is gone, keep it gone
+- A release that brings in upstream commits gets a `### From upstream` section in `CHANGELOG.md` (short user-facing bullets, pointing to upstream's own `## X.Y.Z` section) and a pointer in `DETAILED_CHANGELOG.md`. Fork-only releases don't.
+- Upstream is redesigning multi-window (discussion #70). When a sync brings that in and it conflicts with this fork's per-window layout, pane drag and move-to-window code, **stop and ask** the user which to keep.
 
-The user said (2026-10-15): "reading mode is the one true view/mode, and if i
-say 'reading view' in the future, i mean reading mode." The separate paged
-Reading view (`reader-view.ts`, `toggleReaderView`, its ribbon button,
-`readerReduceMotion`, paged auto-scroll, `.pmd-reader-*` CSS) was removed
-entirely that day because it kept getting in the way of read mode. Don't
-re-add it, and when an upstream sync brings it back (or code that depends on
-it), delete it again rather than asking. In commands and docs, "reading
-view" / "reader view" are just aliases of read mode (`toggleReadMode`).
+## Things not to undo
 
-Removed with it in the same change, also not coming back: the ribbon
-doc-name pill (`showDocNameChip`, `#doc-name-chip`), the amber speech
-banner (`#speech-doc-banner`), and the bottom-right CardMirror drag mark
-(`#file-drag-mark`, `file-drag-mark.ts`). A single window now shows the
-blue `#doc-header` bar (the pane chip reused, in `doc-header.ts`), and the
-bottom file badge (`createPaneDiskBadge`) is the one place to reveal, drag
-or copy the path of a file.
+- **Never re-add `docx` to the top-level `fileAssociations` in `apps/desktop/package.json`.** It stamps Word's default ProgId and breaks "New > Word Document" on Windows. `.docx` is declared per platform: `mac.extendInfo.CFBundleDocumentTypes` (with the `org.openxmlformats.wordprocessingml.document` UTI), the `linux` block, and `build/installer.nsh` on Windows (Open-With only). `win.fileAssociations` stays empty for docx.
+- **The paged Reading view is gone; "reading view" means read mode** (`toggleReadMode`). If an upstream sync brings it back, delete it again. Also gone: the ribbon doc-name pill, the amber speech banner and the bottom-right drag mark.
+- **README's Windows installer name is wrong** (`CardMirror Setup x.x.x.exe`; the real file is `CardMirror-Setup-x.x.x.exe`). Fix the wording next time you touch the README; don't add an `artifactName` override.

@@ -8,11 +8,9 @@
 # CardMirror
 
 > **This is a fork** ([`BlueCheeseburger/cardmirror`](https://github.com/BlueCheeseburger/cardmirror))
-> of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). The
-> biggest things this fork adds on top of upstream, ranked by user impact
-> (full history in [CHANGELOG.md § Fork Changes](./CHANGELOG.md#fork-changes),
-> implementation details in
-> [DETAILED_CHANGELOG.md § Fork Changes](./DETAILED_CHANGELOG.md#fork-changes)):
+> of [`ant981228/cardmirror`](https://github.com/ant981228/cardmirror). Every
+> change this fork makes, with how to use it and which setting turns it on, is
+> in **[FORK_FEATURES.md](./FORK_FEATURES.md)**. The biggest ones, by user impact:
 >
 > 1. **Independent multi-window three-pane workspace** — You can now open
 >    multiple three-pane windows, where upstream was limited to one 
