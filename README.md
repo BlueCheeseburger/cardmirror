@@ -23,7 +23,7 @@
 >    long the rest of your doc takes to read aloud, and shows whether you're on
 >    time, too slow or too fast, plus the time left to read. A blue mark in the margin beside
 >    the doc glides down the page at that same pace, so you can see where
->    exactly you should be reading.
+>    exactly you should be reading. This on by default, just start a timer to see.
 > 4. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
 >    text and speeding through everything else. 
