@@ -14,14 +14,6 @@
   <body>
     <header id="ribbon">
       <div class="ribbon-section ribbon-left">
-        <!-- Undo / redo stack — hidden unless the showUndoRedoButtons
-             setting is on (html.pmd-undoredo-hidden, mirroring the
-             quick-cards cluster). Sits left of the file buttons;
-             right of the timer panel when that's shown on the left. -->
-        <div id="undo-redo-stack" class="ribbon-button-stack">
-          <button id="undo-btn" type="button" title="Undo" aria-label="Undo"><span class="pmd-icon pmd-icon-undo" aria-hidden="true"></span></button>
-          <button id="redo-btn" type="button" title="Redo" aria-label="Redo"><span class="pmd-icon pmd-icon-redo" aria-hidden="true"></span></button>
-        </div>
         <div id="file-stack" class="ribbon-button-stack">
           <button id="open-btn" type="button" title="Open a document" aria-label="Open"><span class="pmd-icon pmd-icon-open" aria-hidden="true"></span></button>
           <button id="new-btn" type="button" title="New document" aria-label="New document"><span class="pmd-icon pmd-icon-new" aria-hidden="true"></span></button>
@@ -135,24 +127,36 @@
           <button id="card-menu-btn" class="ribbon-doc-menu-btn" type="button"
                   title="Card utilities" aria-haspopup="true" aria-expanded="false">Card <span class="ribbon-doc-menu-arrow pmd-icon pmd-icon-chevron-down" aria-hidden="true"></span></button>
         </div>
-        <!-- Normal-formatting panel: Table dropdown on top, three small
-             inline-formatting toggles (super / sub / strikethrough)
-             below. Sits between the Doc/Card menu panel and the
-             doc-ops toggles. Same 2-row vertical rhythm as its
+        <!-- "Extra formatting" group (showExtraFormattingButtons, on by
+             default; html.pmd-extra-format-hidden hides all three parts):
+             Undo / Redo stacked, the plain word-processor marks (bold,
+             italic, underline / strikethrough, superscript, subscript),
+             then Table and Insert image. Sits between the Doc/Card menu
+             panel and the doc-ops toggles; same 2-row rhythm as its
              neighbors so the chrome grid stays aligned. -->
-        <div id="format-menu-panel" class="ribbon-format-menu-panel" role="group" aria-label="Formatting utilities">
+        <div id="undo-redo-stack" class="ribbon-button-stack ribbon-undo-redo-stack" role="group" aria-label="Undo and redo">
+          <button id="undo-btn" type="button" title="Undo" aria-label="Undo"><span class="pmd-icon pmd-icon-undo" aria-hidden="true"></span></button>
+          <button id="redo-btn" type="button" title="Redo" aria-label="Redo"><span class="pmd-icon pmd-icon-redo" aria-hidden="true"></span></button>
+        </div>
+        <div id="text-marks-panel" class="ribbon-text-marks-panel" role="group" aria-label="Text marks">
+          <button id="bold-btn" class="ribbon-format-inline-btn" type="button"
+                  title="Bold" aria-label="Bold"><b>B</b></button>
+          <button id="italic-btn" class="ribbon-format-inline-btn" type="button"
+                  title="Italic" aria-label="Italic"><i>I</i></button>
+          <button id="plain-underline-btn" class="ribbon-format-inline-btn" type="button"
+                  title="Underline" aria-label="Underline"><u>U</u></button>
+          <button id="strikethrough-btn" class="ribbon-format-inline-btn" type="button"
+                  title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
+          <button id="superscript-btn" class="ribbon-format-inline-btn" type="button"
+                  title="Superscript" aria-label="Superscript">x<sup>2</sup></button>
+          <button id="subscript-btn" class="ribbon-format-inline-btn" type="button"
+                  title="Subscript" aria-label="Subscript">x<sub>2</sub></button>
+        </div>
+        <div id="format-menu-panel" class="ribbon-format-menu-panel" role="group" aria-label="Table and image">
           <button id="table-menu-btn" class="ribbon-doc-menu-btn ribbon-format-table-btn" type="button"
                   title="Table operations" aria-haspopup="true" aria-expanded="false">Table <span class="ribbon-doc-menu-arrow pmd-icon pmd-icon-chevron-down" aria-hidden="true"></span></button>
           <button id="insert-image-btn" class="ribbon-format-inline-btn ribbon-format-image-btn" type="button"
                   title="Insert image at cursor" aria-label="Insert image"><span class="pmd-icon pmd-icon-image" aria-hidden="true"></span></button>
-          <div class="ribbon-format-inline-row" role="group" aria-label="Inline marks">
-            <button id="superscript-btn" class="ribbon-format-inline-btn" type="button"
-                    title="Superscript">x<sup>2</sup></button>
-            <button id="subscript-btn" class="ribbon-format-inline-btn" type="button"
-                    title="Subscript">x<sub>2</sub></button>
-            <button id="strikethrough-btn" class="ribbon-format-inline-btn" type="button"
-                    title="Strikethrough"><s>S</s></button>
-          </div>
         </div>
         <div id="numbering-panel" class="ribbon-numbering-panel" role="group" aria-label="Card numbering">
           <!-- 2×2: number-role / sub-role on top, restart / show-hide below.

@@ -172,6 +172,12 @@ function computeDecos(view: EditorView): DecorationSet {
   return DecorationSet.create(view.state.doc, decos);
 }
 
+/** True when the editor sits inside a pane (or the single-doc surface) in read
+ *  mode. Read mode is for reading aloud, not editing, so it shows no squiggles. */
+export function isInReadMode(dom: HTMLElement): boolean {
+  return dom.closest('.pmd-read-mode') !== null;
+}
+
 export function viewportSpellcheckPlugin(): Plugin {
   return new Plugin<DecorationSet>({
     key,
@@ -219,9 +225,9 @@ export function viewportSpellcheckPlugin(): Plugin {
       };
       const recompute = (): void => {
         // Gated on the same `editorSpellcheck` setting as the built-in
-        // checker. When off, clear any squiggles and do no work (and
-        // don't build the dictionary).
-        if (!settings.get('editorSpellcheck')) {
+        // checker. When off, or while the pane is in read mode, clear any
+        // squiggles and do no work (and don't build the dictionary).
+        if (!settings.get('editorSpellcheck') || isInReadMode(view.dom)) {
           const cur = key.getState(view.state);
           if (cur && cur.find().length > 0) setDecos(DecorationSet.empty);
           return;
@@ -256,8 +262,17 @@ export function viewportSpellcheckPlugin(): Plugin {
         }
       });
       schedule();
+      let lastReadMode = isInReadMode(view.dom);
       return {
         update(_v, prev) {
+          // Entering read mode clears the squiggles, leaving it brings them
+          // back (the pane's class is already flipped when its toggle
+          // transaction reaches here).
+          const readMode = isInReadMode(view.dom);
+          if (readMode !== lastReadMode) {
+            lastReadMode = readMode;
+            schedule();
+          }
           if (!prev.doc.eq(view.state.doc)) schedule();
         },
         destroy() {

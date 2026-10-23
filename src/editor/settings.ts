@@ -654,15 +654,12 @@ export interface Settings {
    *  Resolves to the `data-icons` attribute on the document
    *  root, consumed by `icons.css`. */
   iconSet: 'modern' | 'classic';
-  /** Whether the ribbon shows a vertically stacked Undo / Redo button
-   *  pair at the far left (right of the timer panel when that's on
-   *  the left, left of the file buttons). Off by default — undo/redo
-   *  always work by keyboard; this is a mouse-first affordance. */
-  showUndoRedoButtons: boolean;
-  /** Whether the ribbon shows the general word-processor formatting buttons
-   *  that aren't debate-specific: Table, Insert image, superscript, subscript,
-   *  strikethrough, and the card-numbering cluster. Off by default; the
-   *  commands behind them stay in the palette and on their shortcuts. */
+  /** Whether the ribbon shows the general word-processor buttons that aren't
+   *  debate-specific: Undo / Redo, bold, italic, underline, strikethrough,
+   *  superscript, subscript, Table, Insert image, and the card-numbering
+   *  cluster. On by default (it was off until 2026-10-23, and Undo / Redo had
+   *  a setting of their own); the commands behind them stay in the palette and
+   *  on their shortcuts either way. */
   showExtraFormattingButtons: boolean;
   /** Whether to check for updates automatically (desktop only).
    *  ON by default since 2026-07-27 (opt-OUT — was opt-in; the fleet
@@ -1931,8 +1928,7 @@ const DEFAULTS: Settings = {
   theme: 'system',
   docTheme: 'light',
   iconSet: 'modern',
-  showUndoRedoButtons: false,
-  showExtraFormattingButtons: false,
+  showExtraFormattingButtons: true,
   checkForUpdatesOnLaunch: true,
   updateChecksPausedUntil: 0,
   commentsColumnWidth: 320,
@@ -3371,24 +3367,14 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Theme & chrome',
   },
   {
-    key: 'showUndoRedoButtons',
-    label: 'Show undo / redo buttons',
-    description:
-      'Off by default. When on, a stacked Undo / Redo button pair appears at the far left of the ribbon, before the file buttons (after the timer panel when that is shown on the left). Undo and redo always work by keyboard either way.',
-    kind: 'toggle',
-    category: 'appearance',
-    section: 'Theme & chrome',
-    aliases: ['undo button', 'redo button', 'undo redo'],
-  },
-  {
     key: 'showExtraFormattingButtons',
     label: 'Show extra formatting buttons',
     description:
-      'Off by default. When on, the ribbon also shows the general word-processor buttons that aren\u2019t specific to debate: Table, Insert image, superscript, subscript, strikethrough, and the card numbering buttons (number, substructure, restart, show/hide). Their commands and shortcuts work either way, and from the command palette.',
+      'On by default. The ribbon also shows the general word-processor buttons that aren\u2019t specific to debate: Undo and Redo, bold, italic, underline, strikethrough, superscript, subscript, Table, Insert image, and the card numbering buttons (number, substructure, restart, show/hide). Turn it off to hide them. Their commands and shortcuts work either way, and from the command palette.',
     kind: 'toggle',
     category: 'appearance',
     section: 'Theme & chrome',
-    aliases: ['table button', 'image button', 'superscript', 'subscript', 'strikethrough button', 'numbering buttons', 'extra buttons', 'word processor buttons'],
+    aliases: ['undo button', 'redo button', 'undo redo', 'bold button', 'italic button', 'underline button', 'table button', 'image button', 'superscript', 'subscript', 'strikethrough button', 'numbering buttons', 'extra buttons', 'word processor buttons'],
   },
   {
     key: 'ribbonTooltipMode',
@@ -5045,8 +5031,7 @@ function sanitize(s: Settings): Settings {
     // Default-on (modern): only an explicit `'classic'` reverts to the
     // original emoji/text glyphs (survives upgrades from before this existed).
     iconSet: s.iconSet === 'classic' ? 'classic' : 'modern',
-    showUndoRedoButtons: !!s.showUndoRedoButtons,
-    showExtraFormattingButtons: s.showExtraFormattingButtons === true,
+    showExtraFormattingButtons: s.showExtraFormattingButtons !== false,
     checkForUpdatesOnLaunch: !!s.checkForUpdatesOnLaunch,
     updateChecksPausedUntil:
       Number.isFinite(Number(s.updateChecksPausedUntil)) && Number(s.updateChecksPausedUntil) > 0
@@ -6387,6 +6372,22 @@ export function migrateDistinguishShadingDefault(): void {
     return;
   }
   if (!settings.get('distinguishShading')) settings.set('distinguishShading', true);
+}
+
+/** "Show extra formatting buttons" became on by default (2026-10-23), and now
+ *  holds Undo / Redo, bold, italic, underline and strikethrough too. A default
+ *  change alone reaches only fresh installs, so this flips a stored `false` to
+ *  `true` exactly once per install (marker outside the blob); a user who then
+ *  turns it off stays off. Display-only, so no notice. */
+export function migrateExtraFormattingDefault(): void {
+  const MARKER = 'cm-extra-formatting-migrated';
+  try {
+    if (localStorage.getItem(MARKER) !== null) return;
+    localStorage.setItem(MARKER, '1');
+  } catch {
+    return;
+  }
+  if (!settings.get('showExtraFormattingButtons')) settings.set('showExtraFormattingButtons', true);
 }
 
 /** The format a silent per-type save writes: the type's own setting, or the
