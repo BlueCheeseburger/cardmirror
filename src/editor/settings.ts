@@ -837,14 +837,14 @@ export interface Settings {
   /** Compact layout: drops the 9/6/3 preset column and stacks
    *  Reset under Start/Pause. */
   timerCompact: boolean;
-  /** Show the first reader's time left to read inside the ribbon timer's box
-   *  (whenever the timer panel is in the ribbon) instead of in the bottom
-   *  bar's "Left" readout. Needs `liveRemainingReadTime`. */
-  timerLeftUnderTimer: boolean;
-  /** A blue line in the gutter beside the speech document: where the speaker
-   *  should be reading by the speech clock (while it runs), and where
-   *  auto-scroll thinks they are reading (while it runs). */
-  paceMarker: boolean;
+  /** Pace guides, one switch for both: the first reader's time left to read
+   *  inside the ribbon timer's box (instead of the bottom bar's "Left"
+   *  readout; needs `liveRemainingReadTime`), and a blue line in the gutter
+   *  beside the speech document showing where the speaker should be reading
+   *  by the speech clock, plus where auto-scroll thinks they are. Replaces
+   *  `timerLeftUnderTimer` (off by default) and `paceMarker` (on by default):
+   *  a stored blob that lacks this key gets it on when either was on. */
+  paceGuides: boolean;
   /** How to label the Aff / Neg prep buttons:
    *    'text'  → "A: 10:00" / "N: 10:00", no special color
    *    'color' → "10:00" / "10:00", blue + red border
@@ -1965,8 +1965,7 @@ const DEFAULTS: Settings = {
   timerSoundEnabled: false,
   timerSoundVolume: 70,
   timerCompact: false,
-  timerLeftUnderTimer: false,
-  paceMarker: true,
+  paceGuides: true,
   timerPrepLabel: 'both',
   timerPosition: 'beside',
   jumpToDocTopOnReadModeToggle: false,
@@ -3650,25 +3649,18 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Timer display',
   },
   {
-    key: 'timerLeftUnderTimer',
-    label: 'Show time left under the timer',
+    key: 'paceGuides',
+    label: 'Show pace guides',
     description:
-      "Off by default. Moves the first reader's \"Left\" time (what's still unread) from the bottom bar to a line under the timer, shown whenever the timer panel is open, even with the clock stopped. If the timer is hidden or popped out, the bottom bar shows it as usual. Needs \"Live read time for what is left to read\" (Settings → General → Word counts).",
+      "On by default. Two things that show where you are against the speech clock. (1) The first reader's \"Left\" time (what's still unread) moves from the bottom bar to a line under the timer's digits, shown whenever the timer panel is open, even with the clock stopped; if the timer is hidden or popped out, the bottom bar shows it as usual. This part needs \"Live read time for what is left to read\" (Settings → General → Word counts). (2) A thick blue line in the margin between the outline and the speech document: once the speech clock has started and the first reader has a speed set (it stays when paused and goes away on reset), it starts at the top of the document and moves down at the steady pace that finishes the whole document exactly when the speech time runs out; while Auto-Scroll runs, a second, fainter line marks the line it thinks you are reading. The line stays hidden when the document is more than a minute longer than the speech (probably a masterfile). Both follow read mode and the lay speaking toggle.",
     kind: 'toggle',
     category: 'appearance',
     section: 'Timer display',
-    dependsOn: 'liveRemainingReadTime',
-    aliases: ['time left', 'left under timer', 'remaining time timer', 'move left time'],
-  },
-  {
-    key: 'paceMarker',
-    label: 'Show a reading-position marker beside the document',
-    description:
-      "On by default. Draws a thick blue line in the margin between the outline and the speech document. Once the speech clock has started and the first reader has a speed set (it stays when paused and goes away on reset), it starts at the top of the document and moves down at the steady pace that finishes the whole document exactly when the speech time runs out. While Auto-Scroll runs, a second, fainter line marks the line it thinks you are reading. Both follow read mode and the lay speaking toggle. The line stays hidden when the document is more than a minute longer than the speech (probably a masterfile).",
-    kind: 'toggle',
-    category: 'appearance',
-    section: 'Timer display',
-    aliases: ['pace marker', 'blue line', 'reading line', 'where to be reading', 'teleprompter marker', 'progress marker'],
+    aliases: [
+      'time left', 'left under timer', 'remaining time timer', 'move left time',
+      'pace marker', 'reading-position marker', 'blue line', 'reading line', 'where to be reading',
+      'teleprompter marker', 'progress marker', 'pace under the timer',
+    ],
   },
   {
     key: 'timerFlashEnabled',
@@ -4838,7 +4830,7 @@ export class SettingsStore {
     for (const key of TRANSIENT_SETTING_KEYS) {
       preserved[key] = (this.values as unknown as Record<string, unknown>)[key];
     }
-    this.values = sanitize({ ...DEFAULTS, ...parsed, ...preserved } as Settings);
+    this.values = sanitize({ ...DEFAULTS, ...withLegacyPaceGuides(parsed), ...preserved } as Settings);
     this.persist();
     this.notify();
   }
@@ -4864,7 +4856,7 @@ export class SettingsStore {
           for (const key of TRANSIENT_SETTING_KEYS) {
             delete (parsed as Record<string, unknown>)[key];
           }
-          return sanitize({ ...DEFAULTS, ...parsed });
+          return sanitize({ ...DEFAULTS, ...withLegacyPaceGuides(parsed) });
         }
       }
       // Migrate legacy individual keys, if any.
@@ -4951,6 +4943,18 @@ function sanitizeVoiceProfiles(raw: unknown): Record<string, VoiceCalibrationPro
     out[device] = { aliases, updatedAt: typeof updatedAt === 'number' ? updatedAt : 0 };
   }
   return out;
+}
+
+/** `paceGuides` replaced two settings, `timerLeftUnderTimer` (off by default)
+ *  and `paceMarker` (on by default). A stored blob without the new key keeps
+ *  the guides on if either old one was on, and off only when both were off. */
+function withLegacyPaceGuides(parsed: Record<string, unknown>): Record<string, unknown> {
+  if (parsed['paceGuides'] !== undefined) return parsed;
+  if (!('paceMarker' in parsed) && !('timerLeftUnderTimer' in parsed)) return parsed;
+  return {
+    ...parsed,
+    paceGuides: parsed['paceMarker'] !== false || parsed['timerLeftUnderTimer'] === true,
+  };
 }
 
 function sanitize(s: Settings): Settings {
@@ -5096,8 +5100,7 @@ function sanitize(s: Settings): Settings {
         ? Math.min(100, Math.max(0, Math.round(s.timerSoundVolume)))
         : 70,
     timerCompact: !!s.timerCompact,
-    timerLeftUnderTimer: !!s.timerLeftUnderTimer,
-    paceMarker: s.paceMarker !== false,
+    paceGuides: s.paceGuides !== false,
     timerPrepLabel:
       s.timerPrepLabel === 'text' || s.timerPrepLabel === 'color'
         ? s.timerPrepLabel

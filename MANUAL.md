@@ -1610,8 +1610,9 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   masterfile. The bar glides down smoothly rather than line by line; unhighlighted
   text takes no reading time, so it rushes through that text instead of jumping.
   While **Auto-Scroll** runs, a second, outlined bar marks
-  the line it thinks you are reading. Turn both off with **Show a reading-position
-  marker beside the document** (Settings → Appearance → Timer display).
+  the line it thinks you are reading. **Show pace guides** (Settings → Appearance →
+  Timer display, on by default) turns this and the time left under the timer
+  (next item) on or off together.
 
 - **Pace under the timer** *(fork)*. With **Live read time for what is left to
   read** on (Settings → General → Word counts), a line under the timer compares
@@ -1621,9 +1622,9 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   **On time**, **Too slow** or **Too fast**, with how many
   minutes and seconds you're off by. It only appears while the **speech** clock is
   counting down: not when it's paused, on a prep clock, or counting up as a
-  stopwatch. Turn on **Show time left under the timer** (Settings → Appearance →
-  Timer display) to also see that reader's time left on the same line whenever the
-  timer is open, even with the clock stopped. That moves it out of the bottom bar's
+  stopwatch. With **Show pace guides** on (Settings → Appearance →
+  Timer display, the default) you also see that reader's time left on the same line
+  whenever the timer is open, even with the clock stopped. That moves it out of the bottom bar's
   "Left" readout; if the timer is hidden or popped out, the bottom bar shows it
   again. The time reads **Left 3:07** and follows the lay-speaking toggle of the
   document it's counting (in three-pane mode, that pane's). It sits in a small

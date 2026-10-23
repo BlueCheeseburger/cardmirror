@@ -4729,7 +4729,7 @@ mountPaceMarker(paceTarget);
 // The bottom bar's "Left" readout moves under the ribbon timer (and back)
 // as the timer is shown, hidden or popped out.
 subscribeTimer(() => {
-  if (settings.get('timerLeftUnderTimer')) refreshWordCount({ selectionOnly: true });
+  if (settings.get('paceGuides')) refreshWordCount({ selectionOnly: true });
 });
 // Audible timer alerts — this window competes for the shared audio-
 // owner lock (the pop-out wins while it exists). No-op while the

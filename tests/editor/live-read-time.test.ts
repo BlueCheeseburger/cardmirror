@@ -454,13 +454,13 @@ describe('the "Left" readout moving under the ribbon timer', () => {
 
   beforeEach(() => {
     settings.set('liveRemainingReadTime', true);
-    settings.set('timerLeftUnderTimer', true);
+    settings.set('paceGuides', true);
     settings.set('readers', [{ name: 'Amy', wpm: 200 }]);
     setTimerVisible(false);
   });
   afterEach(() => {
     setTimerVisible(false);
-    settings.set('timerLeftUnderTimer', false);
+    settings.set('paceGuides', false);
     settings.set('liveRemainingReadTime', false);
   });
 
@@ -484,10 +484,10 @@ describe('the "Left" readout moving under the ribbon timer', () => {
 
   it('does nothing unless both the setting and the "left" feature are on', () => {
     setTimerVisible(true);
-    settings.set('timerLeftUnderTimer', false);
+    settings.set('paceGuides', false);
     expect(leftShownUnderTimer()).toBe(false);
     expect(remainingReadSegment(state())).toMatch(/^Left · Amy: /);
-    settings.set('timerLeftUnderTimer', true);
+    settings.set('paceGuides', true);
     settings.set('liveRemainingReadTime', false);
     expect(leftShownUnderTimer()).toBe(false);
     expect(remainingReadSegment(state())).toBeNull(); // feature off: no Left anywhere

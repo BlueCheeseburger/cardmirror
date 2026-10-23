@@ -20,6 +20,11 @@ New command `removeEmphasis` (label "Remove Emphasis", default key `Mod-F10`, pa
 
 Follow-up to the outline change shipped in 1.15.0-bcb.10: the user wanted the row gone from the toolbar's Card dropdown as well. The `marking` flag on `CardMenuHost` is deleted along with the *Marking* section and the `cardMarkAction` lookup, so the toolbar dropdown and the outline's Card submenu are one list again with no Mark Card row. The command `markCards` (Mod-Alt-D, palette, keyboard map), the marker, the outline flags and the Marked Doc save mode are untouched.
 
+### Changed: `timerLeftUnderTimer` and `paceMarker` merged into `paceGuides` (`settings.ts`, `timer-pace.ts`, `live-read-time.ts`, `pace-marker.ts`, `multi-pane-shell.ts`, `index.ts`)
+
+Two Timer display toggles that both answer "where am I against the speech clock" became one boolean, `paceGuides` (label "Show pace guides", default true). Every reader of either old key now reads `paceGuides`: the time-left line under the timer (and its bottom-bar hand-off in `live-read-time.ts`) and the blue gutter marker (`pace-marker.ts`). The `dependsOn: 'liveRemainingReadTime'` the time-left setting carried is dropped, since it would have greyed out the marker too; the description says the time-left half still needs that setting, and `live-read-time.ts` still checks it. Old installs: `persist()` snapshots every key, so a stored blob has both old keys; `withLegacyPaceGuides` runs before the defaults merge in `load` and `replaceAll` and sets `paceGuides` to `paceMarker !== false || timerLeftUnderTimer === true` when the new key is absent, so anyone with either on keeps both on and only both-off stays off (the default flip for time-left from off to on is deliberate: the user asked for one setting and the marker was already on). The old keys are dropped by sanitize like any removed key. Tests: `settings-backup.test.ts` (migration cases); `timer-pace`, `live-read-time` tests use the new key.
+
+
 ## 1.15.0-bcb.10 — 2026-10-23
 
 ### Added: Extra formatting buttons: undo / redo, B / I / U / S, on by default (`index.html`, `style.css`, `index.ts`, `settings.ts`)

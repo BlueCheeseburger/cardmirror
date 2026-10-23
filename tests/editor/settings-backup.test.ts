@@ -56,6 +56,21 @@ describe('settings import (replaceAll)', () => {
     expect(s.get('commentAuthor')).toBe('X');
   });
 
+  it('merges the old time-left and pace-marker settings into paceGuides', () => {
+    const s = new SettingsStore();
+    expect(s.get('paceGuides')).toBe(true); // on by default
+    s.replaceAll({ paceMarker: false, timerLeftUnderTimer: false });
+    expect(s.get('paceGuides')).toBe(false); // both were off
+    s.replaceAll({ paceMarker: false, timerLeftUnderTimer: true });
+    expect(s.get('paceGuides')).toBe(true); // either one on keeps it on
+    s.replaceAll({ paceMarker: true, timerLeftUnderTimer: false });
+    expect(s.get('paceGuides')).toBe(true);
+    s.replaceAll({ paceGuides: false, paceMarker: true });
+    expect(s.get('paceGuides')).toBe(false); // an explicit new value wins
+    s.replaceAll({});
+    expect(s.get('paceGuides')).toBe(true);
+  });
+
   it('fills defaults for missing fields and drops unknown keys', () => {
     const s = new SettingsStore();
     s.set('commentAuthor', 'Set');
