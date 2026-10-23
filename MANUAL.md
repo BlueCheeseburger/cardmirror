@@ -3140,8 +3140,9 @@ file search scans, and how much version history to keep.
   Document opens with a Pocket carrying the speech's name; off starts
   blank.
 - **Default text style** — the style a new document's first line starts in:
-  **Analytic** (the default), **Clear** (a plain paragraph) or **Undertag**.
-  Affects new documents only, never files you open.
+  pick any line style from one drop-down: **Pocket**, **Hat**, **Block**,
+  **Tag**, **Analytic** (the default), **Undertag** or **Clear** (a plain
+  paragraph). Affects new documents only, never files you open.
 
 **Send / Read / Marked docs**
 

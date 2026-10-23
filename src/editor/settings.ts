@@ -387,8 +387,25 @@ export type EnterAfterStyle =
 
 /** Style a brand-new document's first (empty) line starts in. 'normal' is the
  *  plain paragraph (the Clear style). */
-export type DefaultTextStyle = 'normal' | 'analytic' | 'undertag';
-const DEFAULT_TEXT_STYLE_VALUES: readonly DefaultTextStyle[] = ['normal', 'analytic', 'undertag'];
+/** Every line style a new document's first line can start in: the heading
+ *  levels, Tag, Analytic, Undertag, or `normal` (a plain paragraph). */
+export type DefaultTextStyle =
+  | 'pocket'
+  | 'hat'
+  | 'block'
+  | 'tag'
+  | 'analytic'
+  | 'undertag'
+  | 'normal';
+export const DEFAULT_TEXT_STYLE_VALUES: readonly DefaultTextStyle[] = [
+  'pocket',
+  'hat',
+  'block',
+  'tag',
+  'analytic',
+  'undertag',
+  'normal',
+];
 function sanitizeDefaultTextStyle(v: unknown): DefaultTextStyle {
   return DEFAULT_TEXT_STYLE_VALUES.includes(v as DefaultTextStyle) ? (v as DefaultTextStyle) : 'analytic';
 }
@@ -2785,7 +2802,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'defaultTextStyle',
     label: 'Default text style',
     description:
-      "The style a new document's first line starts in, so typing straight away lands in it. Analytic is the default; pick Clear for a plain paragraph or Undertag for undertag text. Applies to New, new speech documents without a Pocket heading, and blank opens — never to files you open.",
+      "The style a new document's first line starts in, so typing straight away lands in it. Pick any line style: Pocket, Hat, Block, Tag, Analytic (the default), Undertag, or Clear for a plain paragraph. Applies to New, new speech documents without a Pocket heading, and blank opens — never to files you open.",
     kind: 'defaultTextStyle',
     category: 'files',
     section: 'New documents',

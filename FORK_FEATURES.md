@@ -267,9 +267,10 @@ Small changes that make CardMirror easier to learn:
 
 ## 17. Default text style and custom styles
 
-- **Default text style:** new documents can start on an Analytic line, so you can
-  type straight into the style you use most. **Settings → Files → New documents →
-  Default text style**.
+- **Default text style:** new documents start on a line in the style you choose,
+  so you can type straight into the style you use most. Pick any of Pocket, Hat,
+  Block, Tag, Analytic (the default), Undertag or a plain paragraph from one
+  drop-down at **Settings → Files → New documents → Default text style**.
 - **Custom styles:** define your own character styles (a color, bold, underline…)
   and give each one a key. **Settings → Editing → Custom styles**.
 

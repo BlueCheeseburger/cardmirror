@@ -38,6 +38,23 @@ describe('makeBlankDoc (three-pane New)', () => {
     expect(doc.firstChild!.content.size).toBe(0);
   });
 
+  it('any heading level or Tag can be the starting line', () => {
+    for (const style of ['pocket', 'hat', 'block'] as const) {
+      settings.set('defaultTextStyle', style);
+      const doc = makeBlankDoc();
+      expect(doc.childCount).toBe(1);
+      expect(doc.firstChild!.type.name).toBe(style);
+      expect(doc.firstChild!.content.size).toBe(0);
+      expect(seedCursorOffset(doc.firstChild!)).toBe(1);
+    }
+    settings.set('defaultTextStyle', 'tag');
+    const doc = makeBlankDoc();
+    expect(doc.firstChild!.type.name).toBe('card');
+    expect(doc.firstChild!.firstChild!.type.name).toBe('tag');
+    expect(doc.firstChild!.firstChild!.content.size).toBe(0);
+    expect(seedCursorOffset(doc.firstChild!)).toBe(2);
+  });
+
   it('an unknown stored value falls back to analytic', () => {
     settings.set('defaultTextStyle', 'bogus' as never);
     expect(makeBlankDoc().firstChild!.type.name).toBe('analytic_unit');

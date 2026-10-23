@@ -6185,35 +6185,38 @@ function buildSaveFormatEditor(): HTMLElement {
   return wrap;
 }
 
-/** Style a new document's first line starts in. Same chrome as the
- *  default-format editor above. */
+/** Style a new document's first line starts in: one drop-down of every line
+ *  style, in the order of the ribbon's style buttons. */
 function buildDefaultTextStyleEditor(): HTMLElement {
   const wrap = document.createElement('div');
-  wrap.className = 'pmd-multi-doc-layout-mode-editor';
+  wrap.className = 'pmd-default-text-style-editor';
+  const select = document.createElement('select');
+  select.className = 'pmd-body-font-select';
+  select.setAttribute('aria-label', 'Default text style');
   const options: { value: Settings['defaultTextStyle']; label: string }[] = [
+    { value: 'pocket', label: 'Pocket' },
+    { value: 'hat', label: 'Hat' },
+    { value: 'block', label: 'Block' },
+    { value: 'tag', label: 'Tag' },
     { value: 'analytic', label: 'Analytic (default)' },
-    { value: 'normal', label: 'Clear — a plain paragraph' },
     { value: 'undertag', label: 'Undertag' },
+    { value: 'normal', label: 'Clear (a plain paragraph)' },
   ];
-  const groupName = `pmd-default-text-style-${Math.random().toString(36).slice(2, 8)}`;
   for (const o of options) {
-    const row = document.createElement('label');
-    row.className = 'pmd-multi-doc-layout-mode-row';
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = groupName;
-    input.value = o.value;
-    input.checked = o.value === settings.get('defaultTextStyle');
-    input.addEventListener('change', () => {
-      if (input.checked) settings.set('defaultTextStyle', o.value);
-    });
-    row.appendChild(input);
-    const labelText = document.createElement('span');
-    labelText.className = 'pmd-multi-doc-layout-mode-row-label';
-    labelText.textContent = o.label;
-    row.appendChild(labelText);
-    wrap.appendChild(row);
+    const opt = document.createElement('option');
+    opt.value = o.value;
+    opt.textContent = o.label;
+    select.appendChild(opt);
   }
+  select.value = settings.get('defaultTextStyle');
+  select.addEventListener('change', () => {
+    settings.set('defaultTextStyle', select.value as Settings['defaultTextStyle']);
+  });
+  const unsub = settings.subscribe((st) => {
+    if (select.value !== st.defaultTextStyle) select.value = st.defaultTextStyle;
+  });
+  registerRowCleanup(wrap, () => unsub());
+  wrap.appendChild(select);
   return wrap;
 }
 
