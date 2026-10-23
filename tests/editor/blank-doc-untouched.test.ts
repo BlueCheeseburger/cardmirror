@@ -20,7 +20,7 @@ describe('isUntouchedBlank', () => {
   afterEach(() => settings.set('defaultTextStyle', 'analytic'));
 
   it('a new doc in each default text style is untouched', () => {
-    for (const style of ['normal', 'analytic', 'undertag'] as const) {
+    for (const style of ['pocket', 'hat', 'block', 'tag', 'analytic', 'undertag', 'normal'] as const) {
       settings.set('defaultTextStyle', style);
       expect(isUntouchedBlank(freshState())).toBe(true);
     }
@@ -48,9 +48,9 @@ describe('isUntouchedBlank', () => {
     expect(isUntouchedBlank(freshState(doc))).toBe(false);
   });
 
-  it('a doc with a heading and no text is not', () => {
+  it('a doc with a heading that has text is not', () => {
     const doc = schema.nodes['doc']!.createChecked(null, [
-      schema.nodes['pocket']!.create({ id: 'p1' }),
+      schema.nodes['pocket']!.create({ id: 'p1' }, schema.text('1NC')),
     ]);
     expect(isUntouchedBlank(freshState(doc))).toBe(false);
   });

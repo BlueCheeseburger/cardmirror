@@ -69,9 +69,8 @@ your document, so you don't have to do the math on the timer.
   fits the *whole* document into the *whole* speech, so you start **On time**
   whatever the document's length. It shows as words under the timer, or as a small
   dot that shades from red through green to blue.
-- **Time left** (optional). The first reader's **Left 3:07** (what's still unread)
-  can sit in a small line under the timer's digits, inside the timer's box, instead of
-  in the bottom bar.
+- **Time left.** The first reader's **Left 3:07** (what's still unread) sits in a
+  small line under the timer's digits, inside the timer's box.
 - **A blue line beside the document.** A thick blue line in the margin between the
   outline and your document starts at the top and glides down at that same pace, so
   you can see where you *should* be reading. It stays when you pause and goes away
@@ -81,12 +80,11 @@ your document, so you don't have to do the math on the timer.
 It works in read mode, follows the lay-speaking toggle, and counts from the line
 you're actually reading, a third of the way down the screen.
 
-**Settings:** under **Settings → Appearance → Timer display**, **Show a
-reading-position marker beside the document** (on by default) controls the blue
-line, and **Show time left under the timer** (off by default) moves the time left
-from the bottom bar into the timer. The time left also needs **Settings → General →
-Word counts → Live read time for what is left to read**. Set your reading speed under
-**Readers for read-time estimates** in the same section.
+**Settings:** **Settings → Appearance → Timer display → Show pace guides** (on by
+default) turns the time-left line and the blue line on or off together. The time
+left also needs **Settings → General → Word counts → Live read time for what is left
+to read**. Set your reading speed under **Readers for read-time estimates** in the
+same section.
 
 ## 3. Paced auto-scroll
 
@@ -264,12 +262,15 @@ Small changes that make CardMirror easier to learn:
   Everything, with a hint that the letter (`g`, `q`…) goes first.
 - **A cleaner Home screen:** New document, Open… and Compare documents.
 - **The outline follows you:** the heading you're in stays highlighted as you scroll.
+- **Remove Emphasis:** **Mod-F10** takes Emphasis off the selected text, the way
+  **Mod-F11** takes highlighting off.
 
 ## 17. Default text style and custom styles
 
-- **Default text style:** new documents can start on an Analytic line, so you can
-  type straight into the style you use most. **Settings → Files → New documents →
-  Default text style**.
+- **Default text style:** new documents start on a line in the style you choose,
+  so you can type straight into the style you use most. Pick any of Pocket, Hat,
+  Block, Tag, Analytic (the default), Undertag or a plain paragraph from one
+  drop-down at **Settings → Files → New documents → Default text style**.
 - **Custom styles:** define your own character styles (a color, bold, underline…)
   and give each one a key. **Settings → Editing → Custom styles**.
 

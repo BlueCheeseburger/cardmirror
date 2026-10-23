@@ -394,12 +394,12 @@ export function wholeReadCounts(state: EditorState): ReadAloudCounts | null {
 }
 
 /** Whether the time left to read is shown under the ribbon timer (the
- *  `timerLeftUnderTimer` setting) rather than in the bottom bar: the
+ *  `paceGuides` setting) rather than in the bottom bar: the
  *  setting is on, so is the "left" feature itself, and the timer panel is
  *  actually in this window's ribbon. A hidden or popped-out timer shows
  *  nothing, so the bottom bar keeps the readout rather than losing it. */
 export function leftShownUnderTimer(): boolean {
-  if (!settings.get('timerLeftUnderTimer') || !settings.get('liveRemainingReadTime')) return false;
+  if (!settings.get('paceGuides') || !settings.get('liveRemainingReadTime')) return false;
   const timer = getTimerState();
   return timer.visible && !timer.poppedOut;
 }

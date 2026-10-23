@@ -1252,6 +1252,44 @@ export function applyEmphasis(): Command {
 }
 
 /**
+ * Mod-F10 — remove Emphasis from the selection. F10 only applies Emphasis
+ * (pressing it again re-applies), so this is the way back, shaped like Mod-F11:
+ * it works on the selection or the shadow-selection matches, does nothing on a
+ * bare cursor (no word expansion) or when nothing in range is emphasized, and
+ * skips no structural block. It only strips the `emphasis_mark`: Emphasis
+ * replaced any underline when it was applied, so the text comes back plain
+ * (F9 puts the underline on). The neighbouring gaps are normalized like every
+ * other formatting command.
+ */
+export function removeEmphasis(): Command {
+  return withGapFix(
+    (state, dispatch) => {
+      const markType = schema.marks['emphasis_mark'];
+      if (!markType) return false;
+      const op = getOperatingRangesForFormatting(state);
+      if (op.ranges.length === 0) return false;
+      let found = false;
+      for (const { from, to } of op.ranges) {
+        state.doc.nodesBetween(from, to, (node) => {
+          if (found) return false;
+          if (node.isText && markType.isInSet(node.marks)) found = true;
+          return !found;
+        });
+        if (found) break;
+      }
+      if (!found) return false;
+      if (!dispatch) return true;
+      const tr = state.tr;
+      for (const { from, to } of op.ranges) tr.removeMark(from, to, markType);
+      if (op.fromShadow) tr.setMeta(META_OPERATING_ON_SHADOW, true);
+      dispatch(tr);
+      return true;
+    },
+    { appliesNamedStyle: true },
+  );
+}
+
+/**
  * Emphasis and background color in one step (unbound by default): F10,
  * then the active background color over the same ranges, in one
  * transaction — one undo. F10 alone strips background, so pressing
@@ -4602,6 +4640,7 @@ export type RibbonCommandId =
   | 'applyEmphasis'
   | 'applyEmphasisAndShading'
   | 'emphasizeAcronym'
+  | 'removeEmphasis'
   | 'applyHighlight'
   | 'applyHighlightWhite'
   | 'highlightAcronym'
@@ -4880,6 +4919,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'applyEmphasis',
   'applyEmphasisAndShading',
   'emphasizeAcronym',
+  'removeEmphasis',
   'applyHighlight',
   'applyHighlightWhite',
   'highlightAcronym',
@@ -5103,6 +5143,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   applyEmphasis: 'Apply Emphasis Style',
   applyEmphasisAndShading: 'Emphasis + Background Color',
   emphasizeAcronym: 'Emphasize Acronym',
+  removeEmphasis: 'Remove Emphasis',
   applyHighlight: 'Highlight with Selected Color',
   applyHighlightWhite: 'Highlight with White',
   highlightAcronym: 'Highlight Acronym',
@@ -5382,6 +5423,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   linkUrls: ['hyperlink urls', 'autolink', 'make links', 'add links', 'linkify'],
   resetDefaultColors: ['default colors', 'reset colors', 'reset swatches', 'reset highlight color', 'reset background color'],
   applyHighlightWhite: ['white highlight', 'highlight white', 'erase highlight'],
+  removeEmphasis: ['unemphasize', 'un-emphasize', 'erase emphasis', 'clear emphasis'],
   applyShading: ['shading', 'text highlight color'],
   applyEmphasisAndShading: ['emphasize and background', 'emphasis and shading', 'emphasis background', 'emphasize shade'],
   insertImage: ['add image', 'insert picture', 'photo'],
@@ -5529,6 +5571,9 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   applyEmphasis: 'F10',
   applyEmphasisAndShading: '',
   emphasizeAcronym: 'Alt-F10',
+  // Beside Emphasis (F10) and Emphasize Acronym (Alt-F10), the way Mod-F11
+  // sits beside Highlight (F11).
+  removeEmphasis: 'Mod-F10',
   applyHighlight: 'F11',
   applyHighlightWhite: 'Mod-F11',
   highlightAcronym: 'Alt-F11',
@@ -5562,7 +5607,6 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   standardizeShading: '',
   standardizeHighlightExcept: '',
   standardizeShadingExcept: '',
-  // Mod-F10 sits beside Emphasis (F10) and Emphasize Acronym (Alt-F10).
   convertCardsToReadMode: '',
   toggleReadMode: '',
   toggleAutoScroll: '',
@@ -6246,6 +6290,7 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
     case 'applyEmphasis': return applyEmphasis();
     case 'applyEmphasisAndShading': return applyEmphasisAndShading(ctx.shadingColor);
     case 'emphasizeAcronym': return emphasizeAcronym();
+    case 'removeEmphasis': return removeEmphasis();
     case 'applyHighlight': return applyHighlight(ctx.highlightColor);
     case 'applyHighlightWhite': return applyHighlight(() => 'white');
     case 'highlightAcronym': return highlightAcronym(ctx.highlightColor);

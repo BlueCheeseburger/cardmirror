@@ -16,6 +16,7 @@ import {
   applyCite,
   applyEmphasis,
   emphasizeAcronym,
+  removeEmphasis,
   applyHighlight,
   highlightAcronym,
   applyShading,
@@ -5093,5 +5094,70 @@ describe('tag ↔ analytic swaps preserve the numbering skeleton', () => {
     expect(card.type.name).toBe('card');
     expect(card.attrs['numRole']).toBe('sub');
     expect(card.attrs['numRestart']).toBe(true);
+  });
+});
+
+// ---- removeEmphasis (Mod-F10) ----
+
+describe('removeEmphasis (Mod-F10)', () => {
+  const em = () => schema.marks['emphasis_mark']!.create();
+  const hasEmphasis = (doc: import('prosemirror-model').Node, word: string): boolean => {
+    let on = false;
+    doc.descendants((n) => {
+      if (n.isText && (n.text ?? '').includes(word) && n.marks.some((m) => m.type.name === 'emphasis_mark')) on = true;
+      return true;
+    });
+    return on;
+  };
+  /** A card body of "alpha beta gamma", every word emphasized, with the
+   *  selection over `selWord` ('' for a bare cursor in "beta"). */
+  function setup(selWord: string, emphasized = true): EditorState {
+    const marks = emphasized ? [em()] : [];
+    const body = schema.nodes['card_body']!.create(null, [schema.text('alpha beta gamma', marks)]);
+    const doc = makeDoc([cardWithChildren(tag('T'), body)]);
+    let start = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'alpha beta gamma') start = p;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    const at = start + 'alpha '.length;
+    const sel = selWord
+      ? TextSelection.create(base.doc, start + 'alpha beta gamma'.indexOf(selWord), start + 'alpha beta gamma'.indexOf(selWord) + selWord.length)
+      : TextSelection.create(base.doc, at + 2);
+    return base.apply(base.tr.setSelection(sel));
+  }
+
+  it('is bound to Mod-F10 and runs from the command registry', () => {
+    expect(DEFAULT_RIBBON_KEYS['removeEmphasis']).toBe('Mod-F10');
+    expect(apply(setup('beta'), getRibbonCommand('removeEmphasis'))).not.toBeNull();
+  });
+
+  it('strips Emphasis from the selected word only', () => {
+    const next = apply(setup('beta'), removeEmphasis())!;
+    expect(hasEmphasis(next.doc, 'beta')).toBe(false);
+    expect(hasEmphasis(next.doc, 'alpha')).toBe(true);
+    expect(hasEmphasis(next.doc, 'gamma')).toBe(true);
+  });
+
+  it('strips every emphasized word in a larger selection', () => {
+    const next = apply(setup('alpha beta gamma'), removeEmphasis())!;
+    expect(hasEmphasis(next.doc, 'alpha')).toBe(false);
+    expect(hasEmphasis(next.doc, 'beta')).toBe(false);
+    expect(hasEmphasis(next.doc, 'gamma')).toBe(false);
+  });
+
+  it('does not toggle: a second press finds nothing to remove', () => {
+    const s1 = apply(setup('beta'), removeEmphasis())!;
+    expect(apply(s1, removeEmphasis())).toBeNull();
+    expect(hasEmphasis(s1.doc, 'beta')).toBe(false);
+  });
+
+  it('does nothing on a bare cursor, like Mod-F11 (no word expansion)', () => {
+    expect(apply(setup(''), removeEmphasis())).toBeNull();
+  });
+
+  it('does nothing when the selection has no Emphasis', () => {
+    expect(apply(setup('beta', false), removeEmphasis())).toBeNull();
   });
 });

@@ -366,8 +366,8 @@ mirrors Word's Navigation Pane, but does more:
   toolbar's Card menu has — Condense, Excerpt, Highlighting and Shrink —
   acting on the card under the right-clicked heading, or on every card under a
   Pocket, Hat or Block. It is the same list as the toolbar menu, built from one
-  definition, except that **Mark Card** isn't in the outline's copy (mark with
-  **Mod-Alt-D** or the toolbar's Card menu). Unhighlight turns into
+  definition. (**Mark Card** isn't in either menu; mark with **Mod-Alt-D** or
+  Search Everything.) Unhighlight turns into
   **Rehighlight** (and back) as in the toolbar. On a **Pocket, Hat or Block**
   there is also a **Doc ▸** row with the toolbar's Doc menu — Cleanup
   (convert analytics to tags, fix formatting gaps, remove hyperlinks, link
@@ -457,7 +457,7 @@ below say which fallback applies where it matters.
 |----------|----------|--------------|
 | **Cite** | F8 | Applies the Cite style — meant for just the author last name and date, not the whole line. With nothing selected, it applies to the word at the cursor. Skips heading text in a mixed selection. |
 | **Underline** | F9 / Mod-U | Toggles underline on the selection (press again to remove). With **nothing selected** the two differ: **F9** underlines the word at the cursor; **Mod-U** instead turns on underline for the text you're about to type (like Mod-I for italics). |
-| **Emphasis** | F10 | Applies the Emphasis style (a box, by default). Apply-only; use Clear or Underline to swap it off. |
+| **Emphasis** | F10 | Applies the Emphasis style (a box, by default). Apply-only: pressing it again keeps the Emphasis. **Mod-F10** removes it from the selection (the text comes back plain, not underlined); Clear and Underline also swap it off. |
 | **Highlight** | F11 | Toggles the active highlight color. Press again to remove. |
 | **Clear** | F12 | Strips direct formatting back to plain text (leaves highlighting unless **Clear (F12) also removes highlighting** is on in Settings → Editing). |
 | **Bold / Italic** | Mod-B / Mod-I | Standard direct formatting. With nothing selected, toggles it for the text you're about to type; while italic typing is on, the cursor tilts to match. Tags and headings are bold by default, so **Bold inside a tag un-bolds** the selected words (press it again to restore) — and .docx files with un-bolded words in tags now show that correctly. |
@@ -1299,8 +1299,8 @@ workspace while another shows a single document.
   in the slots that are showing, the hidden ones come back.
 - When you have more than one document in a slot, jump between them using
   the drop-down in the document's title bar or by using **Ctrl-Tab**.
-- Turn on **Opening a file replaces an untouched Untitled doc**
-  (Settings → General → Workspace; off by default) and opening a file into
+- If you set `openReplacesUntitled` to `true` in the settings file (it has no
+  Settings row and is off by default), opening a file into
   a slot that's showing a blank **Untitled** document you haven't touched
   (never typed in, never saved) replaces it instead of stacking on top.
   Once you've typed anything, even if you delete it again, the Untitled
@@ -1455,7 +1455,7 @@ timer stopped it falls back to the clock ("Marked 7:32").
 
 **Mark Card** marks the whole card the cursor is in (rather than a spot inside
 it) — **Mod-Alt-D** by default, rebindable under Settings → Keyboard, and in
-the toolbar's **Card** menu under *Marking*. It drops the same red marker at the
+Search Everything (it is not in the Card menus). It drops the same red marker at the
 end of the card and counts for Marked Doc; run it again to unmark. It works in
 read mode too.
 
@@ -1610,8 +1610,9 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   masterfile. The bar glides down smoothly rather than line by line; unhighlighted
   text takes no reading time, so it rushes through that text instead of jumping.
   While **Auto-Scroll** runs, a second, outlined bar marks
-  the line it thinks you are reading. Turn both off with **Show a reading-position
-  marker beside the document** (Settings → Appearance → Timer display).
+  the line it thinks you are reading. **Show pace guides** (Settings → Appearance →
+  Timer display, on by default) turns this and the time left under the timer
+  (next item) on or off together.
 
 - **Pace under the timer** *(fork)*. With **Live read time for what is left to
   read** on (Settings → General → Word counts), a line under the timer compares
@@ -1621,9 +1622,9 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   **On time**, **Too slow** or **Too fast**, with how many
   minutes and seconds you're off by. It only appears while the **speech** clock is
   counting down: not when it's paused, on a prep clock, or counting up as a
-  stopwatch. Turn on **Show time left under the timer** (Settings → Appearance →
-  Timer display) to also see that reader's time left on the same line whenever the
-  timer is open, even with the clock stopped. That moves it out of the bottom bar's
+  stopwatch. With **Show pace guides** on (Settings → Appearance →
+  Timer display, the default) you also see that reader's time left on the same line
+  whenever the timer is open, even with the clock stopped. That moves it out of the bottom bar's
   "Left" readout; if the timer is hidden or popped out, the bottom bar shows it
   again. The time reads **Left 3:07** and follows the lay-speaking toggle of the
   document it's counting (in three-pane mode, that pane's). It sits in a small
@@ -2558,15 +2559,13 @@ home screen — to open it, exactly like File → Open (including the unsaved-ch
 prompt, and focusing a copy that's already open). Other file types are ignored,
 and dragging cards around inside the editor is unaffected.
 
-**Opening several files at once.** Turn on **Settings → General → Workspace →
-Open several files at once** (off by default, desktop only) and the Open dialog
+**Opening several files at once.** On the desktop app the Open dialog
 takes a multi-selection (Shift-click or Mod-click). In the three-pane workspace you
 pick one slot for the whole batch, and every file lands in that slot's stack,
 so **Ctrl-Tab** cycles through them; a slot's own Open button does the same
 without asking. In one-window-per-document mode each file gets its own window.
 
-**Reopening your last set of documents.** Turn on **Settings → General →
-Workspace → Remember my last workspace** (off by default) and CardMirror
+**Reopening your last set of documents.** On the desktop app, CardMirror
 remembers which files you had open when you last quit and lists them on the Home screen under
 **Last workspace**, each with a tick box. **Reopen** opens the ticked ones —
 untick the ones you don't want, or use **All** / **None** to flip the whole
@@ -3027,10 +3026,6 @@ headers shown inside each tab.
   Right-click a flagged word for suggestions, Add to Dictionary, or
   Ignore. Off by default — debate evidence (author names, jargon) trips a
   lot of false positives.
-- **Pinch / Ctrl+Scroll to zoom** — zoom the document with a trackpad
-  pinch or Ctrl + mouse-wheel, in the same 10% steps as the zoom buttons
-  and Mod-= / Mod--. Off by default; enable it if you'd rather zoom by
-  gesture.
 - **Drag to rearrange** — the drag gestures that move content:
   navigation-pane row drags and the editor's pickup drag. On by
   default. Turn it off on touch devices (iPads) where scrolling with a
@@ -3145,8 +3140,9 @@ file search scans, and how much version history to keep.
   Document opens with a Pocket carrying the speech's name; off starts
   blank.
 - **Default text style** — the style a new document's first line starts in:
-  **Analytic** (the default), **Clear** (a plain paragraph) or **Undertag**.
-  Affects new documents only, never files you open.
+  pick any line style from one drop-down: **Pocket**, **Hat**, **Block**,
+  **Tag**, **Analytic** (the default), **Undertag** or **Clear** (a plain
+  paragraph). Affects new documents only, never files you open.
 
 **Send / Read / Marked docs**
 
@@ -3648,8 +3644,7 @@ everyone, apply direct formatting in the document itself).
   sync across windows or persist; instead documents open at a default you can
   set (Settings → Accessibility → **Default document zoom**, 100% by default)
   and reset to it on reload. You can also pinch on a trackpad or hold Ctrl and
-  scroll, once you turn that on under Settings → General → **Pinch /
-  Ctrl+Scroll to zoom** (off by default). **(Desktop only:)** **Mod-Alt-=** /
+  scroll. **(Desktop only:)** **Mod-Alt-=** /
   **Mod-Alt--** scale the whole interface uniformly across windows, not just
   the document.
 
@@ -3690,6 +3685,7 @@ hold the real keys. It detects your system on its own.
 | F8 | Cite |
 | F9 / Mod-U | Underline |
 | F10 / Alt-F10 | Emphasis / Emphasize acronym |
+| Mod-F10 | Remove Emphasis |
 | F11 / Alt-F11 | Highlight / Highlight acronym |
 | Mod-F11 | Highlight with white |
 | Mod-Shift-F11 | Background color |

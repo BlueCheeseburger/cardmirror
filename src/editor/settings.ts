@@ -387,8 +387,25 @@ export type EnterAfterStyle =
 
 /** Style a brand-new document's first (empty) line starts in. 'normal' is the
  *  plain paragraph (the Clear style). */
-export type DefaultTextStyle = 'normal' | 'analytic' | 'undertag';
-const DEFAULT_TEXT_STYLE_VALUES: readonly DefaultTextStyle[] = ['normal', 'analytic', 'undertag'];
+/** Every line style a new document's first line can start in: the heading
+ *  levels, Tag, Analytic, Undertag, or `normal` (a plain paragraph). */
+export type DefaultTextStyle =
+  | 'pocket'
+  | 'hat'
+  | 'block'
+  | 'tag'
+  | 'analytic'
+  | 'undertag'
+  | 'normal';
+export const DEFAULT_TEXT_STYLE_VALUES: readonly DefaultTextStyle[] = [
+  'pocket',
+  'hat',
+  'block',
+  'tag',
+  'analytic',
+  'undertag',
+  'normal',
+];
 function sanitizeDefaultTextStyle(v: unknown): DefaultTextStyle {
   return DEFAULT_TEXT_STYLE_VALUES.includes(v as DefaultTextStyle) ? (v as DefaultTextStyle) : 'analytic';
 }
@@ -837,14 +854,14 @@ export interface Settings {
   /** Compact layout: drops the 9/6/3 preset column and stacks
    *  Reset under Start/Pause. */
   timerCompact: boolean;
-  /** Show the first reader's time left to read inside the ribbon timer's box
-   *  (whenever the timer panel is in the ribbon) instead of in the bottom
-   *  bar's "Left" readout. Needs `liveRemainingReadTime`. */
-  timerLeftUnderTimer: boolean;
-  /** A blue line in the gutter beside the speech document: where the speaker
-   *  should be reading by the speech clock (while it runs), and where
-   *  auto-scroll thinks they are reading (while it runs). */
-  paceMarker: boolean;
+  /** Pace guides, one switch for both: the first reader's time left to read
+   *  inside the ribbon timer's box (instead of the bottom bar's "Left"
+   *  readout; needs `liveRemainingReadTime`), and a blue line in the gutter
+   *  beside the speech document showing where the speaker should be reading
+   *  by the speech clock, plus where auto-scroll thinks they are. Replaces
+   *  `timerLeftUnderTimer` (off by default) and `paceMarker` (on by default):
+   *  a stored blob that lacks this key gets it on when either was on. */
+  paceGuides: boolean;
   /** How to label the Aff / Neg prep buttons:
    *    'text'  → "A: 10:00" / "N: 10:00", no special color
    *    'color' → "10:00" / "10:00", blue + red border
@@ -1104,7 +1121,8 @@ export interface Settings {
   /** Zoom the editor with a trackpad pinch or Ctrl+mouse-wheel. Off by
    *  default. Both gestures arrive as the same event (Chromium delivers a
    *  trackpad pinch as a `wheel` with `ctrlKey`), so this one toggle
-   *  governs both. Adjusts the live body zoom, in 10% steps, and
+   *  governs both. On by default (no Settings row; edit the settings file to
+   *  turn it off). Adjusts the live body zoom, in 10% steps, and
    *  suppresses Chromium's own native page-zoom on the gesture. */
   gestureZoom: boolean;
   /**
@@ -1156,11 +1174,12 @@ export interface Settings {
   wordCountOrderReadMode: WordCountOrder;
   /** Last workspace (the Home screen's "reopen what I had open"
    *  section, the recording behind it, and the Save / Reopen Workspace
-   *  commands). Off by default: nothing is recorded and the section
-   *  never renders until it is on. */
+   *  commands). On by default (no Settings row; edit the settings file to turn
+   *  it off, and then nothing is recorded and the section never renders). */
   lastWorkspaceEnabled: boolean;
   /** Desktop: the Open dialog takes a multi-selection (one slot for the
-   *  batch in three-pane, one window each otherwise). Off by default. */
+   *  batch in three-pane, one window each otherwise). On by default (no
+   *  Settings row; edit the settings file to turn it off). */
   openMultipleFiles: boolean;
   /** Arrange Windows: which side of the screen the speech doc takes
    *  (every other window goes to the other side). */
@@ -1722,7 +1741,8 @@ export interface Settings {
   multiDocLayoutMode: 'compact' | 'wide';
   /** Three-pane: opening a file into a slot whose visible doc is an
    *  untouched Untitled (never saved, never edited) closes that doc
-   *  instead of stacking the file on top of it. Off by default. */
+   *  instead of stacking the file on top of it. Off by default (no Settings
+   *  row; edit the settings file to turn it on). */
   openReplacesUntitled: boolean;
   /** Three-pane: show a Hide button on each slot's title bar. Off by
    *  default; the Hide Slot / Reveal All Slots commands work either way. */
@@ -1965,8 +1985,7 @@ const DEFAULTS: Settings = {
   timerSoundEnabled: false,
   timerSoundVolume: 70,
   timerCompact: false,
-  timerLeftUnderTimer: false,
-  paceMarker: true,
+  paceGuides: true,
   timerPrepLabel: 'both',
   timerPosition: 'beside',
   jumpToDocTopOnReadModeToggle: false,
@@ -2029,7 +2048,7 @@ const DEFAULTS: Settings = {
   markUnreadAfterMarker: false,
   defaultZoomPct: 100,
   chromeScalePct: 100,
-  gestureZoom: false,
+  gestureZoom: true,
   readers: [
     { name: 'Reader 1', wpm: 200 },
     { name: 'Reader 2', wpm: 250 },
@@ -2040,8 +2059,8 @@ const DEFAULTS: Settings = {
   liveRemainingReadTime: false,
   wordCountOrder: 'doc-container-remaining',
   wordCountOrderReadMode: 'doc-container-remaining',
-  lastWorkspaceEnabled: false,
-  openMultipleFiles: false,
+  lastWorkspaceEnabled: true,
+  openMultipleFiles: true,
   arrangeSpeechSide: 'right',
   arrangeSpeechPct: 50,
   newSpeechDocInSpeechSlot: false,
@@ -2434,28 +2453,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['split view', 'split screen', 'multi pane', 'multi-doc'],
   },
   {
-    key: 'lastWorkspaceEnabled',
-    label: 'Remember my last workspace',
-    description:
-      'Off by default. On, CardMirror remembers the documents open when you quit and lists them on the Home screen under Last workspace with a tick box each, so a whole working set comes back in one click; Save Workspace and Reopen Last Workspace work from the command bar too. Off, nothing is recorded and the section never appears. Desktop only.',
-    kind: 'toggle',
-    category: 'general',
-    section: 'Workspace',
-    electronOnly: true,
-    aliases: ['last workspace', 'reopen documents', 'restore session', 'remember open documents'],
-  },
-  {
-    key: 'openMultipleFiles',
-    label: 'Open several files at once',
-    description:
-      "Off by default. On, the Open dialog lets you pick several files (Shift-click or Mod-click). In the three-pane workspace you choose one slot for the whole batch and they stack there (Ctrl-Tab cycles them); a slot's own Open button loads them into that slot. Otherwise each file opens in its own window. Desktop only.",
-    kind: 'toggle',
-    category: 'general',
-    section: 'Workspace',
-    electronOnly: true,
-    aliases: ['open multiple files', 'multi-select open', 'open several documents'],
-  },
-  {
     key: 'arrangeSpeechSide',
     label: 'Arrange Windows: speech doc side',
     description:
@@ -2507,17 +2504,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'general',
     section: 'Workspace',
     dependsOn: 'multiDocWorkspace',
-  },
-  {
-    key: 'openReplacesUntitled',
-    label: 'Opening a file replaces an untouched Untitled doc',
-    description:
-      "Off by default. On, opening a file into a slot that's showing a blank Untitled document you haven't typed in or saved closes that document, so the file takes its place instead of stacking on top of it. An Untitled doc you've typed in (even if you deleted it again), the speech doc, and co-edited docs are always kept.",
-    kind: 'toggle',
-    category: 'general',
-    section: 'Workspace',
-    dependsOn: 'multiDocWorkspace',
-    aliases: ['replace untitled', 'replace empty document', 'close blank document'],
   },
   {
     key: 'navMaxLevel',
@@ -2577,24 +2563,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'toggle',
     category: 'general',
     section: 'Editor behavior',
-  },
-  {
-    key: 'gestureZoom',
-    label: 'Pinch / Ctrl+Scroll to zoom',
-    description:
-      // The pinch/wheel gesture checks the wheel event's own `ctrlKey`
-      // flag specifically — a real, literal Ctrl key held while
-      // scrolling, same as the browser's own pinch-to-zoom convention
-      // on every platform including macOS (trackpad pinch synthesizes
-      // ctrlKey, not metaKey) — so "Ctrl" here is accurate everywhere
-      // and isn't swapped for "Cmd" on Mac. The zoom BUTTONS' own
-      // chords are the app's cross-platform Mod key, so those alone
-      // go through `ctrlOrCmdWord()`.
-      `Zoom the document with a trackpad pinch or Ctrl + mouse-wheel (in 10% steps, same as the zoom buttons and ${ctrlOrCmdWord()}-= / ${ctrlOrCmdWord()}-- chords). Off by default; enable for pinch / Ctrl-scroll zooming.`,
-    kind: 'toggle',
-    category: 'general',
-    section: 'Editor behavior',
-    aliases: ['gesture zoom', 'pinch zoom', 'ctrl scroll', 'wheel zoom', 'trackpad zoom'],
   },
   {
     key: 'jumpToDocTopOnReadModeToggle',
@@ -2834,7 +2802,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'defaultTextStyle',
     label: 'Default text style',
     description:
-      "The style a new document's first line starts in, so typing straight away lands in it. Analytic is the default; pick Clear for a plain paragraph or Undertag for undertag text. Applies to New, new speech documents without a Pocket heading, and blank opens — never to files you open.",
+      "The style a new document's first line starts in, so typing straight away lands in it. Pick any line style: Pocket, Hat, Block, Tag, Analytic (the default), Undertag, or Clear for a plain paragraph. Applies to New, new speech documents without a Pocket heading, and blank opens — never to files you open.",
     kind: 'defaultTextStyle',
     category: 'files',
     section: 'New documents',
@@ -3650,25 +3618,18 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Timer display',
   },
   {
-    key: 'timerLeftUnderTimer',
-    label: 'Show time left under the timer',
+    key: 'paceGuides',
+    label: 'Show pace guides',
     description:
-      "Off by default. Moves the first reader's \"Left\" time (what's still unread) from the bottom bar to a line under the timer, shown whenever the timer panel is open, even with the clock stopped. If the timer is hidden or popped out, the bottom bar shows it as usual. Needs \"Live read time for what is left to read\" (Settings → General → Word counts).",
+      "On by default. Two things that show where you are against the speech clock. (1) The first reader's \"Left\" time (what's still unread) moves from the bottom bar to a line under the timer's digits, shown whenever the timer panel is open, even with the clock stopped; if the timer is hidden or popped out, the bottom bar shows it as usual. This part needs \"Live read time for what is left to read\" (Settings → General → Word counts). (2) A thick blue line in the margin between the outline and the speech document: once the speech clock has started and the first reader has a speed set (it stays when paused and goes away on reset), it starts at the top of the document and moves down at the steady pace that finishes the whole document exactly when the speech time runs out; while Auto-Scroll runs, a second, fainter line marks the line it thinks you are reading. The line stays hidden when the document is more than a minute longer than the speech (probably a masterfile). Both follow read mode and the lay speaking toggle.",
     kind: 'toggle',
     category: 'appearance',
     section: 'Timer display',
-    dependsOn: 'liveRemainingReadTime',
-    aliases: ['time left', 'left under timer', 'remaining time timer', 'move left time'],
-  },
-  {
-    key: 'paceMarker',
-    label: 'Show a reading-position marker beside the document',
-    description:
-      "On by default. Draws a thick blue line in the margin between the outline and the speech document. Once the speech clock has started and the first reader has a speed set (it stays when paused and goes away on reset), it starts at the top of the document and moves down at the steady pace that finishes the whole document exactly when the speech time runs out. While Auto-Scroll runs, a second, fainter line marks the line it thinks you are reading. Both follow read mode and the lay speaking toggle. The line stays hidden when the document is more than a minute longer than the speech (probably a masterfile).",
-    kind: 'toggle',
-    category: 'appearance',
-    section: 'Timer display',
-    aliases: ['pace marker', 'blue line', 'reading line', 'where to be reading', 'teleprompter marker', 'progress marker'],
+    aliases: [
+      'time left', 'left under timer', 'remaining time timer', 'move left time',
+      'pace marker', 'reading-position marker', 'blue line', 'reading line', 'where to be reading',
+      'teleprompter marker', 'progress marker', 'pace under the timer',
+    ],
   },
   {
     key: 'timerFlashEnabled',
@@ -4838,7 +4799,7 @@ export class SettingsStore {
     for (const key of TRANSIENT_SETTING_KEYS) {
       preserved[key] = (this.values as unknown as Record<string, unknown>)[key];
     }
-    this.values = sanitize({ ...DEFAULTS, ...parsed, ...preserved } as Settings);
+    this.values = sanitize({ ...DEFAULTS, ...withLegacyPaceGuides(parsed), ...preserved } as Settings);
     this.persist();
     this.notify();
   }
@@ -4864,7 +4825,7 @@ export class SettingsStore {
           for (const key of TRANSIENT_SETTING_KEYS) {
             delete (parsed as Record<string, unknown>)[key];
           }
-          return sanitize({ ...DEFAULTS, ...parsed });
+          return sanitize({ ...DEFAULTS, ...withLegacyPaceGuides(parsed) });
         }
       }
       // Migrate legacy individual keys, if any.
@@ -4951,6 +4912,18 @@ function sanitizeVoiceProfiles(raw: unknown): Record<string, VoiceCalibrationPro
     out[device] = { aliases, updatedAt: typeof updatedAt === 'number' ? updatedAt : 0 };
   }
   return out;
+}
+
+/** `paceGuides` replaced two settings, `timerLeftUnderTimer` (off by default)
+ *  and `paceMarker` (on by default). A stored blob without the new key keeps
+ *  the guides on if either old one was on, and off only when both were off. */
+function withLegacyPaceGuides(parsed: Record<string, unknown>): Record<string, unknown> {
+  if (parsed['paceGuides'] !== undefined) return parsed;
+  if (!('paceMarker' in parsed) && !('timerLeftUnderTimer' in parsed)) return parsed;
+  return {
+    ...parsed,
+    paceGuides: parsed['paceMarker'] !== false || parsed['timerLeftUnderTimer'] === true,
+  };
 }
 
 function sanitize(s: Settings): Settings {
@@ -5096,8 +5069,7 @@ function sanitize(s: Settings): Settings {
         ? Math.min(100, Math.max(0, Math.round(s.timerSoundVolume)))
         : 70,
     timerCompact: !!s.timerCompact,
-    timerLeftUnderTimer: !!s.timerLeftUnderTimer,
-    paceMarker: s.paceMarker !== false,
+    paceGuides: s.paceGuides !== false,
     timerPrepLabel:
       s.timerPrepLabel === 'text' || s.timerPrepLabel === 'color'
         ? s.timerPrepLabel
@@ -6388,6 +6360,25 @@ export function migrateExtraFormattingDefault(): void {
     return;
   }
   if (!settings.get('showExtraFormattingButtons')) settings.set('showExtraFormattingButtons', true);
+}
+
+/** Three settings lost their Settings row and went on by default
+ *  (`lastWorkspaceEnabled`, `openMultipleFiles`, `gestureZoom`). `persist()`
+ *  snapshots every key, so an older install has `false` baked in with no way
+ *  left to change it in the UI: flip those once (marker-keyed, same pattern as
+ *  `migrateExtraFormattingDefault`). Anyone can still turn one off again in the
+ *  settings file and it sticks. */
+export function migrateWorkspaceDefaults(): void {
+  const MARKER = 'cm-workspace-defaults-migrated';
+  try {
+    if (localStorage.getItem(MARKER) !== null) return;
+    localStorage.setItem(MARKER, '1');
+  } catch {
+    return;
+  }
+  for (const key of ['lastWorkspaceEnabled', 'openMultipleFiles', 'gestureZoom'] as const) {
+    if (!settings.get(key)) settings.set(key, true);
+  }
 }
 
 /** The format a silent per-type save writes: the type's own setting, or the

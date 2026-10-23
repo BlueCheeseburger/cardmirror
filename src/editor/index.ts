@@ -183,7 +183,8 @@ import {
   ZOOM_MAX_PCT,
   CHROME_SCALE_MIN_PCT,
   CHROME_SCALE_MAX_PCT,
-  migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, migrateExtraFormattingDefault, effectiveDocTypeFormat } from './settings.js';
+  migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, migrateExtraFormattingDefault,
+  migrateWorkspaceDefaults, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
 import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.js';
 import { resolveRenameFilename, docDisplayName } from './doc-rename.js';
@@ -4729,7 +4730,7 @@ mountPaceMarker(paceTarget);
 // The bottom bar's "Left" readout moves under the ribbon timer (and back)
 // as the timer is shown, hidden or popped out.
 subscribeTimer(() => {
-  if (settings.get('timerLeftUnderTimer')) refreshWordCount({ selectionOnly: true });
+  if (settings.get('paceGuides')) refreshWordCount({ selectionOnly: true });
 });
 // Audible timer alerts — this window competes for the shared audio-
 // owner lock (the pop-out wins while it exists). No-op while the
@@ -5936,7 +5937,7 @@ function makeStarterDoc(): PMNode {
         t('F10 emphasizes', [m['emphasis_mark']!.create()]),
         t(', and '),
         t('F11 highlights', [m['highlight']!.create({ color: 'yellow' })]),
-        t(' (F9 and F11 toggle; F10 is apply-only). Mod-8 shrinks the un-underlined text for reading. The cite mark (F8) is on "Smith 24" above.',
+        t(' (F9 and F11 toggle; F10 is apply-only, and Mod-F10 removes it). Mod-8 shrinks the un-underlined text for reading. The cite mark (F8) is on "Smith 24" above.',
         ),
       ]),
     ]),
@@ -11847,6 +11848,7 @@ async function initSingleDocBoot(): Promise<void> {
     // default (2026-09-21): flip an older install's stored `false` once.
     migrateDistinguishShadingDefault();
     migrateExtraFormattingDefault();
+    migrateWorkspaceDefaults();
   }
   // Automatic update checks start from `startUpdateChecks` (module level),
   // which covers both layouts and every window.

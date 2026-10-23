@@ -2015,7 +2015,7 @@ class MultiPaneShell {
     // The footers' "Left" readout moves under the ribbon timer (and back)
     // as the timer is shown, hidden or popped out.
     subscribeTimer(() => {
-      if (!settings.get('timerLeftUnderTimer')) return;
+      if (!settings.get('paceGuides')) return;
       for (const id of SLOT_IDS) this.slots[id].refreshWordCount();
     });
 

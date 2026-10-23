@@ -82,3 +82,32 @@ describe('showExtraFormattingButtons default flip', () => {
     expect(settings.get('showExtraFormattingButtons'), 'marker present: the user\'s off sticks').toBe(false);
   });
 });
+
+describe('workspace settings without a Settings row', () => {
+  it('open several files, last workspace and pinch zoom are on by default; untitled-replace stays off', () => {
+    expect(settings.get('openMultipleFiles')).toBe(true);
+    expect(settings.get('lastWorkspaceEnabled')).toBe(true);
+    expect(settings.get('gestureZoom')).toBe(true);
+    expect(settings.get('openReplacesUntitled')).toBe(false);
+  });
+
+  it('has no Settings row for any of the four', async () => {
+    const { SETTING_METADATA } = await import('../../src/editor/settings.js');
+    const keys = new Set(SETTING_METADATA.map((m) => m.key as string));
+    for (const k of ['openMultipleFiles', 'lastWorkspaceEnabled', 'gestureZoom', 'openReplacesUntitled']) {
+      expect(keys.has(k), k).toBe(false);
+    }
+  });
+
+  it('flips a stored false once, and a later off in the file sticks', async () => {
+    const { migrateWorkspaceDefaults } = await import('../../src/editor/settings.js');
+    for (const k of ['openMultipleFiles', 'lastWorkspaceEnabled', 'gestureZoom'] as const) settings.set(k, false);
+    migrateWorkspaceDefaults();
+    for (const k of ['openMultipleFiles', 'lastWorkspaceEnabled', 'gestureZoom'] as const) {
+      expect(settings.get(k), `${k} flipped once`).toBe(true);
+    }
+    settings.set('gestureZoom', false);
+    migrateWorkspaceDefaults();
+    expect(settings.get('gestureZoom'), 'marker present: the off sticks').toBe(false);
+  });
+});
