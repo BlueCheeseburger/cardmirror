@@ -855,7 +855,7 @@ function sessionCallbacks(deps: CollabUiDeps, getSess: () => ActiveSession | nul
     onFull: () => {
       const sess = getSess();
       if (!sess || !sessions.has(sess.ownerUid)) {
-        showToast('That session is full (10 participants)');
+        showToast('That session is full');
         return;
       }
       // The join/resume half-succeeded over REST before the stream's 409:
@@ -868,7 +868,7 @@ function sessionCallbacks(deps: CollabUiDeps, getSess: () => ActiveSession | nul
       if (deps.refreshPluginsForUid) deps.refreshPluginsForUid(sess.ownerUid);
       else deps.refreshPlugins();
       showToast(
-        'The session is full (10 people) — your copy is saved; rejoin from the ' +
+        'The session is full — your copy is saved; rejoin from the ' +
           'Sessions list when someone leaves.',
       );
     },
