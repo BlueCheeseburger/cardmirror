@@ -55,6 +55,7 @@ import {
 } from './plugin-registry.js';
 import { schema } from '../schema/index.js';
 import { newHeadingId } from '../schema/ids.js';
+import { extractCard } from './extract-card.js';
 import {
   condenseBranchC,
   condenseMerge,
@@ -4607,6 +4608,7 @@ export type RibbonCommandId =
   | 'uncondense'
   | 'toggleCase'
   | 'copyPreviousCite'
+  | 'extractCard'
   | 'pasteAsText'
   | 'pasteCondensed'
   | 'clearToNormal'
@@ -4888,6 +4890,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'uncondense',
   'toggleCase',
   'copyPreviousCite',
+  'extractCard',
   'pasteAsText',
   'pasteCondensed',
   'clearToNormal',
@@ -5114,6 +5117,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   uncondense: 'Uncondense',
   toggleCase: 'Toggle Case',
   copyPreviousCite: 'Copy Previous Cite',
+  extractCard: 'Extract Card',
   pasteAsText: 'Paste Plain Text',
   pasteCondensed: 'Paste and Destructively Condense',
   clearToNormal: 'Clear',
@@ -5345,6 +5349,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   setNavDepth2: ['nav depth', 'navigation depth', 'outline level', 'level 2', 'hats'],
   setNavDepth3: ['nav depth', 'navigation depth', 'outline level', 'level 3', 'blocks'],
   setNavDepth4: ['nav depth', 'navigation depth', 'outline level', 'level 4', 'tags'],
+  extractCard: ['extract selection', 'new card from selection', 'split out card', 'pull out card', 'copy to new card'],
   alphabetizeSelectedHeadings: ['alphabetize', 'sort headings', 'sort selected', 'sort cards', 'sort alphabetically', 'a to z'],
   aiCitePromptDefault: ['cite prompt', 'cite preset', 'prompt preset', 'default prompt', 'built-in prompt'],
   aiCitePromptPreset1: ['cite prompt', 'cite preset', 'prompt preset', 'preset 1'],
@@ -5541,6 +5546,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   uncondense: 'Mod-Alt-Shift-F3',
   toggleCase: 'Shift-F3',
   copyPreviousCite: 'Alt-F8',
+  extractCard: '',
   pasteAsText: 'F2',
   pasteCondensed: '',
   clearToNormal: 'F12',
@@ -6274,6 +6280,7 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
     case 'uncondense': return uncondense();
     case 'toggleCase': return toggleCase();
     case 'copyPreviousCite': return copyPreviousCite();
+    case 'extractCard': return extractCard();
     case 'pasteAsText':
       return pasteAsText(ctx);
     case 'pasteCondensed':
