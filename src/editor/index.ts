@@ -465,9 +465,12 @@ if (!getElectronHost() && !isLiteBuild() && window.location.hash.includes('join=
     }, 600);
   } else if (joinParts) {
     const offerJoin = async (): Promise<void> => {
+      const view = joinParts.shareCode.startsWith('cmview');
       const go = await confirmDialog(
-        'Join the shared session from this link? You will edit the document live with its host.',
-        { okLabel: 'Join Session' },
+        view
+          ? 'Watch the shared session from this link? You will see every edit live but cannot make changes.'
+          : 'Join the shared session from this link? You will edit the document live with its host.',
+        { okLabel: view ? 'Watch Session' : 'Join Session' },
       );
       if (!go) return;
       const m = await loadCollabUi();
@@ -1669,6 +1672,12 @@ const ribbonContext: RibbonContext = {
   },
   collabCopyInviteLink: () => {
     void loadCollabUi().then((m) => m.copyInviteLinkFlow());
+  },
+  collabCopyViewCode: () => {
+    void loadCollabUi().then((m) => m.copyViewCodeFlow());
+  },
+  collabCopyViewLink: () => {
+    void loadCollabUi().then((m) => m.copyViewLinkFlow());
   },
   collabInviteStarred: () => {
     void loadCollabUi().then((m) => m.inviteStarredFlow());
@@ -9864,10 +9873,11 @@ export function confirmCloseUnsaved(): Promise<'save' | 'saveAs' | 'discard' | '
  *  removes ambiguity about which one is closing (multi-pane). */
 function confirmCloseCoEditedDoc(
   docName: string,
-  info: { role: 'host' | 'participant'; unsynced: number },
+  info: { role: 'host' | 'participant' | 'spectator'; unsynced: number },
 ): Promise<'keep' | 'end' | 'cancel'> {
   const name = docName ? `"${docName}"` : 'this document';
-  const leaveLabel = info.role === 'host' ? 'End session' : 'Leave session';
+  const leaveLabel =
+    info.role === 'host' ? 'End session' : info.role === 'spectator' ? 'Stop watching' : 'Leave session';
   const syncing =
     info.unsynced > 0
       ? ` ${info.unsynced} change${info.unsynced === 1 ? '' : 's'} still syncing will sync when you rejoin.`
@@ -9878,7 +9888,10 @@ function confirmCloseCoEditedDoc(
       {
         value: 'keep',
         label: 'Close',
-        description: `Keep the session — rejoin from the Sessions list to keep editing.${syncing}`,
+        description:
+          info.role === 'spectator'
+            ? 'Keep watching later — rejoin from the Sessions list.'
+            : `Keep the session — rejoin from the Sessions list to keep editing.${syncing}`,
       },
       {
         value: 'end',
@@ -9886,7 +9899,9 @@ function confirmCloseCoEditedDoc(
         description:
           info.role === 'host'
             ? 'End the session for everyone.'
-            : 'Leave the session; your copy stays as it is.',
+            : info.role === 'spectator'
+              ? 'Stop watching; this copy stays as it is and becomes editable.'
+              : 'Leave the session; your copy stays as it is.',
       },
     ],
   }).then((c) => c ?? 'cancel');
