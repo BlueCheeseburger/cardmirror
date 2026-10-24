@@ -5546,7 +5546,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   uncondense: 'Mod-Alt-Shift-F3',
   toggleCase: 'Shift-F3',
   copyPreviousCite: 'Alt-F8',
-  extractCard: '',
+  extractCard: 'Alt-Shift-F8',
   pasteAsText: 'F2',
   pasteCondensed: '',
   clearToNormal: 'F12',
