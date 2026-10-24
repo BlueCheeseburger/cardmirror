@@ -4732,6 +4732,7 @@ export type RibbonCommandId =
   | 'setNavDepth2'
   | 'setNavDepth3'
   | 'setNavDepth4'
+  | 'alphabetizeSelectedHeadings'
   // Commands that ship without a default binding — bindable via
   // Settings → Keyboard shortcuts. Each maps to a ribbon button or
   // menu item.
@@ -4989,6 +4990,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'setNavDepth2',
   'setNavDepth3',
   'setNavDepth4',
+  'alphabetizeSelectedHeadings',
   // Bindable ribbon actions with no default keys.
   'adjustFontSizeUp',
   'adjustFontSizeDown',
@@ -5203,6 +5205,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   setNavDepth2: 'Navigation Pane: Show Levels 1–2 (Hats)',
   setNavDepth3: 'Navigation Pane: Show Levels 1–3 (Blocks)',
   setNavDepth4: 'Navigation Pane: Show Levels 1–4 (Tags)',
+  alphabetizeSelectedHeadings: 'Navigation Pane: Alphabetize Selected Headings',
   adjustFontSizeUp: 'Increase Font Size by 1pt',
   adjustFontSizeDown: 'Decrease Font Size by 1pt',
   applyFontColor: 'Apply Font Color',
@@ -5290,6 +5293,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   setNavDepth2: ['nav depth', 'navigation depth', 'outline level', 'level 2', 'hats'],
   setNavDepth3: ['nav depth', 'navigation depth', 'outline level', 'level 3', 'blocks'],
   setNavDepth4: ['nav depth', 'navigation depth', 'outline level', 'level 4', 'tags'],
+  alphabetizeSelectedHeadings: ['alphabetize', 'sort headings', 'sort selected', 'sort cards', 'sort alphabetically', 'a to z'],
   convertCardsToReadMode: ['zap card', 'zap cards'],
   toggleReadMode: ['show read mode', 'hide read mode', 'invisibility mode'],
   toggleReaderView: ['reading view', 'reader view', 'paginated view', 'read view', 'book view', 'columns'],
@@ -5651,6 +5655,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   setNavDepth2: '',
   setNavDepth3: '',
   setNavDepth4: '',
+  alphabetizeSelectedHeadings: '',
   // Ribbon actions with no default key — all already reachable via
   // the ribbon, so a default chord would be noise. Bindable in
   // Settings → Keyboard shortcuts.
@@ -5930,6 +5935,10 @@ export interface RibbonContext {
    *  clicking its level button would (transient, per-panel — never
    *  written to settings). */
   setNavDepth: (level: 1 | 2 | 3 | 4) => void;
+  /** Alphabetize the focused document's nav-pane multi-selection in
+   *  place (NavigationPanel.alphabetizeSelection). False when fewer
+   *  than two headings are selected or they are already in order. */
+  alphabetizeSelectedHeadings: () => boolean;
   /** Most-recently-picked font color (hex, no `#`, e.g. `"FF0000"`)
    *  or `null` when the user has chosen "Automatic" / no explicit
    *  color. Read at invocation time by the `applyFontColor` command
@@ -6079,6 +6088,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   openFindByProximity: () => {},
   toggleNavPane: () => {},
   setNavDepth: () => {},
+  alphabetizeSelectedHeadings: () => false,
   lastFontColor: () => null,
   openSettings: () => {},
   minimizeWindow: () => {},
@@ -6932,6 +6942,11 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
         return true;
       };
     }
+    case 'alphabetizeSelectedHeadings':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        return ctx.alphabetizeSelectedHeadings();
+      };
     // ─── No-default-binding commands (keybinding parity for
     //     ribbon-button / menu actions) ──────────────────────────
     case 'adjustFontSizeUp':

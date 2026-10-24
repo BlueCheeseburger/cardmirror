@@ -186,6 +186,8 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'setNavDepth2',
       'setNavDepth3',
       'setNavDepth4',
+
+      'alphabetizeSelectedHeadings',
       'toggleMorphMode',
       'wordCountSelection',
       'openSettings',
