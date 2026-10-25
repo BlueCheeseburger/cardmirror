@@ -32,6 +32,17 @@ Two Timer display toggles that both answer "where am I against the speech clock"
 
 `DefaultTextStyle` grew from `normal | analytic | undertag` to also include `pocket | hat | block | tag`; the three old values keep their meaning, so stored settings carry over, and `sanitizeDefaultTextStyle` still falls back to `analytic` for anything unknown. `makeStyledBlock` builds an empty pocket / hat / block as a bare doc-level block and an empty tag as a `card` holding just a tag (the same wrapper idea as the analytic's `analytic_unit`), and `seedCursorOffset` now returns 2 for a `card` too, so the cursor lands inside the tag text. `isBlankSeedBlock` accepts the new shapes, which means a one-line doc holding an empty heading with no undo history now counts as an untouched Untitled doc whatever the default was when it was made; the alternative (remembering the style at creation) was rejected as more state than a doc with one empty heading deserves. The Settings radio group became a single `<select>`. Character styles (Cite, Underline, Emphasis, custom styles) are not offered: they are marks, not line styles, and an empty line can't hold one. Tests: `multi-pane-blank-doc`, `blank-doc-untouched`. Checked the drop-down in Chromium; creating a document in each style was covered by unit tests only, not clicked through in the app.
 
+### From upstream: 1.16.0 sync, and how the overlaps were resolved (`reading-marker.ts`, `nav-panel.ts`, `clipboard-slice.ts`, `settings.ts`, `multi-pane-shell.ts`, `index.ts`)
+
+The user-facing summary is in CHANGELOG.md's `### From upstream`; upstream's own detailed 1.16.0 section is further down this file. `package.json` and `apps/desktop/package.json` are set to `1.16.0-bcb.1` (the next tag); nothing is released yet. Where this fork and upstream had built the same thing, the user chose per area:
+
+- **Reading markers: upstream's recognition, plus this fork's label and Mark Card.** Upstream recognizes a marker by a `role: 'marker'` attr on its `font_color` mark (`schema/reading-marker.ts`, with a dormant `reading_marker` atom node and `normalizeReadingMarkers` on every load, which gives legacy red "Marked …" runs the role and strips it from mangled ones). This fork recognized red text reading "Marked …" and added a timer-relative label, `Marked at m:ss`, while the speech timer runs. The two met at `READING_MARKER_TEXT_RE` and its scan twin, which only accepted `Marked h:mm`: a `Marked at 2:15` run would have lost its role on the next load. Both now accept an optional `at `. `editor/reading-marker.ts` keeps `markerLabel`, and `markCardsCommand` / `buildMarkCardsTransaction` now stamp the role; `toggle`/insert drops any other marker in the card (upstream's one-per-card rule); the fork's own text-based `isMarkerText`, `containsReadingMarker` copies and `isReadingMarkerColor` use are gone in favor of upstream's. A red run reading "Marked 7:32" with no role is no longer counted (the export test now uses a role-bearing run). The outline's render-key cache (upstream's new perf work in `nav-panel.ts`) had to learn this fork's inputs, mark flags and roll-ups and the star state, or those rows would not repaint.
+- **Outline follows scrolling: this fork's version kept.** Upstream's `navFollowScroll` setting (off by default, light the section at the top of the window) is removed along with its `installScrollFollow` and test; this fork's always-on follower at the reading line (a third down) stays.
+- **Read-mode copy: this fork's filter kept.** Upstream's `read-mode-copy.ts`, its `readModeCopyVisible` setting and its test are removed; `filterSliceForReadMode` in `read-mode-plugin.ts` (and `readModeAware` in `clipboard-slice.ts`) stays. Upstream's other read-mode changes, comments allowed in read mode and bare-key shortcuts that don't edit, came through as they were.
+- **Save-by-uid.** Both sides had separately fixed Save As and keep-both landing on whichever pane was focused. This fork's version (`getFileForUid`, a `focusedDocUid` pin, `abortSaveForFocusChange`, boolean-returning setters) was kept in `index.ts` and `multi-pane-shell.ts`; upstream's `commitSaveResultFor`, `setDocIdFor` and void-returning setters were dropped, and the duplicate `setDocIdForUid` entries collapsed to one. Upstream's `autosavePendingSince` (autosave no longer starved by a busy stretch) lives next to this fork's `autosaveError`, and the three-pane autosave check keeps accepting `.docx`.
+- **Smaller merges.** The slot chooser builds its buttons from nodes (upstream's markup fix) and keeps this fork's number-key hints; `write-file-at-path` runs both this fork's save-over-an-open-document refusal and upstream's `isWriteAllowed` scope check; `version-history.ts` keeps this fork's `parseSnapshotBytes`; imports in `ribbon-commands.ts`, `electron-host.ts`, `read-mode-plugin.ts` and `settings-ui.ts` are unions; the outline right-click menu keeps upstream's **Alphabetize N headings** but not its **Create live view / linked copy of heading** rows (removed in this fork in 1.15.0-bcb.4); subscript stays unbound as upstream made it; the MANUAL's web-collaboration section, which upstream added, is left out because this fork's manual no longer documents the web edition.
+- **Verified:** root and desktop typecheck pass, and every test outside `tests/collab` passes. In this sandbox `tests/collab` fails the same 128 lines before and after the merge, plus one new upstream test (`inbound micro-batching…keeps the undo stack`) that needs the same missing Loro environment; CI is the real check for it. Not verified in the desktop app.
+
 
 ## 1.15.0-bcb.10 — 2026-10-23
 
@@ -2850,6 +2861,188 @@ history.
 *The sections below are upstream CardMirror's own detailed release notes,
 synced into this fork. For the user-facing short summary of each upstream
 release, see [CHANGELOG.md § Upstream Releases](./CHANGELOG.md#upstream-releases).*
+
+## 1.16.0 — 2026-10-24
+
+### Added: Spectators (view-only sessions)
+
+Role union `SessionRole = 'host' | 'participant' | 'spectator'`
+(`collab/session-role.ts`). A view code is the share code's twin with a
+new prefix — `cmview1.<room>.<key>[.<floor>]` (`encodeViewCode`,
+`viewCodeFromShareCode`, `decodeShareCode` returns `view`) — so builds
+before 1.16 reject it as "not a share code"; spectate invites carry a
+`SPECTATOR_MIN_VERSION = '1.16.0'` envelope floor so older Receive pills
+show the update toast rather than a Join. Relay side (official relay
+a2cff09): a guest pass minted with `role='view'` is accepted on the
+stream and catch-up reads and refused (403) on updates / snapshot /
+presence (`require_room_write_auth`); room create and the host re-mint
+return `viewPass`; `GET /rooms/{id}/view-pass` mints one for any room
+credential; viewer streams count against `MAX_VIEW_STREAMS_PER_ROOM = 100`
+separately from the 30 editor seats; the hello frame carries `watchers`
+and a `w` frame is broadcast on every change; a refused editor's 409 body
+carries a `viewPass`. Client side: a spectator session authenticates with
+the view pass ONLY (`relayClientWithViewPass`; a desktop client fetches
+one with its own credentials and then drops them), and
+`CollabSession.plugins()` adds `spectatorLockPlugin` — a
+`filterTransaction` that rejects every document-changing transaction
+except the binding's own (sync-origin or the Loro plugin metas) — so no
+local change ever reaches the CRDT; `flush`, `flushForUnload`,
+`sendPresence` and the history-audit repost are no-ops for the role.
+`RoomStream` parses `watchers` / `w` frames (`onWatchers`) and reads the
+409 body (`onFull(viewPass)`); collab-ui offers "watch instead" via
+`confirmDialog`, deleting the kept editor record first. Records persist
+the spectator role with the pass; a join by code resumes a record only
+of the same kind (edit ↔ edit, view ↔ view). UI: Send pill 2×2 action
+grid + side column (gear over icon-only Add contact; drag mode reflows
+to the old two-zone row), per-contact Invite to spectate
+(`CollabInviteTarget.mode`), Receive pill Watch rows, chip/footer
+"· N watching", Stop Watching wording in the end flow and close dialog,
+home-screen Sessions chip WATCHING, commands `collabCopyViewCode` /
+`collabCopyViewLink`. Contract suite section 16 (17 checks). Tests:
+collab-crypto, join-link, room-invite-view, room-client (watchers + 409
+pass), collab-spectator, two collab-ui-flows cases, send-pill-actions.
+
+### Added: 30 editor seats
+
+Relay `MAX_STREAMS_PER_ROOM` 10 → 30 (d1b14a5); the session-full toasts
+no longer state a number; the contract suite reads one
+`ROOM_CAP_DEFAULT`. Note for operators: the relay's deploy is gated on
+the contract suite, so a cap change must land in CardMirror main first.
+
+### Added: Extract Card
+
+`src/editor/extract-card.ts`: `buildExtractCardTransaction(state)` copies
+the selected `card_body` spans (clipped, multi-paragraph preserved) into a
+new container of the source's type — heading copy with a fresh id, every
+`cite_paragraph` of the source, then the bodies — inserted at
+`$from.after(1)`; the selection is re-set to itself so nothing scrolls.
+Refuses an empty selection, a selection touching the tag / a cite / an
+undertag / a table or spanning two containers, and read mode. Numbering
+role kept, restart dropped. Ribbon `extractCard`, default Alt-Shift-F8,
+Citations group. Tests: `tests/editor/extract-card.test.ts`.
+
+### Added: AI cite-creator prompt presets
+
+`aiCitePromptPresets: CitePromptPreset[]` (max `MAX_CITE_PROMPT_PRESETS`
+= 10) + `aiCitePromptActive` (-1 = built-in). `aiCitePrompt` stays a
+MIRROR of the active preset so the cite creator, Reformat Every Cite,
+settings backups and older builds read exactly what they did; every
+write goes through `ai/cite-prompt-presets.ts` and the sanitizer
+re-derives the mirror on load (a legacy custom prompt migrates to one
+active preset "My prompt"). Settings row = picker + Edit / New preset /
+Delete (two-click); the modal gains a name field. Commands
+`aiCitePromptDefault`, `aiCitePromptPreset1..10`.
+
+### Added: Alphabetize Selected Headings
+
+`alphabetize-headings.ts`: `alphabetizeSlots(tr, slots)` sorts the
+selected sections (Intl.Collator numeric/base, stable) and writes them
+back into the slots they occupied, back to front; slots are positional
+across parents. `NavigationPanel.alphabetizeSelection()`, context-menu
+item, ribbon `alphabetizeSelectedHeadings` (unbound).
+
+### Added: File → Open Recent / Rejoin Recent Session (macOS)
+
+`menu-recents.ts` builds a compact payload from the recents store and
+the saved session records; the renderer pushes it on boot and on every
+change of either store (`host:set-menu-recents`), main rebuilds the two
+submenus, and a pick comes back as `menu-open-recent`. File picks run
+`openRecentInPlace`; session picks run the home screen's resume path,
+now the named `resumeSessionFromHome`. Clear Menu clears the shared
+store. Main-process change: a running dev build needs a restart.
+
+### Added: forward-only insert snapping
+
+`insertHeadingsAfterSection` → `nearestValidInsertPos(..., { forward })`
+picks the first valid outline slot at or after the caret;
+`insertAtCursorPos` reads the setting and serves the receive pill, the
+shelf, send-to-speech and external inserts. Cut in Place keeps the
+nearest rule.
+
+### Added: navFollowScroll (#109), smart-quote digit flip (#108)
+
+`navFollowScroll` highlights the top-of-window section once the caret is
+out of view; pane scrolling stays `navFollowCursor`'s call.
+`smartQuotesDigitApostrophe` (on) flips `'` before a digit to `’`;
+Backspace right after restores it.
+
+### Added: comments in read mode; read-mode copy
+
+`isCommentMarkOnly(tr)` (Add/RemoveMarkStep of `comment_range` only) is
+admitted by read mode's `filterTransaction`. `read-mode-copy.ts`:
+`readModeVisibleSlice` + a `transformCopied` plugin; setting
+`readModeCopyVisible` (on); partial-card copies follow
+`readModeParagraphIntegrity`.
+
+### Changed
+
+- **Reading markers** (`schema/reading-marker.ts`): the `font_color` mark
+  gains `role: 'marker' | null`; a marker is the role, not FF0000.
+  `normalizeReadingMarkers` runs on native load and .docx import (red
+  `Marked h:mm` runs get the role; mangled role runs lose it);
+  `buildInsertReadingMarkerTransaction` removes other markers in the
+  card so a second tap clears. A dormant `reading_marker` inline atom is
+  in the schema for a later release.
+- **Highlight underlined text only** exempts pocket / hat / block / tag /
+  cite_paragraph / analytic (`UNDERLINE_FILTER_EXEMPT`).
+- **Folder browse search** lists folders at any depth (`deriveBrowse`,
+  shallowest first; folder rows carry `subPath`). The ROOTS level searches
+  every root: `FileBrowseParams.location: null` → `deriveBrowseAcrossRoots`
+  (folders from all roots, then files, rows tagged with `root`); the
+  palette prepends matching root names and leads each row's meta with its
+  root.
+- **Shrink** scopes by `isShrinkBodyBlock` = body type AND no cite-marked
+  text (`hasCiteMark`, exported from the classifier); `citeLeftUnstyled`
+  toasts on a zero-token reply too.
+- **Read mode bare keys**: the swallow moved from a DOM keydown to a
+  `handleKeyDown` prop after the keymaps.
+- Discontinuous deselect (#110): `selectedRangeIndexForUnit` +
+  `setManualShadowSelection`.
+- Large-doc typing (#107): deferred nav / word-count / comments work
+  waits for a real quiet period, then an idle slot.
+- Nav scroll per doc in a slot (#106).
+- Subscript default key removed (Zoom In owned Mod-=); a test asserts
+  default keys are unique.
+
+### Fixed: co-editing undo (#112, Riley Reichel)
+
+`importBatch` reattaches through a checkout whose event empties Loro's
+`UndoManager` (reproduced on loro-crdt 1.13.6; a canary test pins it).
+`importLive` imports relay frames one at a time; a multi-frame burst
+runs under a render hold (`__CM_HOLD_IMPORTS__`, loro-prosemirror patch):
+each import event only invalidates its containers' cached nodes, and
+closing the hold takes `doc.diff(start, end)` — the burst's net diff in
+the shape the batch event carried — and renders it once through the
+normal `updateNodeOnLoroEvent` path (exact steps, bounded-replace
+fallback, selection restore). `diff` emits no checkout, so the undo
+stack is untouched. Side effect: the undo guard's partner-touched
+bookkeeping, keyed off the last event's `by`, now sees bursts as
+imports rather than checkouts.
+
+### Fixed: saving, web, import, security
+
+Web: beforeunload prompt + journal flush on hide/unload; three-pane
+autosave accepts a FileSystemFileHandle; Quick Cards writes are
+read-apply-write under a Web Lock and migrate from localStorage once;
+EMODIFIED-style refusal when the file changed on disk; a spawned window
+keeps its file handle. Desktop: autosave / journal debounces fire after
+30 s pending; the save re-checks freshness before each rename retry and
+the in-place fallback; Save As / keep-both capture the session uid
+before the first await; mode switch throws when a journal write fails;
+recovery sidebar and Bulk Convert share `nativeBytesToDocx`
+(transformForExport → flattenSelfRefs → toDocx); Bulk Convert never
+overwrites; version history previews .docx snapshots; the single-doc
+journal captures identity before the serialize await. Import keeps text
+in smart tags / content controls / custom XML / simple fields, `w:cr`,
+`w:sym`, images in `mc:AlternateContent` and VML. Highlight-frequency
+overrides are per view. AI requests time out on a stalled body. Previews
+(`.pmd-recover-preview-scroll`) use the doc-paper colour. Security:
+clipboard HTML parsed via `createHTMLDocument` + prosemirror-view 1.42.6
+(GHSA-c8x8-7fp4-3x9w); window-open / navigation guard on every window
+with safe link schemes; `host:write-file-at-path` scoped to documents
+inside library roots, session-picked directories or the speech folder;
+route dialog labels built from text nodes. Self-hosted relay: bounded
+gzip inflation; compaction row lock + reader share lock.
 
 ## 1.15.0 — 2026-10-07
 
