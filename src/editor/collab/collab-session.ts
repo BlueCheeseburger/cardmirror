@@ -6,7 +6,7 @@
  *   outbound  editor → LoroSyncPlugin → LoroDoc → (flush timer)
  *             export update-since-lastSent → encrypt → POST /updates
  *   inbound   SSE update frame (or catch-up GET) → decrypt →
- *             importBatch → Loro events → LoroSyncPlugin → editor
+ *             importLive → Loro events → LoroSyncPlugin → editor
  *
  * Version bookkeeping invariant: everything covered by `lastSentVersion`
  * has either been queued for send or arrived from remote. `applyRemote`
@@ -63,6 +63,12 @@ import {
 } from './room-client.js';
 
 type SyncDoc = Parameters<typeof LoroSyncPlugin>[0]['doc'];
+
+declare global {
+  /** loro-prosemirror patch: imports inside `fn` render as one editor transaction. */
+  // eslint-disable-next-line no-var
+  var __CM_HOLD_IMPORTS__: (<T>(doc: LoroDoc, fn: () => T) => T) | undefined;
+}
 
 /** Mirrors loro-prosemirror's configLoroTextStyle: PM `inclusive` is the
  *  local statement of Peritext expand behavior; the CRDT-level config
@@ -325,8 +331,31 @@ export class CollabSession {
    *  review, SC1). */
   private pendingSpans = new Map<string, { start: number; end: number }>();
 
+  /** Import relay frames into the LIVE doc one at a time, never via
+   *  `importBatch`: Loro reattaches a batch with a checkout, and the checkout
+   *  clears the session UndoManager (the next local edit misses the stack too).
+   *  A burst of partner frames used to wipe Ctrl+Z (field report 2026-10-24).
+   *  A multi-frame burst still renders as ONE editor transaction under the
+   *  binding's hold (`__CM_HOLD_IMPORTS__`, loro-prosemirror patch). Returns
+   *  whether these frames left ops waiting on missing deps. */
+  private importLive(blobs: Uint8Array[]): boolean {
+    const parkedPeers = new Set<string>();
+    const importEach = (): void => {
+      for (const blob of blobs) {
+        const status = this.loroDoc.import(blob);
+        this.notePending(status);
+        for (const peer of status.pending?.keys() ?? []) parkedPeers.add(peer);
+      }
+    };
+    const hold = globalThis.__CM_HOLD_IMPORTS__;
+    if (blobs.length > 1 && hold) hold(this.loroDoc, importEach);
+    else importEach();
+    // notePending already dropped the spans a later frame resolved.
+    return [...parkedPeers].some((peer) => this.pendingSpans.has(peer));
+  }
+
   /** Fold one import's status into the parked-span ledger and re-derive
-   *  pendingImports. Call after EVERY importBatch. */
+   *  pendingImports. Call after EVERY live import. */
   private notePending(status: { pending: Map<string, { start: number; end: number }> | null }): void {
     if (status.pending) {
       for (const [peer, span] of status.pending) {
@@ -873,14 +902,14 @@ export class CollabSession {
   private inboundSeqs: number[] = [];
   private static readonly IMPORTED_SEQS_CAP = 5000;
   private catchUpRowsSkipped = 0;
-  /** Byte bound on one inbound importBatch: a push burst (a reconnect
+  /** Byte bound on one inbound drain: a push burst (a reconnect
    *  repost, the audit's full-history chunks) used to land as ONE
    *  synchronous import of everything the 120ms window collected
    *  (2026-09-01 review, SC13). The buffer is drop-safe by design
    *  (the cursor never advanced past it), so slicing it is too. */
   private readonly inboundBatchBytes: number;
   private inboundDrains = 0;
-  /** Byte bound on one full-resync importBatch: the escalation path
+  /** Byte bound on one full-resync import slice: the escalation path
    *  buffered every decrypted blob of the whole room, then blocked the
    *  main thread on one giant import (SC12). pendingLeft semantics are
    *  preserved by folding every slice's status into the span ledger. */
@@ -1204,9 +1233,10 @@ export class CollabSession {
     // Per-FRAME bookkeeping happens at arrival: the audit ledger is
     // per relay row (foldTailMeta), and the echo watchdog already
     // cleared in onUpdate. The IMPORT is micro-batched below — frames
-    // arriving within receiveBatchMs land as one importBatch → one
-    // binding transaction → one plugin-pipeline pass, instead of a
-    // full cycle per frame (perf study 2026-08-06).
+    // arriving within receiveBatchMs drain together → one binding
+    // transaction → one plugin-pipeline pass, instead of a full cycle per
+    // frame (perf study 2026-08-06). Each frame is still its own Loro
+    // import so undo history survives (see importLive).
     this.foldTailMeta(u.seq, plain);
     // NOTE: the decrypt above is awaited, so buffer order is arrival-of-
     // plaintext order, not seq order. Harmless for a CRDT import batch —
@@ -1242,9 +1272,9 @@ export class CollabSession {
     }
     this.inboundDrains++;
     this.flush(); // capture local diff before import (see module doc)
-    let status: ReturnType<LoroDoc['importBatch']>;
+    let parked: boolean;
     try {
-      status = this.loroDoc.importBatch(batch);
+      parked = this.importLive(batch);
     } catch (err) {
       // A corrupt frame fails the whole batch. NOT marking these seqs as
       // imported is what lets the next catch-up re-fetch them (knock-on
@@ -1256,7 +1286,6 @@ export class CollabSession {
     // Only now are these rows "already imported" for catch-up's skip list.
     if (this.importedSeqs.size + batchSeqs.length > CollabSession.IMPORTED_SEQS_CAP) this.importedSeqs.clear();
     for (const seq of batchSeqs) this.importedSeqs.add(seq);
-    this.notePending(status);
     this.markImportedSent();
     // The cursor does NOT advance from stream frames — ONLY from
     // catch-up pages. A pushed frame proves nothing about the rows
@@ -1274,7 +1303,7 @@ export class CollabSession {
     // fetch them now instead of waiting for the periodic catch-up. The
     // missing deps sit BELOW our cursor, so the catch-up must be
     // allowed to escalate to a full resync.
-    if (status.pending && status.pending.size > 0) {
+    if (parked) {
       void this.catchUp(true);
     }
   }
@@ -1355,13 +1384,12 @@ export class CollabSession {
           importedAny = true;
           importedCount += blobs.length;
           this.flush();
-          const status = this.loroDoc.importBatch(blobs);
+          const parked = this.importLive(blobs);
           this.markImportedSent();
           // ACCUMULATE across pages — a clean later page must not cancel
           // the full resync a dirty earlier page requested (audit find,
           // 2026-07-10).
-          pendingLeft = pendingLeft || (!!status.pending && status.pending.size > 0);
-          this.notePending(status);
+          pendingLeft = pendingLeft || parked;
         }
         const advanced = page.lastSeq > this.lastSeq;
         if (advanced) {
@@ -1392,9 +1420,8 @@ export class CollabSession {
         const importSlice = (): void => {
           if (blobs.length === 0) return;
           this.flush();
-          const status = this.loroDoc.importBatch(blobs);
+          this.importLive(blobs);
           this.markImportedSent();
-          this.notePending(status);
           this.resyncSlices++;
           importedAnySlice = true;
           blobs = [];
