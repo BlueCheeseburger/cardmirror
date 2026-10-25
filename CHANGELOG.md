@@ -111,7 +111,9 @@ see `DETAILED_CHANGELOG.md`.
 
 - **Folder browsing (`/`):** typing a search now lists matching folders
   at any depth below the folder you're in, each showing where it sits,
-  not only the immediate subfolders.
+  not only the immediate subfolders — and at the top level, before you
+  step into a folder, the search runs across all of your file-search
+  folders at once, each result led by the folder it came from.
 
 - **Shrink skips cite lines by content** as well as by paragraph type,
   so a cite whose paragraph type hadn't caught up can no longer be

@@ -129,7 +129,11 @@ admitted by read mode's `filterTransaction`. `read-mode-copy.ts`:
 - **Highlight underlined text only** exempts pocket / hat / block / tag /
   cite_paragraph / analytic (`UNDERLINE_FILTER_EXEMPT`).
 - **Folder browse search** lists folders at any depth (`deriveBrowse`,
-  shallowest first; folder rows carry `subPath`).
+  shallowest first; folder rows carry `subPath`). The ROOTS level searches
+  every root: `FileBrowseParams.location: null` → `deriveBrowseAcrossRoots`
+  (folders from all roots, then files, rows tagged with `root`); the
+  palette prepends matching root names and leads each row's meta with its
+  root.
 - **Shrink** scopes by `isShrinkBodyBlock` = body type AND no cite-marked
   text (`hasCiteMark`, exported from the classifier); `citeLeftUnstyled`
   toasts on a zero-token reply too.
