@@ -263,6 +263,9 @@ function pushPaneDocInfo(uid: string, filename: string | null): void {
 
 /** Debounce window for per-DocRecord journal writes. */
 const RECORD_JOURNAL_DELAY_MS = 3000;
+/** See index.ts PENDING_WRITE_MAX_WAIT_MS: a write pending this long fires
+ *  on the next edit instead of being pushed back again. */
+const PENDING_WRITE_MAX_WAIT_MS = 30_000;
 
 // Per-record write chains: with the gzip step async, two debounce
 // rounds for the SAME record could otherwise overlap in flight and
@@ -277,24 +280,30 @@ function scheduleJournalForRecord(record: DocRecord): void {
   const host = getHost();
   if (!host.journalsSupported) return;
   if (record.journalTimer !== null) window.clearTimeout(record.journalTimer);
+  const now = Date.now();
+  if (record.journalPendingSince === null) record.journalPendingSince = now;
+  const overdue = now - record.journalPendingSince >= PENDING_WRITE_MAX_WAIT_MS;
   record.journalTimer = window.setTimeout(() => {
     record.journalTimer = null;
+    record.journalPendingSince = null;
     const prev = recordJournalChains.get(record) ?? Promise.resolve();
     recordJournalChains.set(
       record,
       prev
         .then(() => runJournalForRecord(record))
+        .then(() => undefined)
         .catch((err) => console.warn('Journal (record) write crashed:', err)),
     );
-  }, RECORD_JOURNAL_DELAY_MS);
+  }, overdue ? 0 : RECORD_JOURNAL_DELAY_MS);
 }
 
 /** Actually serialize + write `record`'s current doc as a journal
- *  entry under its uid. Best-effort — logs failures, doesn't
- *  surface them to the user. */
-async function runJournalForRecord(record: DocRecord): Promise<void> {
+ *  entry under its uid. Logs failures; returns false so the mode-switch
+ *  flow (the one caller that must know) can abort instead of reloading
+ *  as if the doc were safe. The debounced path ignores the result. */
+async function runJournalForRecord(record: DocRecord): Promise<boolean> {
   const host = getHost();
-  if (!host.journalsSupported) return;
+  if (!host.journalsSupported) return true;
   try {
     const state = record.view.state;
     const bytes = await serializeNativeAsync(state.doc, {
@@ -316,8 +325,10 @@ async function runJournalForRecord(record: DocRecord): Promise<void> {
       ...(recoveredFrom ? { recoveredFromSavedAt: recoveredFrom } : {}),
       bytes,
     });
+    return true;
   } catch (err) {
     console.warn('Journal write failed:', err);
+    return false;
   }
 }
 
@@ -473,8 +484,12 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
 function scheduleAutosaveForRecord(record: DocRecord): void {
   if (!record.autosaveEnabled) return;
   if (record.autosaveTimer !== null) window.clearTimeout(record.autosaveTimer);
+  const now = Date.now();
+  if (record.autosavePendingSince === null) record.autosavePendingSince = now;
+  const overdue = now - record.autosavePendingSince >= PENDING_WRITE_MAX_WAIT_MS;
   record.autosaveTimer = window.setTimeout(() => {
     record.autosaveTimer = null;
+    record.autosavePendingSince = null;
     const prev = recordAutosaveChains.get(record) ?? Promise.resolve();
     // .catch keeps the chain fulfilled — one guard-line throw must not kill
     // this record's autosave for the session (same fix as the single-doc chain).
@@ -484,7 +499,7 @@ function scheduleAutosaveForRecord(record: DocRecord): void {
         .then(() => runAutosaveForRecord(record))
         .catch((err) => reportAutosaveFailure(record.filename, err)),
     );
-  }, AUTOSAVE_DELAY_MS);
+  }, overdue ? 0 : AUTOSAVE_DELAY_MS);
 }
 
 /**
@@ -495,7 +510,9 @@ function scheduleAutosaveForRecord(record: DocRecord): void {
  * surface. Scroll does NOT live in the retained view: the scroller
  * is the slot's shared `.pmd-pane-body`, which clamps to 0 the
  * moment the editor detaches — so the viewport is carried per-doc
- * via `savedScrollTop` across detach / mount instead.
+ * via `savedScrollTop` across detach / mount instead. The outline is
+ * the same story one column over (shared `.pmd-multi-nav-body`,
+ * carried via `savedNavScrollTop`).
  */
 interface DocRecord {
   uid: string;
@@ -520,6 +537,11 @@ interface DocRecord {
    *  clamps it against the doc's height). 0 for fresh docs, so a
    *  doc opened on top of another starts at the top. */
   savedScrollTop: number;
+  /** Same as `savedScrollTop`, for the slot's outline scroller
+   *  (`.pmd-multi-nav-body`) — without it, switching docs in a slot
+   *  dropped the outline back to the top (or to wherever the other
+   *  doc's outline happened to clamp). */
+  savedNavScrollTop: number;
   navPanel: NavigationPanel;
   /** The slot this record currently lives in — maintained by
    *  `Slot.push`. The record's dispatchTransaction refreshes THIS
@@ -546,6 +568,8 @@ interface DocRecord {
    *  by every doc-changing transaction; fires `~3s` later with a
    *  cmir snapshot of this record's current doc. */
   journalTimer: number | null;
+  /** When the first not-yet-written edit landed (max-wait anchor). */
+  journalPendingSince: number | null;
   /** Per-doc read-mode state. Multi-doc treats read mode as a
    *  property of an individual open doc — the ribbon toggle flips
    *  this for the focused pane only, leaving other panes untouched. */
@@ -573,6 +597,7 @@ interface DocRecord {
    *  THAT doc's own error state, not whatever the previously-visible
    *  doc left behind. Cleared by the next successful save. */
   autosaveError: boolean;
+  autosavePendingSince: number | null;
   /** Stable per-document id for the Learn annotation layer (SPEC §3.1).
    *  Read from the file on open; minted on first save (`ensureActiveDocId`
    *  in index.ts, via `setFocusedDocId`); null for a never-saved doc (its
@@ -1453,6 +1478,8 @@ class Slot {
       this.bodyEl.removeChild(rec.editorEl);
     }
     if (rec.navEl.parentElement === this.navBodyEl) {
+      // Same capture-before-detach as the editor scroller above.
+      this.captureNavScroll();
       this.navBodyEl.removeChild(rec.navEl);
     }
     // Closing the last doc in a slot needs to drop that filename
@@ -1472,6 +1499,7 @@ class Slot {
     // browser clamps against.
     this.bodyEl.scrollTop = rec.savedScrollTop;
     this.navBodyEl.appendChild(rec.navEl);
+    this.restoreNavScroll();
     this.chipNameEl.textContent = docDisplayName(rec.filename);
     this.refreshChip();
     this.refreshChipSaveState();
@@ -1545,6 +1573,24 @@ class Slot {
    *  (read mode) without going through `mountVisible`. */
   refreshDiskBadge(): void {
     this.diskBadge.refresh();
+  }
+
+  /** Record the visible doc's outline scroll offset. A hidden section
+   *  reads 0 whatever its real offset was, so it keeps the last value
+   *  captured while it showed. */
+  captureNavScroll(): void {
+    const rec = this.visible;
+    if (!rec || this.navSectionEl.hidden) return;
+    rec.savedNavScrollTop = this.navBodyEl.scrollTop;
+  }
+
+  /** Put the visible doc's outline back where `captureNavScroll` left
+   *  it. A no-op while the section is hidden — `reconcileNavRail`
+   *  calls this again once it shows. */
+  restoreNavScroll(): void {
+    const rec = this.visible;
+    if (!rec) return;
+    this.navBodyEl.scrollTop = rec.savedNavScrollTop;
   }
 
   /** Update the chip's stack-dropdown trigger visibility based on
@@ -1666,13 +1712,15 @@ class Slot {
       return;
     }
     this.copresenceEl.hidden = false;
-    const text = cp.connected
+    let text = cp.connected
       ? cp.queued > 0
         ? `Sending ${cp.queued}…`
         : 'Synced'
       : cp.queued > 0
         ? `Offline · ${cp.queued}`
         : 'Offline';
+    if (cp.role === 'spectator') text = `Watching · ${text.toLowerCase()}`;
+    if (cp.watchers > 0) text += ` · ${cp.watchers} watching`;
     const labelEl = document.createElement('span');
     labelEl.className = 'pmd-pane-copresence-label';
     labelEl.textContent = text;
@@ -2015,7 +2063,7 @@ class MultiPaneShell {
     // The footers' "Left" readout moves under the ribbon timer (and back)
     // as the timer is shown, hidden or popped out.
     subscribeTimer(() => {
-      if (!settings.get('timerLeftUnderTimer')) return;
+      if (!settings.get('paceGuides')) return;
       for (const id of SLOT_IDS) this.slots[id].refreshWordCount();
     });
 
@@ -2486,9 +2534,15 @@ class MultiPaneShell {
    *  individually closed (`navHidden`). */
   reconcileNavRail(): void {
     const visible: Slot[] = [];
+    const reshown: Slot[] = [];
     for (const id of SLOT_IDS) {
       const slot = this.slots[id];
       const show = this.slotShown(slot) && !slot.navHidden;
+      // Hiding a section zeroes its scroller, so carry the outline's
+      // place across a hide / show (outline toggle, expand mode, a doc
+      // sent to an empty slot) the same way a doc switch does.
+      if (show && slot.navSectionEl.hidden) reshown.push(slot);
+      if (!show) slot.captureNavScroll();
       slot.navSectionEl.hidden = !show;
       if (show) visible.push(slot);
     }
@@ -2523,6 +2577,9 @@ class MultiPaneShell {
     if (anyDocOpen && settings.get('navPaneVisible') === railEmpty) {
       settings.set('navPaneVisible', !railEmpty);
     }
+    // After the rail, the flex weights and the `pmd-nav-hidden` class are
+    // settled, so the offset clamps against the section's real height.
+    for (const slot of reshown) slot.restoreNavScroll();
     this.scheduleSyncAllCardIntrinsicWidths();
   }
 
@@ -3173,12 +3230,35 @@ class MultiPaneShell {
     rec.autosaveEnabled = !rec.autosaveEnabled;
     // Remember the choice per-file so it survives close + reopen.
     setAutosaveForPath(rec.handle, rec.autosaveEnabled);
+    // Turning it ON: secure write permission now, while this click's
+    // activation is fresh — the timer-fired write has no gesture to
+    // prompt from (same as the single-doc toggle).
+    if (rec.autosaveEnabled && rec.handle != null) void getHost().ensureWritable(rec.handle);
     if (!rec.autosaveEnabled && rec.autosaveTimer !== null) {
       window.clearTimeout(rec.autosaveTimer);
       rec.autosaveTimer = null;
     }
     setActiveView(rec.view);
     slot.refreshChipSaveState();
+  }
+
+  /** Any open record with unsaved edits? (web unload prompt) */
+  anyDirty(): boolean {
+    return SLOT_IDS.some((id) => this.slots[id].stack.some((rec) => rec.dirty));
+  }
+
+  /** Flush every pending debounced journal NOW (page is being hidden /
+   *  closed): cancel the timers and fire the writes immediately. */
+  flushJournals(): void {
+    for (const id of SLOT_IDS) {
+      for (const rec of this.slots[id].stack) {
+        if (rec.journalTimer === null) continue;
+        window.clearTimeout(rec.journalTimer);
+        rec.journalTimer = null;
+        const prev = recordJournalChains.get(rec) ?? Promise.resolve();
+        recordJournalChains.set(rec, prev.then(() => runJournalForRecord(rec)).then(() => undefined).catch(() => undefined));
+      }
+    }
   }
 
   /** Clean token for the focused pane — captured by the single-doc
@@ -3460,7 +3540,7 @@ class MultiPaneShell {
     rec.handle = file.handle;
     setViewDocPath(rec.view, typeof file.handle === 'string' ? file.handle : null);
     rec.format = file.format;
-    slot.refreshChipFilename();
+    if (slot.visible === rec) slot.refreshChipFilename();
     // Save-As may have minted a handle for a brand-new doc, or changed
     // format — either flips the autosave-effective state this chip shows.
     slot.refreshChipSaveState();
@@ -3480,7 +3560,7 @@ class MultiPaneShell {
    *  mode-switch marker scopes the post-reload reopen to exactly
    *  this list. */
   async journalAll(): Promise<Array<{ uid: string; dirty: boolean }>> {
-    const tasks: Promise<void>[] = [];
+    const tasks: Promise<boolean>[] = [];
     const docs: Array<{ uid: string; dirty: boolean }> = [];
     for (const id of SLOT_IDS) {
       for (const rec of this.slots[id].stack) {
@@ -3492,7 +3572,13 @@ class MultiPaneShell {
         docs.push({ uid: rec.uid, dirty: rec.dirty });
       }
     }
-    await Promise.all(tasks);
+    const results = await Promise.all(tasks);
+    const failed = results.map((ok, i) => (ok ? null : docs[i]!)).filter((d): d is { uid: string; dirty: boolean } => d !== null);
+    if (failed.length > 0) {
+      // Abort the switch (caller reverts + alerts) rather than reload with
+      // a doc that would silently not come back.
+      throw new Error(`${failed.length} document${failed.length === 1 ? '' : 's'} could not be journaled`);
+    }
     return docs;
   }
 
@@ -4072,7 +4158,13 @@ class MultiPaneShell {
           slot.stack.length === 0
             ? '(empty)'
             : `${slot.visible?.filename ?? ''}${slot.stack.length > 1 ? ` (+${slot.stack.length - 1})` : ''}`;
-        btn.innerHTML = `<strong>${id.replace('slot', 'Slot ')}</strong><br><span>${stackLabel}</span>`;
+        // Built from nodes, not innerHTML: the label carries a filename,
+        // which on macOS / Linux may contain markup.
+        const strong = document.createElement('strong');
+        strong.textContent = id.replace('slot', 'Slot ');
+        const label = document.createElement('span');
+        label.textContent = stackLabel;
+        btn.replaceChildren(strong, document.createElement('br'), label);
         btn.appendChild(keyHint(String(SLOT_IDS.indexOf(id) + 1)));
         btn.addEventListener('click', () => finish(id));
         row.appendChild(btn);
@@ -4957,9 +5049,12 @@ function buildDocRecord(
     dragSurface,
     owner: slot, // re-pointed by Slot.push on every move
     savedScrollTop: 0,
+    savedNavScrollTop: 0,
 
     heavyUpdateTimer: null,
     journalTimer: null,
+    journalPendingSince: null,
+    autosavePendingSince: null,
     // New docs always start with read mode OFF. The user toggles
     // it per-pane via the ribbon command after opening.
     readMode: false,
@@ -5084,6 +5179,8 @@ export function mountMultiPaneShell(): void {
     flashFocusedChip: () => shell!.flashFocusedChip(),
     onRecoveredDoc: (entry) => shell!.onRecoveredDoc(entry),
     journalAll: () => shell!.journalAll(),
+    anyDirty: () => shell!.anyDirty(),
+    flushJournals: () => shell!.flushJournals(),
     reduceToFocusedForModeSwitch: () => shell!.reduceToFocusedForModeSwitch(),
     getOpenHandles: () => shell!.getAllHandles(),
     toggleAllNav: () => shell!.toggleAllNav(),

@@ -21,6 +21,7 @@ import { schema, newHeadingId } from '../schema/index.js';
 import { toDocx, serializeNative, serializeNativeAsync, parseNative, parseNativeSalvage, NativeDamagedError, readDocIdFromBytes, stampDocId, setSaveHealListener } from '../index.js';
 import { openDocxOffThread } from './docx-open.js';
 import { transformForExport, countMarkedCards, countStarred, bakesUnreadRedOnSave } from '../export/transform-for-export.js';
+import { nativeBytesToDocx } from './native-to-docx.js';
 import type { Thread, Comment } from './comments-plugin.js';
 import type { LocalComment } from './learn-store.js';
 import { NavigationPanel, setNavCommandRunner } from './nav-panel.js';
@@ -148,8 +149,9 @@ import { bulkCompressEnabled } from './bulk-compress-gate.js';
 import { openClean, runCleanSingleFileWeb } from './clean-ui.js';
 import { openDocDiff } from './doc-diff-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
-import { recordRecent, removeRecent, listRecents, type RecentFile } from './recents-store.js';
+import { recordRecent, removeRecent, listRecents, clearRecents, subscribeRecents, type RecentFile } from './recents-store.js';
 import { recordRecentWorkspace, type RecentWorkspace } from './recent-workspaces-store.js';
+import { buildMenuRecents } from './menu-recents.js';
 import {
   reportWindowWorkspace,
   rolloverLastWorkspace,
@@ -183,7 +185,8 @@ import {
   ZOOM_MAX_PCT,
   CHROME_SCALE_MIN_PCT,
   CHROME_SCALE_MAX_PCT,
-  migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, migrateExtraFormattingDefault, effectiveDocTypeFormat } from './settings.js';
+  migrateAutoUpdateOptOut, migrateDistinguishShadingDefault, migrateExtraFormattingDefault,
+  migrateWorkspaceDefaults, effectiveDocTypeFormat } from './settings.js';
 import { openSaveAs } from './save-as-ui.js';
 import { recordSaveLocation, dirnameOf, joinPath } from './save-locations-store.js';
 import { resolveRenameFilename, docDisplayName } from './doc-rename.js';
@@ -281,7 +284,7 @@ import { imageContextMenuPlugin } from './image-context-menu-plugin.js';
 import { editorNodeViews } from './image-resize-nodeview.js';
 import { setViewDocPath, getViewDocPath } from './transclusion-doc-path.js';
 import { isSyncOrigin } from './sync-origin.js';
-import { listSessionRecords, deleteSessionRecord } from './collab/collab-store.js';
+import { listSessionRecords, deleteSessionRecord, subscribeSessionRecords } from './collab/collab-store.js';
 import { collabEnabled } from './collab/collab-gate.js';
 import { parseJoinLinkHash } from './collab/join-link.js';
 import { setRePickOpener, setOpenSourceOpener } from './transclusion-actions.js';
@@ -502,9 +505,12 @@ if (!getElectronHost() && !isLiteBuild() && window.location.hash.includes('join=
     }, 600);
   } else if (joinParts) {
     const offerJoin = async (): Promise<void> => {
+      const view = joinParts.shareCode.startsWith('cmview');
       const go = await confirmDialog(
-        'Join the shared session from this link? You will edit the document live with its host.',
-        { okLabel: 'Join Session' },
+        view
+          ? 'Watch the shared session from this link? You will see every edit live but cannot make changes.'
+          : 'Join the shared session from this link? You will edit the document live with its host.',
+        { okLabel: view ? 'Watch Session' : 'Join Session' },
       );
       if (!go) return;
       const m = await loadCollabUi();
@@ -1261,6 +1267,9 @@ let multiDocFindViewForDocId: ((docId: string) => EditorView | null) | null = nu
  *  successful save in multi-doc mode. The shell knows the
  *  DocRecord's uid; the editor only knows it has a focused doc. */
 let multiDocCaptureFocusedCleanToken: (() => (() => boolean) | null) | null = null;
+/** Web unload hooks: any unsaved pane, and flush pending journals now. */
+let multiDocAnyDirty: (() => boolean) | null = null;
+let multiDocFlushJournals: (() => void) | null = null;
 /** Mode-switch hook: journal every open DocRecord across every
  *  slot's stack so the auto-recover-on-reload flow can rebuild
  *  the workspace in the new layout. Returns each doc's uid +
@@ -1371,6 +1380,8 @@ export function enableMultiDocMode(opts: {
    *  `multiDocGetFocusedLiveLinkCounts`. */
   getFocusedLiveLinkCounts?: () => { views: number; copies: number };
   setFocusedDocId?: (docId: string) => void;
+  anyDirty?: () => boolean;
+  flushJournals?: () => void;
   /** Live view of any pane holding `docId` (focused or background), or null. */
   findViewForDocId?: (docId: string) => EditorView | null;
   getAllFilenames?: () => (string | null)[];
@@ -1457,6 +1468,8 @@ export function enableMultiDocMode(opts: {
   multiDocPromptSaveAllForQuit = opts.promptSaveAllForQuit ?? null;
   multiDocFlashFocusedChip = opts.flashFocusedChip ?? null;
   multiDocCaptureFocusedCleanToken = opts.captureFocusedCleanToken ?? null;
+  multiDocAnyDirty = opts.anyDirty ?? null;
+  multiDocFlushJournals = opts.flushJournals ?? null;
   multiDocOnRecoveredDoc = opts.onRecoveredDoc ?? null;
   multiDocJournalAll = opts.journalAll ?? null;
   multiDocReduceToFocused = opts.reduceToFocusedForModeSwitch ?? null;
@@ -1837,6 +1850,12 @@ const ribbonContext: RibbonContext = {
   },
   collabCopyInviteLink: () => {
     void loadCollabUi().then((m) => m.copyInviteLinkFlow());
+  },
+  collabCopyViewCode: () => {
+    void loadCollabUi().then((m) => m.copyViewCodeFlow());
+  },
+  collabCopyViewLink: () => {
+    void loadCollabUi().then((m) => m.copyViewLinkFlow());
   },
   collabInviteStarred: () => {
     void loadCollabUi().then((m) => m.inviteStarredFlow());
@@ -2511,6 +2530,7 @@ const ribbonContext: RibbonContext = {
     else settings.set('navPaneVisible', !settings.get('navPaneVisible'));
   },
   setNavDepth: (level) => activeNavPanelResolver()?.setMaxLevel(level),
+  alphabetizeSelectedHeadings: () => activeNavPanelResolver()?.alphabetizeSelection() ?? false,
   // ─── No-default-binding hooks ────────────────────────────────
   // Each routes through the same button's existing click handler
   // (via `.click()`) — the keybinding then follows the exact same
@@ -3229,6 +3249,40 @@ function refreshFlashcardDueDot(): void {
   manageFlashcardsBtn.classList.toggle('pmd-ribbon-due-dot', show);
 }
 learnStore.subscribe(refreshFlashcardDueDot);
+// Web edition only: the desktop app's main process owns quit/close (its own
+// save prompt and journal handling via pagehide). In a browser tab nothing
+// stood between "close tab" and losing everything since the last 3 s quiet
+// gap (audit 18): ask before unloading with unsaved edits, and when the page
+// is hidden or unloading, fire any pending journal write immediately instead
+// of waiting out the debounce.
+if (!getElectronHost()) {
+  const anyDirty = (): boolean =>
+    multiDocActive ? (multiDocAnyDirty?.() ?? false) : currentDocDirty;
+  const flushJournals = (): void => {
+    if (multiDocActive) {
+      multiDocFlushJournals?.();
+      return;
+    }
+    if (journalTimer === null) return;
+    window.clearTimeout(journalTimer);
+    journalTimer = null;
+    journalWriteChain = journalWriteChain
+      .then(() => runJournalWrite())
+      .then(() => undefined)
+      .catch((err) => console.warn('Journal write crashed:', err));
+  };
+  window.addEventListener('beforeunload', (e) => {
+    if (!anyDirty()) return;
+    e.preventDefault();
+    // Legacy browsers read the return value; modern ones show their own text.
+    e.returnValue = '';
+  });
+  window.addEventListener('pagehide', flushJournals);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushJournals();
+  });
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') refreshFlashcardDueDot();
 });
@@ -4729,7 +4783,7 @@ mountPaceMarker(paceTarget);
 // The bottom bar's "Left" readout moves under the ribbon timer (and back)
 // as the timer is shown, hidden or popped out.
 subscribeTimer(() => {
-  if (settings.get('timerLeftUnderTimer')) refreshWordCount({ selectionOnly: true });
+  if (settings.get('paceGuides')) refreshWordCount({ selectionOnly: true });
 });
 // Audible timer alerts — this window competes for the shared audio-
 // owner lock (the pop-out wins while it exists). No-op while the
@@ -5936,7 +5990,7 @@ function makeStarterDoc(): PMNode {
         t('F10 emphasizes', [m['emphasis_mark']!.create()]),
         t(', and '),
         t('F11 highlights', [m['highlight']!.create({ color: 'yellow' })]),
-        t(' (F9 and F11 toggle; F10 is apply-only). Mod-8 shrinks the un-underlined text for reading. The cite mark (F8) is on "Smith 24" above.',
+        t(' (F9 and F11 toggle; F10 is apply-only, and Mod-F10 removes it). Mod-8 shrinks the un-underlined text for reading. The cite mark (F8) is on "Smith 24" above.',
         ),
       ]),
     ]),
@@ -6011,7 +6065,7 @@ function makeStarterDoc(): PMNode {
     ),
     blank(),
     paraText(
-      'For live co-editing, click the Send pill and press the invite button on a recipient — or run Start Collaboration Session from the command bar and share the code it copies. Up to 10 people type in one document with live cursors, and everyone keeps their copy when the session ends.',
+      'For live co-editing, click the Send pill and press the invite button on a recipient — or run Start Collaboration Session from the command bar and share the code it copies. Up to 30 people type in one document with live cursors, and everyone keeps their copy when the session ends.',
     ),
     blank(),
     paraText(
@@ -6252,6 +6306,9 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     // reproduces cursor-join shapes). A logged no-op is the honest
     // outcome — the edit had no legal result.
     keymap(Object.fromEntries(Object.entries(baseKeymap).map(([k, c]) => [k, neverThrow(c)]))),
+    // After the keymaps on purpose: read mode's `handleKeyDown` swallows
+    // bare keys nobody claimed, so a ribbon/macro binding on a bare key
+    // (Send to Speech's backtick) keeps working while reading.
     readModePlugin,
     markUnreadPlugin,
     commentsPlugin,
@@ -7469,9 +7526,10 @@ async function routeOpenedFile(opened: OpenedFile): Promise<void> {
       await host.spawnWindow({
         filename: src.name,
         bytes: src.bytes,
-        // spawnWindow is Electron-only (canSpawnWindow); its handle is a path
-        // string. A web FileSystemFileHandle can't cross to a new window.
-        handle: typeof src.handle === 'string' ? src.handle : null,
+        // Electron: a path string. Web PWA: the FileSystemFileHandle rides
+        // along (IndexedDB hand-off = structured clone), so the new window
+        // can save in place.
+        handle: typeof src.handle === 'string' || (src.handle != null && typeof src.handle === 'object') ? (src.handle as string | FileSystemFileHandle) : null,
         format,
         uid: null,
       });
@@ -7761,6 +7819,59 @@ function reopenWorkspaceFromHome(ws: RecentWorkspace): void {
   settings.set('multiDocWorkspace', true);
 }
 
+/** Resume a saved session from the home screen's Sessions list — and from
+ *  File → Rejoin Recent Session, which mirrors it. */
+async function resumeSessionFromHome(roomId: string): Promise<void> {
+  // Duplicate guards BEFORE any spawn, so a redundant click never mints
+  // a stray window. This-window: the synchronous live-room probe.
+  // Other-window: the session's claim in the duplicate-open registry —
+  // probing it also focuses the owning window.
+  if (collabRoomIsLive(roomId)) {
+    homeScreen.hide(); // the live doc is somewhere in this window
+    showToast('That session is already open in this window.');
+    return;
+  }
+  let liveElsewhere = false;
+  try {
+    liveElsewhere =
+      (await getElectronHost()?.openPathCheck(collabRoomClaimKey(roomId)))?.takenByOther ??
+      false;
+  } catch {
+    /* openPath API absent (old preload / web) — skip the cross-window guard */
+  }
+  if (liveElsewhere) {
+    showToast('That session is already open in another CardMirror window.');
+    return;
+  }
+  homeScreen.hide();
+  // Single-pane with a real doc behind the home screen: resume in a NEW
+  // window (the session doc would otherwise evict this one) — the spawned
+  // window opens a blank starter and runs the full resume, mirroring the
+  // spawn-to-join flow.
+  if (!multiDocActive && !isPristineStarter && getHost().canSpawnWindow) {
+    void getHost()
+      .spawnWindow({
+        filename: '',
+        bytes: new Uint8Array(),
+        handle: null,
+        format: null,
+        uid: null,
+        resumeRoomId: roomId,
+      })
+      .catch((err) => {
+        console.error('Spawn-to-resume failed:', err);
+        showToast('Could not open a new window for the session.');
+      });
+    return;
+  }
+  // Multi-pane resumes into a user-picked slot (the home screen is
+  // reachable there via the Home button); a pristine single-pane
+  // starter resumes in place.
+  void loadCollabUi().then((m) =>
+    m.resumeSessionFlow(multiDocActive ? makeMultiPaneSessionDeps() : collabDeps, roomId),
+  );
+}
+
 const homeCallbacks: HomeScreenCallbacks = {
   // Single-doc: load in-place in this window. Multi-pane: hide
   // home and route through the shell flows, which present the
@@ -7809,56 +7920,7 @@ const homeCallbacks: HomeScreenCallbacks = {
       }
     : {}),
   resumeSession: (roomId: string) => {
-    void (async (): Promise<void> => {
-      // Duplicate guards BEFORE any spawn, so a redundant click never mints
-      // a stray window. This-window: the synchronous live-room probe.
-      // Other-window: the session's claim in the duplicate-open registry —
-      // probing it also focuses the owning window.
-      if (collabRoomIsLive(roomId)) {
-        homeScreen.hide(); // the live doc is somewhere in this window
-        showToast('That session is already open in this window.');
-        return;
-      }
-      let liveElsewhere = false;
-      try {
-        liveElsewhere =
-          (await getElectronHost()?.openPathCheck(collabRoomClaimKey(roomId)))?.takenByOther ??
-          false;
-      } catch {
-        /* openPath API absent (old preload / web) — skip the cross-window guard */
-      }
-      if (liveElsewhere) {
-        showToast('That session is already open in another CardMirror window.');
-        return;
-      }
-      homeScreen.hide();
-      // Single-pane with a real doc behind the home screen: resume in a NEW
-      // window (the session doc would otherwise evict this one) — the spawned
-      // window opens a blank starter and runs the full resume, mirroring the
-      // spawn-to-join flow.
-      if (!multiDocActive && !isPristineStarter && getHost().canSpawnWindow) {
-        void getHost()
-          .spawnWindow({
-            filename: '',
-            bytes: new Uint8Array(),
-            handle: null,
-            format: null,
-            uid: null,
-            resumeRoomId: roomId,
-          })
-          .catch((err) => {
-            console.error('Spawn-to-resume failed:', err);
-            showToast('Could not open a new window for the session.');
-          });
-        return;
-      }
-      // Multi-pane resumes into a user-picked slot (the home screen is
-      // reachable there via the Home button); a pristine single-pane
-      // starter resumes in place.
-      void loadCollabUi().then((m) =>
-        m.resumeSessionFlow(multiDocActive ? makeMultiPaneSessionDeps() : collabDeps, roomId),
-      );
-    })();
+    void resumeSessionFromHome(roomId);
   },
   manageQuickCards: () => {
     void quickCardsManageUI.open();
@@ -9744,6 +9806,8 @@ export async function moveFocusedDocToWindow(
  *  pattern `promptSaveAllForQuit` already uses) then calls this. */
 export async function saveActiveAsConflictedCopy(): Promise<void> {
   const file = activeFile();
+  // Captured before any await: a keep-both copy commits to THIS doc.
+  const saveUid = activeDocIdentity().sessionUid;
   if (typeof file.handle !== 'string' || !file.handle || !file.format) return;
   const pinUid = focusedDocUid();
   const docId = ensureActiveDocId();
@@ -10177,6 +10241,13 @@ export function flashSaveSuccess(): void {
 // on startup.
 
 const AUTOSAVE_DELAY_MS = 5000;
+/** Debounces are pure trailing: every edit (a co-editing partner's too)
+ *  pushed the write back, so a busy stretch could go minutes with no
+ *  autosave or crash journal. Past this much pending time the next edit
+ *  fires the write immediately instead of re-arming the delay. */
+const PENDING_WRITE_MAX_WAIT_MS = 30_000;
+let autosavePendingSince: number | null = null;
+let journalPendingSince: number | null = null;
 const JOURNAL_DELAY_MS = 3000;
 let autosaveTimer: number | null = null;
 let journalTimer: number | null = null;
@@ -10196,8 +10267,12 @@ export function notifyEditForAutosave(): void {
   scheduleJournalWrite();
   if (!settings.get('autosaveEnabled')) return;
   if (autosaveTimer !== null) window.clearTimeout(autosaveTimer);
+  const now = Date.now();
+  if (autosavePendingSince === null) autosavePendingSince = now;
+  const overdue = now - autosavePendingSince >= PENDING_WRITE_MAX_WAIT_MS;
   autosaveTimer = window.setTimeout(() => {
     autosaveTimer = null;
+    autosavePendingSince = null;
     // .catch keeps the chain FULFILLED: runAutosaveAttempt handles its own
     // write errors, but a throw from its guard lines (before its try) used
     // to reject the chain — after which every later .then silently skipped
@@ -10210,7 +10285,7 @@ export function notifyEditForAutosave(): void {
           saveAs: () => void runSaveAsFlow(),
         }),
       );
-  }, AUTOSAVE_DELAY_MS);
+  }, overdue ? 0 : AUTOSAVE_DELAY_MS);
 }
 
 /** Schedule a debounced journal write for the SINGLE-DOC session.
@@ -10221,42 +10296,65 @@ function scheduleJournalWrite(): void {
   if (!getHost().journalsSupported) return;
   if (multiDocActive) return;
   if (journalTimer !== null) window.clearTimeout(journalTimer);
+  const now = Date.now();
+  if (journalPendingSince === null) journalPendingSince = now;
+  const overdue = now - journalPendingSince >= PENDING_WRITE_MAX_WAIT_MS;
   journalTimer = window.setTimeout(() => {
     journalTimer = null;
+    journalPendingSince = null;
     // .catch keeps the chain alive — a guard-line throw must not end
     // crash-recovery journaling for the whole session.
     journalWriteChain = journalWriteChain
       .then(() => runJournalWrite())
+      .then(() => undefined)
       .catch((err) => console.warn('Journal write crashed:', err));
-  }, JOURNAL_DELAY_MS);
+  }, overdue ? 0 : JOURNAL_DELAY_MS);
 }
 
-async function runJournalWrite(): Promise<void> {
-  if (!view) return;
+/** Returns false when the write FAILED (logged); true when it landed or
+ *  there was nothing to do. The debounced caller ignores the result; the
+ *  mode-switch flow must not — a doc whose journal failed would silently
+ *  not reopen (or reopen stale) after the reload. */
+async function runJournalWrite(): Promise<boolean> {
+  if (!view) return true;
   const host = getHost();
-  if (!host.journalsSupported) return;
+  if (!host.journalsSupported) return true;
+  // Identity and content captured TOGETHER, before the await: a doc switch
+  // landing inside the serialize would otherwise journal doc A's content
+  // under doc B's uid / filename / handle, and an in-place recovery save
+  // would write A into B's file (audit 8).
+  const uid = currentDocUid;
+  const filename = currentDocFilename;
+  const handle = currentDocHandle;
+  const format = currentDocFormat;
+  const docId = currentDocId;
   try {
     const bytes = await serializeNativeAsync(view.state.doc, {
       threads: Array.from(getCommentsState(view.state).threads.values()),
-      ...(currentDocId ? { docId: currentDocId } : {}),
+      ...(docId ? { docId } : {}),
     });
+    // The doc was swapped out while we serialized: these bytes belong to a
+    // session that is over, and its journal was cleared by the switch.
+    if (uid !== currentDocUid) return true;
     // A recovered-but-not-yet-saved draft carries its ORIGINAL journal
     // savedAt forward, so the stale-overwrite guard survives relaunches and
     // mode switches even though this write stamps savedAt = now.
-    const recoveredFrom = recoveredDraftJournalSavedAt(currentDocUid);
+    const recoveredFrom = recoveredDraftJournalSavedAt(uid);
     await host.writeJournal({
-      uid: currentDocUid,
-      filename: currentDocFilename ?? 'Untitled',
+      uid,
+      filename: filename ?? 'Untitled',
       // Keep the handle as-is: Electron path string OR the browser's
       // FileSystemFileHandle (both survive the journal round-trip).
-      handle: currentDocHandle,
-      format: currentDocFormat,
+      handle,
+      format,
       savedAt: new Date().toISOString(),
       ...(recoveredFrom ? { recoveredFromSavedAt: recoveredFrom } : {}),
       bytes,
     });
+    return true;
   } catch (err) {
     console.warn('Journal write failed:', err);
+    return false;
   }
 }
 
@@ -10599,6 +10697,30 @@ function pushNativeMenuBindings(): void {
 {
   const electronHost = getElectronHost();
   if (electronHost) {
+    // File → Open Recent / Rejoin Recent Session mirror the home screen's
+    // Recent and Sessions lists: push a compact payload now and on every
+    // change of either store; main rebuilds the two submenus from it.
+    const pushNativeMenuRecents = (): void => {
+      void (async () => {
+        const records = collabEnabled() ? await listSessionRecords().catch(() => []) : null;
+        await electronHost.setMenuRecents(buildMenuRecents(listRecents(), records));
+      })().catch(() => {});
+    };
+    pushNativeMenuRecents();
+    subscribeRecents(pushNativeMenuRecents);
+    subscribeSessionRecords(pushNativeMenuRecents);
+    electronHost.onMenuOpenRecent((pick) => {
+      if (pick.kind === 'file') {
+        // Same path as a home-screen Recent click: in-place on a pristine
+        // starter, a new window over a real doc, the slot picker in
+        // three-pane; a vanished file is pruned with a toast.
+        const recent = listRecents().find((r) => r.handle === pick.id);
+        if (recent) void openRecentInPlace(recent);
+        else showToast('That file is no longer in the recent list');
+        return;
+      }
+      void resumeSessionFromHome(pick.id);
+    });
     electronHost.onMenuCommand((command) => {
       switch (command) {
         case 'newDocument':
@@ -10633,6 +10755,11 @@ function pushNativeMenuBindings(): void {
               await handleUserCloseRequest();
             }
           })();
+          break;
+        case 'clearRecents':
+          // File → Open Recent → Clear Menu (the home screen's list too —
+          // they are one store).
+          clearRecents();
           break;
         default:
           // Fallback for the Speech / View / Help / Toggle Autosave
@@ -11086,10 +11213,11 @@ export function confirmCloseUnsavedBatch(
  *  removes ambiguity about which one is closing (multi-pane). */
 function confirmCloseCoEditedDoc(
   docName: string,
-  info: { role: 'host' | 'participant'; unsynced: number },
+  info: { role: 'host' | 'participant' | 'spectator'; unsynced: number },
 ): Promise<'keep' | 'end' | 'cancel'> {
   const name = docName ? `"${docName}"` : 'this document';
-  const leaveLabel = info.role === 'host' ? 'End session' : 'Leave session';
+  const leaveLabel =
+    info.role === 'host' ? 'End session' : info.role === 'spectator' ? 'Stop watching' : 'Leave session';
   const syncing =
     info.unsynced > 0
       ? ` ${info.unsynced} change${info.unsynced === 1 ? '' : 's'} still syncing will sync when you rejoin.`
@@ -11100,7 +11228,10 @@ function confirmCloseCoEditedDoc(
       {
         value: 'keep',
         label: 'Close',
-        description: `Keep the session — rejoin from the Sessions list to keep editing.${syncing}`,
+        description:
+          info.role === 'spectator'
+            ? 'Keep watching later — rejoin from the Sessions list.'
+            : `Keep the session — rejoin from the Sessions list to keep editing.${syncing}`,
       },
       {
         value: 'end',
@@ -11108,7 +11239,9 @@ function confirmCloseCoEditedDoc(
         description:
           info.role === 'host'
             ? 'End the session for everyone.'
-            : 'Leave the session; your copy stays as it is.',
+            : info.role === 'spectator'
+              ? 'Stop watching; this copy stays as it is and becomes editable.'
+              : 'Leave the session; your copy stays as it is.',
       },
     ],
   }).then((c) => c ?? 'cancel');
@@ -11402,11 +11535,24 @@ installPluginCommunityGate();
   if (eh) {
     let lastRoots = settings.get('fileSearchRoots');
     void eh.syncLibraryRoots(lastRoots);
+    // Write scope: the speech-doc auto-save folder is the one place the
+    // renderer writes by path without a dialog, so main must know it.
+    const writeFolders = (): string[] => {
+      const f = settings.get('defaultSpeechDocFolder').trim();
+      return f ? [f] : [];
+    };
+    let lastWriteFolders = writeFolders().join('\n');
+    void eh.syncWriteFolders(writeFolders());
     settings.subscribe(() => {
       const roots = settings.get('fileSearchRoots');
       if (roots !== lastRoots) {
         lastRoots = roots;
         void eh.syncLibraryRoots(roots);
+      }
+      const wf = writeFolders();
+      if (wf.join('\n') !== lastWriteFolders) {
+        lastWriteFolders = wf.join('\n');
+        void eh.syncWriteFolders(wf);
       }
     });
     void eh.grantLegacyRecents(
@@ -11847,6 +11993,7 @@ async function initSingleDocBoot(): Promise<void> {
     // default (2026-09-21): flip an older install's stored `false` once.
     migrateDistinguishShadingDefault();
     migrateExtraFormattingDefault();
+    migrateWorkspaceDefaults();
   }
   // Automatic update checks start from `startUpdateChecks` (module level),
   // which covers both layouts and every window.
@@ -12198,7 +12345,11 @@ async function journalAllForModeSwitch(): Promise<ModeSwitchDoc[]> {
     window.clearTimeout(journalTimer);
     journalTimer = null;
   }
-  await runJournalWrite();
+  // A failed journal must abort the switch (the caller's catch reverts
+  // and tells the user) instead of reloading as if the doc were safe.
+  if (!(await runJournalWrite())) {
+    throw new Error(`the recovery copy of "${currentDocFilename ?? 'Untitled'}" could not be written`);
+  }
   return [{ uid: currentDocUid, dirty: currentDocDirty }];
 }
 
@@ -12461,8 +12612,9 @@ async function saveRecoveryEntry(entry: JournalEntry): Promise<boolean> {
 
 /** Convert a journal entry's stored cmir bytes into the requested
  *  on-disk format. cmir → cmir is a passthrough (the journal
- *  already stores cmir); cmir → docx parses the journal and runs
- *  the export pipeline. */
+ *  already stores cmir); cmir → docx runs the shared export pipeline
+ *  (native-to-docx.ts: live views flattened, unread red never baked —
+ *  this is the user's working file). */
 async function reserializeJournalAs(
   entry: JournalEntry,
   format: 'cmir' | 'docx',
@@ -12473,18 +12625,9 @@ async function reserializeJournalAs(
       ? entry.bytes
       : new Uint8Array(entry.bytes as ArrayBufferLike);
   }
-  const parsed = parseNative(entry.bytes);
-  const exportDoc = transformForExport(parsed.doc, {
-    includeComments: true,
-    includeAnalytics: true,
-    includeUndertags: true,
-    readMode: false,
-    markedCardsOnly: false,
+  return nativeBytesToDocx(entry.bytes, {
+    bodyFont: settings.get('bodyFont'),
     markUnreadAfterMarker: settings.get('markUnreadAfterMarker'),
-  });
-  return toDocx(exportDoc, {
-    ...(parsed.threads.length > 0 ? { threads: parsed.threads } : {}),
-    defaultFont: settings.get('bodyFont'),
     generator: DOCX_GENERATOR,
   });
 }

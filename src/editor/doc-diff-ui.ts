@@ -34,7 +34,6 @@ import {
   toDiffRows,
   summarize,
   wordDiff,
-  DiffTooLargeError,
   cellMark,
   outlineDiffStatuses,
   type DiffRow,
@@ -217,16 +216,14 @@ class DocDiffModal {
       void alertDialog(`Couldn't read one of the documents: ${err instanceof Error ? err.message : err}`);
       return;
     }
+    // Let the "Working…" label paint before a big diff holds the thread.
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     let lines;
     try {
       lines = diffLines(extractDiffLines(docA), extractDiffLines(docB));
     } catch (err) {
       this.renderPicker();
-      if (err instanceof DiffTooLargeError) {
-        void alertDialog(err.message);
-      } else {
-        void alertDialog(`Couldn't compare these documents: ${err instanceof Error ? err.message : err}`);
-      }
+      void alertDialog(`Couldn't compare these documents: ${err instanceof Error ? err.message : err}`);
       return;
     }
     this.parsed = { docA, docB };
@@ -241,11 +238,7 @@ class DocDiffModal {
     try {
       plan = planMerge(docA, docB);
     } catch (err) {
-      void alertDialog(
-        err instanceof DiffTooLargeError
-          ? err.message
-          : `Couldn't merge these documents: ${err instanceof Error ? err.message : err}`,
-      );
+      void alertDialog(`Couldn't merge these documents: ${err instanceof Error ? err.message : err}`);
       return;
     }
     this.destroyNavViews();

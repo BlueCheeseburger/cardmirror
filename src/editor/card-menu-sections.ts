@@ -9,7 +9,6 @@ import type { EditorState } from 'prosemirror-state';
 import type { DocMenuSection } from './doc-menu-ui.js';
 import { cardHighlightAction } from './card-highlight-toggle.js';
 import type { DocRange } from './card-highlight-toggle.js';
-import { cardMarkAction } from './reading-marker.js';
 import type { RibbonCommandId } from './ribbon-commands.js';
 
 export interface CardMenuHost {
@@ -19,23 +18,19 @@ export interface CardMenuHost {
   ranges(state: EditorState): DocRange[];
   /** Run a Card-menu command over those ranges. */
   run(id: RibbonCommandId): void;
-  /** Offer the Marking section (Mark Card / Unmark Card). The toolbar menu
-   *  does; the outline's submenu leaves it out. Defaults to true. */
-  marking?: boolean;
 }
 
 export function buildCardMenuSections(host: CardMenuHost): DocMenuSection[] {
   const state = host.state();
   const ranges = state ? host.ranges(state) : [];
   const highlight = state ? cardHighlightAction(state, ranges) : null;
-  const mark = state && host.marking !== false ? cardMarkAction(state, ranges) : null;
   const row = (label: string, commandId: RibbonCommandId) => ({
     label,
     commandId,
     run: () => host.run(commandId),
   });
   // Sections are kept alphabetical by title.
-  const sections: DocMenuSection[] = [
+  return [
     {
       title: 'Condense',
       items: [
@@ -65,12 +60,4 @@ export function buildCardMenuSections(host: CardMenuHost): DocMenuSection[] {
     },
     { title: 'Shrink', items: [row('Shrink', 'shrink')] },
   ];
-  if (host.marking !== false) {
-    sections.splice(sections.length - 1, 0, {
-      title: 'Marking',
-      // One slot, two states: Unmark once every card in range carries a marker.
-      items: [row(mark === 'unmark' ? 'Unmark Card' : 'Mark Card', 'markCards')],
-    });
-  }
-  return sections;
 }

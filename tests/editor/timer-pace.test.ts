@@ -197,7 +197,7 @@ describe('timer state rules', () => {
 
   it('the time left shows in the timer box only while the timer is in this ribbon and both settings are on', () => {
     settings.set('liveRemainingReadTime', true);
-    settings.set('timerLeftUnderTimer', true);
+    settings.set('paceGuides', true);
     expect(paceInline()).toBe(false); // timer hidden
     setTimerVisible(true);
     expect(paceInline()).toBe(true);
@@ -205,12 +205,12 @@ describe('timer state rules', () => {
     expect(paceInline()).toBe(false);
     setTimerPoppedOut(false);
     expect(paceInline()).toBe(true);
-    settings.set('timerLeftUnderTimer', false);
+    settings.set('paceGuides', false);
     expect(paceInline()).toBe(false);
-    settings.set('timerLeftUnderTimer', true);
+    settings.set('paceGuides', true);
     settings.set('liveRemainingReadTime', false);
     expect(paceInline()).toBe(false);
-    settings.set('timerLeftUnderTimer', false);
+    settings.set('paceGuides', false);
   });
 });
 
@@ -239,7 +239,7 @@ describe('mounted pace row', () => {
       { name: 'Ben', wpm: 100 },
     ]);
     settings.set('liveRemainingReadTime', true);
-    settings.set('timerLeftUnderTimer', true);
+    settings.set('paceGuides', true);
     view = docView('one two three four five six seven eight nine ten');
     lay = false;
     mountTimerPace(() => ({ view, useLay: lay }));
@@ -248,7 +248,7 @@ describe('mounted pace row', () => {
     pauseTimer();
     setTimerVisible(false);
     settings.set('liveRemainingReadTime', false);
-    settings.set('timerLeftUnderTimer', false);
+    settings.set('paceGuides', false);
     view.destroy();
     vi.useRealTimers();
   });
@@ -272,7 +272,7 @@ describe('mounted pace row', () => {
 
   it('is hidden unless the time left is shown under the timer', () => {
     setTimerVisible(true);
-    settings.set('timerLeftUnderTimer', false);
+    settings.set('paceGuides', false);
     expect(row().hidden).toBe(true);
   });
 

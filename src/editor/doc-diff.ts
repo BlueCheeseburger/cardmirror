@@ -2,7 +2,7 @@
  * Document diff — the pure core behind "Compare documents" (home screen).
  *
  * Two ProseMirror docs flatten to line lists (`extractDiffLines`), then a
- * classic LCS line diff (`diffLines`) produces the add/remove/equal
+ * Myers line diff (`diffLines`) produces the add/remove/equal
  * sequence a unified diff shows, or `toDiffRows` pairs it up for a
  * side-by-side view — the same two ways `git diff` / GitHub render a code
  * diff, applied to a document's text instead of source lines.
@@ -75,27 +75,24 @@ export function extractDiffLines(doc: PMNode): string[] {
 }
 
 /**
- * Line diff via the standard LCS dynamic-programming table — O(n·m)
- * time and space, which is fine at the line counts a document's worth
- * of paragraphs produces. Returns the edit sequence in document order:
- * a run of `remove`s immediately followed by a run of `add`s is a
- * "changed" region; either alone is a pure deletion/insertion.
+ * Line diff, Myers' O(ND) algorithm in its linear-space form (the middle
+ * snake, then recurse on each half). Time grows with N times D, the number
+ * of differing lines, and memory with N alone, so two big documents compare
+ * without a size limit: two versions of one document are near-instant and
+ * even two unrelated ones finish in a few seconds. Returns the edit
+ * sequence in document order: within a stretch between matched lines, the
+ * `remove`s come first and the `add`s after, which is the "changed" region
+ * `toDiffRows` pairs up.
  *
- * The common prefix and suffix are stripped before the DP table is
- * built — always safe for LCS (a shared prefix/suffix is trivially
- * part of it) and, for two versions of what's mostly the SAME
- * document, often collapses the O(n·m) table down to just the
- * differing middle instead of the whole document. What's left after
- * trimming is still capped (`MAX_DIFF_CELLS`): the table is a
- * Uint32Array per remaining line of `a`, and an untrimmed compare of
- * two genuinely huge, wildly different backfiles could otherwise try
- * to allocate hundreds of MB. Throws `DiffTooLargeError` rather than
- * let that allocation happen.
+ * Lines are first mapped to integer ids, the shared prefix and suffix are
+ * trimmed, and lines that occur on only one side are set aside (they can't
+ * be part of any common subsequence), so the search runs on far fewer lines
+ * than the documents have.
  */
 export function diffLines(a: readonly string[], b: readonly string[]): DiffLine[] {
-  let start = 0;
   const aLen = a.length;
   const bLen = b.length;
+  let start = 0;
   const minLen = Math.min(aLen, bLen);
   while (start < minLen && a[start] === b[start]) start++;
   let end = 0;
@@ -103,66 +100,141 @@ export function diffLines(a: readonly string[], b: readonly string[]): DiffLine[
 
   const midA = a.slice(start, aLen - end);
   const midB = b.slice(start, bLen - end);
-  if (midA.length * midB.length > MAX_DIFF_CELLS) {
-    throw new DiffTooLargeError(midA.length, midB.length);
-  }
 
   const out: DiffLine[] = [];
   for (let k = 0; k < start; k++) out.push({ type: 'equal', text: a[k]! });
-  out.push(...diffMiddle(midA, midB));
+  diffMiddle(midA, midB, out);
   for (let k = 0; k < end; k++) out.push({ type: 'equal', text: a[aLen - end + k]! });
   return out;
 }
 
-/** Cells (n·m) the LCS table is allowed to reach after prefix/suffix
- *  trimming — generous (comfortably covers thousands of DIFFERING
- *  lines) while keeping the table's peak allocation in the tens of
- *  MB, not hundreds. */
-const MAX_DIFF_CELLS = 25_000_000;
-
-export class DiffTooLargeError extends Error {
-  constructor(
-    readonly linesA: number,
-    readonly linesB: number,
-  ) {
-    super(`These documents differ over too much text to diff (${linesA}×${linesB} differing lines).`);
-    this.name = 'DiffTooLargeError';
-  }
-}
-
-/** The actual LCS dynamic-programming diff, over whatever's left after
- *  `diffLines` trims the shared prefix/suffix. */
-function diffMiddle(a: readonly string[], b: readonly string[]): DiffLine[] {
-  const n = a.length;
-  const m = b.length;
-  const dp: Uint32Array[] = new Array(n + 1);
-  for (let i = 0; i <= n; i++) dp[i] = new Uint32Array(m + 1);
-  for (let i = n - 1; i >= 0; i--) {
-    const dpI = dp[i]!;
-    const dpI1 = dp[i + 1]!;
-    for (let j = m - 1; j >= 0; j--) {
-      dpI[j] = a[i] === b[j] ? dpI1[j + 1]! + 1 : Math.max(dpI1[j]!, dpI[j + 1]!);
+/** Diff what's left after `diffLines` trims the shared prefix/suffix:
+ *  find the matched line pairs, then emit removes/adds around them. */
+function diffMiddle(a: readonly string[], b: readonly string[], out: DiffLine[]): void {
+  const ids = new Map<string, number>();
+  const idOf = (text: string): number => {
+    let id = ids.get(text);
+    if (id === undefined) {
+      id = ids.size;
+      ids.set(text, id);
     }
-  }
-  const out: DiffLine[] = [];
+    return id;
+  };
+  const idsA = Int32Array.from(a, idOf);
+  const idsB = Int32Array.from(b, idOf);
+
+  // Only lines present on both sides can match; search over those alone.
+  const inA = new Uint8Array(ids.size);
+  const inB = new Uint8Array(ids.size);
+  for (const id of idsA) inA[id] = 1;
+  for (const id of idsB) inB[id] = 1;
+  const keepA: number[] = [];
+  const keepB: number[] = [];
+  for (let i = 0; i < idsA.length; i++) if (inB[idsA[i]!]) keepA.push(i);
+  for (let j = 0; j < idsB.length; j++) if (inA[idsB[j]!]) keepB.push(j);
+
+  const fa = Int32Array.from(keepA, (i) => idsA[i]!);
+  const fb = Int32Array.from(keepB, (j) => idsB[j]!);
+  const matchA: number[] = [];
+  const matchB: number[] = [];
+  myersMatches(fa, fb, matchA, matchB);
+
   let i = 0;
   let j = 0;
-  while (i < n && j < m) {
-    if (a[i] === b[j]) {
-      out.push({ type: 'equal', text: a[i]! });
-      i++;
-      j++;
-    } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) {
-      out.push({ type: 'remove', text: a[i]! });
-      i++;
-    } else {
-      out.push({ type: 'add', text: b[j]! });
-      j++;
-    }
+  const flush = (toI: number, toJ: number) => {
+    while (i < toI) out.push({ type: 'remove', text: a[i++]! });
+    while (j < toJ) out.push({ type: 'add', text: b[j++]! });
+  };
+  for (let m = 0; m < matchA.length; m++) {
+    const mi = keepA[matchA[m]!]!;
+    const mj = keepB[matchB[m]!]!;
+    flush(mi, mj);
+    out.push({ type: 'equal', text: a[i]! });
+    i++;
+    j++;
   }
-  while (i < n) out.push({ type: 'remove', text: a[i++]! });
-  while (j < m) out.push({ type: 'add', text: b[j++]! });
-  return out;
+  flush(a.length, b.length);
+}
+
+/** Append to `matchA`/`matchB` the index pairs of one longest common
+ *  subsequence of `a` and `b`, in order. */
+function myersMatches(a: Int32Array, b: Int32Array, matchA: number[], matchB: number[]): void {
+  if (a.length === 0 || b.length === 0) return;
+  const size = a.length + b.length + 3;
+  const vf = new Int32Array(size);
+  const vb = new Int32Array(size);
+  const off = (size - 1) >> 1;
+
+  const solve = (aLo: number, aHi: number, bLo: number, bHi: number): void => {
+    let suffix = 0;
+    while (aLo < aHi && bLo < bHi && a[aLo] === b[bLo]) {
+      matchA.push(aLo++);
+      matchB.push(bLo++);
+    }
+    while (aLo < aHi && bLo < bHi && a[aHi - 1] === b[bHi - 1]) {
+      aHi--;
+      bHi--;
+      suffix++;
+    }
+    if (aLo < aHi && bLo < bHi) {
+      const n = aHi - aLo;
+      const m = bHi - bLo;
+      const [x, y, u, v] = middleSnake(aLo, n, bLo, m);
+      solve(aLo, aLo + x, bLo, bLo + y);
+      for (let t = 0; t < u - x; t++) {
+        matchA.push(aLo + x + t);
+        matchB.push(bLo + y + t);
+      }
+      solve(aLo + u, aHi, bLo + v, bHi);
+    }
+    for (let t = 0; t < suffix; t++) {
+      matchA.push(aHi + t);
+      matchB.push(bHi + t);
+    }
+  };
+
+  /** Myers' middle snake for a[aLo..aLo+n) vs b[bLo..bLo+m): walks forward
+   *  and backward edit paths until they meet, returning the snake's start
+   *  and end as offsets from (aLo, bLo). */
+  const middleSnake = (aLo: number, n: number, bLo: number, m: number): [number, number, number, number] => {
+    const delta = n - m;
+    const odd = (delta & 1) !== 0;
+    const maxD = (n + m + 1) >> 1;
+    vf[off + 1] = 0;
+    vb[off + 1] = 0;
+    for (let d = 0; d <= maxD; d++) {
+      for (let k = -d; k <= d; k += 2) {
+        let x = k === -d || (k !== d && vf[off + k - 1]! < vf[off + k + 1]!) ? vf[off + k + 1]! : vf[off + k - 1]! + 1;
+        let y = x - k;
+        const sx = x;
+        const sy = y;
+        while (x < n && y < m && a[aLo + x] === b[bLo + y]) {
+          x++;
+          y++;
+        }
+        vf[off + k] = x;
+        const kr = delta - k;
+        if (odd && kr >= -(d - 1) && kr <= d - 1 && x + vb[off + kr]! >= n) return [sx, sy, x, y];
+      }
+      for (let k = -d; k <= d; k += 2) {
+        let x = k === -d || (k !== d && vb[off + k - 1]! < vb[off + k + 1]!) ? vb[off + k + 1]! : vb[off + k - 1]! + 1;
+        let y = x - k;
+        const sx = x;
+        const sy = y;
+        while (x < n && y < m && a[aLo + n - 1 - x] === b[bLo + m - 1 - y]) {
+          x++;
+          y++;
+        }
+        vb[off + k] = x;
+        const kf = delta - k;
+        if (!odd && kf >= -d && kf <= d && x + vf[off + kf]! >= n) return [n - x, m - y, n - sx, m - sy];
+      }
+    }
+    // Unreachable: the paths always meet by maxD.
+    return [0, 0, 0, 0];
+  };
+
+  solve(0, a.length, 0, b.length);
 }
 
 /**

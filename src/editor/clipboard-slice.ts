@@ -78,7 +78,8 @@ export function serializeRangesForClipboard(view: EditorView, ranges: readonly D
  *  a range copy. Never a linked copy: the nodes are already copies. */
 export function serializeNodesForClipboard(view: EditorView, nodes: readonly PMNode[]): { html: string; text: string } {
   const serializer = view.someProp('clipboardSerializer') ?? DOMSerializer.fromSchema(view.state.schema);
-  const flat = flattenSelfRefsInSlice(new Slice(Fragment.from(nodes), 0, 0), view.state.doc, newHeadingId);
+  const whole = new Slice(Fragment.from(nodes), 0, 0);
+  const flat = flattenSelfRefsInSlice(whole, view.state.doc, newHeadingId);
   const tmp = document.createElement('div');
   tmp.appendChild(serializer.serializeFragment(flat.content));
   clearLinkedCopy();
