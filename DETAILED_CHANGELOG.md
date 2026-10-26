@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.16.0-bcb.1 — 2026-10-26
 
 ### Added: Remove Emphasis, Mod-F10 (`ribbon-commands.ts`, `ribbon-groups.ts`)
 
