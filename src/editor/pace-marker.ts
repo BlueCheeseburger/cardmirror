@@ -139,7 +139,7 @@ function caretRect(view: EditorView, pos: number): { top: number; bottom: number
 /** Where the speaker should be by the clock, as a document position; null
  *  when there is nothing to show. */
 function computeExpectedPos(): { view: EditorView; pos: number } | null {
-  if (!settings.get('paceMarker')) return null;
+  if (!settings.get('paceGuides')) return null;
   const timer = getTimerState();
   if (!speechClockStarted(timer)) return null;
   const reader = settings.get('readers')[0];
@@ -223,7 +223,7 @@ function frame(): void {
 /** The Auto-Scroll bar is fixed on screen, so it is placed from geometry
  *  alone (cheap enough to run on every scroll event). */
 function measurePrompter(): void {
-  const view = settings.get('paceMarker') ? autoScrollingView() : null;
+  const view = settings.get('paceGuides') ? autoScrollingView() : null;
   const scroller = view && view.dom.isConnected ? nearestScroller(view.dom) : null;
   if (!view || !scroller) {
     prompterMark.hide();

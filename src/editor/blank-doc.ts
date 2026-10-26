@@ -16,14 +16,22 @@ import { newHeadingId } from '../schema/ids.js';
 import { settings } from './settings.js';
 
 /** The empty top-level block a new doc starts with, in the user's "Default
- *  text style". An analytic is always anchored by an `analytic_unit`; the
- *  others are bare doc-level blocks. */
+ *  text style". An analytic is always anchored by an `analytic_unit` and a tag
+ *  by a `card`; the others are bare doc-level blocks. */
 export function makeStyledBlock(): PMNode {
   switch (settings.get('defaultTextStyle')) {
     case 'normal':
       return schema.nodes['paragraph']!.create();
     case 'undertag':
       return schema.nodes['undertag']!.create();
+    case 'pocket':
+    case 'hat':
+    case 'block':
+      return schema.nodes[settings.get('defaultTextStyle')]!.create({ id: newHeadingId() });
+    case 'tag':
+      return schema.nodes['card']!.createChecked(null, [
+        schema.nodes['tag']!.create({ id: newHeadingId() }),
+      ]);
     default:
       return schema.nodes['analytic_unit']!.createChecked(null, [
         schema.nodes['analytic']!.create({ id: newHeadingId() }),
@@ -41,16 +49,24 @@ function isBlankSeedBlock(block: PMNode): boolean {
   if (block.type === schema.nodes['analytic_unit']) {
     return block.childCount === 1 && block.firstChild!.type === schema.nodes['analytic'] && block.firstChild!.content.size === 0;
   }
+  if (block.type === schema.nodes['card']) {
+    return block.childCount === 1 && block.firstChild!.type === schema.nodes['tag'] && block.firstChild!.content.size === 0;
+  }
   return (
-    (block.type === schema.nodes['paragraph'] || block.type === schema.nodes['undertag']) &&
+    (block.type === schema.nodes['paragraph'] ||
+      block.type === schema.nodes['undertag'] ||
+      block.type === schema.nodes['pocket'] ||
+      block.type === schema.nodes['hat'] ||
+      block.type === schema.nodes['block']) &&
     block.content.size === 0
   );
 }
 
 /** Offset from a seed block's start to the caret position inside its text:
- *  an `analytic_unit` wraps its analytic, so the text sits one level deeper. */
+ *  an `analytic_unit` wraps its analytic and a `card` wraps its tag, so the text
+ *  sits one level deeper. */
 export function seedCursorOffset(block: PMNode): number {
-  return block.type === schema.nodes['analytic_unit'] ? 2 : 1;
+  return block.type === schema.nodes['analytic_unit'] || block.type === schema.nodes['card'] ? 2 : 1;
 }
 
 /** True when `state` is still exactly what New made: one empty

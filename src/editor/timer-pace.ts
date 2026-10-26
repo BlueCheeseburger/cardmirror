@@ -205,7 +205,7 @@ function paceAvailable(): boolean {
  *  left under the timer" is on. The text sits under the digits and takes no
  *  space of its own, so the ribbon keeps one height. */
 export function paceInline(): boolean {
-  return paceAvailable() && settings.get('timerLeftUnderTimer');
+  return paceAvailable() && settings.get('paceGuides');
 }
 
 export interface PaceTarget {
@@ -254,7 +254,7 @@ export function mountTimerPace(getTarget: () => PaceTarget | null): void {
       reader: settings.get('readers')[0],
       counts,
       useLay: target?.useLay ?? false,
-      showLeft: settings.get('timerLeftUnderTimer'),
+      showLeft: settings.get('paceGuides'),
       speechCountdownRunning: speechCountdownRunning(state),
       clockSec: getVisibleRemainingMs(state) / 1000,
       totalCounts: target && speechCountdownRunning(state) ? wholeReadCounts(target.view.state) : null,

@@ -153,7 +153,7 @@ describe('outline right-click menu', () => {
     ]);
   });
 
-  it('leaves Mark Card out of the outline Card submenu', () => {
+  it('has no Mark Card row in the Card submenu (nor in the toolbar menu, which shares the list)', () => {
     openMenu(setup(card('Alpha tag', schema.text('body'))).nav, 'Alpha tag');
     expect(submenuRows().some((r) => /Mark Card|Unmark Card/.test(r))).toBe(false);
   });
