@@ -2808,8 +2808,8 @@ yours, or a file before and after cutting.
 **Compare different files** returns to the file picker; **Close** (or
 **Esc**) returns to the Home screen. The comparison is text only — formatting such as highlighting
 and underlining isn't compared — and it's read-only: neither file is opened
-for editing or changed. Two very large files that differ almost everywhere
-may be too big to compare; CardMirror says so rather than freezing. On a
+for editing or changed. There is no size limit; two very long files that
+differ almost everywhere take a few seconds. On a
 narrow window the outlines hide and each changed line stacks its two
 versions.
 

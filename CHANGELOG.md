@@ -20,6 +20,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **One setting, Show pace guides, replaces Show time left under the timer and Show a reading-position marker beside the document.** It is on by default and switches both together: the time left under the timer and the blue reading-position line. Someone who had either one on keeps both on; someone who had both off keeps both off. The time-left part still needs **Live read time for what is left to read** (**Settings → General → Word counts**).
 - **Mark Card is gone from the toolbar's Card menu too.** It was already left out of the outline's Card submenu. Mark a card with **Mod-Alt-D** (or rebind it in the keyboard map) or from Search Everything; marking, the outline flags and Marked Doc work as before.
 
+### Fixed
+- **Compare documents no longer refuses big documents.** Two long files that differ almost everywhere used to stop with "These documents differ over too much text to diff". They now compare in a few seconds, however long they are, and the same goes for **Merge into new file**.
+
 ### From upstream
 Synced through upstream CardMirror 1.16.0 (full notes in the `## 1.16.0` section further down this file). The highlights:
 - **Spectators.** Collaboration sessions have a view code and view link for watch-only guests, and sessions now seat up to 30 editors.

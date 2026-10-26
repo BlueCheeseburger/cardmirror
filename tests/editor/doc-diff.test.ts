@@ -14,7 +14,6 @@ import {
   summarize,
   diffDocs,
   wordDiff,
-  DiffTooLargeError,
   cellMark,
   outlineDiffStatuses,
   type LineMark,
@@ -149,19 +148,49 @@ describe('diffLines', () => {
     ]);
   });
 
-  it('throws DiffTooLargeError instead of allocating a huge table for two wildly different large inputs', () => {
-    // No shared prefix/suffix at all, so trimming can't help — this is
-    // the pathological case the cap exists for. Cheap to construct: the
-    // guard fires before any O(n·m) work happens.
-    const a = Array.from({ length: 6001 }, (_, i) => `a-${i}`);
-    const b = Array.from({ length: 6001 }, (_, i) => `b-${i}`);
-    expect(() => diffLines(a, b)).toThrow(DiffTooLargeError);
+  it('diffs two large, wildly different inputs with no size limit', () => {
+    const a = Array.from({ length: 12000 }, (_, i) => `a-${i}`);
+    const b = Array.from({ length: 12000 }, (_, i) => `b-${i}`);
+    const result = diffLines(a, b);
+    expect(summarize(result)).toEqual({ added: 12000, removed: 12000, unchanged: 0 });
   });
 
-  it('stays comfortably under the cap for a document-sized diff (a few thousand differing lines)', () => {
-    const a = Array.from({ length: 3000 }, (_, i) => `a-${i}`);
-    const b = Array.from({ length: 3000 }, (_, i) => `b-${i}`);
-    expect(() => diffLines(a, b)).not.toThrow();
+  it('finds the matches inside two large documents that share every tenth line', () => {
+    const a = Array.from({ length: 10000 }, (_, i) => (i % 10 === 0 ? `shared-${i}` : `a-${i}`));
+    const b = Array.from({ length: 10000 }, (_, i) => (i % 10 === 0 ? `shared-${i}` : `b-${i}`));
+    const result = diffLines(a, b);
+    expect(summarize(result)).toEqual({ added: 9000, removed: 9000, unchanged: 1000 });
+  });
+
+  it('matches a seeded random pair exactly as long as a known common subsequence', () => {
+    // Both sides are built from one shared sequence with lines inserted and
+    // dropped, so the diff's equal lines can be no fewer than the shared ones.
+    let seed = 12345;
+    const rand = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const shared = Array.from({ length: 400 }, (_, i) => `s-${i % 37}-${i}`);
+    const a: string[] = [];
+    const b: string[] = [];
+    for (const line of shared) {
+      if (rand() < 0.3) a.push(`only-a-${a.length}`);
+      if (rand() < 0.3) b.push(`only-b-${b.length}`);
+      a.push(line);
+      b.push(line);
+    }
+    const result = diffLines(a, b);
+    // Replaying the diff reproduces both inputs.
+    expect(result.filter((l) => l.type !== 'add').map((l) => l.text)).toEqual(a);
+    expect(result.filter((l) => l.type !== 'remove').map((l) => l.text)).toEqual(b);
+    expect(summarize(result).unchanged).toBe(shared.length);
+  });
+
+  it('handles repeated lines: replaying the diff reproduces both inputs', () => {
+    const a = ['x', 'y', 'x', 'x', 'z', 'y', 'x'];
+    const b = ['y', 'x', 'z', 'x', 'y', 'y', 'x', 'x'];
+    const result = diffLines(a, b);
+    expect(result.filter((l) => l.type !== 'add').map((l) => l.text)).toEqual(a);
+    expect(result.filter((l) => l.type !== 'remove').map((l) => l.text)).toEqual(b);
+    // Longest common subsequence of these two is 5 lines.
+    expect(summarize(result).unchanged).toBe(5);
   });
 });
 
