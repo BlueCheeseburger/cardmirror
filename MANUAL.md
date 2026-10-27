@@ -199,7 +199,7 @@ fork's own additions; upstream CardMirror doesn't have them.
 - **[Independent three-pane windows](#multiple-workspaces)** **(fork)** —
   each window keeps its own layout and documents. Drag a pane's title chip
   to move its document to another slot or, on the desktop app, to another or
-  a new window (or right-click the chip), unsaved edits and all.
+  a new window, unsaved edits and all.
 - **[Window names and in-app renaming](#naming-windows-and-renaming-documents)**
   **(fork)** — name a window so you can tell windows apart, and rename a
   document's file by double-clicking its name.
@@ -1350,10 +1350,6 @@ workspace while another shows a single document.
   slot, and on the desktop app also **New window** and a tile for every other
   open three-pane window: drop the chip on a tile to send the document there,
   unsaved edits included. **Esc** cancels the drag.
-- **(fork)** **Right-click a title chip** for **Move to…**, which lists
-  every other open three-pane window plus **New Window**. The document goes
-  with its current content, unsaved edits included. If the move fails, the
-  document stays where it was. **(Desktop only.)**
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is.
 - **(fork)** **Hover a title chip** and a greyed microphone appears at its left;

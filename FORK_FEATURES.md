@@ -48,10 +48,10 @@ layout. In the original, all windows had to share one layout.
   button.
 - **Move a document between panes:** grab a pane's title chip and drag it. A strip
   appears along the bottom of the window with one tile for each pane (marked
-  **Swap** or **Move here**), a **New window** tile, and a tile for every other open
+  **Add to stack** or **Move here**), a **New window** tile, and a tile for every other open
   window. Drop on one. Panes you can drop on light up as you drag.
-- **Send a document to another window:** drop it on that window's tile, or
-  right-click the chip and choose a window. Unsaved edits travel with it.
+- **Send a document to another window:** drop it on that window's tile. Unsaved
+  edits travel with it.
 - **Minimize a pane:** hold **Alt** and click the pane's expand button. A small
   **N hidden** chip next to the search icon brings them back.
 - **Opening a fourth document** while all three panes are full offers **New window**

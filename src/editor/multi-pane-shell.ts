@@ -177,7 +177,6 @@ import {
   type MoveTrayWindow,
   type MoveTraySlot,
 } from './pane-move-tray.js';
-import { installMoveMenuTrigger } from './pane-move-menu.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { sendViewToRecipient } from './pairing/send-to-recipient.js';
 import { isSyncOrigin } from './sync-origin.js';
@@ -908,27 +907,6 @@ class Slot {
       onDragEnd: () => this.shell.endChipDrag(),
       onHover: (id) => this.shell.highlightDropSlot(this, id),
       onDrop: (id) => this.shell.dropChipOnSlot(this, id),
-    });
-    // Right-click the chip → "Move to…": reaches a doc into ANOTHER
-    // WINDOW, which chip-drag (this-window-only) can't. Electron only
-    // — desktop-gated by `listMultiPaneWindows` simply returning
-    // nothing on a host that doesn't support it, same tolerance every
-    // other optional host capability in this file gets.
-    installMoveMenuTrigger(chip, {
-      canMove: () => this.visible !== null && !this.shell.isExpanded(),
-      listCandidates: () => listMoveDocTargets(),
-      onPick: (target) => {
-        // The menu can sit open for a moment before the user clicks —
-        // re-check rather than trust the state from when it opened.
-        // (canMove() is already re-checked once, right after the
-        // candidate-list IPC round trip — this is the second, shorter
-        // gap: menu visible, waiting on the click.) An emptied pane
-        // silently no-ops here rather than falling through to whatever
-        // else happens to be focused.
-        if (this.visible === null) return;
-        this.shell.focusSlot(this);
-        void moveFocusedDocToWindow(target === 'new-window' ? 'new-window' : target);
-      },
     });
     // Slot-number badge — small fixed glyph immediately left of
     // the expand button. Helps users identify which slot they're
