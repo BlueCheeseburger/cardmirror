@@ -19,6 +19,9 @@ export interface MoveTraySlot {
   name: string | null;
   /** The slot the dragged document is leaving. */
   source: boolean;
+  /** Dropping on this slot, when it holds a document, swaps the two
+   *  instead of adding to its stack. */
+  swap?: boolean;
 }
 
 export interface MoveTrayWindow {
@@ -51,7 +54,8 @@ export function describeMoveTarget(
   }
   const slot = slots.find((s) => s.id === target);
   if (!slot) return '';
-  return slot.name ? `Add to stack with ${slot.name}` : `Move to slot ${slot.num}`;
+  if (!slot.name) return `Move to slot ${slot.num}`;
+  return slot.swap ? `Swap with ${slot.name}` : `Add to stack with ${slot.name}`;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -88,7 +92,7 @@ export function showMoveTray(
     tile.appendChild(el('span', 'pmd-move-tile-num', String(s.num)));
     const text = el('span', 'pmd-move-tile-text');
     text.appendChild(el('span', 'pmd-move-tile-name', s.source ? 'Here' : (s.name ?? 'Empty')));
-    if (!s.source && s.name) text.appendChild(el('span', 'pmd-move-tile-verb', 'Add to stack'));
+    if (!s.source && s.name) text.appendChild(el('span', 'pmd-move-tile-verb', s.swap ? 'Swap' : 'Add to stack'));
     if (!s.source && !s.name) text.appendChild(el('span', 'pmd-move-tile-verb', 'Move here'));
     tile.appendChild(text);
     tiles.set(s.id, tile);

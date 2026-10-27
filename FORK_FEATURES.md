@@ -49,7 +49,10 @@ layout. In the original, all windows had to share one layout.
 - **Move a document between panes:** grab a pane's title chip and drag it. A strip
   appears along the bottom of the window with one tile for each pane (marked
   **Add to stack** or **Move here**), a **New window** tile, and a tile for every other open
-  window. Drop on one. Panes you can drop on light up as you drag.
+  window. Drop on one. Panes you can drop on light up as you drag. Dropping on a pane
+  that already has a document adds yours to that pane's stack (**Ctrl-Tab** steps through
+  it); to make it swap the two instead, turn on **Settings → General → Workspace →
+  Dropping a document on an occupied pane swaps instead of stacking**.
 - **Send a document to another window:** drop it on that window's tile. Unsaved
   edits travel with it.
 - **Minimize a pane:** hold **Alt** and click the pane's expand button. A small

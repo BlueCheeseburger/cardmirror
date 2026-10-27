@@ -1346,7 +1346,10 @@ workspace while another shows a single document.
   does: **Move here** on an empty slot, **Add to stack** (with the other
   document's name) on an occupied one: the document joins that pane's stack
   and shows there, with the pane's earlier documents behind the ▾ switcher
-  (**Ctrl-Tab**). The label following the pointer says the same. A **move tray** at the bottom of the window has a tile for each
+  (**Ctrl-Tab**). The label following the pointer says the same. If you'd
+  rather the two documents trade places, turn on **Settings → General →
+  Workspace → Dropping a document on an occupied pane swaps instead of
+  stacking**; the labels then say **Swap places** / **Swap**. A **move tray** at the bottom of the window has a tile for each
   slot, and on the desktop app also **New window** and a tile for every other
   open three-pane window: drop the chip on a tile to send the document there,
   unsaved edits included. **Esc** cancels the drag.

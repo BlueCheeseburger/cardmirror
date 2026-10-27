@@ -12,7 +12,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 - **Last workspace on the Home screen now lists your windows.** Each window that was open when you last quit gets its own row with a tick box, titled with the window's name or "3 docs", with that window's documents listed under it. Untick the windows you don't want and press **Open** to reopen the rest, each with its panes as they were. The per-document tick boxes, **All** / **None** and the old "Reopen 3 documents" button are gone. **Reopen Last Workspace** in the command bar still brings every window back.
-- **Dragging a document onto an occupied pane adds it to that pane's stack.** The drag overlay and the move tray now say **Add to stack** instead of **Swap places**; the dropped document shows in that pane, with the pane's earlier documents behind its stack switcher (**Ctrl-Tab**). Dropping on an empty slot still just moves it.
+- **Dragging a document onto an occupied pane adds it to that pane's stack.** The drag overlay and the move tray now say **Add to stack** instead of **Swap places**; the dropped document shows in that pane, with the pane's earlier documents behind its stack switcher (**Ctrl-Tab**). Dropping on an empty slot still just moves it. Prefer the old behaviour? Turn on **Settings → General → Workspace → Dropping a document on an occupied pane swaps instead of stacking**, and the two documents trade places again.
 - **Right-clicking a document's title chip no longer opens a menu.** The **Move to…** menu is gone; to send a document to another window, drag its chip onto that window's tile in the strip at the bottom, or onto **New window**.
 
 ## 1.16.0-bcb.1 — 2026-10-26

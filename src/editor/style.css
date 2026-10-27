@@ -12697,12 +12697,12 @@ body.pmd-pane-dragging * {
   min-width: 0;
   background: color-mix(in srgb, var(--pmd-c-accent) 5%, var(--pmd-c-surface));
 }
-.pmd-pane-stack-target {
+.pmd-pane-occupied-target {
   position: relative;
 }
 
 /* The cover each pane wears during a drag: the slot's number, what
-   dropping does, and (over a document) which one it stacks onto. One
+   dropping does, and (over a document) which one it stacks onto or swaps with. One
    look for empty and occupied panes, so the whole row reads as a set of
    places to put the document. */
 .pmd-pane-dropzone-hint {
@@ -12720,7 +12720,7 @@ body.pmd-pane-dragging * {
   color: var(--pmd-c-text-muted);
   transition: background 120ms ease, color 120ms ease;
 }
-.pmd-pane-stack-target > .pmd-pane-dropzone-hint {
+.pmd-pane-occupied-target > .pmd-pane-dropzone-hint {
   background: color-mix(in srgb, var(--pmd-c-surface) 72%, transparent);
 }
 .pmd-pane-dropzone-num {

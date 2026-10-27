@@ -1212,6 +1212,10 @@ export interface Settings {
    *  speech-side slot while no speech doc is marked gets marked as the
    *  speech doc. Off by default. */
   autoMarkSpeechSlotDoc: boolean;
+  /** Three-pane: dropping a dragged title chip on an OCCUPIED pane swaps
+   *  the two documents instead of adding the dragged one to that pane's
+   *  stack. Off by default (stack). */
+  swapOnPaneDrop: boolean;
   /**
    * Per-style font sizes (in points). See DisplaySizes for details.
    * Each field becomes a CSS custom property on `#editor`.
@@ -2093,6 +2097,7 @@ const DEFAULTS: Settings = {
   arrangeSpeechPct: 50,
   newSpeechDocInSpeechSlot: false,
   autoMarkSpeechSlotDoc: false,
+  swapOnPaneDrop: false,
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
   displayParagraphSpacing: { ...DEFAULT_PARAGRAPH_SPACING },
   displayTypography: { ...DEFAULT_DISPLAY_TYPOGRAPHY },
@@ -2524,6 +2529,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Workspace',
     dependsOn: 'multiDocWorkspace',
     aliases: ['auto mark speech doc', 'mark speech doc automatically', 'speech slot'],
+  },
+  {
+    key: 'swapOnPaneDrop',
+    label: 'Dropping a document on an occupied pane swaps instead of stacking',
+    description:
+      "Off by default: dragging a title chip onto a pane that already has a document adds the dragged document to that pane's stack (Ctrl-Tab steps through the stack). On, the two documents trade places instead. Dropping on an empty slot always just moves the document.",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    dependsOn: 'multiDocWorkspace',
+    aliases: ['swap panes', 'swap on drop', 'stack on drop', 'drag chip swap', 'chip drop stack'],
   },
   {
     key: 'multiDocLayoutMode',
@@ -5245,6 +5261,7 @@ function sanitize(s: Settings): Settings {
         : 50,
     newSpeechDocInSpeechSlot: s.newSpeechDocInSpeechSlot === true,
     autoMarkSpeechSlotDoc: s.autoMarkSpeechSlotDoc === true,
+    swapOnPaneDrop: s.swapOnPaneDrop === true,
     displaySizes: sanitizeDisplaySizes(s.displaySizes),
     displayParagraphSpacing: sanitizeParagraphSpacing(s.displayParagraphSpacing),
     underlineFollowsFontColor: s.underlineFollowsFontColor === true,
