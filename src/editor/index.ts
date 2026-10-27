@@ -7911,8 +7911,12 @@ const homeCallbacks: HomeScreenCallbacks = {
   // file handles), so the home screen omits the section without it.
   ...(getElectronHost()
     ? {
-        reopenWorkspaceWindow: (win: WorkspaceWindow): void => {
-          void restoreWorkspaceWindow(win);
+        reopenWorkspaceWindows: (wins: WorkspaceWindow[]): void => {
+          void (async () => {
+            // One after another, so the first can claim this window while it
+            // is empty and the rest each get a window of their own.
+            for (const win of wins) await restoreWorkspaceWindow(win);
+          })();
         },
         reopenRecentWorkspace: (ws: RecentWorkspace): void => {
           reopenWorkspaceFromHome(ws);

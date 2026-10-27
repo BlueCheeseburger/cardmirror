@@ -2679,11 +2679,13 @@ remembers which windows you had open when you last quit and lists them on the Ho
 **Last workspace**, one row per window, in the order you opened them. A row is
 titled with the window's name (**Name This Window…**, from the ribbon's
 right-click menu), or "3 docs" when the window has no name, and the documents
-in that window are listed under it, slightly indented. Click a row to reopen
-that window. A three-pane window comes back with each document in the pane it
-was in, in a window of its own (or in the current window when it is empty);
-in single-document mode each document gets its own window. There are no tick
-boxes: pick the windows you want back by clicking them, one at a time.
+in that window are listed under it, slightly indented. Every window starts
+ticked; untick the ones you don't want, then press **Open** (it says how many,
+for example "Open 2 windows") to reopen the ticked windows. A three-pane window
+comes back with each document in the pane it was in, in a window of its own
+(or in the current window when it is empty); in single-document mode each
+document gets its own window. The ticks are for the current visit to the Home
+screen: a new set of windows starts all ticked again.
 
 CardMirror never reopens documents behind your back: a launch with no file
 lands on the Home screen, where the list is waiting, and nothing opens until

@@ -11,7 +11,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 ## Unreleased
 
 ### Changed
-- **Last workspace on the Home screen now lists your windows.** Each window that was open when you last quit gets its own row, titled with the window's name or "3 docs", with that window's documents listed under it. Click a row to reopen that window, with its panes as they were. The tick boxes and the **All** / **None** buttons are gone, and the old "Reopen 3 documents" button with them. **Reopen Last Workspace** in the command bar still brings every window back.
+- **Last workspace on the Home screen now lists your windows.** Each window that was open when you last quit gets its own row with a tick box, titled with the window's name or "3 docs", with that window's documents listed under it. Untick the windows you don't want and press **Open** to reopen the rest, each with its panes as they were. The per-document tick boxes, **All** / **None** and the old "Reopen 3 documents" button are gone. **Reopen Last Workspace** in the command bar still brings every window back.
 
 ## 1.16.0-bcb.1 — 2026-10-26
 

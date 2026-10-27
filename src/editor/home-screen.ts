@@ -63,10 +63,11 @@ export interface HomeScreenCallbacks {
   /** Reopen a recent file in-place. The renderer reads the
    *  handle, mounts the doc, and prunes the entry on failure. */
   openRecent: (recent: RecentFile) => void;
-  /** Reopen one window of the last saved workspace: its documents, in the
-   *  layout it had. Omitted on hosts that can't reopen by path (the web
-   *  edition), in which case the Last workspace section isn't rendered. */
-  reopenWorkspaceWindow?: (win: WorkspaceWindow) => void;
+  /** Reopen the ticked windows of the last saved workspace: each one's
+   *  documents, in the layout it had. Omitted on hosts that can't reopen by
+   *  path (the web edition), in which case the Last workspace section isn't
+   *  rendered. */
+  reopenWorkspaceWindows?: (wins: WorkspaceWindow[]) => void;
   /** Reopen a recently closed multi-pane workspace, offered inline in
    *  the unified Recent list alongside plain recent files. Omitted on
    *  hosts that can't reopen by path (the web edition), in which case
@@ -107,6 +108,12 @@ class HomeScreen {
   private recentsEl!: HTMLDivElement;
   private workspaceSection!: HTMLElement;
   private workspaceEl!: HTMLDivElement;
+  /** Which windows of the Last workspace are ticked (indexes into the
+   *  snapshot's windows). Lives on the screen, not in the store: it starts
+   *  all ticked for every new snapshot (`workspaceTickedFor`) and survives a
+   *  re-render of the same one. */
+  private workspaceTicked = new Set<number>();
+  private workspaceTickedFor: number | null = null;
   private sessionsSection!: HTMLElement;
   private sessionsEl!: HTMLDivElement;
   private learnEl!: HTMLDivElement;
@@ -805,44 +812,80 @@ class HomeScreen {
 
   /** Rebuild the Last-workspace section from the store: one row per
    *  window that was open when the app last closed, in the order the
-   *  windows were opened. A row is titled with the window's name, or
-   *  "3 docs" when it has none, and clicking it reopens that window;
-   *  the window's documents are listed under it, slightly indented, so
-   *  what comes back is visible before the click. The list scrolls past
-   *  ~34rem so a big workspace can't push the rest of the home screen
-   *  off the page. */
+   *  windows were opened, each with a tick box. A row is titled with the
+   *  window's name, or "3 docs" when it has none, and the window's
+   *  documents are listed under it, slightly indented, so what comes back
+   *  is visible before anything opens. The Open button above the list
+   *  reopens the ticked windows. The list scrolls past ~34rem so a big
+   *  workspace can't push the rest of the home screen off the page. */
   private renderWorkspace(): void {
     if (!this.workspaceSection) return;
-    const snapshot = this.callbacks?.reopenWorkspaceWindow ? lastWorkspace() : null;
+    const snapshot = this.callbacks?.reopenWorkspaceWindows ? lastWorkspace() : null;
     this.workspaceSection.hidden = snapshot === null;
     this.workspaceEl.replaceChildren();
     if (!snapshot) return;
-    for (const win of snapshot.windows) this.workspaceEl.appendChild(this.workspaceWindowRow(win, snapshot.savedAt));
+    // A new snapshot starts with every window ticked; the same one keeps
+    // the ticks the user has made.
+    if (this.workspaceTickedFor !== snapshot.savedAt) {
+      this.workspaceTickedFor = snapshot.savedAt;
+      this.workspaceTicked = new Set(snapshot.windows.map((_, i) => i));
+    }
+    const ticked = this.workspaceTicked;
+
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.className = 'pmd-home-workspace-open pmd-home-ws-open';
+    openBtn.title = `Saved ${relativeTime(snapshot.savedAt)}`;
+    const syncOpen = (): void => {
+      const n = ticked.size;
+      openBtn.disabled = n === 0;
+      openBtn.textContent = n === 0 ? 'Open (no windows ticked)' : `Open ${n} ${n === 1 ? 'window' : 'windows'}`;
+    };
+    openBtn.addEventListener('click', () => {
+      const wins = snapshot.windows.filter((_, i) => ticked.has(i));
+      if (wins.length > 0) this.callbacks?.reopenWorkspaceWindows?.(wins);
+    });
+    syncOpen();
+
+    const list = document.createElement('div');
+    list.className = 'pmd-home-ws-list';
+    snapshot.windows.forEach((win, i) => {
+      list.appendChild(
+        this.workspaceWindowRow(win, ticked.has(i), (on) => {
+          if (on) ticked.add(i);
+          else ticked.delete(i);
+          syncOpen();
+        }),
+      );
+    });
+    this.workspaceEl.append(openBtn, list);
   }
 
-  private workspaceWindowRow(win: WorkspaceWindow, savedAt: number): HTMLDivElement {
+  private workspaceWindowRow(win: WorkspaceWindow, ticked: boolean, onTick: (on: boolean) => void): HTMLDivElement {
     const wrap = document.createElement('div');
     wrap.className = 'pmd-home-ws-window';
     const countLabel = `${win.docs.length} ${win.docs.length === 1 ? 'doc' : 'docs'}`;
 
-    const open = document.createElement('button');
-    open.type = 'button';
-    open.className = 'pmd-home-workspace-open';
-    open.title = `Reopen this window (saved ${relativeTime(savedAt)})`;
+    // The whole title row is a label, so a click anywhere on it ticks the window.
+    const head = document.createElement('label');
+    head.className = 'pmd-home-workspace-open pmd-home-ws-head';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = ticked;
+    box.addEventListener('change', () => onTick(box.checked));
     const title = document.createElement('span');
     title.className = 'pmd-home-recent-name';
     title.textContent = win.name ?? countLabel;
-    open.appendChild(title);
+    head.append(box, title);
     if (win.name) {
       // A named window shows its count to the side, so the name can be the title.
       const meta = document.createElement('span');
       meta.className = 'pmd-home-recent-path';
       // LRM guards: the cell is right-to-left (so long paths truncate on the left).
       meta.textContent = `\u{200e}${countLabel}\u{200e}`;
-      open.appendChild(meta);
+      head.appendChild(meta);
     }
-    open.addEventListener('click', () => this.callbacks?.reopenWorkspaceWindow?.(win));
-    wrap.appendChild(open);
+    wrap.appendChild(head);
 
     const list = document.createElement('div');
     list.className = 'pmd-home-ws-window-docs';

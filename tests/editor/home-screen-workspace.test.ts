@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 /**
- * Home screen's Last-workspace section: one row per window that was open
- * when the app last closed, titled with the window's name or its document
- * count, with that window's documents listed (indented) beneath it. There
- * are no checkboxes and no All / None — the window is the unit, and
- * clicking its row reopens it.
+ * Home screen's Last-workspace section: an Open button over one row per
+ * window that was open when the app last closed. Each window row has a
+ * tick box and is titled with the window's name or its document count,
+ * with that window's documents listed (indented) beneath it. Open reopens
+ * the ticked windows. There are no per-document boxes and no All / None.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -14,14 +14,14 @@ import type { WorkspaceWindow } from '../../src/editor/workspace-store.js';
 
 const LAST_KEY = 'pmd-last-workspace';
 
-function makeCallbacks(): HomeScreenCallbacks & { reopenWorkspaceWindow: ReturnType<typeof vi.fn> } {
+function makeCallbacks(): HomeScreenCallbacks & { reopenWorkspaceWindows: ReturnType<typeof vi.fn> } {
   return {
     newDoc: vi.fn(),
     open: vi.fn(),
     openRecent: vi.fn(),
     manageQuickCards: vi.fn(),
     compareDocuments: vi.fn(),
-    reopenWorkspaceWindow: vi.fn(),
+    reopenWorkspaceWindows: vi.fn(),
   };
 }
 
@@ -32,6 +32,9 @@ const doc = (path: string, format: 'cmir' | 'docx' = 'docx') => ({
   slot: null,
 });
 
+// A distinct savedAt per seed, so each counts as a new snapshot.
+let savedAtCounter = Date.now();
+
 function seedWindows(windows: Array<{ name?: string | null; paths: string[]; mode?: 'panes' | 'windows' }>): void {
   const wins: WorkspaceWindow[] = windows.map((w) => ({
     name: w.name ?? null,
@@ -40,15 +43,21 @@ function seedWindows(windows: Array<{ name?: string | null; paths: string[]; mod
   }));
   localStorage.setItem(
     LAST_KEY,
-    JSON.stringify({ savedAt: Date.now(), windows: wins, docs: wins.flatMap((w) => w.docs), pinned: false }),
+    JSON.stringify({ savedAt: ++savedAtCounter, windows: wins, docs: wins.flatMap((w) => w.docs), pinned: false }),
   );
 }
 
 const section = (): HTMLElement => document.querySelector<HTMLElement>('.pmd-home-workspace-section')!;
 const windowRows = (): HTMLElement[] => Array.from(section().querySelectorAll<HTMLElement>('.pmd-home-ws-window'));
-const rowButton = (row: HTMLElement): HTMLButtonElement =>
-  row.querySelector<HTMLButtonElement>('.pmd-home-workspace-open')!;
-const titleOf = (row: HTMLElement): string => rowButton(row).querySelector('.pmd-home-recent-name')!.textContent!;
+const headOf = (row: HTMLElement): HTMLElement => row.querySelector<HTMLElement>('.pmd-home-ws-head')!;
+const boxOf = (row: HTMLElement): HTMLInputElement => headOf(row).querySelector<HTMLInputElement>('input')!;
+const titleOf = (row: HTMLElement): string => headOf(row).querySelector('.pmd-home-recent-name')!.textContent!;
+const openBtn = (): HTMLButtonElement => section().querySelector<HTMLButtonElement>('.pmd-home-ws-open')!;
+const tick = (row: HTMLElement, on: boolean): void => {
+  const box = boxOf(row);
+  box.checked = on;
+  box.dispatchEvent(new Event('change'));
+};
 const docNames = (row: HTMLElement): string[] =>
   Array.from(row.querySelectorAll('.pmd-home-ws-window-doc .pmd-home-recent-name')).map((e) => e.textContent!);
 
@@ -79,8 +88,8 @@ describe('home screen — last workspace', () => {
 
   it('shows a named window\'s count beside its name', () => {
     const [unnamed, named] = windowRows();
-    expect(rowButton(unnamed!).querySelector('.pmd-home-recent-path')).toBeNull();
-    expect(rowButton(named!).querySelector('.pmd-home-recent-path')!.textContent!.replace(/\u200e/g, '')).toBe('2 docs');
+    expect(headOf(unnamed!).querySelector('.pmd-home-recent-path')).toBeNull();
+    expect(headOf(named!).querySelector('.pmd-home-recent-path')!.textContent!.replace(/\u200e/g, '')).toBe('2 docs');
   });
 
   it('lists every document of a window under its row, by name without the extension', () => {
@@ -90,25 +99,54 @@ describe('home screen — last workspace', () => {
     expect(docNames(rows[2]!)).toEqual(['Speech']);
   });
 
-  it('has no checkboxes and no All / None buttons, and no per-document Reopen label', () => {
-    expect(section().querySelectorAll('input')).toHaveLength(0);
+  it('puts a tick box on each window — all ticked — and none on the documents', () => {
+    expect(windowRows().map((r) => boxOf(r).checked)).toEqual([true, true, true]);
+    expect(section().querySelectorAll('input')).toHaveLength(3);
+    expect(section().querySelectorAll('.pmd-home-ws-window-doc input')).toHaveLength(0);
     const labels = Array.from(section().querySelectorAll('button')).map((b) => b.textContent);
     expect(labels).not.toContain('All');
     expect(labels).not.toContain('None');
-    expect(section().textContent).not.toContain('Reopen');
   });
 
-  it('clicking a window row reopens that window, and only that one', () => {
-    rowButton(windowRows()[1]!).click();
-    expect(cb.reopenWorkspaceWindow).toHaveBeenCalledTimes(1);
-    const win = cb.reopenWorkspaceWindow.mock.calls[0]![0] as WorkspaceWindow;
-    expect(win.name).toBe('Research');
-    expect(win.docs.map((d) => d.path)).toEqual(['/w/Cards.docx', '/w/Impacts.docx']);
+  it('Open counts the ticked windows and reopens exactly those, in order', () => {
+    expect(openBtn().textContent).toBe('Open 3 windows');
+    tick(windowRows()[1]!, false);
+    expect(openBtn().textContent).toBe('Open 2 windows');
+    openBtn().click();
+    expect(cb.reopenWorkspaceWindows).toHaveBeenCalledTimes(1);
+    const wins = cb.reopenWorkspaceWindows.mock.calls[0]![0] as WorkspaceWindow[];
+    expect(wins.map((w) => w.docs.length)).toEqual([3, 1]);
+    expect(wins.some((w) => w.name === 'Research')).toBe(false);
+  });
+
+  it('says "1 window" for one, and disables Open when nothing is ticked', () => {
+    tick(windowRows()[0]!, false);
+    tick(windowRows()[1]!, false);
+    expect(openBtn().textContent).toBe('Open 1 window');
+    tick(windowRows()[2]!, false);
+    expect(openBtn().disabled).toBe(true);
+    expect(openBtn().textContent).toContain('no windows ticked');
+    openBtn().click();
+    expect(cb.reopenWorkspaceWindows).not.toHaveBeenCalled();
   });
 
   it('clicking a document line does nothing on its own', () => {
     windowRows()[0]!.querySelector<HTMLElement>('.pmd-home-ws-window-doc')!.click();
-    expect(cb.reopenWorkspaceWindow).not.toHaveBeenCalled();
+    expect(cb.reopenWorkspaceWindows).not.toHaveBeenCalled();
+    expect(boxOf(windowRows()[0]!).checked).toBe(true);
+  });
+
+  it('keeps the ticks through a re-show, and starts a new snapshot all ticked', () => {
+    tick(windowRows()[0]!, false);
+    homeScreen.hide();
+    homeScreen.show();
+    expect(windowRows().map((r) => boxOf(r).checked)).toEqual([false, true, true]);
+    expect(openBtn().textContent).toBe('Open 2 windows');
+
+    seedWindows([{ paths: ['/w/x.docx'] }, { paths: ['/w/y.docx'] }]);
+    homeScreen.hide();
+    homeScreen.show();
+    expect(windowRows().map((r) => boxOf(r).checked)).toEqual([true, true]);
   });
 
   it('Forget clears the saved workspace and hides the section', () => {
