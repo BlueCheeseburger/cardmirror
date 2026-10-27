@@ -2675,24 +2675,26 @@ so **Ctrl-Tab** cycles through them; a slot's own Open button does the same
 without asking. In one-window-per-document mode each file gets its own window.
 
 **Reopening your last set of documents.** On the desktop app, CardMirror
-remembers which files you had open when you last quit and lists them on the Home screen under
-**Last workspace**, each with a tick box. **Reopen** opens the ticked ones —
-untick the ones you don't want, or use **All** / **None** to flip the whole
-list. In the three-pane workspace each document goes back to the pane it was
-in; in single-document mode each gets its own window.
+remembers which windows you had open when you last quit and lists them on the Home screen under
+**Last workspace**, one row per window, in the order you opened them. A row is
+titled with the window's name (**Name This Window…**, from the ribbon's
+right-click menu), or "3 docs" when the window has no name, and the documents
+in that window are listed under it, slightly indented. Click a row to reopen
+that window. A three-pane window comes back with each document in the pane it
+was in, in a window of its own (or in the current window when it is empty);
+in single-document mode each document gets its own window. There are no tick
+boxes: pick the windows you want back by clicking them, one at a time.
 
 CardMirror never reopens documents behind your back: a launch with no file
 lands on the Home screen, where the list is waiting, and nothing opens until
-you say so. Your ticks are remembered between sessions, so a document you
-untick stays unticked as the set changes from one session to the next until
-you tick it again.
+you say so.
 
 Close every document (or its window) before you quit and there's nothing to
 offer, so the section disappears — a clean quit means a clean start. To keep a particular
 working set regardless, run **Save Workspace** (command bar — try "save
 session"): a saved set survives quitting with nothing open, and stays on offer
 until you open other documents and quit with those. **Reopen Last Workspace**
-restores it without going via the Home screen, and **Forget** drops it.
+restores every window in it without going via the Home screen, and **Forget** drops it.
 Documents that have never been saved aren't included — there's no file to
 reopen — and one that has moved or been deleted is skipped with a note.
 

@@ -8,6 +8,11 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+- **Last workspace on the Home screen now lists your windows.** Each window that was open when you last quit gets its own row, titled with the window's name or "3 docs", with that window's documents listed under it. Click a row to reopen that window, with its panes as they were. The tick boxes and the **All** / **None** buttons are gone, and the old "Reopen 3 documents" button with them. **Reopen Last Workspace** in the command bar still brings every window back.
+
 ## 1.16.0-bcb.1 — 2026-10-26
 
 ### Added

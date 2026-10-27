@@ -31,18 +31,13 @@
  * pinned or not; pinning protects against erasure, it doesn't freeze
  * the row.
  *
- * The mode (`panes` / `windows`) is recorded so a restore can honour
- * slot assignments when the user is still in three-pane mode, and
- * ignore them when they've since switched.
- *
- * `excluded` is the user's standing "don't bother reopening this one"
- * list, edited by the home screen's checklist and honoured every time
- * the set is reopened (the home-screen button or the Reopen Last
- * Workspace command) — so one untick is durable rather than a
- * per-click filter. It carries across
- * roll-overs for paths still in the set, and is pruned of everything
- * else so a long-gone document can't silently suppress itself years
- * later if it comes back.
+ * The snapshot keeps the WINDOWS apart: one entry per window, in the
+ * order the windows were opened, each with its own documents, its mode
+ * (`panes` / `windows`, so a restore honours slot assignments only when
+ * the user is still in three-pane mode) and its name when the user gave
+ * it one. The home screen lists a row per window, and clicking a row
+ * reopens that window. `docs` is the same documents flattened, for the
+ * callers that only want a count or the whole set.
  */
 
 import { settings } from './settings.js';
@@ -73,21 +68,36 @@ export interface WorkspaceDoc {
   slot: WorkspaceSlotId | null;
 }
 
+/** One window of the snapshot. */
+export interface WorkspaceWindow {
+  /** The name the user gave the window (Name This Window), or null. */
+  name: string | null;
+  /** The layout the window was in; slot assignments only mean something
+   *  for `panes`. */
+  mode: 'panes' | 'windows';
+  docs: WorkspaceDoc[];
+}
+
 export interface WorkspaceSnapshot {
   savedAt: number;
-  mode: 'panes' | 'windows';
+  /** Every window that was open, oldest first. Never empty, and no
+   *  window in it is empty. */
+  windows: WorkspaceWindow[];
+  /** Every window's documents, flattened in window order. */
   docs: WorkspaceDoc[];
   /** True when the user saved this set deliberately (Save Workspace)
    *  rather than it being the automatic end-of-session capture. Only
    *  effect: an empty quit doesn't clear it. */
   pinned: boolean;
-  /** Paths the user unticked. Always a subset of `docs`'s paths. */
-  excluded: string[];
 }
 
 interface LiveEntry {
+  /** When this window first reported; windows list in this order, so a
+   *  window doesn't hop to the end of the list every time it opens a doc. */
+  openedAt: number;
   updatedAt: number;
   mode: 'panes' | 'windows';
+  name: string | null;
   docs: WorkspaceDoc[];
 }
 
@@ -99,6 +109,10 @@ const WINDOW_ID =
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `w${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+
+/** This window's name, mirrored here by `setWindowWorkspaceName` so every
+ *  report carries it without the callers having to know. */
+let windowName: string | null = null;
 
 type Listener = (snapshot: WorkspaceSnapshot | null) => void;
 const listeners = new Set<Listener>();
@@ -116,6 +130,12 @@ function normalizeDoc(d: WorkspaceDoc): WorkspaceDoc {
     format: d.format === 'cmir' || d.format === 'docx' ? d.format : null,
     slot: d.slot === 'slot1' || d.slot === 'slot2' || d.slot === 'slot3' ? d.slot : null,
   };
+}
+
+function normalizeName(name: unknown): string | null {
+  if (typeof name !== 'string') return null;
+  const trimmed = name.trim();
+  return trimmed || null;
 }
 
 function readJson(key: string): unknown {
@@ -148,56 +168,50 @@ function readLive(): Record<string, LiveEntry> {
     if (typeof e.updatedAt !== 'number' || e.updatedAt < cutoff) continue;
     if (!Array.isArray(e.docs)) continue;
     out[id] = {
+      openedAt: typeof e.openedAt === 'number' ? e.openedAt : e.updatedAt,
       updatedAt: e.updatedAt,
       mode: e.mode === 'panes' ? 'panes' : 'windows',
+      name: normalizeName(e.name),
       docs: e.docs.filter(isDoc).map(normalizeDoc),
     };
   }
   return out;
 }
 
-/** Fold the LIVE map into one snapshot: oldest window first (so the
- *  set reads in the order the user built it), de-duplicated by path.
- *  Mode comes from the newest contributing entry — every window in a
- *  session runs the same mode, so this only matters after a toggle. */
+/** Build a snapshot from windows already in order: de-duplicate by path
+ *  (a document belongs to one window; a stale entry could say otherwise),
+ *  cap the total, and drop any window left with nothing. */
+function buildSnapshot(windows: WorkspaceWindow[], savedAt: number, pinned: boolean): WorkspaceSnapshot | null {
+  const seen = new Set<string>();
+  const kept: WorkspaceWindow[] = [];
+  const docs: WorkspaceDoc[] = [];
+  for (const win of windows) {
+    const own: WorkspaceDoc[] = [];
+    for (const doc of win.docs) {
+      if (docs.length >= MAX_DOCS) break;
+      if (seen.has(doc.path)) continue;
+      seen.add(doc.path);
+      own.push(doc);
+      docs.push(doc);
+    }
+    if (own.length > 0) kept.push({ name: win.name, mode: win.mode, docs: own });
+    if (docs.length >= MAX_DOCS) break;
+  }
+  if (kept.length === 0) return null;
+  return { savedAt, windows: kept, docs, pinned };
+}
+
+/** Fold the LIVE map into one snapshot: one window per entry, the
+ *  oldest first (so the set reads in the order the user built it). */
 function foldLive(live: Record<string, LiveEntry>): WorkspaceSnapshot | null {
   const entries = Object.values(live)
     .filter((e) => e.docs.length > 0)
-    .sort((a, b) => a.updatedAt - b.updatedAt);
-  if (entries.length === 0) return null;
-  const seen = new Set<string>();
-  const docs: WorkspaceDoc[] = [];
-  for (const entry of entries) {
-    for (const doc of entry.docs) {
-      if (seen.has(doc.path)) continue;
-      seen.add(doc.path);
-      docs.push(doc);
-      if (docs.length >= MAX_DOCS) break;
-    }
-    if (docs.length >= MAX_DOCS) break;
-  }
-  const newest = entries.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
-  return { savedAt: Date.now(), mode: newest.mode, docs, pinned: false, excluded: [] };
-}
-
-/** Carry the standing unticks onto a freshly folded snapshot, keeping
- *  only the paths that are actually in it. A document the user unticked
- *  stays unticked as sessions roll over; one that has left the set
- *  drops its exclusion rather than lying in wait. */
-function carryExclusions(next: WorkspaceSnapshot): WorkspaceSnapshot {
-  const standing = lastWorkspace()?.excluded ?? [];
-  if (standing.length === 0) return next;
-  const paths = new Set(next.docs.map((d) => d.path));
-  return { ...next, excluded: standing.filter((p) => paths.has(p)) };
-}
-
-/** The documents a reopen should actually open: everything still
- *  ticked. The home-screen button and the Reopen Last Workspace
- *  command both go through this, so they can't drift apart. */
-export function selectedDocs(snapshot: WorkspaceSnapshot): WorkspaceDoc[] {
-  if (snapshot.excluded.length === 0) return snapshot.docs;
-  const excluded = new Set(snapshot.excluded);
-  return snapshot.docs.filter((d) => !excluded.has(d.path));
+    .sort((a, b) => a.openedAt - b.openedAt);
+  return buildSnapshot(
+    entries.map((e) => ({ name: e.name, mode: e.mode, docs: e.docs })),
+    Date.now(),
+    false,
+  );
 }
 
 /** Record what THIS window currently has open. Docs without a string
@@ -216,7 +230,32 @@ export function reportWindowWorkspace(
   }
   const live = readLive();
   if (kept.length === 0) delete live[WINDOW_ID];
-  else live[WINDOW_ID] = { updatedAt: Date.now(), mode, docs: kept };
+  else {
+    const now = Date.now();
+    live[WINDOW_ID] = {
+      openedAt: live[WINDOW_ID]?.openedAt ?? now,
+      updatedAt: now,
+      mode,
+      name: windowName,
+      docs: kept,
+    };
+  }
+  writeJson(LIVE_KEY, live);
+}
+
+/** Tell the store this window's name (null = unnamed), so the snapshot
+ *  can label the window. Rewrites this window's entry in place when it
+ *  has one; a window with no entry yet picks the name up on its first
+ *  report. */
+export function setWindowWorkspaceName(name: string | null): void {
+  const next = normalizeName(name);
+  if (next === windowName) return;
+  windowName = next;
+  if (!settings.get('lastWorkspaceEnabled')) return;
+  const live = readLive();
+  const mine = live[WINDOW_ID];
+  if (!mine) return;
+  live[WINDOW_ID] = { ...mine, name: next };
   writeJson(LIVE_KEY, live);
 }
 
@@ -254,20 +293,35 @@ export function lastWorkspace(): WorkspaceSnapshot | null {
   if (!settings.get('lastWorkspaceEnabled')) return null;
   const parsed = readJson(LAST_KEY);
   if (!parsed || typeof parsed !== 'object') return null;
-  const s = parsed as WorkspaceSnapshot;
-  if (typeof s.savedAt !== 'number' || !Array.isArray(s.docs)) return null;
-  const docs = s.docs.filter(isDoc).map(normalizeDoc).slice(0, MAX_DOCS);
-  if (docs.length === 0) return null;
-  const paths = new Set(docs.map((d) => d.path));
-  return {
-    savedAt: s.savedAt,
-    mode: s.mode === 'panes' ? 'panes' : 'windows',
-    docs,
-    pinned: s.pinned === true,
-    excluded: Array.isArray(s.excluded)
-      ? s.excluded.filter((p): p is string => typeof p === 'string' && paths.has(p))
-      : [],
+  const s = parsed as {
+    savedAt?: unknown;
+    mode?: unknown;
+    windows?: unknown;
+    docs?: unknown;
+    pinned?: unknown;
   };
+  if (typeof s.savedAt !== 'number') return null;
+  let windows: WorkspaceWindow[];
+  if (Array.isArray(s.windows)) {
+    windows = s.windows
+      .filter((w): w is Record<string, unknown> => !!w && typeof w === 'object' && Array.isArray((w as { docs?: unknown }).docs))
+      .map((w) => ({
+        name: normalizeName(w['name']),
+        mode: w['mode'] === 'panes' ? 'panes' : 'windows',
+        docs: (w['docs'] as unknown[]).filter(isDoc).map(normalizeDoc),
+      }));
+  } else if (Array.isArray(s.docs)) {
+    // Written before windows were kept apart: a three-pane session is
+    // one window's worth of documents, a single-doc one a window each.
+    const docs = s.docs.filter(isDoc).map(normalizeDoc);
+    windows =
+      s.mode === 'panes'
+        ? [{ name: null, mode: 'panes', docs }]
+        : docs.map((d) => ({ name: null, mode: 'windows' as const, docs: [d] }));
+  } else {
+    return null;
+  }
+  return buildSnapshot(windows, s.savedAt, s.pinned === true);
 }
 
 function publish(snapshot: WorkspaceSnapshot | null): void {
@@ -286,9 +340,8 @@ export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
   writeJson(LIVE_KEY, {});
   let snapshot: WorkspaceSnapshot | null;
   if (folded) {
-    const carried = carryExclusions(folded);
-    writeJson(LAST_KEY, carried);
-    snapshot = carried;
+    writeJson(LAST_KEY, folded);
+    snapshot = folded;
   } else {
     const standing = lastWorkspace();
     snapshot = standing?.pinned ? standing : null;
@@ -305,23 +358,10 @@ export function saveWorkspaceNow(): WorkspaceSnapshot | null {
   if (!settings.get('lastWorkspaceEnabled')) return null;
   const folded = foldLive(readLive());
   if (!folded) return null;
-  const pinned: WorkspaceSnapshot = { ...carryExclusions(folded), pinned: true };
+  const pinned: WorkspaceSnapshot = { ...folded, pinned: true };
   writeJson(LAST_KEY, pinned);
   publish(pinned);
   return pinned;
-}
-
-/** Replace the standing untick list (home-screen checklist edits).
- *  No-op when there's no snapshot to attach it to. Paths outside the
- *  snapshot are dropped, so the invariant `excluded ⊆ docs` holds. */
-export function setWorkspaceExcluded(paths: Iterable<string>): void {
-  const snapshot = lastWorkspace();
-  if (!snapshot) return;
-  const inSet = new Set(snapshot.docs.map((d) => d.path));
-  const excluded = [...new Set(paths)].filter((p) => inSet.has(p));
-  const next: WorkspaceSnapshot = { ...snapshot, excluded };
-  writeJson(LAST_KEY, next);
-  publish(next);
 }
 
 export function clearLastWorkspace(): void {

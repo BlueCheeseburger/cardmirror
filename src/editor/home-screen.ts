@@ -28,9 +28,7 @@ import {
   lastWorkspace,
   subscribeLastWorkspace,
   clearLastWorkspace,
-  setWorkspaceExcluded,
-  type WorkspaceDoc,
-  type WorkspaceSnapshot,
+  type WorkspaceWindow,
 } from './workspace-store.js';
 import {
   listRecentWorkspaces,
@@ -65,12 +63,10 @@ export interface HomeScreenCallbacks {
   /** Reopen a recent file in-place. The renderer reads the
    *  handle, mounts the doc, and prunes the entry on failure. */
   openRecent: (recent: RecentFile) => void;
-  /** Reopen the ticked documents from the last saved workspace. The
-   *  whole snapshot is passed; the renderer re-derives the ticked set
-   *  (`selectedDocs`), the same way the Reopen Last Workspace command
-   *  does. Omitted on hosts that can't reopen by path (the web
-   *  edition), in which case the Workspace section isn't rendered. */
-  reopenWorkspace?: (snapshot: WorkspaceSnapshot) => void;
+  /** Reopen one window of the last saved workspace: its documents, in the
+   *  layout it had. Omitted on hosts that can't reopen by path (the web
+   *  edition), in which case the Last workspace section isn't rendered. */
+  reopenWorkspaceWindow?: (win: WorkspaceWindow) => void;
   /** Reopen a recently closed multi-pane workspace, offered inline in
    *  the unified Recent list alongside plain recent files. Omitted on
    *  hosts that can't reopen by path (the web edition), in which case
@@ -111,10 +107,6 @@ class HomeScreen {
   private recentsEl!: HTMLDivElement;
   private workspaceSection!: HTMLElement;
   private workspaceEl!: HTMLDivElement;
-  /** Set while THIS screen is writing the untick list, so the store's
-   *  change notification doesn't rebuild the list under the user's
-   *  cursor (the row states are already updated in place). */
-  private workspaceSelfWrite = false;
   private sessionsSection!: HTMLElement;
   private sessionsEl!: HTMLDivElement;
   private learnEl!: HTMLDivElement;
@@ -427,9 +419,7 @@ class HomeScreen {
 
     this.unsubscribe = subscribeRecents(() => this.renderRecents());
     subscribeRecentWorkspaces(() => this.renderRecents());
-    subscribeLastWorkspace(() => {
-      if (!this.workspaceSelfWrite) this.renderWorkspace();
-    });
+    subscribeLastWorkspace(() => this.renderWorkspace());
     this.renderWorkspace();
     learnStore.subscribe(() => this.renderLearn());
     subscribeSessionRecords(() => void this.renderSessions());
@@ -813,127 +803,68 @@ class HomeScreen {
     }
   }
 
-  /** Rebuild the Last-workspace section from the store: a Reopen
-   *  button over the full checklist of documents in the snapshot. The
-   *  list is always visible rather than folded away — seeing what's in
-   *  the set is the point, and a 15-document set restored wholesale is
-   *  rarely what the user wants. All / None flip every tick at once.
-   *  Ticks persist through the store, so the Reopen Last Workspace
-   *  command honours them too. The list scrolls past ~8 rows so a big
-   *  workspace can't push the rest of the home screen off the page. */
+  /** Rebuild the Last-workspace section from the store: one row per
+   *  window that was open when the app last closed, in the order the
+   *  windows were opened. A row is titled with the window's name, or
+   *  "3 docs" when it has none, and clicking it reopens that window;
+   *  the window's documents are listed under it, slightly indented, so
+   *  what comes back is visible before the click. The list scrolls past
+   *  ~34rem so a big workspace can't push the rest of the home screen
+   *  off the page. */
   private renderWorkspace(): void {
     if (!this.workspaceSection) return;
-    const snapshot = this.callbacks?.reopenWorkspace ? lastWorkspace() : null;
+    const snapshot = this.callbacks?.reopenWorkspaceWindow ? lastWorkspace() : null;
     this.workspaceSection.hidden = snapshot === null;
     this.workspaceEl.replaceChildren();
     if (!snapshot) return;
-    // The untick list lives in the store, not in this screen, so one
-    // untick is durable — it survives sessions and governs the Reopen
-    // Last Workspace command too — rather than a filter that only
-    // applies to this click.
-    const unchecked = new Set(snapshot.excluded);
-    const persist = (): void => {
-      this.workspaceSelfWrite = true;
-      try {
-        setWorkspaceExcluded(unchecked);
-      } finally {
-        this.workspaceSelfWrite = false;
-      }
-    };
-    const selected = (): WorkspaceDoc[] => snapshot.docs.filter((d) => !unchecked.has(d.path));
+    for (const win of snapshot.windows) this.workspaceEl.appendChild(this.workspaceWindowRow(win, snapshot.savedAt));
+  }
 
-    const row = document.createElement('div');
-    row.className = 'pmd-home-workspace-row';
-    const openBtn = document.createElement('button');
-    openBtn.type = 'button';
-    openBtn.className = 'pmd-home-workspace-open';
-    const count = document.createElement('span');
-    count.className = 'pmd-home-recent-format';
-    const name = document.createElement('span');
-    name.className = 'pmd-home-recent-name';
-    openBtn.append(count, name);
-    openBtn.title = `Saved ${relativeTime(snapshot.savedAt)}`;
-    openBtn.addEventListener('click', () => {
-      if (selected().length === 0) return;
-      // `snapshot` was captured when this list was built, and ticking a
-      // box deliberately does NOT re-render (that would rebuild the
-      // list under the cursor) — so its `excluded` is stale by now.
-      // Send what's on screen; the renderer filters on it.
-      this.callbacks?.reopenWorkspace?.({ ...snapshot, excluded: [...unchecked] });
-    });
-    row.appendChild(openBtn);
+  private workspaceWindowRow(win: WorkspaceWindow, savedAt: number): HTMLDivElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'pmd-home-ws-window';
+    const countLabel = `${win.docs.length} ${win.docs.length === 1 ? 'doc' : 'docs'}`;
 
-    const boxes: HTMLInputElement[] = [];
-    const selectAll = (checked: boolean): void => {
-      unchecked.clear();
-      if (!checked) for (const d of snapshot.docs) unchecked.add(d.path);
-      for (const b of boxes) b.checked = checked;
-      persist();
-      syncSummary();
-    };
-    const allBtn = document.createElement('button');
-    allBtn.type = 'button';
-    allBtn.className = 'pmd-home-workspace-select';
-    allBtn.textContent = 'All';
-    allBtn.title = 'Select every document';
-    allBtn.addEventListener('click', () => selectAll(true));
-    const noneBtn = document.createElement('button');
-    noneBtn.type = 'button';
-    noneBtn.className = 'pmd-home-workspace-select';
-    noneBtn.textContent = 'None';
-    noneBtn.title = 'Deselect every document';
-    noneBtn.addEventListener('click', () => selectAll(false));
-    row.append(allBtn, noneBtn);
-
-    // The summary label is derived from the ticks, so a change updates
-    // it in place rather than re-rendering (which would rebuild the
-    // list under the user's cursor).
-    const syncSummary = (): void => {
-      const docs = selected();
-      count.textContent = String(docs.length);
-      openBtn.disabled = docs.length === 0;
-      name.textContent =
-        docs.length === 0
-          ? 'Nothing selected'
-          : docs.length === 1
-            ? 'Reopen 1 document'
-            : `Reopen ${docs.length} documents`;
-      allBtn.disabled = docs.length === snapshot.docs.length;
-      noneBtn.disabled = docs.length === 0;
-    };
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'pmd-home-workspace-open';
+    open.title = `Reopen this window (saved ${relativeTime(savedAt)})`;
+    const title = document.createElement('span');
+    title.className = 'pmd-home-recent-name';
+    title.textContent = win.name ?? countLabel;
+    open.appendChild(title);
+    if (win.name) {
+      // A named window shows its count to the side, so the name can be the title.
+      const meta = document.createElement('span');
+      meta.className = 'pmd-home-recent-path';
+      // LRM guards: the cell is right-to-left (so long paths truncate on the left).
+      meta.textContent = `\u{200e}${countLabel}\u{200e}`;
+      open.appendChild(meta);
+    }
+    open.addEventListener('click', () => this.callbacks?.reopenWorkspaceWindow?.(win));
+    wrap.appendChild(open);
 
     const list = document.createElement('div');
-    list.className = 'pmd-home-workspace-list';
-    for (const doc of snapshot.docs) {
-      const item = document.createElement('label');
-      item.className = 'pmd-home-workspace-item';
+    list.className = 'pmd-home-ws-window-docs';
+    for (const doc of win.docs) {
+      const item = document.createElement('div');
+      item.className = 'pmd-home-ws-window-doc';
       item.title = doc.path;
-      const box = document.createElement('input');
-      box.type = 'checkbox';
-      box.checked = !unchecked.has(doc.path);
-      box.addEventListener('change', () => {
-        if (box.checked) unchecked.delete(doc.path);
-        else unchecked.add(doc.path);
-        persist();
-        syncSummary();
-      });
-      boxes.push(box);
       const fmt = document.createElement('span');
       fmt.className = `pmd-home-recent-format pmd-home-recent-format-${doc.format ?? 'unknown'}`;
       fmt.textContent = (doc.format ?? '?').toUpperCase();
       const label = document.createElement('span');
       label.className = 'pmd-home-recent-name';
-      label.textContent = stripKnownExt(doc.filename);
+      label.textContent = stripKnownExt(displayFilename(doc.filename));
       const path = document.createElement('span');
       path.className = 'pmd-home-recent-path';
       // Left-truncating path cell, same LRM guards as the recent rows.
       path.textContent = `\u{200e}${doc.path}\u{200e}`;
-      item.append(box, fmt, label, path);
+      item.append(fmt, label, path);
       list.appendChild(item);
     }
-
-    syncSummary();
-    this.workspaceEl.append(row, list);
+    wrap.appendChild(list);
+    return wrap;
   }
 
   private recentRow(recent: RecentFile): HTMLButtonElement {

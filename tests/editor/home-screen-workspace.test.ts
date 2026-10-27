@@ -1,48 +1,56 @@
 // @vitest-environment jsdom
 /**
- * Home screen's Last-workspace checklist. The set is always listed in
- * full rather than folded away — reopening 15 documents wholesale is
- * rarely what the user wants — so the interesting behaviour is that
- * the Reopen button carries exactly the ticked subset, and that All /
- * None flip every row at once.
+ * Home screen's Last-workspace section: one row per window that was open
+ * when the app last closed, titled with the window's name or its document
+ * count, with that window's documents listed (indented) beneath it. There
+ * are no checkboxes and no All / None — the window is the unit, and
+ * clicking its row reopens it.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { homeScreen, type HomeScreenCallbacks } from '../../src/editor/home-screen.js';
 import { settings } from '../../src/editor/settings.js';
-import {
-  saveWorkspaceNow,
-  reportWindowWorkspace,
-  lastWorkspace,
-} from '../../src/editor/workspace-store.js';
+import type { WorkspaceWindow } from '../../src/editor/workspace-store.js';
 
-function makeCallbacks(): HomeScreenCallbacks & { reopenWorkspace: ReturnType<typeof vi.fn> } {
+const LAST_KEY = 'pmd-last-workspace';
+
+function makeCallbacks(): HomeScreenCallbacks & { reopenWorkspaceWindow: ReturnType<typeof vi.fn> } {
   return {
     newDoc: vi.fn(),
     open: vi.fn(),
     openRecent: vi.fn(),
     manageQuickCards: vi.fn(),
     compareDocuments: vi.fn(),
-    reopenWorkspace: vi.fn(),
+    reopenWorkspaceWindow: vi.fn(),
   };
 }
 
-function seedWorkspace(paths: string[]): void {
-  reportWindowWorkspace(
-    'windows',
-    paths.map((path) => ({ path, filename: path.split('/').pop()!, format: 'cmir' as const })),
+const doc = (path: string, format: 'cmir' | 'docx' = 'docx') => ({
+  path,
+  filename: path.split('/').pop()!,
+  format,
+  slot: null,
+});
+
+function seedWindows(windows: Array<{ name?: string | null; paths: string[]; mode?: 'panes' | 'windows' }>): void {
+  const wins: WorkspaceWindow[] = windows.map((w) => ({
+    name: w.name ?? null,
+    mode: w.mode ?? 'panes',
+    docs: w.paths.map((p) => doc(p)),
+  }));
+  localStorage.setItem(
+    LAST_KEY,
+    JSON.stringify({ savedAt: Date.now(), windows: wins, docs: wins.flatMap((w) => w.docs), pinned: false }),
   );
-  saveWorkspaceNow();
 }
 
-const items = (): HTMLInputElement[] =>
-  Array.from(document.querySelectorAll<HTMLInputElement>('.pmd-home-workspace-item input'));
-const openBtn = (): HTMLButtonElement =>
-  document.querySelector<HTMLButtonElement>('.pmd-home-workspace-open')!;
-const selectBtn = (label: string): HTMLButtonElement =>
-  Array.from(document.querySelectorAll<HTMLButtonElement>('.pmd-home-workspace-select')).find(
-    (b) => b.textContent === label,
-  )!;
+const section = (): HTMLElement => document.querySelector<HTMLElement>('.pmd-home-workspace-section')!;
+const windowRows = (): HTMLElement[] => Array.from(section().querySelectorAll<HTMLElement>('.pmd-home-ws-window'));
+const rowButton = (row: HTMLElement): HTMLButtonElement =>
+  row.querySelector<HTMLButtonElement>('.pmd-home-workspace-open')!;
+const titleOf = (row: HTMLElement): string => rowButton(row).querySelector('.pmd-home-recent-name')!.textContent!;
+const docNames = (row: HTMLElement): string[] =>
+  Array.from(row.querySelectorAll('.pmd-home-ws-window-doc .pmd-home-recent-name')).map((e) => e.textContent!);
 
 describe('home screen — last workspace', () => {
   let cb: ReturnType<typeof makeCallbacks>;
@@ -51,7 +59,11 @@ describe('home screen — last workspace', () => {
     localStorage.clear();
     settings.set('lastWorkspaceEnabled', true);
     document.body.innerHTML = '';
-    seedWorkspace(['/w/a.cmir', '/w/b.cmir', '/w/c.cmir']);
+    seedWindows([
+      { paths: ['/w/Aff.docx', '/w/Neg.docx', '/w/Case.docx'] },
+      { name: 'Research', paths: ['/w/Cards.docx', '/w/Impacts.docx'] },
+      { paths: ['/w/Speech.docx'] },
+    ]);
     cb = makeCallbacks();
     homeScreen.mount(document.body, cb);
     homeScreen.show();
@@ -61,79 +73,65 @@ describe('home screen — last workspace', () => {
     homeScreen.hide();
   });
 
-  it('lists every document, all ticked, with a Reopen button for the lot', () => {
-    expect(items()).toHaveLength(3);
-    expect(items().every((b) => b.checked)).toBe(true);
-    expect(openBtn().textContent).toContain('Reopen 3 documents');
+  it('shows one row per window, titled by its name or its document count', () => {
+    expect(windowRows().map(titleOf)).toEqual(['3 docs', 'Research', '1 doc']);
   });
 
-  it('persists an untick to the store, where the Reopen command reads it', () => {
-    const [, second] = items();
-    second!.checked = false;
-    second!.dispatchEvent(new Event('change'));
-    expect(openBtn().textContent).toContain('Reopen 2 documents');
-    // Durable, not a per-click filter: the Reopen Last Workspace
-    // command honours the same list.
-    expect(lastWorkspace()!.excluded).toEqual(['/w/b.cmir']);
-    openBtn().click();
-    expect(cb.reopenWorkspace).toHaveBeenCalledTimes(1);
-    // The whole snapshot goes over; the renderer re-derives the ticks.
-    const passed = cb.reopenWorkspace.mock.calls[0]![0];
-    expect(passed.docs).toHaveLength(3);
-    expect(passed.excluded).toEqual(['/w/b.cmir']);
+  it('shows a named window\'s count beside its name', () => {
+    const [unnamed, named] = windowRows();
+    expect(rowButton(unnamed!).querySelector('.pmd-home-recent-path')).toBeNull();
+    expect(rowButton(named!).querySelector('.pmd-home-recent-path')!.textContent!.replace(/\u200e/g, '')).toBe('2 docs');
   });
 
-  it('None clears every tick and disables Reopen; All puts them back', () => {
-    selectBtn('None').click();
-    expect(items().some((b) => b.checked)).toBe(false);
-    expect(openBtn().disabled).toBe(true);
-    expect(openBtn().textContent).toContain('Nothing selected');
-    expect(lastWorkspace()!.excluded).toHaveLength(3);
-    openBtn().click();
-    expect(cb.reopenWorkspace).not.toHaveBeenCalled();
-
-    selectBtn('All').click();
-    expect(items().every((b) => b.checked)).toBe(true);
-    expect(openBtn().disabled).toBe(false);
-    expect(lastWorkspace()!.excluded).toEqual([]);
-    openBtn().click();
-    expect(cb.reopenWorkspace.mock.calls[0]![0].docs).toHaveLength(3);
+  it('lists every document of a window under its row, by name without the extension', () => {
+    const rows = windowRows();
+    expect(docNames(rows[0]!)).toEqual(['Aff', 'Neg', 'Case']);
+    expect(docNames(rows[1]!)).toEqual(['Cards', 'Impacts']);
+    expect(docNames(rows[2]!)).toEqual(['Speech']);
   });
 
-  it('keeps the ticks through a re-show, and starts a fresh set ticked', () => {
-    const [first] = items();
-    first!.checked = false;
-    first!.dispatchEvent(new Event('change'));
-    homeScreen.hide();
-    homeScreen.show();
-    expect(items()[0]!.checked).toBe(false);
+  it('has no checkboxes and no All / None buttons, and no per-document Reopen label', () => {
+    expect(section().querySelectorAll('input')).toHaveLength(0);
+    const labels = Array.from(section().querySelectorAll('button')).map((b) => b.textContent);
+    expect(labels).not.toContain('All');
+    expect(labels).not.toContain('None');
+    expect(section().textContent).not.toContain('Reopen');
+  });
 
-    // A snapshot of different documents: nothing carries over, so
-    // every row starts ticked.
-    seedWorkspace(['/w/x.cmir', '/w/y.cmir']);
-    homeScreen.hide();
-    homeScreen.show();
-    expect(items()).toHaveLength(2);
-    expect(items().every((b) => b.checked)).toBe(true);
+  it('clicking a window row reopens that window, and only that one', () => {
+    rowButton(windowRows()[1]!).click();
+    expect(cb.reopenWorkspaceWindow).toHaveBeenCalledTimes(1);
+    const win = cb.reopenWorkspaceWindow.mock.calls[0]![0] as WorkspaceWindow;
+    expect(win.name).toBe('Research');
+    expect(win.docs.map((d) => d.path)).toEqual(['/w/Cards.docx', '/w/Impacts.docx']);
+  });
+
+  it('clicking a document line does nothing on its own', () => {
+    windowRows()[0]!.querySelector<HTMLElement>('.pmd-home-ws-window-doc')!.click();
+    expect(cb.reopenWorkspaceWindow).not.toHaveBeenCalled();
+  });
+
+  it('Forget clears the saved workspace and hides the section', () => {
+    section().querySelector<HTMLButtonElement>('.pmd-home-recents-clear')!.click();
+    expect(section().hidden).toBe(true);
+    expect(localStorage.getItem(LAST_KEY)).toBeNull();
   });
 
   it('hides the section while the setting is off, even with a snapshot', () => {
     settings.set('lastWorkspaceEnabled', false);
     homeScreen.hide();
     homeScreen.show();
-    expect(document.querySelector<HTMLElement>('.pmd-home-workspace-section')!.hidden).toBe(true);
+    expect(section().hidden).toBe(true);
     settings.set('lastWorkspaceEnabled', true);
     homeScreen.hide();
     homeScreen.show();
-    expect(document.querySelector<HTMLElement>('.pmd-home-workspace-section')!.hidden).toBe(false);
+    expect(section().hidden).toBe(false);
   });
 
   it('hides the section entirely when there is no snapshot', () => {
     localStorage.clear();
     homeScreen.hide();
     homeScreen.show();
-    expect(
-      document.querySelector<HTMLElement>('.pmd-home-workspace-section')!.hidden,
-    ).toBe(true);
+    expect(section().hidden).toBe(true);
   });
 });

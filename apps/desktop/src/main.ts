@@ -284,6 +284,12 @@ interface InitialDocPayload {
   /** Resume a persisted collaboration session instead of mounting a doc.
    *  Passed through opaquely, like joinShareCode. */
   resumeRoomId?: string;
+  /** Reopen these documents by path into the new window's slots instead of
+   *  mounting a doc (placeholder doc fields). Passed through opaquely. */
+  restoreWorkspaceDocs?: Array<{ path: string; filename: string; slot: string | null }>;
+  /** The name to give the new window. Passed through opaquely; the renderer
+   *  applies it with `host:window-name-set`. */
+  windowName?: string | null;
 }
 const pendingInitialDocs = new Map<number, InitialDocPayload>();
 

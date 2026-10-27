@@ -4052,6 +4052,17 @@ class MultiPaneShell {
     return opened;
   }
 
+  /** No document in any slot — the window a reopened workspace window can
+   *  fill in place instead of spawning another. */
+  hasNoDocs(): boolean {
+    return SLOT_IDS.every((id) => this.slots[id].stack.length === 0);
+  }
+
+  /** Whether `path` is already open in one of this window's slots. */
+  async hasDocAtPath(path: string): Promise<boolean> {
+    return (await this.findOpenRecordByHandle(path)) !== null;
+  }
+
   /** Duplicate-open guard: if `opened` is already loaded in the
    *  workspace, focus + show the existing copy, toast the user,
    *  and return true so the caller can short-circuit. The shell
@@ -4726,6 +4737,17 @@ export async function restoreWorkspaceIntoSlots(
 ): Promise<number> {
   if (!shell) return 0;
   return shell.restoreWorkspaceDocs(docs);
+}
+
+/** True when this window's workspace holds no document (or the shell
+ *  isn't active). */
+export function workspaceIsEmpty(): boolean {
+  return !shell || shell.hasNoDocs();
+}
+
+/** Whether `path` is already open in this window's workspace. */
+export async function workspaceHasPath(path: string): Promise<boolean> {
+  return shell ? shell.hasDocAtPath(path) : false;
 }
 
 /** Toggle expand-mode on the focused slot. No-op when no slot is

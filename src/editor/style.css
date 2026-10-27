@@ -4764,20 +4764,22 @@ html.pmd-home-active #status-bar {
      if it must. */
 }
 
-/* Last workspace — above Recent: a Reopen button over the checklist of
-   documents the previous session ended with. Rows borrow the recent
-   row's chip / name / path scaffolding, so a path still left-truncates
-   to keep its tail visible. The list scrolls past ~8 rows (like the
-   sessions list) so a 24-document workspace can't push the utilities
-   off screen. */
+/* Last workspace — above Recent: one block per window that was open when
+   the app last closed. The window's row (a bordered button, like a Recent
+   workspace's) reopens it; the window's documents are listed under it,
+   slightly indented, borrowing the recent row's chip / name / path
+   scaffolding so a path still left-truncates to keep its tail visible.
+   The whole list scrolls past ~34rem (like the sessions list) so a big
+   workspace can't push the utilities off screen. */
 .pmd-home-workspace-section {
   margin-bottom: 1.1rem;
 }
-.pmd-home-workspace-row {
+.pmd-home-workspace {
   display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-bottom: 0.25rem;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 34rem;
+  overflow-y: auto;
 }
 .pmd-home-workspace-open {
   appearance: none;
@@ -4802,49 +4804,27 @@ html.pmd-home-active #status-bar {
   cursor: default;
   opacity: 0.55;
 }
-.pmd-home-workspace-select {
-  appearance: none;
-  font: inherit;
-  font-size: 0.78rem;
-  background: transparent;
-  border: none;
-  color: var(--pmd-c-text-muted);
-  cursor: pointer;
-  padding: 0.35rem 0.5rem;
-  border-radius: 6px;
-  flex: 0 0 auto;
-}
-.pmd-home-workspace-select:hover:not(:disabled) {
-  background: var(--pmd-c-hover);
-  color: var(--pmd-c-text);
-}
-.pmd-home-workspace-select:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-.pmd-home-workspace-list {
+.pmd-home-ws-window {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 18rem;
-  overflow-y: auto;
 }
-.pmd-home-workspace-item {
+.pmd-home-ws-window > .pmd-home-workspace-open {
+  flex: 0 0 auto;
+}
+.pmd-home-ws-window-docs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 1.4rem;
+}
+.pmd-home-ws-window-doc {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: 6px;
-  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+  min-width: 0;
   color: var(--pmd-c-text);
-}
-.pmd-home-workspace-item:hover {
-  background: var(--pmd-c-hover);
-}
-.pmd-home-workspace-item input {
-  flex: 0 0 auto;
-  margin: 0;
-  cursor: pointer;
 }
 
 /* Collaboration sessions — dedicated section below Recent. Scrolls
