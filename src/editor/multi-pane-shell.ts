@@ -1527,15 +1527,16 @@ class Slot {
   }
 
   /** Cover an OCCUPIED pane with the same hint for the length of a drag:
-   *  dropping here swaps the two documents. Unlike an empty slot the pane
-   *  keeps its place in the layout, so nothing moves under the cursor. */
-  showAsSwapTarget(): void {
+   *  dropping here adds the document to this pane's stack. Unlike an empty
+   *  slot the pane keeps its place in the layout, so nothing moves under
+   *  the cursor. */
+  showAsStackTarget(): void {
     if (this.dropHintEl) return;
     this.paneEl.appendChild(this.buildDropHint(this.visible ? docDisplayName(this.visible.filename) : null));
-    this.paneEl.classList.add('pmd-pane-swap-target');
+    this.paneEl.classList.add('pmd-pane-stack-target');
   }
 
-  private buildDropHint(swapWith: string | null): HTMLElement {
+  private buildDropHint(stackOnto: string | null): HTMLElement {
     const hint = document.createElement('div');
     hint.className = 'pmd-pane-dropzone-hint';
     const num = document.createElement('span');
@@ -1543,12 +1544,12 @@ class Slot {
     num.textContent = this.id.replace('slot', '');
     const verb = document.createElement('span');
     verb.className = 'pmd-pane-dropzone-verb';
-    verb.textContent = swapWith === null ? 'Move here' : 'Swap places';
+    verb.textContent = stackOnto === null ? 'Move here' : 'Add to stack';
     hint.append(num, verb);
-    if (swapWith !== null) {
+    if (stackOnto !== null) {
       const name = document.createElement('span');
       name.className = 'pmd-pane-dropzone-name';
-      name.textContent = swapWith;
+      name.textContent = stackOnto;
       hint.appendChild(name);
     }
     this.dropHintEl = hint;
@@ -1560,7 +1561,7 @@ class Slot {
   clearDropZone(): void {
     this.dropHintEl?.remove();
     this.dropHintEl = null;
-    this.paneEl.classList.remove('pmd-pane-dropzone', 'pmd-pane-swap-target', 'pmd-pane-drop-target');
+    this.paneEl.classList.remove('pmd-pane-dropzone', 'pmd-pane-stack-target', 'pmd-pane-drop-target');
   }
 
   /** Light this pane up as the drag's pending destination. */
@@ -2821,7 +2822,7 @@ class MultiPaneShell {
   /** A chip drag started: dress the row for dropping. EMPTY slots come back
    *  into the layout as drop zones (an empty pane is `hidden`, so the one
    *  place you'd most want to drop a doc wouldn't otherwise be on screen),
-   *  occupied panes get a swap overlay, and the move tray offers every slot
+   *  occupied panes get an add-to-stack overlay, and the move tray offers every slot
    *  plus another or a new window. */
   beginChipDrag(source: Slot): void {
     this.rowEl.classList.add('pmd-multi-row-dragging');
@@ -2837,7 +2838,7 @@ class MultiPaneShell {
     for (const id of SLOT_IDS) {
       const slot = this.slots[id];
       if (slot === source) continue;
-      if (slot.stack.length > 0) slot.showAsSwapTarget();
+      if (slot.stack.length > 0) slot.showAsStackTarget();
       else slot.showAsDropZone();
     }
     this.moveTrayWindows = [];
@@ -2872,25 +2873,17 @@ class MultiPaneShell {
    *  or a window (`win:new`, `win:<id>`).
    *
    *  Dropping onto an EMPTY slot is a plain move. Dropping onto an
-   *  OCCUPIED one is a SWAP — the target's visible doc comes back and
-   *  takes over `source`'s now-empty spot — not a push onto the
-   *  target's stack: the point of dragging pane 2's doc onto pane 1 is
-   *  to put it in pane 1 and see pane 1's old doc in pane 2, the way
-   *  dragging a tab or a window swaps positions everywhere else. A
-   *  stack-push would instead bury the target's doc a click deep
-   *  behind the ▾ switcher and leave the source pane empty — from
-   *  pane 1 and pane 2 down to "pane 1 has both, pane 2 has neither",
-   *  which reads as the drop being refused (field report, 2026-09-12).
-   *  `sendDocToSlotN` (the ribbon command this began life mirroring)
-   *  keeps its own push behavior — a deliberate keyboard command
-   *  aimed at an occupied slot IS "add to its stack"; a drag's whole
-   *  premise is rearranging where things sit.
+   *  OCCUPIED one ADDS the document to that pane's stack — the same thing
+   *  `sendDocToSlotN` does — and shows it there, with the pane's earlier
+   *  documents one step back behind the ▾ switcher (Ctrl-Tab). The source
+   *  pane shows whatever was under the dragged document, or empties if it
+   *  held only that one. (Until 2026-10-27 an occupied drop SWAPPED the two
+   *  visible documents; stacking is what the user asked for instead.)
    *
-   *  `arranging` suppresses the empty-workspace home-screen show: with
-   *  exactly two panes occupied (the reported case), releasing both
-   *  visible docs before either push lands passes through an
-   *  all-empty instant that must not be mistaken for the workspace
-   *  actually emptying out. */
+   *  `arranging` suppresses the empty-workspace home-screen show: when the
+   *  dragged document was the window's only one, releasing it passes
+   *  through an all-empty instant before the push lands, which must not be
+   *  mistaken for the workspace actually emptying out. */
   dropChipOnSlot(source: Slot, slotId: string): void {
     if (slotId.startsWith('win:')) {
       const win = slotId === 'win:new' ? 'new-window' : Number(slotId.slice(4));
@@ -2907,13 +2900,8 @@ class MultiPaneShell {
     try {
       const incoming = source.releaseVisible();
       if (!incoming) return;
-      // Only the target's VISIBLE doc swaps out — a stack member
-      // further down stays exactly where it was, now one deeper.
-      const displaced = targetSlot.releaseVisible();
-      // Displaced doc into source FIRST: each push re-focuses its
-      // slot, so the incoming doc's push (target, always last) is the
-      // one that wins — focus lands where the user actually dropped.
-      if (displaced) source.push(displaced);
+      // The push shows the incoming doc and focuses the slot, so focus lands
+      // where the user actually dropped.
       targetSlot.push(incoming);
     } finally {
       this.arranging = false;

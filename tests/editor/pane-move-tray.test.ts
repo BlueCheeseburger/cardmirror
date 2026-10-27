@@ -24,7 +24,7 @@ const tile = (target: string): HTMLElement | null => document.querySelector(`[da
 
 describe('describeMoveTarget', () => {
   it('says what dropping would do', () => {
-    expect(describeMoveTarget('slot1', slots, windows)).toBe('Swap with 1AC Case');
+    expect(describeMoveTarget('slot1', slots, windows)).toBe('Add to stack with 1AC Case');
     expect(describeMoveTarget('slot3', slots, windows)).toBe('Move to slot 3');
     expect(describeMoveTarget('win:new', slots, windows)).toBe('Open in a new window');
     expect(describeMoveTarget(windowTarget(7), slots, windows)).toBe('Send to Window 7');
