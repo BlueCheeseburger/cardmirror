@@ -149,6 +149,7 @@ import { bulkCompressEnabled } from './bulk-compress-gate.js';
 import { openClean, runCleanSingleFileWeb } from './clean-ui.js';
 import { openDocDiff } from './doc-diff-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
+import { currentTakeoverTitle, isTakenOver, onTakeoverChange } from './window-takeover.js';
 import { recordRecent, removeRecent, listRecents, clearRecents, subscribeRecents, type RecentFile } from './recents-store.js';
 import { recordRecentWorkspace, type RecentWorkspace } from './recent-workspaces-store.js';
 import { buildMenuRecents } from './menu-recents.js';
@@ -7438,6 +7439,36 @@ async function runOpenFlow(): Promise<void> {
   for (const file of opened) await routeOpenedFile(file);
 }
 
+/** While a full-window tool (Compare documents) is up over this window it is
+ *  not a place to open documents: skip the slot picker and the in-place mount
+ *  and open each in a window of its own. Returns true when it took the files
+ *  (the caller is done), false when nothing is up or the host can't spawn
+ *  windows (the caller carries on as usual). */
+async function openInNewWindowWhileTakenOver(
+  files: Array<{ name: string; bytes: Uint8Array; handle?: unknown; format?: 'cmir' | 'docx' | null }>,
+): Promise<boolean> {
+  const host = getHost();
+  if (!isTakenOver() || !host.canSpawnWindow) return false;
+  for (const f of files) {
+    try {
+      await host.spawnWindow({
+        filename: f.name,
+        bytes: f.bytes,
+        handle:
+          typeof f.handle === 'string' || (f.handle != null && typeof f.handle === 'object')
+            ? (f.handle as string | FileSystemFileHandle)
+            : null,
+        format: f.format ?? formatFromFilename(f.name),
+        uid: null,
+      });
+    } catch (err) {
+      console.error('Spawn window failed:', err);
+      void alertDialog(`Failed to open in new window: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+  return true;
+}
+
 /** Several files from one Open dialog in the three-pane workspace: run
  *  the same journal decode and cross-window guard as `routeOpenedFile`
  *  on each, then hand the survivors to the shell, which asks for one
@@ -7457,6 +7488,7 @@ async function routeOpenedFilesToSlot(opened: OpenedFile[]): Promise<void> {
     files.push({ name: src.name, bytes: src.bytes, handle: src.handle });
   }
   if (files.length === 0) return;
+  if (await openInNewWindowWhileTakenOver(files)) return;
   try {
     await multiDocOnFilesOpen!(files);
   } catch (err) {
@@ -7489,6 +7521,7 @@ async function routeOpenedFile(opened: OpenedFile): Promise<void> {
     showToast(`"${src.name}" is already open in another window.`);
     return;
   }
+  if (await openInNewWindowWhileTakenOver([src])) return;
   if (multiDocActive && multiDocOnFileOpen) {
     // Multi-pane shell runs its own within-window duplicate-open
     // guard (checks every slot's stack) before showing the slot
@@ -8937,6 +8970,9 @@ function updateWindowTitle(): void {
         multiDocGetAllFilenames().filter((n): n is string => !!n).map(displayFilename),
       );
     }
+  } else if (currentTakeoverTitle()) {
+    // Something full-window (Compare documents) is open over the document.
+    document.title = `${currentTakeoverTitle()} — CardMirror`;
   } else if (multiDocActive && multiDocGetAllFilenames) {
     const names = multiDocGetAllFilenames()
       .filter((n): n is string => !!n)
@@ -8964,6 +9000,13 @@ function updateWindowTitle(): void {
     singleFileBadge?.refresh();
   }
 }
+
+// The title follows a Compare documents dialog opening and closing, and main
+// is told so the "which window?" chooser can leave the window out.
+onTakeoverChange(() => {
+  updateWindowTitle();
+  void getElectronHost()?.setWindowTakenOver(isTakenOver());
+});
 
 /** 1–2 letter initials from a display name, for a baked-in comment's
  *  margin badge. */

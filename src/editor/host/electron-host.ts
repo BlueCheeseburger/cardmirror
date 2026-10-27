@@ -330,6 +330,9 @@ interface ElectronAPI {
    *  single-pane) so the OS "Open with…" path can reuse a multi-pane
    *  window's slot picker instead of spawning a blank window. */
   registerMultipane(isMultiPane: boolean): Promise<void>;
+  /** A full-window tool (Compare documents) is up over this window (or gone
+   *  again): while it is, the "which window?" chooser leaves the window out. */
+  setWindowTakenOver(taken: boolean): Promise<void>;
   /** Report the filenames open in this window so the "which window?"
    *  chooser can list them under a named window. */
   reportWindowDocs(names: string[]): Promise<void>;
@@ -1115,6 +1118,11 @@ export class ElectronHost implements Host {
     // open set is never thrown away by mistake.
     const fn = api().isAppQuitting;
     return fn ? fn() : true;
+  }
+
+  async setWindowTakenOver(taken: boolean): Promise<void> {
+    // An older preload has no channel: the window just stays in the chooser.
+    await api().setWindowTakenOver?.(taken);
   }
 
   async registerMultipane(isMultiPane: boolean): Promise<void> {

@@ -2812,7 +2812,9 @@ yours, or a file before and after cutting.
 **Compare different files** returns to the file picker; **Close** (or
 **Esc**) returns to the Home screen. The comparison is text only — formatting such as highlighting
 and underlining isn't compared — and it's read-only: neither file is opened
-for editing or changed. There is no size limit; two very long files that
+for editing or changed. While it is open the window is named **Compare
+documents** (not the blank document underneath), and files you open meanwhile
+open in a new window rather than into it. There is no size limit; two very long files that
 differ almost everywhere take a few seconds. On a
 narrow window the outlines hide and each changed line stacks its two
 versions.

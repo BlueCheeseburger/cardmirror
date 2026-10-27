@@ -14,6 +14,7 @@ vi.mock('../../src/editor/host/index.js', () => ({
 }));
 
 import { openDocDiff } from '../../src/editor/doc-diff-ui.js';
+import { isTakenOver, currentTakeoverTitle, onTakeoverChange } from '../../src/editor/window-takeover.js';
 import { serializeNative } from '../../src/native/index.js';
 import { toDocx } from '../../src/export/index.js';
 import { schema, newHeadingId } from '../../src/schema/index.js';
@@ -102,6 +103,27 @@ describe('Compare documents — the picker step', () => {
     const cancel = qa('.pmd-doc-diff-topbar-actions .pmd-doc-diff-btn').find((b) => b.textContent === 'Cancel');
     (cancel as HTMLButtonElement).click();
     expect(q('.pmd-doc-diff-dialog')).toBeNull();
+  });
+});
+
+describe('Compare documents — taking over the window', () => {
+  it('names the window and blocks opens while open, and gives both back on close', () => {
+    // Earlier tests leave dialogs un-closed (they only clear the DOM), so
+    // watch for this dialog's own enter and leave rather than the absolute state.
+    const changes: boolean[] = [];
+    const off = onTakeoverChange(() => changes.push(isTakenOver()));
+    try {
+      openDocDiff();
+      expect(changes).toEqual([true]);
+      expect(currentTakeoverTitle()).toBe('Compare documents');
+      const cancel = qa('.pmd-doc-diff-topbar-actions .pmd-doc-diff-btn').find((b) => b.textContent === 'Cancel');
+      (cancel as HTMLButtonElement).click();
+      // Closing hands this dialog's own takeover back (the state afterwards
+      // depends on whatever earlier tests left open).
+      expect(changes).toHaveLength(2);
+    } finally {
+      off();
+    }
   });
 });
 
