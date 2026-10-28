@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: skip-names spellcheck toggle was greyed out (`settings.ts`)
+
+`spellcheckSkipNames` carried `dependsOn: 'editorSpellcheck'`, and the settings screen disables a dependent row while its parent is off. Editor spellcheck is off by default, so the new toggle showed greyed out and unclickable, which read as missing. The `dependsOn` is removed: the toggle is always enabled, default stays on, and it simply has no effect while spellcheck is off. Test added (default on, kind toggle, no `dependsOn`, older saves without the key read as on). Not verified: the settings screen in the desktop app.
+
 ### Fixed: Remove Emphasis keeps the underline (`ribbon-commands.ts`, `removeEmphasis`)
 
 `emphasis_mark` and `underline_mark` exclude each other in the schema, so emphasis does not remember the underline it replaced; stripping it left plain text. `removeEmphasis` now, per emphasized text piece, removes the emphasis and adds `underline_mark` (body text) or `underline_direct` (structural blocks, via `STRUCTURAL_TEXTBLOCKS_FOR_UNDERLINE`). Trade-off: emphasis put on text that was never underlined becomes underlined when removed, since the mark can't tell the two apart; debate emphasis sits inside underlined text, so this matches use. Rejected: storing the prior underline on the mark (schema change, import/export impact). A second press still finds nothing to remove. Test added; the existing removeEmphasis tests pass unchanged. Not verified: the desktop app.

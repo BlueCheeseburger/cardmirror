@@ -964,9 +964,10 @@ export interface Settings {
    *  Ignore. Off by default because debate evidence (author names,
    *  jargon) produces many false positives. */
   editorSpellcheck: boolean;
-  /** With Editor spellcheck on, don't flag capitalized words that aren't at
-   *  the start of a sentence (names, places, organizations) or words with a
-   *  capital mid-word (McKinsey, iPhone). On by default. */
+  /** Don't flag capitalized words that aren't at the start of a sentence
+   *  (names, places, organizations) or words with a capital mid-word
+   *  (McKinsey, iPhone). On by default; only matters while Editor spellcheck
+   *  is on, but the toggle is always available. */
   spellcheckSkipNames: boolean;
   /** Word-style smart quotes: as you type a straight ' or ", curl it to the
    *  right direction based on the preceding character. Off by default. */
@@ -2623,7 +2624,6 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'toggle',
     category: 'general',
     section: 'Editor behavior',
-    dependsOn: 'editorSpellcheck',
   },
   {
     key: 'jumpToDocTopOnReadModeToggle',

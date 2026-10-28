@@ -11,6 +11,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 ## Unreleased
 
 ### Fixed
+- **The "skip names" spellcheck toggle is always available.** **Spellcheck: skip names and capitalized words** is on by default, but it was greyed out and unclickable until you turned on **Editor spellcheck**, so it looked missing. You can now flip it any time under **Settings → General → Editor behavior**.
 - **Mod-F10 (Remove Emphasis) now leaves the words underlined.** It used to strip the underline along with the emphasis, so the text came back plain even if it had been underlined before you emphasized it. Now emphasized words drop back to plain underline.
 
 ## 1.16.0-bcb.2 — 2026-10-28
