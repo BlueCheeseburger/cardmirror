@@ -5183,6 +5183,22 @@ describe('removeEmphasis (Mod-F10)', () => {
     expect(hasEmphasis(next.doc, 'gamma')).toBe(false);
   });
 
+  it('leaves the text underlined, not plain', () => {
+    const next = apply(setup('beta'), removeEmphasis())!;
+    let betaUnderlined = false;
+    let alphaUnderlined = false;
+    next.doc.descendants((n) => {
+      if (!n.isText) return true;
+      const u = n.marks.some((m) => m.type.name === 'underline_mark');
+      if ((n.text ?? '').includes('beta') && u) betaUnderlined = true;
+      if ((n.text ?? '').includes('alpha') && u) alphaUnderlined = true;
+      return true;
+    });
+    expect(betaUnderlined).toBe(true);
+    // Words that stayed emphasized aren't touched.
+    expect(alphaUnderlined).toBe(false);
+  });
+
   it('does not toggle: a second press finds nothing to remove', () => {
     const s1 = apply(setup('beta'), removeEmphasis())!;
     expect(apply(s1, removeEmphasis())).toBeNull();

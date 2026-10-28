@@ -8,6 +8,11 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Fixed
+- **Mod-F10 (Remove Emphasis) now leaves the words underlined.** It used to strip the underline along with the emphasis, so the text came back plain even if it had been underlined before you emphasized it. Now emphasized words drop back to plain underline.
+
 ## 1.16.0-bcb.2 — 2026-10-28
 
 ### Added

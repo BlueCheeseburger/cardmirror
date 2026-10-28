@@ -266,7 +266,7 @@ Small changes that make CardMirror easier to learn:
 - **A cleaner Home screen:** New document, Open… and Compare documents.
 - **The outline follows you:** the heading you're in stays highlighted as you scroll.
 - **Remove Emphasis:** **Mod-F10** takes Emphasis off the selected text, the way
-  **Mod-F11** takes highlighting off.
+  **Mod-F11** takes highlighting off. The words stay underlined.
 
 ## 17. Default text style and custom styles
 

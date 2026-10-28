@@ -1259,10 +1259,11 @@ export function applyEmphasis(): Command {
  * (pressing it again re-applies), so this is the way back, shaped like Mod-F11:
  * it works on the selection or the shadow-selection matches, does nothing on a
  * bare cursor (no word expansion) or when nothing in range is emphasized, and
- * skips no structural block. It only strips the `emphasis_mark`: Emphasis
- * replaced any underline when it was applied, so the text comes back plain
- * (F9 puts the underline on). The neighbouring gaps are normalized like every
- * other formatting command.
+ * skips no structural block. Emphasis is underline plus a box, and it replaced
+ * the underline when it was applied, so the emphasized text drops back to
+ * underline rather than to plain text (underline_mark in body text,
+ * underline_direct in a structural block). The neighbouring gaps are
+ * normalized like every other formatting command.
  */
 export function removeEmphasis(): Command {
   return withGapFix(
@@ -1283,7 +1284,31 @@ export function removeEmphasis(): Command {
       if (!found) return false;
       if (!dispatch) return true;
       const tr = state.tr;
-      for (const { from, to } of op.ranges) tr.removeMark(from, to, markType);
+      const underline = schema.marks['underline_mark']!;
+      const direct = schema.marks['underline_direct']!;
+      for (const { from, to } of op.ranges) {
+        // Collect first: marks don't move positions, but the walk reads `state.doc`.
+        const pieces: { from: number; to: number; structural: boolean }[] = [];
+        state.doc.nodesBetween(from, to, (node, pos, parent) => {
+          if (!node.isText || !markType.isInSet(node.marks)) return true;
+          const f = Math.max(from, pos);
+          const t = Math.min(to, pos + node.nodeSize);
+          if (f < t) {
+            pieces.push({
+              from: f,
+              to: t,
+              structural: !!parent && STRUCTURAL_TEXTBLOCKS_FOR_UNDERLINE.has(parent.type.name),
+            });
+          }
+          return true;
+        });
+        for (const piece of pieces) {
+          tr.removeMark(piece.from, piece.to, markType);
+          // underline_mark excludes emphasis on its own; underline_direct doesn't
+          // need to, and the emphasis is already gone.
+          tr.addMark(piece.from, piece.to, (piece.structural ? direct : underline).create());
+        }
+      }
       if (op.fromShadow) tr.setMeta(META_OPERATING_ON_SHADOW, true);
       dispatch(tr);
       return true;

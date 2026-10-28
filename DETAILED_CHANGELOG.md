@@ -10,6 +10,12 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Fixed: Remove Emphasis keeps the underline (`ribbon-commands.ts`, `removeEmphasis`)
+
+`emphasis_mark` and `underline_mark` exclude each other in the schema, so emphasis does not remember the underline it replaced; stripping it left plain text. `removeEmphasis` now, per emphasized text piece, removes the emphasis and adds `underline_mark` (body text) or `underline_direct` (structural blocks, via `STRUCTURAL_TEXTBLOCKS_FOR_UNDERLINE`). Trade-off: emphasis put on text that was never underlined becomes underlined when removed, since the mark can't tell the two apart; debate emphasis sits inside underlined text, so this matches use. Rejected: storing the prior underline on the mark (schema change, import/export impact). A second press still finds nothing to remove. Test added; the existing removeEmphasis tests pass unchanged. Not verified: the desktop app.
+
 ## 1.16.0-bcb.2 — 2026-10-28
 
 ### Added: debate/policy spellcheck supplement and "skip names" (`viewport-spellcheck.ts`, `dict/debate.dic`, `settings.ts`)
