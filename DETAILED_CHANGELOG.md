@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: underline over emphasis (`ribbon-commands.ts`, `applyUnderline`)
+
+`underline_mark` excludes `emphasis_mark` in the schema, so adding it across a selection silently replaced every emphasized word with plain underline. Toggle-on now adds underline only to the pieces of each textblock segment that don't carry emphasis (`withoutMark`), and the "already underlined?" check counts emphasis as underlined, so a selection that is all underline plus emphasis toggles OFF instead of flattening. Toggle-off also removes emphasis, since it sits on top of the underline. Rejected: leaving emphasis in place on toggle-off, which would leave emphasized words underlined after the user asked for no underline. Tests: a mixed selection keeps the emphasis; a second press clears both (the first fails without the fix). Not verified: the desktop app, and the gap-bridging at the selection's edges was not re-examined beyond the existing tests.
+
 ### Changed: speech doc row in the stack dropdown is amber (`multi-pane-shell.ts`, `style.css`)
 
 `openStackDropdown` adds `pmd-speech` to the row whose record is the speech doc (`getSpeechDocResolver().isSpeechByUid`), styled with the same `--pmd-c-speech-bg` / `-text` tokens the speech pane's title chip uses, with a slightly deeper amber on hover and the close ✕ inheriting the amber text. The dropdown is rebuilt each time it opens, so it reads the current speech doc. Checked in a real browser run in both themes (stack of four in slot 1, the speech doc's row computed to the chip's amber). Not verified: the desktop app.

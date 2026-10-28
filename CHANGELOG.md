@@ -18,6 +18,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **Right-clicking a document's title chip no longer opens a menu.** The **Move to…** menu is gone; to send a document to another window, drag its chip onto that window's tile in the strip at the bottom, or onto **New window**.
 
 ### Fixed
+- **Underlining a selection no longer removes the emphasis inside it.** Pressing **Ctrl/Cmd-U** (or **F9**) over text that had emphasized words used to flatten them to plain underline. Now the emphasized words keep their emphasis and the rest gets underlined. Pressing it again clears the whole selection.
 - **The ✕ on the "which window?" chooser now closes it.** On the desktop app the chooser's title strip acted as a window-drag handle that reached under the ✕, so clicking the ✕ could be taken as a drag instead of a close. The strip now stops short of it, and the first click on the chooser counts even when the window wasn't active yet.
 
 ## 1.16.0-bcb.1 — 2026-10-26
