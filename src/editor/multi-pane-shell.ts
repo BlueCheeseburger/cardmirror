@@ -1059,6 +1059,8 @@ class Slot {
       keepMineAsCopy: (handle) => this.shell.keepMineAsCopyForHandle(handle),
       overwrite: (handle) => this.shell.overwriteForHandle(handle),
       openOriginal: (original) => openFileByPath(original, original.split(/[\\/]/u).pop() ?? original),
+      getLiveDoc: () => this.visible?.view.state.doc ?? null,
+      readFile: (path) => getElectronHost()?.readFileAtPath(path) ?? Promise.resolve(null),
     };
     this.diskBadge = createPaneDiskBadge(diskBadgeDeps, footer);
     const newBtn = document.createElement('button');

@@ -10,6 +10,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+- **Compare a sync conflict before you decide.** The pill at the bottom of a document in a synced folder now offers **See what changed** when the file changed on disk, and **Compare with the original** when you are editing a conflicted copy. Either opens Compare documents with the other version on the left and your window's version, unsaved edits included, on the right, and **Merge into new file** works as usual. Nothing changes until you choose; close the comparison and the choices come back. Compare is left out where the file can't be read.
+
 ### Fixed
 - **An unsaved document's window is titled "Untitled — CardMirror".** In single-pane mode an unsaved document made the window title just "CardMirror", so Mission Control, the Dock and the Window menu showed no document name while the blue bar said "Untitled". It now matches three-pane mode. The Home screen is still plain "CardMirror", and a saved document still shows its own name.
 - **The "skip names" spellcheck toggle is always available.** **Spellcheck: skip names and capitalized words** is on by default, but it was greyed out and unclickable until you turned on **Editor spellcheck**, so it looked missing. You can now flip it any time under **Settings → General → Editor behavior**.

@@ -1019,6 +1019,14 @@ would. There are no second confirmations. Keeping their changes is
 unavailable while you host a co-editing session; end the session
 first.
 
+**(fork)** Not sure which to pick? The amber pill's choices start with **See
+what changed**, which opens [Compare documents](#comparing-two-documents) with
+their version on disk on the left and your window's version (unsaved edits
+included) on the right. Nothing changes; close it and the choices come back.
+On a conflicted copy, the pill's choices include **Compare with the original**
+the same way (the original on the left, this copy on the right). In either
+comparison **Merge into new file** combines the two into a new file.
+
 ### Converting blocks
 
 Pressing a structural key (F4–F7, Mod-F7, Mod-F8) converts the current

@@ -130,6 +130,12 @@ season's, your partner's edit against yours, or a file before and after cutting.
 
 Neither file is opened or changed by comparing them.
 
+**From a sync conflict:** when a Dropbox, OneDrive or similar file changes under
+you, click the pill at the bottom of the document and choose **See what changed**
+to compare their version with yours before deciding; on a conflicted copy, choose
+**Compare with the original**. The two open already loaded, with Merge available,
+and nothing changes until you pick Keep their changes, Keep my changes or Keep both.
+
 ## 6. Autosave for Word files
 
 Autosave covers `.docx` files, not just `.cmir`. The ribbon's **Autosave** button

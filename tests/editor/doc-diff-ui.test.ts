@@ -358,3 +358,31 @@ describe('Compare documents — the outline rails', () => {
     expect(scrolledEl).toBe(allExtendCells[1]);
   });
 });
+
+describe('Compare documents — preloaded sides (the disk-conflict dialogs)', () => {
+  it('skips the pickers and goes straight to the diff, with a live document on one side', async () => {
+    const done = openDocDiff({
+      a: { name: 'Aff (on disk)', bytes: cardBytes('Tag', 'old body') },
+      b: { name: 'Aff (your version)', doc: cardDoc('Tag', 'new body') },
+    });
+    await waitForResults();
+    expect(qa('.pmd-doc-diff-picker-row')).toHaveLength(0);
+    const names = q('.pmd-doc-diff-names')!.textContent ?? '';
+    expect(names).toContain('Aff (on disk)');
+    expect(names).toContain('Aff (your version)');
+    expect(qa('.pmd-doc-diff-cell-left').length).toBeGreaterThan(0);
+    // The result promise settles when the dialog is closed.
+    let settled = false;
+    void done.then(() => (settled = true));
+    await flush();
+    expect(settled).toBe(false);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await vi.waitFor(() => expect(settled).toBe(true), { timeout: 1000 });
+    expect(q('.pmd-doc-diff-dialog')).toBeNull();
+  });
+
+  it('with only one side given it still shows the picker', () => {
+    void openDocDiff({ a: { name: 'Only', doc: cardDoc('T', 'b') } });
+    expect(qa('.pmd-doc-diff-picker-row')).toHaveLength(2);
+  });
+});

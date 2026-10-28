@@ -10065,6 +10065,8 @@ function ensureDiskBadge(): void {
     keepMineAsCopy: () => saveActiveAsConflictedCopy(),
     overwrite: () => saveActiveForcingDisk(),
     openOriginal: (original) => openFileByPath(original, original.split(/[\\/]/u).pop() ?? original),
+    getLiveDoc: () => getActiveView()?.state.doc ?? null,
+    readFile: (path) => getElectronHost()?.readFileAtPath(path) ?? Promise.resolve(null),
   };
   // Headless: the deps serve Reload From Disk; what the window SHOWS is the
   // same footer badge a pane carries, in the status bar (no corner tray).

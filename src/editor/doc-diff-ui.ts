@@ -61,7 +61,19 @@ async function parseDiffDoc(bytes: Uint8Array): Promise<PMNode> {
 
 interface PickedFile {
   name: string;
-  bytes: Uint8Array;
+  /** The file's bytes, parsed when Compare runs. */
+  bytes?: Uint8Array;
+  /** A document that is already parsed (a window's live content), used instead of `bytes`. */
+  doc?: PMNode;
+}
+
+/** One side handed to `openDocDiff` ready-made, so the dialog skips its file pickers. */
+export type DiffSide = PickedFile;
+
+async function docOf(side: PickedFile): Promise<PMNode> {
+  if (side.doc) return side.doc;
+  if (!side.bytes) throw new Error(`${side.name} has no content`);
+  return parseDiffDoc(side.bytes);
 }
 
 class DocDiffModal {
@@ -78,6 +90,9 @@ class DocDiffModal {
   /** Names the window "Compare documents" and keeps documents from opening
    *  into it while this is open. */
   private readonly releaseTakeover: () => void;
+  /** Settles when the dialog closes. */
+  readonly done: Promise<void>;
+  private resolveDone: () => void = () => {};
   /** Hidden read-only views behind each side's real navigation panel. */
   private navViews: EditorView[] = [];
   /** Rows keyed by their (trimmed) text, one array per occurrence — a
@@ -91,7 +106,12 @@ class DocDiffModal {
   private leftMarksByText = new Map<string, LineMark[]>();
   private rightMarksByText = new Map<string, LineMark[]>();
 
-  constructor() {
+  constructor(preload: { a?: PickedFile; b?: PickedFile } = {}) {
+    this.done = new Promise<void>((resolve) => {
+      this.resolveDone = resolve;
+    });
+    this.a = preload.a ?? null;
+    this.b = preload.b ?? null;
     this.overlay = document.createElement('div');
     this.overlay.className = 'pmd-doc-diff-overlay';
     this.dialog = document.createElement('div');
@@ -111,8 +131,11 @@ class DocDiffModal {
       return false;
     });
 
-    this.renderPicker();
+    // Both sides handed in (the disk-conflict dialogs): go straight to the diff.
+    const preloaded = !!(this.a && this.b);
+    if (!preloaded) this.renderPicker();
     document.body.appendChild(this.overlay);
+    if (preloaded) void this.runCompare();
   }
 
   private close(): void {
@@ -124,6 +147,7 @@ class DocDiffModal {
     popOverlay(this.overlayToken);
     this.overlay.remove();
     this.restoreFocus();
+    this.resolveDone();
   }
 
   private async pick(side: 'a' | 'b'): Promise<void> {
@@ -216,7 +240,7 @@ class DocDiffModal {
     let docA: PMNode;
     let docB: PMNode;
     try {
-      [docA, docB] = await Promise.all([parseDiffDoc(a.bytes), parseDiffDoc(b.bytes)]);
+      [docA, docB] = await Promise.all([docOf(a), docOf(b)]);
     } catch (err) {
       this.renderPicker();
       void alertDialog(`Couldn't read one of the documents: ${err instanceof Error ? err.message : err}`);
@@ -605,6 +629,6 @@ class DocDiffModal {
 /** Open the "Compare documents" dialog. Home-screen action; also
  *  reachable while a doc is open (neither file it compares becomes the
  *  live document). */
-export function openDocDiff(): void {
-  new DocDiffModal();
+export function openDocDiff(preload?: { a?: DiffSide; b?: DiffSide }): Promise<void> {
+  return new DocDiffModal(preload).done;
 }
