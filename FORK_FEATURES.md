@@ -80,7 +80,7 @@ your document, so you don't have to do the math on the timer.
   when you reset the clock. If your document is more than a minute longer than the
   speech (probably a masterfile) it stays hidden.
 
-It works in read mode, follows the lay-speaking toggle, and counts from the line
+It works in read mode and Reading view, follows the lay-speaking toggle, and counts from the line
 you're actually reading, a third of the way down the screen.
 
 **Settings:** **Settings → Appearance → Timer display → Show pace guides** (on by
@@ -93,7 +93,7 @@ same section.
 
 A hands-free teleprompter. Press the **Auto-Scroll** button in the ribbon and the
 document scrolls at *your* reading pace: slower over dense highlighted text, faster
-through everything you skip. It works in read mode and follows the lay-speaking
+through everything you skip. It works in read mode and Reading view (where it turns the pages) and follows the lay-speaking
 toggle. A thin outlined bar in the margin marks the line it thinks you're reading.
 
 Press **Escape**, any scroll key (PageUp, PageDown, Home, End, the arrow keys), or

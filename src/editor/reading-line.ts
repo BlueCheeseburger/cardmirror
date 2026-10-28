@@ -1,5 +1,6 @@
 import type { EditorView } from 'prosemirror-view';
 import { nearestScroller } from './precise-scroll.js';
+import { readerControllerFor, READER_EDGE_W } from './reader-view.js';
 
 /**
  * Where on screen a speaker is actually reading.
@@ -30,7 +31,8 @@ export function readingLineOffset(viewportH: number, scrolledPx: number): number
 
 /** The document position of the line a speaker is reading in `view`: about a
  *  third of the way down the visible document (see `reading-line.ts`), not its
- *  top edge. Null when it can't be measured (no scroller, a hidden or
+ *  top edge. In Reading view (paged, scrolled sideways) it is the first column
+ *  of the current page, a third of the way down. Null when it can't be measured (no scroller, a hidden or
  *  zero-size pane, a layout without hit-testing). */
 export function scrollAnchorPos(view: EditorView): number | null {
   const scroller = nearestScroller(view.dom);
@@ -38,6 +40,21 @@ export function scrollAnchorPos(view: EditorView): number | null {
   const s = scroller.getBoundingClientRect();
   const e = view.dom.getBoundingClientRect();
   if (s.height === 0 || e.width === 0) return null;
+  if (readerControllerFor(view)) {
+    // Reading view: the editor is a wide strip scrolled sideways, so its
+    // middle is pages away. The page being read is the one in the window;
+    // aim at its first column (clear of the flip lanes at the edges).
+    const top = s.top + s.height * READING_LINE_FRACTION;
+    for (const dx of [READER_EDGE_W + 14, READER_EDGE_W + 60, READER_EDGE_W + 120, s.width * 0.3]) {
+      try {
+        const pos = view.posAtCoords({ left: Math.min(s.left + dx, s.right - 1), top })?.pos ?? null;
+        if (pos !== null) return pos;
+      } catch {
+        /* try the next offset */
+      }
+    }
+    return null;
+  }
   // The reading line, a third down the visible part of the document: measured
   // from the editor's own top when it starts inside the window (scrolled to
   // the very top, or a short doc), the window's top edge otherwise — and in

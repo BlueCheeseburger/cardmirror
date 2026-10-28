@@ -5379,6 +5379,7 @@ body.pmd-nav-resize-active {
 .pmd-nav-level-btn-active,
 #read-mode-btn.pmd-active,
 #auto-scroll-btn.pmd-active,
+#reader-view-btn.pmd-active,
 .pmd-prompt-btn-primary,
 .pmd-clod-btn-primary,
 .pmd-recovery-sidebar-row-btn-open,
@@ -6189,7 +6190,8 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
 
 
 #read-mode-btn.pmd-active:hover:not(:disabled),
-#auto-scroll-btn.pmd-active:hover:not(:disabled) {
+#auto-scroll-btn.pmd-active:hover:not(:disabled),
+#reader-view-btn.pmd-active:hover:not(:disabled) {
   background: var(--pmd-c-accent-hover);
 }
 
@@ -17934,6 +17936,113 @@ body.pmd-multi-doc #collab-chip {
   gap: 0.4rem;
 }
 .pmd-notice-action-primary:hover { background: var(--pmd-c-accent-hover); }
+
+/* ---- Reading view (paginated columns) ----
+ * The ProseMirror element becomes a height-capped multicolumn strip
+ * (columns overflow horizontally); the host clips and native
+ * scrollTo flips full pages. Everything is laid out up front —
+ * content-visibility forced ON inside the strip so column math is
+ * exact and flips never trigger layout (the no-hitch rule). */
+.pmd-reader-view {
+  /* The host IS the pager: a scroll container whose scrollbar is
+     hidden; flips are programmatic scrollTo (native tiled raster —
+     a translated will-change strip blew the compositing budget on
+     big docs and fell back to per-flip main-thread paint). */
+  overflow: hidden !important;
+  position: relative;
+}
+.pmd-reader-overlay-host {
+  position: relative;
+}
+:is(#editor, .pmd-pane-editor).pmd-reader-view .ProseMirror {
+  /* Exact page geometry, all JS-measured (reader-view.ts relayout):
+     the box is ONE page wide (the natural content box's width, which
+     already clears the nav pane via --pmd-reader-ml) and column-COUNT
+     divides it — never column-width, whose browser-chosen actual
+     widths would break the stride math. column-fill:auto + capped
+     height makes the extra columns overflow HORIZONTALLY past the
+     box; the host clips and translateX flips between them. */
+  column-count: var(--pmd-reader-cols, 1);
+  column-gap: var(--pmd-reader-gap, 48px);
+  column-fill: auto;
+  height: var(--pmd-reader-h, 100%);
+  width: var(--pmd-reader-page-w, 100%);
+  /* Block padding gives the columns breathing room top and bottom
+     (no clipped descenders at the fold); inline stays 0 so the
+     JS page geometry is exact. */
+  padding: 14px 0 18px;
+  box-sizing: border-box;
+  /* No transform, no will-change: flips are native scrolls of the
+     host — promoting a pages-wide strip to a compositor layer blew
+     the budget on big docs. */
+}
+.pmd-reader-view .ProseMirror.pmd-reader-no-anim,
+/* Exact column math needs everything rendered; and a tag/cite never
+ * strands at a column bottom away from its first body line. */
+.pmd-reader-view .ProseMirror .pmd-card,
+.pmd-reader-view .ProseMirror .pmd-hat,
+.pmd-reader-view .ProseMirror .pmd-block {
+  content-visibility: visible;
+  contain: none;
+}
+.pmd-reader-view .ProseMirror .pmd-tag,
+.pmd-reader-view .ProseMirror .pmd-cite-para {
+  break-after: avoid-column;
+}
+/* Opaque gutters: cover the strip's column bleed on both sides of
+ * the page window and host the flip buttons (a clip-path would clip
+ * the buttons too). */
+.pmd-reader-gutter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--pmd-c-bg);
+  z-index: 3;
+}
+/* Word-style edge flip zones + the page indicator. */
+.pmd-reader-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2.2rem;
+  border: none;
+  background: transparent;
+  color: var(--pmd-c-text-faint);
+  font-size: 1.6rem;
+  cursor: pointer;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+.pmd-reader-overlay-host:hover .pmd-reader-edge { opacity: 1; }
+.pmd-reader-edge:hover { background: var(--pmd-c-hover); color: var(--pmd-c-text-strong); }
+.pmd-reader-edge-left { left: 0; }
+.pmd-reader-edge-right { right: 0; }
+.pmd-reader-edge-hidden { visibility: hidden; }
+/* Scroll-extent sentinel (reader-view.ts): keeps the host scrollable to
+ * the last page's boundary when that page is short. Invisible, inert. */
+.pmd-reader-tail {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  visibility: hidden;
+}
+.pmd-reader-page-indicator {
+  position: absolute;
+  bottom: 0.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  color: var(--pmd-c-text-faint);
+  background: var(--pmd-c-bg);
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.6rem;
+  pointer-events: none;
+  z-index: 4;
+}
+
 
 /* ---- Compare documents (doc-diff-ui.ts) ----
    Fullscreen page, not a centered popup (field request, 2026-09-18: the

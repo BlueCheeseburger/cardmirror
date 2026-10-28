@@ -118,6 +118,37 @@ describe('scrollAnchorPos', () => {
   });
 });
 
+describe('scrollAnchorPos in Reading view', () => {
+  it('aims at the first column of the page in view, a third of the way down', async () => {
+    const { applyReaderViewToTarget, readerControllerFor } = await import('../../src/editor/reader-view.js');
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const dom = document.createElement('div');
+    dom.className = 'ProseMirror';
+    host.appendChild(dom);
+    const asked: Array<{ left: number; top: number }> = [];
+    const view = {
+      dom,
+      state: { tr: { setMeta() { return {}; } } },
+      setProps() {},
+      dispatch() {},
+      posAtCoords: (c: { left: number; top: number }) => {
+        asked.push(c);
+        return { pos: 11, inside: 11 };
+      },
+    } as unknown as EditorView;
+    host.style.overflowY = 'auto';
+    host.getBoundingClientRect = () => rect(0, 600, 0, 900);
+    dom.getBoundingClientRect = () => rect(0, 600, -2000, 9000); // a wide strip scrolled sideways
+    applyReaderViewToTarget(host, view, true);
+    expect(readerControllerFor(view)).not.toBeNull();
+    expect(scrollAnchorPos(view)).toBe(11);
+    expect(asked[0]!.top).toBe(200);
+    expect(asked[0]!.left).toBeLessThan(150); // the first column, not the strip's middle
+    applyReaderViewToTarget(host, view, false);
+  });
+});
+
 describe('remainingReadSegment follows the scroll, not the cursor', () => {
   const cursorAtStart = (): EditorState => EditorState.create({ doc, selection: TextSelection.atStart(doc) });
 

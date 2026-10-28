@@ -4770,6 +4770,7 @@ export type RibbonCommandId =
   | 'convertCardsToReadMode'
   | 'toggleReadMode'
   | 'toggleAutoScroll'
+  | 'toggleReaderView'
   | 'openContainingFolder'
   | 'reloadFromDisk'
   | 'printDocument'
@@ -5064,6 +5065,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'convertCardsToReadMode',
   'toggleReadMode',
   'toggleAutoScroll',
+  'toggleReaderView',
   'openContainingFolder',
   'reloadFromDisk',
   'printDocument',
@@ -5303,6 +5305,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   convertCardsToReadMode: 'Convert Cards to Read Mode',
   toggleReadMode: 'Toggle Read Mode',
   toggleAutoScroll: 'Toggle Auto-Scroll (Paced to Reading Speed)',
+  toggleReaderView: 'Toggle Reading View',
   openContainingFolder: 'Open Containing Folder',
   reloadFromDisk: 'Reload From Disk',
   printDocument: 'Print…',
@@ -5539,7 +5542,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   aiCitePromptPreset9: ['cite prompt', 'cite preset', 'prompt preset', 'preset 9'],
   aiCitePromptPreset10: ['cite prompt', 'cite preset', 'prompt preset', 'preset 10'],
   convertCardsToReadMode: ['zap card', 'zap cards'],
-  toggleReadMode: ['show read mode', 'hide read mode', 'invisibility mode', 'reading view', 'reading mode', 'reader view'],
+  toggleReadMode: ['show read mode', 'hide read mode', 'invisibility mode'],
   toggleAutoScroll: [
     'auto scroll',
     'autoscroll',
@@ -5549,6 +5552,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
     'start scrolling',
     'stop scrolling',
   ],
+  toggleReaderView: ['reading view', 'reader view', 'paginated view', 'read view', 'book view', 'columns'],
   reloadFromDisk: ['reload', 'refresh', 'revert', 'revert to saved', 'discard changes', 'refresh from disk', 'reload document', 'reload file'],
   printDocument: ['print', 'print document', 'print speech doc', 'print speech', 'printer', 'paper', 'hard copy', 'pdf'],
   openContainingFolder: ['reveal in finder', 'show in folder', 'show in explorer', 'reveal file', 'file location', 'containing folder'],
@@ -5768,6 +5772,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   convertCardsToReadMode: '',
   toggleReadMode: '',
   toggleAutoScroll: '',
+  toggleReaderView: '',
   openContainingFolder: '',
   // Reload the document from its file. Cmd/Ctrl+R: nothing else in the app
   // uses it (the View > Reload menu item deliberately has no accelerator). A
@@ -6069,6 +6074,7 @@ export interface RibbonContext {
   openWordCountDialog: () => void;
   toggleReadMode: () => void;
   toggleAutoScroll: () => void;
+  toggleReaderView: () => void;
   openContainingFolder: () => void;
   /** Replace the active document with what's saved on disk. */
   reloadFromDisk: () => void;
@@ -6311,6 +6317,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   openWordCountDialog: () => {},
   toggleReadMode: () => {},
   toggleAutoScroll: () => {},
+  toggleReaderView: () => {},
   openContainingFolder: () => {},
   reloadFromDisk: () => {},
   printDocument: () => {},
@@ -6603,6 +6610,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.toggleAutoScroll();
+        return true;
+      };
+    case 'toggleReaderView':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.toggleReaderView();
         return true;
       };
     case 'openContainingFolder':
