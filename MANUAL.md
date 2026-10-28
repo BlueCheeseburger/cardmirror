@@ -1354,7 +1354,8 @@ workspace while another shows a single document.
   open three-pane window: drop the chip on a tile to send the document there,
   unsaved edits included. **Esc** cancels the drag.
 - **(fork)** The pane holding your speech document stays tinted amber even
-  while it's the focused pane, so you can always see which one it is.
+  while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
+  document's row is amber too.
 - **(fork)** **Hover a title chip** and a greyed microphone appears at its left;
   click it to make that document the active speech doc (click again to clear).
   A single window has the same blue bar above its one document, with the same

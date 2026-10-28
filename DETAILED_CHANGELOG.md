@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: speech doc row in the stack dropdown is amber (`multi-pane-shell.ts`, `style.css`)
+
+`openStackDropdown` adds `pmd-speech` to the row whose record is the speech doc (`getSpeechDocResolver().isSpeechByUid`), styled with the same `--pmd-c-speech-bg` / `-text` tokens the speech pane's title chip uses, with a slightly deeper amber on hover and the close ✕ inheriting the amber text. The dropdown is rebuilt each time it opens, so it reads the current speech doc. Checked in a real browser run in both themes (stack of four in slot 1, the speech doc's row computed to the chip's amber). Not verified: the desktop app.
+
 ### Changed: Compare documents takes over its window (`window-takeover.ts`, `doc-diff-ui.ts`, `index.ts`, `host/electron-host.ts`, `apps/desktop/src/{main,preload}.ts`)
 
 While the Compare documents dialog is open it registers a takeover (`enterTakeover('Compare documents')`, released on close). `updateWindowTitle` then titles the window "Compare documents — CardMirror" (a name the user gave the window still wins), `routeOpenedFile` and `routeOpenedFilesToSlot` open files in a new window through `openInNewWindowWhileTakenOver` instead of the slot picker or an in-place mount, and the renderer tells main (`host:window-taken-over`) so `liveMultiPaneWindows()` leaves the window out of the "which window?" chooser (with no other candidate the open goes to a new window). Main clears the flag when the window closes and whenever the renderer boots again (`host:register-multipane`), since a reload loses the dialog. Not covered: opening a recent file from the Home screen under the dialog (the dialog covers Home). Not verified: the packaged app; the unit tests cover the takeover state, the dialog entering and leaving it, and nothing of the Electron IPC.

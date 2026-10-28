@@ -1787,6 +1787,8 @@ class Slot {
       const row = document.createElement('div');
       row.className = 'pmd-pane-chip-dropdown-row';
       if (rec === this.visible) row.classList.add('pmd-active');
+      // The speech doc wears the same amber as its pane's title chip.
+      if (getSpeechDocResolver().isSpeechByUid(rec.uid)) row.classList.add('pmd-speech');
       const name = document.createElement('span');
       name.className = 'pmd-pane-chip-dropdown-name';
       name.textContent = displayFilename(rec.filename);
