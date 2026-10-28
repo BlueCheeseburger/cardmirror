@@ -8,7 +8,11 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.16.0-bcb.2 — 2026-10-28
+
+### Added
+- **Spellcheck knows debate vocabulary.** Words like "empirics", "neoliberalism", "unipolarity", "multilateralism", "kritik", "policymaking" and "securitization" are no longer underlined, nor are plurals and other forms of them, nor common names in the field (Zelensky, Rawlsian, Foucauldian and so on). It covers about 1,100 more entries across IR, security, climate, health, law and theory, and anything it still misses can go in **Add to Dictionary**.
+- **Spellcheck can skip names.** A capitalized word in the middle of a sentence (Netanyahu, Brookings) or one with a capital inside it (McKinsey, iPhone) is no longer underlined. This is on by default; turn it off under **Settings → General → Editor behavior → Spellcheck: skip names and capitalized words**. The first word of a paragraph or heading counts as a name too, but a capitalized word after a period, question mark or exclamation mark is still checked.
 
 ### Changed
 - **Last workspace on the Home screen now lists your windows.** Each window that was open when you last quit gets its own row with a tick box, titled with the window's name or "3 docs", with that window's documents listed under it. Untick the windows you don't want and press **Open** to reopen the rest, each with its panes as they were. The per-document tick boxes, **All** / **None** and the old "Reopen 3 documents" button are gone. **Reopen Last Workspace** in the command bar still brings every window back.

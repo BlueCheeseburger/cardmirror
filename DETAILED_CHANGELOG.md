@@ -10,7 +10,17 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.16.0-bcb.2 — 2026-10-28
+
+### Added: debate/policy spellcheck supplement and "skip names" (`viewport-spellcheck.ts`, `dict/debate.dic`, `settings.ts`)
+
+The base list (`dict/en.dic`, ~49.5k lines) is general English, so debate evidence trips it constantly: "empirics" failed only because `empiric` carries no `S` flag. Two changes, both behind the existing **Editor spellcheck** setting.
+
+*Supplement.* New `dict/debate.dic`, ~1,100 `word/FLAGS` lines (IR/security, nuclear and space, political theory, law, climate and energy, health, labor/housing, tech, plus names like Zelensky and Rawlsian), loaded in the same lazy chunk and concatenated onto the base `.dic` text before `nspell` builds. It uses the base `.aff` flags (`S`, `M`, `Y`, `D`, `G`, `P` …). A first draft of ~2,300 entries was pruned by script (an entry stays only if the base rejects the word or one of the forms its flags generate) and then by hand: concatenated non-words, short lowercase acronyms (uppercase ones are already skipped as ALLCAPS) and filler were dropped. Build time went from ~70 ms to ~130 ms, once, on first enable. Tests: `debate-dictionary.test.ts` (target words pass, flags apply, typos like teh/recieve/goverment/hegmony still fail).
+
+*Skip names.* New setting `spellcheckSkipNames` (default on, depends on `editorSpellcheck`). `misspelledRangesIn` takes `{ skipNames }`; `looksLikeName` skips a word that is unknown AND (has a capital after its first letter, OR is capitalized and not opening a sentence). A sentence opens after `. ! ?` (looking through spaces, quotes and brackets), except when the period closes an abbreviation (the token before it is 3 letters or fewer, or contains a dot: Dr., U.S., Inc.). The start of a textblock deliberately does NOT count as a sentence start, because cites and headings open with author names. Rejected: an always-on name filter (hides real typos with no way back) and a proper-noun word list (can't stay current).
+
+Trade-offs: a typo in a capitalized word mid-sentence, or in the first word of a block, goes unflagged while the setting is on. Not verified: the desktop app, and the supplement against real documents (no sample was supplied). Not done: a larger base dictionary.
 
 ### Fixed: underline over emphasis (`ribbon-commands.ts`, `applyUnderline`)
 

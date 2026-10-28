@@ -1092,7 +1092,13 @@ under Settings → Keybindings (listed with the Editing utilities).
 
 Off by default — debate evidence (author names, jargon, citations) trips a
 lot of false positives. Turn it on under **Settings → General → Editor
-spellcheck**. Misspellings get a red underline. **Right-click** a flagged
+spellcheck**. Misspellings get a red underline. **(Fork)** The dictionary
+includes about 1,100 extra debate and policy terms (empirics, neoliberalism,
+kritik, securitization and so on). **Spellcheck: skip names and capitalized
+words** (on by default, right below it) leaves capitalized words in the middle
+of a sentence, and words with a capital inside (McKinsey), alone; the first
+word of a paragraph or heading is treated the same way, but a capitalized word
+after a period, question mark or exclamation mark is still checked. **Right-click** a flagged
 word for spelling suggestions, **Add to Dictionary** (your personal
 dictionary persists across documents and sessions), or **Ignore** (for this
 session).

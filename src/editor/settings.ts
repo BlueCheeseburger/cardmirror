@@ -964,6 +964,10 @@ export interface Settings {
    *  Ignore. Off by default because debate evidence (author names,
    *  jargon) produces many false positives. */
   editorSpellcheck: boolean;
+  /** With Editor spellcheck on, don't flag capitalized words that aren't at
+   *  the start of a sentence (names, places, organizations) or words with a
+   *  capital mid-word (McKinsey, iPhone). On by default. */
+  spellcheckSkipNames: boolean;
   /** Word-style smart quotes: as you type a straight ' or ", curl it to the
    *  right direction based on the preceding character. Off by default. */
   smartQuotes: boolean;
@@ -2038,6 +2042,7 @@ const DEFAULTS: Settings = {
   cardNumberingMatchHeadingColor: false,
   flashcardDueDot: true,
   editorSpellcheck: false,
+  spellcheckSkipNames: true,
   smartQuotes: false,
   smartQuoteDatesAsApostrophes: true,
   autoLinkUrls: false,
@@ -2609,6 +2614,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'toggle',
     category: 'general',
     section: 'Editor behavior',
+  },
+  {
+    key: 'spellcheckSkipNames',
+    label: 'Spellcheck: skip names and capitalized words',
+    description:
+      "With Editor spellcheck on, don't underline a capitalized word in the middle of a sentence (author names, countries, organizations) or a word with a capital inside it (McKinsey, iPhone). On by default, since names are what the dictionary knows least. The catch: a typo in a capitalized word mid-sentence goes unflagged. A capitalized word right after a period, question mark or exclamation mark is still checked; the first word of a paragraph or heading is not, because cites and headings open with names.",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Editor behavior',
+    dependsOn: 'editorSpellcheck',
   },
   {
     key: 'jumpToDocTopOnReadModeToggle',
@@ -5180,6 +5195,7 @@ function sanitize(s: Settings): Settings {
     cardNumberingMatchHeadingColor: !!s.cardNumberingMatchHeadingColor,
     flashcardDueDot: s.flashcardDueDot === false ? false : true,
     editorSpellcheck: !!s.editorSpellcheck,
+    spellcheckSkipNames: s.spellcheckSkipNames === false ? false : true,
     copyPreviousCiteNearestOnly: s.copyPreviousCiteNearestOnly === false ? false : true,
     insertHeadingsAfterSection: !!s.insertHeadingsAfterSection,
     smartQuotes: !!s.smartQuotes,
