@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: unsaved single-pane window was titled plain "CardMirror" (`index.ts`, `updateWindowTitle`)
+
+Reported as "the name of the speech isn't showing in the window name" from a macOS window thumbnail labelled just "CardMirror". Reproduced in the browser build: three-pane mode gives "Untitled — CardMirror" for an unsaved doc and "Untitled · Speech 1NC … — CardMirror" after New Speech Document, and a single-pane speech doc carries its filename, so those were fine; the one path that produced plain "CardMirror" with a document open was a single-pane doc with no filename (`focused.filename` null). That branch now says "Untitled — CardMirror" unless the Home screen is showing, and `updateWindowTitle` re-runs on Home show/hide, because New document sets the title before it hides Home. Collab's no-resolver fallback in `sessionDocTitle` will now read "Untitled" for such a doc, where it used to read an empty name; it only applies when the owner-uid resolver isn't wired. This is my best reading of an ambiguous report: if the window really held a named speech doc, this fix does not cover it. Not verified: macOS Mission Control or the packaged app.
+
 ### Fixed: skip-names spellcheck toggle was greyed out (`settings.ts`)
 
 `spellcheckSkipNames` carried `dependsOn: 'editorSpellcheck'`, and the settings screen disables a dependent row while its parent is off. Editor spellcheck is off by default, so the new toggle showed greyed out and unclickable, which read as missing. The `dependsOn` is removed: the toggle is always enabled, default stays on, and it simply has no effect while spellcheck is off. Test added (default on, kind toggle, no `dependsOn`, older saves without the key read as on). Not verified: the settings screen in the desktop app.

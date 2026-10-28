@@ -8982,9 +8982,13 @@ function updateWindowTitle(): void {
       : 'CardMirror';
     void getElectronHost()?.reportWindowDocs(names);
   } else {
+    // An unsaved document is "Untitled", as in the blue bar and in
+    // three-pane mode; plain "CardMirror" is the Home screen.
     document.title = focused.filename
       ? `${displayFilename(focused.filename)} — CardMirror`
-      : 'CardMirror';
+      : homeScreen.isVisible()
+        ? 'CardMirror'
+        : 'Untitled — CardMirror';
   }
   // The blue title bar (single-document window). The name reads without its
   // extension; a rename in progress keeps its field.
@@ -9003,6 +9007,10 @@ function updateWindowTitle(): void {
 
 // The title follows a Compare documents dialog opening and closing, and main
 // is told so the "which window?" chooser can leave the window out.
+// An unsaved document's title depends on whether Home is up, and Home hides
+// after the title was last set (New document), so follow it too.
+homeScreen.onVisibilityChange(() => updateWindowTitle());
+
 onTakeoverChange(() => {
   updateWindowTitle();
   void getElectronHost()?.setWindowTakenOver(isTakenOver());
