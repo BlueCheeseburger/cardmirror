@@ -8,13 +8,14 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.16.0-bcb.3 — 2026-10-28
 
 ### Added
 - **Reading view is back.** The **book** button in the ribbon (next to Auto-scroll) flips the document into Word-style full-screen pages: one to three columns sized from the pane's width, a whole screen at a time. Flip with **←/→**, **PgUp/PgDn**, **Space / Shift-Space**, the mouse wheel or the click zones at the edges; **Home/End** jump to the first and last page. It locks editing the way read mode does (dropping a reading marker is still allowed) and combines with read mode. It is per document in the multi-doc workspace. **Toggle Reading View** is in the command bar, and **Settings → Accessibility → Reduce animations in reading view** makes the page flips instant. Auto-scroll turns the pages at your reading pace, and the time-left and pace readouts count from the page in view.
-
-### Added
 - **Compare a sync conflict before you decide.** The pill at the bottom of a document in a synced folder now offers **See what changed** when the file changed on disk, and **Compare with the original** when you are editing a conflicted copy. Either opens Compare documents with the other version on the left and your window's version, unsaved edits included, on the right, and **Merge into new file** works as usual. Nothing changes until you choose; close the comparison and the choices come back. Compare is left out where the file can't be read.
+
+### Changed
+- **In Compare documents, the two outlines move as one.** Folding or unfolding a heading, or picking a depth with the level buttons, now does the same to the matching heading on the other side. As you scroll the comparison, the heading you are at (about a third of the way down) is lit in both outlines, the way the outline follows you in a document you are editing, and clicking an entry lights it on both sides.
 
 ### Fixed
 - **An unsaved document's window is titled "Untitled — CardMirror".** In single-pane mode an unsaved document made the window title just "CardMirror", so Mission Control, the Dock and the Window menu showed no document name while the blue bar said "Untitled". It now matches three-pane mode. The Home screen is still plain "CardMirror", and a saved document still shows its own name.
@@ -28,7 +29,6 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **Spellcheck can skip names.** A capitalized word in the middle of a sentence (Netanyahu, Brookings) or one with a capital inside it (McKinsey, iPhone) is no longer underlined. This is on by default; turn it off under **Settings → General → Editor behavior → Spellcheck: skip names and capitalized words**. The first word of a paragraph or heading counts as a name too, but a capitalized word after a period, question mark or exclamation mark is still checked.
 
 ### Changed
-- **In Compare documents, the two outlines move as one.** Folding or unfolding a heading, or picking a depth with the level buttons, now does the same to the matching heading on the other side. As you scroll the comparison, the heading you are at (about a third of the way down) is lit in both outlines, the way the outline follows you in a document you are editing, and clicking an entry lights it on both sides.
 - **Last workspace on the Home screen now lists your windows.** Each window that was open when you last quit gets its own row with a tick box, titled with the window's name or "3 docs", with that window's documents listed under it. Untick the windows you don't want and press **Open** to reopen the rest, each with its panes as they were. The per-document tick boxes, **All** / **None** and the old "Reopen 3 documents" button are gone. **Reopen Last Workspace** in the command bar still brings every window back.
 - **Dragging a document onto an occupied pane adds it to that pane's stack.** The drag overlay and the move tray now say **Add to stack** instead of **Swap places**; the dropped document shows in that pane, with the pane's earlier documents behind its stack switcher (**Ctrl-Tab**). Dropping on an empty slot still just moves it. Prefer the old behaviour? Turn on **Settings → General → Workspace → Dropping a document on an occupied pane swaps instead of stacking**, and the two documents trade places again.
 - **A window showing Compare documents is named "Compare documents", and documents don't open into it.** The title bar and the window list used to say "Untitled" (the blank document underneath). While Compare documents is open, opening a document skips the pane picker and goes to a new window, and the "which window?" chooser no longer lists that window.

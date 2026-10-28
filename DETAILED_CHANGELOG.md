@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.16.0-bcb.3 — 2026-10-28
 
 ### Changed: Compare's two outlines fold together and follow the scroll (`doc-diff-ui.ts`, `nav-panel.ts`)
 
