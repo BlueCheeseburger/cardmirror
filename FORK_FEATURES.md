@@ -80,7 +80,7 @@ your document, so you don't have to do the math on the timer.
   when you reset the clock. If your document is more than a minute longer than the
   speech (probably a masterfile) it stays hidden.
 
-It works in read mode, follows the lay-speaking toggle, and counts from the line
+It works in read mode and Reading view, follows the lay-speaking toggle, and counts from the line
 you're actually reading, a third of the way down the screen.
 
 **Settings:** **Settings → Appearance → Timer display → Show pace guides** (on by
@@ -93,7 +93,7 @@ same section.
 
 A hands-free teleprompter. Press the **Auto-Scroll** button in the ribbon and the
 document scrolls at *your* reading pace: slower over dense highlighted text, faster
-through everything you skip. It works in read mode and follows the lay-speaking
+through everything you skip. It works in read mode and Reading view (where it turns the pages) and follows the lay-speaking
 toggle. A thin outlined bar in the margin marks the line it thinks you're reading.
 
 Press **Escape**, any scroll key (PageUp, PageDown, Home, End, the arrow keys), or
@@ -124,11 +124,18 @@ season's, your partner's edit against yours, or a file before and after cutting.
    red, lines only in the second are green, and edited lines show the changed
    words struck through on the left and underlined on the right. Each side has an
    outline (green for added, red for removed, yellow for partly changed) to jump
-   to a heading.
+   to a heading. The two outlines fold and change depth together, and both light the
+   heading you are at as you scroll, like the outline in a document you are editing.
 4. Click **Merge** to combine the two into one new document. Lines both files share
    are kept once; for an edited line you pick the first version, the second, or both.
 
 Neither file is opened or changed by comparing them.
+
+**From a sync conflict:** when a Dropbox, OneDrive or similar file changes under
+you, click the pill at the bottom of the document and choose **See what changed**
+to compare their version with yours before deciding; on a conflicted copy, choose
+**Compare with the original**. The two open already loaded, with Merge available,
+and nothing changes until you pick Keep their changes, Keep my changes or Keep both.
 
 ## 6. Autosave for Word files
 
@@ -266,7 +273,7 @@ Small changes that make CardMirror easier to learn:
 - **A cleaner Home screen:** New document, Open… and Compare documents.
 - **The outline follows you:** the heading you're in stays highlighted as you scroll.
 - **Remove Emphasis:** **Mod-F10** takes Emphasis off the selected text, the way
-  **Mod-F11** takes highlighting off.
+  **Mod-F11** takes highlighting off. The words stay underlined.
 
 ## 17. Default text style and custom styles
 

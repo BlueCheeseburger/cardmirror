@@ -30,6 +30,7 @@ import {
 } from './word-count.js';
 import { nearestScroller } from './precise-scroll.js';
 import { readingLineOffset } from './reading-line.js';
+import { readerControllerFor, READER_EDGE_W } from './reader-view.js';
 
 /** How far below the viewport top to sample, in CSS px. Small enough
  *  that the sampled content is always on-screen or just about to be;
@@ -69,6 +70,8 @@ interface RunningState {
   lastFrameTime: number;
   lastSampleTime: number;
   rafId: number;
+  /** Reading view's page-flip timer (0 when scrolling). */
+  timerId?: ReturnType<typeof setTimeout>;
   /** Full teardown: cancels the frame loop, removes the manual-
    *  interrupt listeners, clears `running`, and fires `onStop` —
    *  idempotent, so both the interrupt listeners and an explicit
@@ -177,6 +180,9 @@ export function startAutoScroll(
   if (running) return false;
   const scroller = nearestScroller(view.dom as HTMLElement);
   if (!scroller) return false;
+  // Reading view is paged and scrolls sideways: there is no vertical scroll to
+  // pace, so it turns the pages at the pace the page in view takes to read.
+  if (readerControllerFor(view)) return startPagedAutoScroll(view, scroller, reader, onStop, lay);
   const maxTop = scroller.scrollHeight - scroller.clientHeight;
   // Nothing to scroll: the document fits, or the reader is already at its end.
   if (maxTop < 2 || scroller.scrollTop >= maxTop - 1) return false;
@@ -194,6 +200,12 @@ export function startAutoScroll(
     // posAtCoords on a torn-down view is unsafe to call, so stop cleanly
     // rather than let a stray frame throw.
     if (view.isDestroyed) {
+      state.stop();
+      return;
+    }
+    // Reading view was switched on mid-run: there's no vertical scroll left to
+    // pace, so hand back rather than spin a loop that moves nothing.
+    if (readerControllerFor(view)) {
       state.stop();
       return;
     }
@@ -249,6 +261,125 @@ export function startAutoScroll(
   scroller.addEventListener('touchstart', onManualInterrupt, { passive: true });
   scroller.addEventListener('pointerdown', onManualInterrupt, { passive: true });
   state.rafId = requestAnimationFrame(tick);
+  return true;
+}
+
+/** Seconds the page in view takes to read aloud: the read-aloud words between
+ *  the top of its first column and the bottom of its last. Exported for tests. */
+export function pageReadSeconds(
+  view: EditorView,
+  scroller: HTMLElement,
+  reader: ReaderRates,
+  useLay = false,
+): number {
+  const sc = scroller.getBoundingClientRect();
+  const ed = view.dom.getBoundingClientRect();
+  // Probe inside the editor's own box (the host has padding above and below the
+  // text that hit-tests to nothing), across the page's width, near its top and
+  // bottom edges. The page's words run from the earliest position found at the
+  // top to the latest found at the bottom.
+  const topY = Math.max(sc.top, ed.top) + 6;
+  const botY = Math.min(sc.bottom, ed.bottom) - 6;
+  const left = sc.left + READER_EDGE_W + 14;
+  const right = sc.right - READER_EDGE_W - 14;
+  const xs = [0, 0.25, 0.5, 0.75, 1].map((f) => left + (right - left) * f);
+  const hit = (x: number, y: number): number | null => {
+    try {
+      return view.posAtCoords({ left: x, top: y })?.pos ?? null;
+    } catch {
+      return null;
+    }
+  };
+  let a: number | null = null;
+  let b: number | null = null;
+  for (const y of [topY, topY + 30, topY + 70]) {
+    for (const x of xs) {
+      const pos = hit(x, y);
+      if (pos !== null) a = a === null ? pos : Math.min(a, pos);
+    }
+    if (a !== null) break;
+  }
+  for (const y of [botY, botY - 30, botY - 70]) {
+    for (const x of xs) {
+      const pos = hit(x, y);
+      if (pos !== null) b = b === null ? pos : Math.max(b, pos);
+    }
+    if (b !== null) break;
+  }
+  if (a === null || b === null || a === b) return PAGE_FALLBACK_S;
+  const counts = countReadAloudSplit(view.state.doc, Math.min(a, b), Math.max(a, b));
+  const seconds = readTimeSeconds(counts, reader, useLay);
+  if (seconds === null) return PAGE_FALLBACK_S;
+  if (seconds <= 0) return PAGE_MIN_S; // nothing read aloud here: skim past
+  return clamp(seconds, PAGE_MIN_S, PAGE_MAX_S);
+}
+
+const PAGE_MIN_S = 1.5;
+const PAGE_MAX_S = 180;
+const PAGE_FALLBACK_S = 20;
+
+/** Reading view: flip to the next page once the one in view has had time to be
+ *  read aloud (at `reader`'s rate), until the last page. Any wheel, touch,
+ *  click or page-turn key hands control back. */
+function startPagedAutoScroll(
+  view: EditorView,
+  scroller: HTMLElement,
+  reader: ReaderRates,
+  onStop: () => void,
+  lay: () => boolean,
+): boolean {
+  const rc = readerControllerFor(view);
+  if (!rc || rc.pageTotal() < 2 || rc.currentPage() >= rc.pageTotal() - 1) return false; // nothing to turn
+  let stopped = false;
+  const onManualInterrupt = (): void => state.stop();
+  const onKey = (e: KeyboardEvent): void => {
+    if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', ' ', 'Home', 'End', 'Escape'].includes(e.key)) state.stop();
+  };
+  const schedule = (): void => {
+    if (stopped) return;
+    if (view.isDestroyed || !readerControllerFor(view)) {
+      state.stop();
+      return;
+    }
+    const seconds = pageReadSeconds(view, scroller, reader, lay());
+    state.timerId = setTimeout(() => {
+      if (stopped) return;
+      const ctl = readerControllerFor(view);
+      if (!ctl || ctl.currentPage() >= ctl.pageTotal() - 1) {
+        state.stop();
+        return;
+      }
+      ctl.flip(1);
+      // Let the flip settle, then pace the new page.
+      state.timerId = setTimeout(schedule, 300);
+    }, seconds * 1000);
+  };
+  const state: RunningState = {
+    view,
+    velocity: 0,
+    pos: 0,
+    applied: 0,
+    lastFrameTime: 0,
+    lastSampleTime: 0,
+    rafId: 0,
+    stop: () => {
+      if (stopped) return;
+      stopped = true;
+      if (state.timerId !== undefined) clearTimeout(state.timerId);
+      scroller.removeEventListener('wheel', onManualInterrupt);
+      scroller.removeEventListener('touchstart', onManualInterrupt);
+      scroller.removeEventListener('pointerdown', onManualInterrupt);
+      document.removeEventListener('keydown', onKey, true);
+      if (running === state) running = null;
+      onStop();
+    },
+  };
+  running = state;
+  scroller.addEventListener('wheel', onManualInterrupt, { passive: true });
+  scroller.addEventListener('touchstart', onManualInterrupt, { passive: true });
+  scroller.addEventListener('pointerdown', onManualInterrupt, { passive: true });
+  document.addEventListener('keydown', onKey, true);
+  schedule();
   return true;
 }
 

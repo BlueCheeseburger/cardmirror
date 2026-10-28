@@ -468,7 +468,7 @@ below say which fallback applies where it matters.
 |----------|----------|--------------|
 | **Cite** | F8 | Applies the Cite style — meant for just the author last name and date, not the whole line. With nothing selected, it applies to the word at the cursor. Skips heading text in a mixed selection. |
 | **Underline** | F9 / Mod-U | Toggles underline on the selection (press again to remove, which also clears any emphasis in it). Emphasized words inside the selection stay emphasized when you underline. With **nothing selected** the two differ: **F9** underlines the word at the cursor; **Mod-U** instead turns on underline for the text you're about to type (like Mod-I for italics). |
-| **Emphasis** | F10 | Applies the Emphasis style (a box, by default). Apply-only: pressing it again keeps the Emphasis. **Mod-F10** removes it from the selection (the text comes back plain, not underlined); Clear also removes it. **Underline** leaves emphasized words as they are, so underlining a selection that contains emphasis keeps the emphasis. |
+| **Emphasis** | F10 | Applies the Emphasis style (a box, by default). Apply-only: pressing it again keeps the Emphasis. **Mod-F10** removes it from the selection (the text drops back to plain underline); Clear also removes it. **Underline** leaves emphasized words as they are, so underlining a selection that contains emphasis keeps the emphasis. |
 | **Highlight** | F11 | Toggles the active highlight color. Press again to remove. |
 | **Clear** | F12 | Strips direct formatting back to plain text (leaves highlighting unless **Clear (F12) also removes highlighting** is on in Settings → Editing). |
 | **Bold / Italic** | Mod-B / Mod-I | Standard direct formatting. With nothing selected, toggles it for the text you're about to type; while italic typing is on, the cursor tilts to match. Tags and headings are bold by default, so **Bold inside a tag un-bolds** the selected words (press it again to restore) — and .docx files with un-bolded words in tags now show that correctly. |
@@ -1019,6 +1019,14 @@ would. There are no second confirmations. Keeping their changes is
 unavailable while you host a co-editing session; end the session
 first.
 
+**(fork)** Not sure which to pick? The amber pill's choices start with **See
+what changed**, which opens [Compare documents](#comparing-two-documents) with
+their version on disk on the left and your window's version (unsaved edits
+included) on the right. Nothing changes; close it and the choices come back.
+On a conflicted copy, the pill's choices include **Compare with the original**
+the same way (the original on the left, this copy on the right). In either
+comparison **Merge into new file** combines the two into a new file.
+
 ### Converting blocks
 
 Pressing a structural key (F4–F7, Mod-F7, Mod-F8) converts the current
@@ -1551,10 +1559,42 @@ with everything that isn't read aloud already hidden, the scroll
 speed tracks your actual delivery pace almost exactly — a hands-free
 teleprompter for practicing a speech. Any manual scroll, wheel, touch,
 or click hands control straight back to you and stops it; running out
-of document does too. Escape, Page Up/Down, Home, End and the up/down arrows
+of document does too. In **Reading view** (the book) there is nothing to scroll, so it turns the pages
+instead, giving each page as long as it takes to read aloud at your first reader's
+rate; flipping a page yourself stops it. Escape, Page Up/Down, Home, End and the up/down arrows
 stop it as well. Switching focus to another pane (in the
 multi-doc workspace) also stops it — it never keeps scrolling somewhere
 you're not looking.
+
+### Reading view
+
+Click the **book** in the ribbon (or bind a key to *Toggle Reading
+View*) to flip the document into Word-style full-screen pages: one to
+three columns sized from the pane's width, flipped a whole screen at a
+time. It's built for reading a speech without scrolling — every flip
+lands on a clean page boundary, and tags and cites are kept with the
+first line of their card so nothing strands at a column bottom.
+
+Flipping: **←/→**, **PgUp/PgDn**, **Space / Shift-Space**, one
+mouse-wheel click (or one trackpad swipe), or the click zones at the
+left and right edges. **Home/End** jump to the first and last page,
+and the indicator at the bottom shows where you are. The navigation
+pane stays available — clicking an entry lands on the page containing
+it.
+
+Like read mode, reading view locks editing; dropping a
+[reading marker](#read-mode) is the only edit allowed (drag-and-drop
+is disabled entirely here). The two combine well: read mode strips the
+document down to what's read aloud, and reading view paginates
+whatever is showing — together they're a teleprompter. Reading view is
+per-document in the [multi-doc workspace](#7-the-multi-doc-workspace),
+so stack your speech docs in one slot, flip each into reading view as
+you finish prepping it, and full-screen the slot when you stand up.
+
+The maximum-text-width accessibility cap bounds the column width, and
+page flips animate by default — **Reduce animations in reading view**
+(Settings → Accessibility) or the global reduce-motion preference
+makes them instant.
 
 ### Read-time estimates
 
@@ -1625,7 +1665,8 @@ down the window, to the end of the document — with each reader's time for it: 
 · Amy: 5:20`. Only read-aloud text counts, same as every other readout,
 so trimming highlights lowers it. It follows the scroll, not the cursor
 (a speaker reads about a third of the way down the screen, and the caret is
-wherever you last clicked), and updates as you scroll. It's cheap on large files
+wherever you last clicked), and updates as you scroll. In Reading view it counts
+from the page in view. It's cheap on large files
 too: CardMirror keeps a running total per section of the document, so a
 new position only re-counts the card or paragraph it lands in.
 
@@ -2814,7 +2855,11 @@ yours, or a file before and after cutting.
    lines (for example "+12 −4 lines changed").
 3. Each side has its own **outline** of that file's headings. Click one to
    jump to it in the comparison. A heading greyed out in the outline has
-   no matching line to jump to.
+   no matching line to jump to. The two outlines move as one: folding a
+   heading, or choosing a depth with the level buttons, does the same to the
+   matching heading on the other side, and as you scroll, the heading you are
+   at (about a third of the way down) is lit in both, like the outline in a
+   document you are editing.
 
 **Compare different files** returns to the file picker; **Close** (or
 **Esc**) returns to the Home screen. The comparison is text only — formatting such as highlighting
@@ -3707,7 +3752,12 @@ use the Control key show as **⌃** and Command shortcuts as **⌘**.
 - **Maximum text width** — cap how wide the document text column gets,
   so reading doesn't require sweeping your eyes across the whole
   screen. Off by default; when on, choose whether the column sits
-  centered or pinned to the left or right edge.
+  centered or pinned to the left or right edge. In
+  [reading view](#reading-view) it caps the column width instead.
+- **Reduce animations in reading view** — make
+  [reading view's](#reading-view) page flips instant instead of
+  animated. Off by default; the global reduce-motion preference also
+  flattens them.
 - **Screen reader support** *(desktop)* — let screen readers and other
   assistive technology read CardMirror. **Off by default**: a current Chromium
   bug crashes the window (white screen, lost work) while building the

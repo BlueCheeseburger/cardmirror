@@ -24,7 +24,8 @@
 >    exactly you should be reading. This on by default, just start a timer to see.
 > 4. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
->    text and speeding through everything else. 
+>    text and speeding through everything else. It works in read mode and
+>    Reading view and follows the lay-speaking toggle.
 > 5. **Compare and merge documents** — the home screen's top row has a
 >    "Compare documents" card: pick two `.cmir`/`.docx` files and see a
 >    side-by-side line diff of their text, with the changed words

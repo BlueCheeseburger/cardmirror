@@ -35,6 +35,7 @@ import type { CloudProvider } from './host/types.js';
 import type { AutoApplyOutcome } from './disk-auto-apply.js';
 import { installFileDragSource, type FileDragHost } from './file-drag.js';
 import { copyFilePath, installFileContextMenu } from './file-path-menu.js';
+import type { Node as PMNode } from 'prosemirror-model';
 
 export type DiskBadgeState = 'local' | 'synced' | 'changed' | 'kept-copy';
 export type ClaimResult = 'fresh' | 'journaled' | 'changed' | 'unknown';
@@ -272,6 +273,11 @@ export interface DiskBadgeDeps {
   /** Force-writes the disk (no second confirmation — design call). */
   overwrite: (handle: string) => Promise<void>;
   openOriginal: (originalHandle: string) => Promise<void>;
+  /** The live content of the document open under `handle` — unsaved edits
+   *  included — for the Compare choices. Absent where Compare can't run. */
+  getLiveDoc?: (handle: string) => PMNode | null;
+  /** Read a file by path (desktop), for the Compare choices. */
+  readFile?: (path: string) => Promise<{ name: string; bytes: Uint8Array } | null>;
 }
 
 /**
@@ -477,6 +483,38 @@ function baseName(p: string): string {
   return i >= 0 ? p.slice(i + 1) : p;
 }
 
+/** Open Compare documents with `otherPath` on the left and this window's live
+ *  copy of `handle` on the right, and resolve when the dialog closes. Nothing
+ *  is written and neither document changes. False when it couldn't open. */
+async function compareWithFile(
+  handle: string,
+  otherPath: string,
+  labels: { other: string; mine: string },
+  deps: Pick<DiskBadgeDeps, 'getLiveDoc' | 'readFile'>,
+): Promise<boolean> {
+  const doc = deps.getLiveDoc?.(handle) ?? null;
+  if (!doc || !deps.readFile) {
+    showToast('Compare isn\u2019t available for this document.');
+    return false;
+  }
+  let file: { name: string; bytes: Uint8Array } | null = null;
+  try {
+    file = await deps.readFile(otherPath);
+  } catch {
+    file = null;
+  }
+  if (!file) {
+    showToast(`Couldn\u2019t read "${baseName(otherPath)}" \u2014 it may have been moved or deleted.`);
+    return false;
+  }
+  const { openDocDiff } = await import('./doc-diff-ui.js');
+  await openDocDiff({
+    a: { name: labels.other, bytes: file.bytes },
+    b: { name: labels.mine, doc },
+  });
+  return true;
+}
+
 /** Shared "what should clicking the badge do" logic — the three-way
  *  disk-conflict decision, and the synced/kept-copy reveal shortcuts.
  *  Used by both the single-doc window's tray badge and each pane's
@@ -487,7 +525,15 @@ async function resolveBadgeClick(
   info: DocDiskInfo,
   deps: Pick<
     DiskBadgeDeps,
-    'isSessionHost' | 'isDirty' | 'reveal' | 'reloadFromDisk' | 'keepMineAsCopy' | 'overwrite' | 'openOriginal'
+    | 'isSessionHost'
+    | 'isDirty'
+    | 'reveal'
+    | 'reloadFromDisk'
+    | 'keepMineAsCopy'
+    | 'overwrite'
+    | 'openOriginal'
+    | 'getLiveDoc'
+    | 'readFile'
   >,
 ): Promise<void> {
   if (info.state === 'synced' || info.state === 'local') {
@@ -495,23 +541,49 @@ async function resolveBadgeClick(
     return;
   }
   if (info.state === 'kept-copy') {
-    const choice = await promptForRouteChoice<'original' | 'reveal'>({
+    const canCompare = !!info.copyOf && !!deps.getLiveDoc && !!deps.readFile;
+    const choices: Array<{ value: 'original' | 'compare' | 'reveal'; label: string; description: string }> = [
+      { value: 'original', label: 'Open the original', description: 'In another window, alongside this copy.' },
+    ];
+    if (canCompare) {
+      choices.push({
+        value: 'compare',
+        label: 'Compare with the original',
+        description: 'See the differences line by line, or merge the two into a new file. Nothing changes.',
+      });
+    }
+    choices.push({ value: 'reveal', label: 'Reveal in folder', description: 'Show both files in Finder / Explorer.' });
+    const choice = await promptForRouteChoice<'original' | 'compare' | 'reveal'>({
       message: `You are editing a conflicted copy of "${info.copyOf ? baseName(info.copyOf) : name ?? 'the original'}".`,
-      choices: [
-        { value: 'original', label: 'Open the original', description: 'In another window, alongside this copy.' },
-        { value: 'reveal', label: 'Reveal in folder', description: 'Show both files in Finder / Explorer.' },
-      ],
+      choices,
       cancelLabel: 'Close',
     });
     if (choice === 'original' && info.copyOf) await deps.openOriginal(info.copyOf);
     else if (choice === 'reveal') deps.reveal(handle);
+    else if (choice === 'compare' && info.copyOf) {
+      const opened = await compareWithFile(
+        handle,
+        info.copyOf,
+        { other: `${baseName(info.copyOf)} (original)`, mine: `${name ?? baseName(handle)} (this copy)` },
+        deps,
+      );
+      // Back to the choices once the comparison is closed, as long as it ran.
+      if (opened) await resolveBadgeClick(handle, name, byHandle.get(handle) ?? info, deps);
+    }
     return;
   }
   // changed — three ways out, no secondary confirmations (design call
   // 2026-09-06): keep theirs (reload), keep mine (overwrite), keep both.
   const host = deps.isSessionHost(handle);
   const dirty = deps.isDirty?.() ?? false;
-  const choices: Array<{ value: 'theirs' | 'mine' | 'both'; label: string; description: string }> = [];
+  const choices: Array<{ value: 'theirs' | 'mine' | 'both' | 'compare'; label: string; description: string }> = [];
+  if (deps.getLiveDoc && deps.readFile) {
+    choices.push({
+      value: 'compare',
+      label: 'See what changed',
+      description: 'Compare their version on disk with yours, line by line. Nothing changes; you come back here to decide.',
+    });
+  }
   if (!host) {
     choices.push({
       value: 'theirs',
@@ -529,7 +601,7 @@ async function resolveBadgeClick(
     label: 'Keep both',
     description: 'Saves a conflicted copy in the same folder.',
   });
-  const choice = await promptForRouteChoice<'theirs' | 'mine' | 'both'>({
+  const choice = await promptForRouteChoice<'theirs' | 'mine' | 'both' | 'compare'>({
     message:
       `"${name ?? 'This document'}" was changed by another device or program while you were editing it` +
       `${info.provider ? ` (it is in ${PROVIDER_LABEL[info.provider]})` : ''}.`,
@@ -541,6 +613,18 @@ async function resolveBadgeClick(
   if (choice === 'theirs') await deps.reloadFromDisk(handle);
   else if (choice === 'mine') await deps.overwrite(handle);
   else if (choice === 'both') await deps.keepMineAsCopy(handle);
+  else if (choice === 'compare') {
+    const opened = await compareWithFile(
+      handle,
+      handle,
+      { other: `${name ?? baseName(handle)} (on disk)`, mine: `${name ?? baseName(handle)} (your version)` },
+      deps,
+    );
+    // Back to the decision once the comparison is closed, as long as it ran
+    // and the conflict still stands.
+    const now = byHandle.get(handle);
+    if (opened && now?.state === 'changed') await resolveBadgeClick(handle, name, now, deps);
+  }
 }
 
 async function onBadgeClick(): Promise<void> {

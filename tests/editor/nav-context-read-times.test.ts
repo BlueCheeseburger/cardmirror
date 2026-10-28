@@ -66,7 +66,15 @@ function openMenu(nav: NavigationPanel, label: string): HTMLElement {
 const infoRows = (menu: HTMLElement): HTMLElement[] => [
   ...menu.querySelectorAll<HTMLElement>('.pmd-nav-context-item-info'),
 ];
-const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 40));
+/** Let the menu's async time calculation finish: a short pause, then wait (up to
+ *  3 s) for the "Calculating times" placeholder to go, so a slow CI machine
+ *  doesn't read the placeholder instead of the result. */
+const settle = async (): Promise<void> => {
+  await new Promise((r) => setTimeout(r, 40));
+  for (let i = 0; i < 150 && document.querySelector('.pmd-nav-context-item-pending'); i++) {
+    await new Promise((r) => setTimeout(r, 20));
+  }
+};
 
 beforeEach(() => {
   lay = false;

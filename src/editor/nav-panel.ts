@@ -238,6 +238,11 @@ export class NavigationPanel {
    *  toggling the global `navPaneVisible` setting (single-doc, where
    *  there's only one pane and × means "hide the nav pane"). */
   private onClose: (() => void) | null = null;
+  private onCollapseChange: ((pos: number, collapsed: boolean) => void) | null = null;
+  private onMaxLevelChange: ((level: number) => void) | null = null;
+  /** True while applying a change that came from a mirrored panel, so it is
+   *  not reported back. */
+  private mirroring = false;
 
   // ---- Selection state (multi-select) ----
   private selectedIds: Set<string> = new Set();
@@ -446,8 +451,17 @@ export class NavigationPanel {
       readOnly?: boolean;
       /** Whether this doc's read times are in lay mode (see `useLay`). */
       useLay?: () => boolean;
+      /** Told when the USER folds or unfolds a heading (chevron, double-click),
+       *  with its doc position. Not fired by `mirrorCollapsed`. Lets two
+       *  outlines of matching documents (Compare) fold together. */
+      onCollapseChange?: (pos: number, collapsed: boolean) => void;
+      /** Told when the USER picks a depth with the level buttons (or a depth
+       *  command). Not fired by `mirrorMaxLevel`. */
+      onMaxLevelChange?: (level: number) => void;
     },
   ) {
+    this.onCollapseChange = opts?.onCollapseChange ?? null;
+    this.onMaxLevelChange = opts?.onMaxLevelChange ?? null;
     this.onClose = opts?.onClose ?? null;
     this.readOnly = opts?.readOnly === true;
     this.useLay = opts?.useLay ?? (() => false);
@@ -1485,6 +1499,37 @@ export class NavigationPanel {
       this.collapsed.add(entry.id);
     }
     if (this.currentDoc) this.render(this.currentDoc);
+    if (!this.mirroring) this.onCollapseChange?.(entry.pos, this.collapsed.has(entry.id));
+  }
+
+  /** Fold or unfold the heading at doc position `pos` to match a mirrored
+   *  outline. A heading that has no children, or isn't there, is left alone. */
+  mirrorCollapsed(pos: number, collapsed: boolean): void {
+    const doc = this.currentDoc;
+    if (!doc) return;
+    const entries = collectHeadings(doc);
+    const i = entries.findIndex((e) => e.pos === pos);
+    const entry = entries[i];
+    if (!entry || entry.id == null) return;
+    const next = entries[i + 1];
+    if (!(next != null && next.level > entry.level)) return;
+    if (this.collapsed.has(entry.id) === collapsed) return;
+    this.mirroring = true;
+    try {
+      this.toggleCollapsed(entry);
+    } finally {
+      this.mirroring = false;
+    }
+  }
+
+  /** Apply a depth chosen in a mirrored outline, without reporting it back. */
+  mirrorMaxLevel(level: number): void {
+    this.mirroring = true;
+    try {
+      this.setMaxLevel(level);
+    } finally {
+      this.mirroring = false;
+    }
   }
 
   // ---------------------------------------------- Search tab ----
@@ -2776,6 +2821,7 @@ export class NavigationPanel {
    *  `setNavDepth1`–`4` commands can drive it from a keybinding. */
   setMaxLevel(level: number): void {
     if (level < 1 || level > 4) return;
+    if (!this.mirroring) this.onMaxLevelChange?.(level);
     this.applyMaxLevelToCollapseState(level);
     this.localMaxLevel = level;
     this.updateLevelButtonsActive();

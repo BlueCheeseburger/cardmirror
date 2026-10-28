@@ -55,5 +55,5 @@ resolved. Omit it entirely when nothing is open.
 ## Things not to undo
 
 - **Never re-add `docx` to the top-level `fileAssociations` in `apps/desktop/package.json`.** It stamps Word's default ProgId and breaks "New > Word Document" on Windows. `.docx` is declared per platform: `mac.extendInfo.CFBundleDocumentTypes` (with the `org.openxmlformats.wordprocessingml.document` UTI), the `linux` block, and `build/installer.nsh` on Windows (Open-With only). `win.fileAssociations` stays empty for docx.
-- **The paged Reading view is gone; "reading view" means read mode** (`toggleReadMode`). If an upstream sync brings it back, delete it again. Also gone: the ribbon doc-name pill, the amber speech banner and the bottom-right drag mark.
+- **The paged Reading view is back (2026-10-28, at the user's request): the ribbon book button and `toggleReaderView` are separate from read mode (`toggleReadMode`).** It had been removed in 1.15.0-bcb.5. Don't remove it again unless the user says so. Still gone: the ribbon doc-name pill, the amber speech banner and the bottom-right drag mark.
 - **README's Windows installer name is wrong** (`CardMirror Setup x.x.x.exe`; the real file is `CardMirror-Setup-x.x.x.exe`). Fix the wording next time you touch the README; don't add an `artifactName` override.

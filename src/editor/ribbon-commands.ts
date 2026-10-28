@@ -1259,10 +1259,11 @@ export function applyEmphasis(): Command {
  * (pressing it again re-applies), so this is the way back, shaped like Mod-F11:
  * it works on the selection or the shadow-selection matches, does nothing on a
  * bare cursor (no word expansion) or when nothing in range is emphasized, and
- * skips no structural block. It only strips the `emphasis_mark`: Emphasis
- * replaced any underline when it was applied, so the text comes back plain
- * (F9 puts the underline on). The neighbouring gaps are normalized like every
- * other formatting command.
+ * skips no structural block. Emphasis is underline plus a box, and it replaced
+ * the underline when it was applied, so the emphasized text drops back to
+ * underline rather than to plain text (underline_mark in body text,
+ * underline_direct in a structural block). The neighbouring gaps are
+ * normalized like every other formatting command.
  */
 export function removeEmphasis(): Command {
   return withGapFix(
@@ -1283,7 +1284,31 @@ export function removeEmphasis(): Command {
       if (!found) return false;
       if (!dispatch) return true;
       const tr = state.tr;
-      for (const { from, to } of op.ranges) tr.removeMark(from, to, markType);
+      const underline = schema.marks['underline_mark']!;
+      const direct = schema.marks['underline_direct']!;
+      for (const { from, to } of op.ranges) {
+        // Collect first: marks don't move positions, but the walk reads `state.doc`.
+        const pieces: { from: number; to: number; structural: boolean }[] = [];
+        state.doc.nodesBetween(from, to, (node, pos, parent) => {
+          if (!node.isText || !markType.isInSet(node.marks)) return true;
+          const f = Math.max(from, pos);
+          const t = Math.min(to, pos + node.nodeSize);
+          if (f < t) {
+            pieces.push({
+              from: f,
+              to: t,
+              structural: !!parent && STRUCTURAL_TEXTBLOCKS_FOR_UNDERLINE.has(parent.type.name),
+            });
+          }
+          return true;
+        });
+        for (const piece of pieces) {
+          tr.removeMark(piece.from, piece.to, markType);
+          // underline_mark excludes emphasis on its own; underline_direct doesn't
+          // need to, and the emphasis is already gone.
+          tr.addMark(piece.from, piece.to, (piece.structural ? direct : underline).create());
+        }
+      }
       if (op.fromShadow) tr.setMeta(META_OPERATING_ON_SHADOW, true);
       dispatch(tr);
       return true;
@@ -4745,6 +4770,7 @@ export type RibbonCommandId =
   | 'convertCardsToReadMode'
   | 'toggleReadMode'
   | 'toggleAutoScroll'
+  | 'toggleReaderView'
   | 'openContainingFolder'
   | 'reloadFromDisk'
   | 'printDocument'
@@ -5039,6 +5065,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'convertCardsToReadMode',
   'toggleReadMode',
   'toggleAutoScroll',
+  'toggleReaderView',
   'openContainingFolder',
   'reloadFromDisk',
   'printDocument',
@@ -5278,6 +5305,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   convertCardsToReadMode: 'Convert Cards to Read Mode',
   toggleReadMode: 'Toggle Read Mode',
   toggleAutoScroll: 'Toggle Auto-Scroll (Paced to Reading Speed)',
+  toggleReaderView: 'Toggle Reading View',
   openContainingFolder: 'Open Containing Folder',
   reloadFromDisk: 'Reload From Disk',
   printDocument: 'Print…',
@@ -5514,7 +5542,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   aiCitePromptPreset9: ['cite prompt', 'cite preset', 'prompt preset', 'preset 9'],
   aiCitePromptPreset10: ['cite prompt', 'cite preset', 'prompt preset', 'preset 10'],
   convertCardsToReadMode: ['zap card', 'zap cards'],
-  toggleReadMode: ['show read mode', 'hide read mode', 'invisibility mode', 'reading view', 'reading mode', 'reader view'],
+  toggleReadMode: ['show read mode', 'hide read mode', 'invisibility mode'],
   toggleAutoScroll: [
     'auto scroll',
     'autoscroll',
@@ -5524,6 +5552,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
     'start scrolling',
     'stop scrolling',
   ],
+  toggleReaderView: ['reading view', 'reader view', 'paginated view', 'read view', 'book view', 'columns'],
   reloadFromDisk: ['reload', 'refresh', 'revert', 'revert to saved', 'discard changes', 'refresh from disk', 'reload document', 'reload file'],
   printDocument: ['print', 'print document', 'print speech doc', 'print speech', 'printer', 'paper', 'hard copy', 'pdf'],
   openContainingFolder: ['reveal in finder', 'show in folder', 'show in explorer', 'reveal file', 'file location', 'containing folder'],
@@ -5743,6 +5772,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   convertCardsToReadMode: '',
   toggleReadMode: '',
   toggleAutoScroll: '',
+  toggleReaderView: '',
   openContainingFolder: '',
   // Reload the document from its file. Cmd/Ctrl+R: nothing else in the app
   // uses it (the View > Reload menu item deliberately has no accelerator). A
@@ -6044,6 +6074,7 @@ export interface RibbonContext {
   openWordCountDialog: () => void;
   toggleReadMode: () => void;
   toggleAutoScroll: () => void;
+  toggleReaderView: () => void;
   openContainingFolder: () => void;
   /** Replace the active document with what's saved on disk. */
   reloadFromDisk: () => void;
@@ -6286,6 +6317,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   openWordCountDialog: () => {},
   toggleReadMode: () => {},
   toggleAutoScroll: () => {},
+  toggleReaderView: () => {},
   openContainingFolder: () => {},
   reloadFromDisk: () => {},
   printDocument: () => {},
@@ -6578,6 +6610,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.toggleAutoScroll();
+        return true;
+      };
+    case 'toggleReaderView':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.toggleReaderView();
         return true;
       };
     case 'openContainingFolder':
