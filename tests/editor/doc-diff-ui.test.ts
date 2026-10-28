@@ -386,3 +386,123 @@ describe('Compare documents — preloaded sides (the disk-conflict dialogs)', ()
     expect(qa('.pmd-doc-diff-picker-row')).toHaveLength(2);
   });
 });
+
+describe('Compare documents — the outlines move as one', () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  /** Two sections, each pocket > hat > a card, so there is something to fold. */
+  function sectionsDoc(extraTop = false) {
+    const N = schema.nodes;
+    const kids = [];
+    if (extraTop) {
+      kids.push(N['pocket']!.create({ id: newHeadingId() }, schema.text('Only in the copy')));
+    }
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      kids.push(N['pocket']!.create({ id: newHeadingId() }, schema.text(name)));
+      kids.push(N['hat']!.create({ id: newHeadingId() }, schema.text(`${name} hat`)));
+      kids.push(
+        N['card']!.createChecked(null, [
+          N['tag']!.create({ id: newHeadingId() }, schema.text(`${name} tag`)),
+          N['card_body']!.create(null, schema.text(`${name} body`)),
+        ]),
+      );
+    }
+    return N['doc']!.createChecked(null, kids);
+  }
+
+  async function open(extraTop = false): Promise<void> {
+    void openDocDiff({
+      a: { name: 'one.cmir', doc: sectionsDoc() },
+      b: { name: 'two.cmir', doc: sectionsDoc(extraTop) },
+    });
+    await waitForResults();
+  }
+  const items = (side: 'left' | 'right'): HTMLElement[] =>
+    qa(`.pmd-doc-diff-outline-${side} .pmd-nav-item`) as HTMLElement[];
+  const labels = (side: 'left' | 'right'): string[] => items(side).map((el) => (el.textContent ?? '').trim());
+  function press(el: Element): void {
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+      el.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0 }));
+    }
+  }
+  const chevronOf = (side: 'left' | 'right', label: string): HTMLElement => {
+    const li = items(side).find((el) => (el.textContent ?? '').trim() === label)!;
+    return li.querySelector('.pmd-nav-chevron-active') as HTMLElement;
+  };
+
+  it('folding a heading in one outline folds the matching heading in the other', async () => {
+    await open();
+    // Open everything, then fold "Beta" on the LEFT only.
+    press(qa('.pmd-doc-diff-outline-left .pmd-nav-level-btn')[3]!);
+    expect(labels('left')).toContain('Beta tag');
+    expect(labels('right')).toContain('Beta tag');
+    chevronOf('left', 'Beta').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(labels('left')).not.toContain('Beta hat');
+    expect(labels('right')).not.toContain('Beta hat');
+    // The other sections are untouched on both sides, and it unfolds together too.
+    expect(labels('right')).toContain('Alpha hat');
+    chevronOf('right', 'Beta').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(labels('left')).toContain('Beta hat');
+    expect(labels('right')).toContain('Beta hat');
+  });
+
+  it('a depth button on either side sets the depth on both', async () => {
+    await open();
+    press(qa('.pmd-doc-diff-outline-right .pmd-nav-level-btn')[0]!);
+    expect(labels('left')).toEqual(['Alpha', 'Beta', 'Gamma']);
+    expect(labels('right')).toEqual(['Alpha', 'Beta', 'Gamma']);
+    press(qa('.pmd-doc-diff-outline-left .pmd-nav-level-btn')[3]!);
+    expect(labels('left')).toContain('Gamma tag');
+    expect(labels('right')).toContain('Gamma tag');
+  });
+
+  it('a heading only one side has folds on its own and leaves the other alone', async () => {
+    await open(true);
+    press(qa('.pmd-doc-diff-outline-left .pmd-nav-level-btn')[3]!);
+    const before = labels('left');
+    chevronOf('right', 'Alpha').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(labels('left')).not.toContain('Alpha hat');
+    expect(labels('right')).not.toContain('Alpha hat');
+    expect(labels('left').length).toBeLessThan(before.length);
+  });
+
+  it('lights the heading at the reading line, on both sides, as the table scrolls', async () => {
+    await open(true);
+    press(qa('.pmd-doc-diff-outline-left .pmd-nav-level-btn')[3]!);
+    const table = q<HTMLElement>('.pmd-doc-diff-table')!;
+    const rows = Array.from(table.children) as HTMLElement[];
+    // Fake a layout: 40px rows in a 400px window.
+    let scrollTop = 0;
+    Object.defineProperty(table, 'scrollTop', { get: () => scrollTop, set: (v: number) => (scrollTop = v), configurable: true });
+    const rect = (top: number, height: number) =>
+      ({ top, bottom: top + height, left: 0, right: 600, width: 600, height, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this === table) return rect(0, 400);
+      const i = rows.indexOf(this as HTMLElement);
+      if (i >= 0) return rect(i * 40 - scrollTop, 40);
+      return rect(0, 0);
+    });
+    const lit = (side: 'left' | 'right'): string =>
+      (q(`.pmd-doc-diff-outline-${side} .pmd-nav-item-selected`)?.textContent ?? '').trim();
+    const scrollTo = async (y: number): Promise<void> => {
+      scrollTop = y;
+      table.dispatchEvent(new Event('scroll'));
+      await new Promise((r) => setTimeout(r, 60));
+    };
+    const rowOf = (text: string): number =>
+      rows.findIndex((r) => (r.querySelector('.pmd-doc-diff-cell-left .pmd-doc-diff-text')?.textContent ?? '') === text);
+    try {
+      // The reading line is a third of the way down once scrolled that far.
+      await scrollTo(rowOf('Beta tag') * 40 - 400 / 3 + 5);
+      expect(lit('left')).toBe('Beta tag');
+      expect(lit('right')).toBe('Beta tag');
+      await scrollTo(rowOf('Gamma hat') * 40 - 400 / 3 + 5);
+      expect(lit('left')).toBe('Gamma hat');
+      expect(lit('right')).toBe('Gamma hat');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});

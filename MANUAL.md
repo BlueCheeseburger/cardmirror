@@ -2855,7 +2855,11 @@ yours, or a file before and after cutting.
    lines (for example "+12 −4 lines changed").
 3. Each side has its own **outline** of that file's headings. Click one to
    jump to it in the comparison. A heading greyed out in the outline has
-   no matching line to jump to.
+   no matching line to jump to. The two outlines move as one: folding a
+   heading, or choosing a depth with the level buttons, does the same to the
+   matching heading on the other side, and as you scroll, the heading you are
+   at (about a third of the way down) is lit in both, like the outline in a
+   document you are editing.
 
 **Compare different files** returns to the file picker; **Close** (or
 **Esc**) returns to the Home screen. The comparison is text only — formatting such as highlighting

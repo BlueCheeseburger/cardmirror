@@ -43,6 +43,7 @@ import { planMerge, buildMerged, type MergePlan, type MergeChoice } from './doc-
 import { serializeNative } from '../native/index.js';
 import { toDocx } from '../export/index.js';
 import { settings } from './settings.js';
+import { READING_LINE_FRACTION, readingLineOffset } from './reading-line.js';
 import { enterTakeover } from './window-takeover.js';
 
 const DOC_FILTERS: FileFilter[] = [{ name: 'CardMirror / Word documents', extensions: ['cmir', 'docx'] }];
@@ -105,6 +106,25 @@ class DocDiffModal {
    *  the outline can colour its entries green / red / yellow. */
   private leftMarksByText = new Map<string, LineMark[]>();
   private rightMarksByText = new Map<string, LineMark[]>();
+  /** Each side's textblock positions by (trimmed) text, in document order —
+   *  the Nth row with some text is the Nth textblock with it. */
+  private posIndex: { left: Map<string, number[]>; right: Map<string, number[]> } = {
+    left: new Map(),
+    right: new Map(),
+  };
+  /** Per table row: the document position of each side's line (null for a
+   *  blank cell or a line with no text). Drives the outlines' "you are here"
+   *  highlight and pairs matching headings so the two outlines fold together. */
+  private rowAnchors: Array<{ left: number | null; right: number | null }> = [];
+  private readonly navs: { left: NavigationPanel | null; right: NavigationPanel | null } = {
+    left: null,
+    right: null,
+  };
+  /** Heading position on one side → the matching heading's position on the other. */
+  private pairLeftToRight = new Map<number, number>();
+  private pairRightToLeft = new Map<number, number>();
+  private removeTableFollow: (() => void) | null = null;
+  private followPausedUntil = 0;
 
   constructor(preload: { a?: PickedFile; b?: PickedFile } = {}) {
     this.done = new Promise<void>((resolve) => {
@@ -402,6 +422,8 @@ class DocDiffModal {
     this.rightRowsByText = new Map();
     this.leftMarksByText = new Map();
     this.rightMarksByText = new Map();
+    this.posIndex = { left: textblockPositions(docA), right: textblockPositions(docB) };
+    this.rowAnchors = [];
 
     const info = document.createElement('div');
     const names = document.createElement('div');
@@ -459,15 +481,80 @@ class DocDiffModal {
       for (const row of toDiffRows(lines)) table.appendChild(this.buildRow(row));
     }
 
+    // Pair up the headings that sit in the same row on both sides, so folding
+    // one outline folds the other.
+    this.pairLeftToRight = new Map();
+    this.pairRightToLeft = new Map();
+    for (const a of this.rowAnchors) {
+      if (a.left !== null && a.right !== null) {
+        this.pairLeftToRight.set(a.left, a.right);
+        this.pairRightToLeft.set(a.right, a.left);
+      }
+    }
+
     body.appendChild(this.buildOutline(nameA, docA, 'left'));
     body.appendChild(table);
     body.appendChild(this.buildOutline(nameB, docB, 'right'));
     this.dialog.appendChild(body);
+    this.installTableFollow(table);
   }
 
   private destroyNavViews(): void {
+    this.removeTableFollow?.();
+    this.removeTableFollow = null;
+    this.navs.left = null;
+    this.navs.right = null;
     for (const v of this.navViews) v.destroy();
     this.navViews = [];
+  }
+
+  /** The outlines show where you are in the comparison, the way the real outline
+   *  does while you scroll a document: the heading at the reading line (a third
+   *  of the way down the table) is lit on BOTH sides, and each outline scrolls
+   *  to keep it in view. Rows with a blank side carry the nearest line above. */
+  private installTableFollow(table: HTMLElement): void {
+    let frame = 0;
+    const update = (): void => {
+      frame = 0;
+      const rows = table.children;
+      if (rows.length === 0 || this.rowAnchors.length === 0) return;
+      const box = table.getBoundingClientRect();
+      if (box.height === 0) return;
+      // A jump from the outline has just put its entry on both sides; the scroll
+      // it caused must not move the highlight off it.
+      if (performance.now() < this.followPausedUntil) return;
+      // Eases down from the top like the real outline's reading line, so the very
+      // first rows light up while the document is still at its start.
+      const line = box.top + readingLineOffset(box.height, table.scrollTop);
+      // Last row whose top is at or above the reading line.
+      let lo = 0;
+      let hi = rows.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (rows[mid]!.getBoundingClientRect().top <= line) lo = mid;
+        else hi = mid - 1;
+      }
+      for (const side of ['left', 'right'] as const) {
+        let pos: number | null = null;
+        for (let i = Math.min(lo, this.rowAnchors.length - 1); i >= 0 && pos === null; i--) {
+          pos = this.rowAnchors[i]![side];
+        }
+        // Before the first line on this side: nothing is lit yet.
+        if (pos !== null) this.navs[side]?.setCaretHeading(pos, null, { fromScroll: true });
+      }
+    };
+    const schedule = (): void => {
+      if (frame === 0) frame = requestAnimationFrame(update);
+    };
+    table.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    this.removeTableFollow = () => {
+      table.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      if (frame !== 0) cancelAnimationFrame(frame);
+      frame = 0;
+    };
+    schedule();
   }
 
   /** One side's outline: the app's REAL navigation panel (level buttons,
@@ -507,11 +594,24 @@ class DocDiffModal {
       dispatchTransaction: (tr) => {
         if (tr.docChanged) return;
         view.updateState(view.state.apply(tr));
-        if (tr.selectionSet) this.jumpToSelection(tr.doc, tr.selection.from, rowsByText);
+        if (tr.selectionSet) this.jumpToSelection(tr.doc, tr.selection.from, rowsByText, side);
       },
     });
     this.navViews.push(view);
-    const nav = new NavigationPanel(navHost, { readOnly: true, onClose: () => {} });
+    const other = (): NavigationPanel | null => this.navs[side === 'left' ? 'right' : 'left'];
+    const pairs = side === 'left' ? this.pairLeftToRight : this.pairRightToLeft;
+    const nav = new NavigationPanel(navHost, {
+      readOnly: true,
+      onClose: () => {},
+      // Fold, unfold and depth changes carry over to the matching headings on
+      // the other side, so the two outlines move as one.
+      onCollapseChange: (pos, collapsed) => {
+        const mate = pairs.get(pos);
+        if (mate !== undefined) other()?.mirrorCollapsed(mate, collapsed);
+      },
+      onMaxLevelChange: (level) => other()?.mirrorMaxLevel(level),
+    });
+    this.navs[side] = nav;
     nav.attach(view);
     // Colour each entry by how its section differs. The panel rebuilds its
     // rows on every collapse / search / level change, so repaint whenever
@@ -537,7 +637,12 @@ class DocDiffModal {
   }
 
   /** Scroll the diff table to the row for the textblock at `pos`. */
-  private jumpToSelection(doc: PMNode, pos: number, rowsByText: Map<string, HTMLElement[]>): void {
+  private jumpToSelection(
+    doc: PMNode,
+    pos: number,
+    rowsByText: Map<string, HTMLElement[]>,
+    side: 'left' | 'right',
+  ): void {
     const $pos = doc.resolve(Math.min(pos, doc.content.size));
     let block: PMNode | null = $pos.parent.isTextblock ? $pos.parent : null;
     let blockPos = $pos.parent.isTextblock ? $pos.start() - 1 : -1;
@@ -570,7 +675,16 @@ class DocDiffModal {
     });
     const target = rowsByText.get(text)?.[occurrence];
     if (!target) return;
-    target.scrollIntoView({ block: 'center' });
+    // Land on the reading line (where the outlines' highlight follows), so the
+    // entry you clicked stays the lit one instead of the follower picking a
+    // neighbour.
+    target.scrollIntoView({ block: 'start' });
+    const table = target.closest<HTMLElement>('.pmd-doc-diff-table');
+    if (table) table.scrollTop -= table.clientHeight * READING_LINE_FRACTION - 2;
+    // Keep the entry that was clicked lit, and light its match on the other side.
+    this.followPausedUntil = performance.now() + 400;
+    const mate = (side === 'left' ? this.pairLeftToRight : this.pairRightToLeft).get(blockPos);
+    if (mate !== undefined) this.navs[side === 'left' ? 'right' : 'left']?.setCaretHeading(mate, null, { fromScroll: true });
     target.classList.add('pmd-doc-diff-cell-highlight');
     window.setTimeout(() => target.classList.remove('pmd-doc-diff-cell-highlight'), 900);
   }
@@ -579,8 +693,12 @@ class DocDiffModal {
     const rowEl = document.createElement('div');
     rowEl.className = 'pmd-doc-diff-row';
     rowEl.setAttribute('role', 'row');
-    rowEl.appendChild(this.buildCell(row.left, 'left'));
-    rowEl.appendChild(this.buildCell(row.right, 'right'));
+    const left = this.buildCell(row.left, 'left');
+    const right = this.buildCell(row.right, 'right');
+    rowEl.append(left, right);
+    const anchor = (cell: HTMLElement): number | null =>
+      cell.dataset['pos'] !== undefined ? Number(cell.dataset['pos']) : null;
+    this.rowAnchors.push({ left: anchor(left), right: anchor(right) });
     return rowEl;
   }
 
@@ -614,6 +732,9 @@ class DocDiffModal {
       const rowsByText = side === 'left' ? this.leftRowsByText : this.rightRowsByText;
       const key = cell.text.trim();
       const list = rowsByText.get(key);
+      // The Nth row with this text is the Nth textblock with it in the document.
+      const at = this.posIndex[side].get(key)?.[list ? list.length : 0];
+      if (at !== undefined) el.dataset['pos'] = String(at);
       if (list) list.push(el);
       else rowsByText.set(key, [el]);
       const marksByText = side === 'left' ? this.leftMarksByText : this.rightMarksByText;
@@ -624,6 +745,20 @@ class DocDiffModal {
     }
     return el;
   }
+}
+
+/** Each textblock's start position by its trimmed text, in document order. */
+function textblockPositions(doc: PMNode): Map<string, number[]> {
+  const out = new Map<string, number[]>();
+  doc.descendants((node, pos) => {
+    if (!node.isTextblock) return true;
+    const key = node.textContent.trim();
+    const list = out.get(key);
+    if (list) list.push(pos);
+    else out.set(key, [pos]);
+    return false;
+  });
+  return out;
 }
 
 /** Open the "Compare documents" dialog. Home-screen action; also
