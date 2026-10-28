@@ -4764,20 +4764,39 @@ html.pmd-home-active #status-bar {
      if it must. */
 }
 
-/* Last workspace — above Recent: a Reopen button over the checklist of
-   documents the previous session ended with. Rows borrow the recent
-   row's chip / name / path scaffolding, so a path still left-truncates
-   to keep its tail visible. The list scrolls past ~8 rows (like the
-   sessions list) so a 24-document workspace can't push the utilities
-   off screen. */
+/* Last workspace — above Recent: an Open button over one block per window
+   that was open when the app last closed. The window's row (bordered, like
+   a Recent workspace's, with a tick box) selects it for Open; the window's
+   documents are listed under it,
+   slightly indented, borrowing the recent row's chip / name / path
+   scaffolding so a path still left-truncates to keep its tail visible.
+   The whole list scrolls past ~34rem (like the sessions list) so a big
+   workspace can't push the utilities off screen. */
 .pmd-home-workspace-section {
   margin-bottom: 1.1rem;
 }
-.pmd-home-workspace-row {
+.pmd-home-workspace {
   display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-bottom: 0.25rem;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.pmd-home-ws-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 34rem;
+  overflow-y: auto;
+}
+.pmd-home-workspace > .pmd-home-ws-open {
+  flex: 0 0 auto;
+}
+.pmd-home-ws-head {
+  cursor: pointer;
+}
+.pmd-home-ws-head input {
+  flex: 0 0 auto;
+  margin: 0;
+  cursor: pointer;
 }
 .pmd-home-workspace-open {
   appearance: none;
@@ -4802,49 +4821,27 @@ html.pmd-home-active #status-bar {
   cursor: default;
   opacity: 0.55;
 }
-.pmd-home-workspace-select {
-  appearance: none;
-  font: inherit;
-  font-size: 0.78rem;
-  background: transparent;
-  border: none;
-  color: var(--pmd-c-text-muted);
-  cursor: pointer;
-  padding: 0.35rem 0.5rem;
-  border-radius: 6px;
-  flex: 0 0 auto;
-}
-.pmd-home-workspace-select:hover:not(:disabled) {
-  background: var(--pmd-c-hover);
-  color: var(--pmd-c-text);
-}
-.pmd-home-workspace-select:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-.pmd-home-workspace-list {
+.pmd-home-ws-window {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 18rem;
-  overflow-y: auto;
 }
-.pmd-home-workspace-item {
+.pmd-home-ws-window > .pmd-home-workspace-open {
+  flex: 0 0 auto;
+}
+.pmd-home-ws-window-docs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 1.4rem;
+}
+.pmd-home-ws-window-doc {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: 6px;
-  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+  min-width: 0;
   color: var(--pmd-c-text);
-}
-.pmd-home-workspace-item:hover {
-  background: var(--pmd-c-hover);
-}
-.pmd-home-workspace-item input {
-  flex: 0 0 auto;
-  margin: 0;
-  cursor: pointer;
 }
 
 /* Collaboration sessions — dedicated section below Recent. Scrolls
@@ -12700,12 +12697,12 @@ body.pmd-pane-dragging * {
   min-width: 0;
   background: color-mix(in srgb, var(--pmd-c-accent) 5%, var(--pmd-c-surface));
 }
-.pmd-pane-swap-target {
+.pmd-pane-occupied-target {
   position: relative;
 }
 
 /* The cover each pane wears during a drag: the slot's number, what
-   dropping does, and (over a document) which one it trades places with. One
+   dropping does, and (over a document) which one it stacks onto or swaps with. One
    look for empty and occupied panes, so the whole row reads as a set of
    places to put the document. */
 .pmd-pane-dropzone-hint {
@@ -12723,7 +12720,7 @@ body.pmd-pane-dragging * {
   color: var(--pmd-c-text-muted);
   transition: background 120ms ease, color 120ms ease;
 }
-.pmd-pane-swap-target > .pmd-pane-dropzone-hint {
+.pmd-pane-occupied-target > .pmd-pane-dropzone-hint {
   background: color-mix(in srgb, var(--pmd-c-surface) 72%, transparent);
 }
 .pmd-pane-dropzone-num {
@@ -13128,6 +13125,16 @@ body.pmd-pane-dragging * {
 }
 .pmd-pane-chip-dropdown-row:hover { background: var(--pmd-c-surface); }
 .pmd-pane-chip-dropdown-row.pmd-active { font-weight: 600; }
+/* The speech doc's row is amber, the same tint as a speech pane's title chip. */
+.pmd-pane-chip-dropdown-row.pmd-speech {
+  background: var(--pmd-c-speech-bg);
+  color: var(--pmd-c-speech-text);
+}
+.pmd-pane-chip-dropdown-row.pmd-speech:hover {
+  background: color-mix(in srgb, var(--pmd-c-speech-bg) 80%, var(--pmd-c-speech-border));
+}
+.pmd-pane-chip-dropdown-row.pmd-speech .pmd-pane-chip-dropdown-close { color: inherit; opacity: 0.7; }
+.pmd-pane-chip-dropdown-row.pmd-speech .pmd-pane-chip-dropdown-close:hover { opacity: 1; }
 
 .pmd-pane-chip-dropdown-close {
   flex: 0 0 auto;

@@ -419,6 +419,16 @@ export interface SpawnWindowPayload {
    *  2026-09-18). This makes "spawn a blank doc" an explicit, unambiguous
    *  request instead of the absence of one. */
   blank?: boolean;
+  /** When set, the spawned window reopens these documents by path into its
+   *  three-pane slots (each in the slot it sat in, or the next free one)
+   *  instead of mounting the doc fields above (placeholders, same
+   *  convention as `blank`). Used by the home screen's Last workspace to
+   *  bring back a whole window; only a three-pane window can host more
+   *  than one document. */
+  restoreWorkspaceDocs?: Array<{ path: string; filename: string; slot: 'slot1' | 'slot2' | 'slot3' | null }>;
+  /** The name to give the spawned window (what Name This Window sets), so a
+   *  reopened window comes back with the name it had. */
+  windowName?: string | null;
 }
 
 /** A `SpawnWindowPayload` requesting a blank doc — the doc fields are

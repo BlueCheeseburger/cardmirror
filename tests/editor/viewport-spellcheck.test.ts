@@ -99,3 +99,44 @@ describe('isInReadMode', () => {
     expect(isInReadMode(dom)).toBe(false);
   });
 });
+
+describe('misspelledRangesIn — skipNames', () => {
+  const none = () => false; // a dictionary that knows nothing: every word is a candidate
+  const flagged = (text: string, skipNames: boolean): string[] => {
+    const { node, base } = para(t(text));
+    return misspelledRangesIn(node, base, none, { skipNames }).map((r) => slice(node, base, r));
+  };
+
+  it('flags everything unknown when the option is off', () => {
+    expect(flagged('said Zelensky today', false)).toEqual(['said', 'Zelensky', 'today']);
+  });
+
+  it('skips a capitalized word mid-sentence', () => {
+    expect(flagged('said Zelensky today', true)).toEqual(['said', 'today']);
+  });
+
+  it('skips a capitalized word at the start of the block (cites open with names)', () => {
+    expect(flagged('Zelensky said so', true)).toEqual(['said']);
+  });
+
+  it('skips a word with a capital inside it', () => {
+    expect(flagged('the McKinsey and iPhone report', true)).toEqual(['the', 'and', 'report']);
+  });
+
+  it('still checks a capitalized word after a sentence-ending period', () => {
+    expect(flagged('it ended. Teh next one', true)).toEqual(['ended', 'Teh', 'next', 'one']);
+  });
+
+  it('still checks after ? and !', () => {
+    expect(flagged('why? Teh end! Teh', true)).toEqual(['why', 'Teh', 'end', 'Teh']);
+  });
+
+  it('treats a period after an abbreviation as part of a name, not a sentence end', () => {
+    expect(flagged('met Dr. Zelensky and Sen. Smith', true)).toEqual(['met', 'and']);
+    expect(flagged('the U.S. Zelensky', true)).toEqual(['the']);
+  });
+
+  it('looks through quotes and brackets after a sentence end', () => {
+    expect(flagged('done. “Teh end', true)).toEqual(['done', 'Teh', 'end']);
+  });
+});

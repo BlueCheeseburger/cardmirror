@@ -42,7 +42,7 @@ export interface PaneChipDragOptions {
   /** Committed: move the dragged doc into this slot. */
   onDrop: (slotId: string) => void;
   /** Text for the thing following the pointer while it is over a drop
-   *  target ("Swap with Case.docx"). Without it the label never changes. */
+   *  target ("Add to stack with Case.docx"). Without it the label never changes. */
   armedLabel?: (slotId: string) => string;
   /** The pointer left the window mid-drag — nothing in here to drop on any
    *  more. Return true to take over (the gesture is ended first, as a cancel):

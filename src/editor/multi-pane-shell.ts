@@ -177,7 +177,6 @@ import {
   type MoveTrayWindow,
   type MoveTraySlot,
 } from './pane-move-tray.js';
-import { installMoveMenuTrigger } from './pane-move-menu.js';
 import { sendViewToStarred } from './pairing/send-to-starred.js';
 import { sendViewToRecipient } from './pairing/send-to-recipient.js';
 import { isSyncOrigin } from './sync-origin.js';
@@ -909,27 +908,6 @@ class Slot {
       onHover: (id) => this.shell.highlightDropSlot(this, id),
       onDrop: (id) => this.shell.dropChipOnSlot(this, id),
     });
-    // Right-click the chip → "Move to…": reaches a doc into ANOTHER
-    // WINDOW, which chip-drag (this-window-only) can't. Electron only
-    // — desktop-gated by `listMultiPaneWindows` simply returning
-    // nothing on a host that doesn't support it, same tolerance every
-    // other optional host capability in this file gets.
-    installMoveMenuTrigger(chip, {
-      canMove: () => this.visible !== null && !this.shell.isExpanded(),
-      listCandidates: () => listMoveDocTargets(),
-      onPick: (target) => {
-        // The menu can sit open for a moment before the user clicks —
-        // re-check rather than trust the state from when it opened.
-        // (canMove() is already re-checked once, right after the
-        // candidate-list IPC round trip — this is the second, shorter
-        // gap: menu visible, waiting on the click.) An emptied pane
-        // silently no-ops here rather than falling through to whatever
-        // else happens to be focused.
-        if (this.visible === null) return;
-        this.shell.focusSlot(this);
-        void moveFocusedDocToWindow(target === 'new-window' ? 'new-window' : target);
-      },
-    });
     // Slot-number badge — small fixed glyph immediately left of
     // the expand button. Helps users identify which slot they're
     // looking at when only some slots are occupied (a single doc
@@ -1527,15 +1505,18 @@ class Slot {
   }
 
   /** Cover an OCCUPIED pane with the same hint for the length of a drag:
-   *  dropping here swaps the two documents. Unlike an empty slot the pane
+   *  dropping here adds the document to this pane's stack, or swaps the two
+   *  when the swap-on-drop setting is on. Unlike an empty slot the pane
    *  keeps its place in the layout, so nothing moves under the cursor. */
-  showAsSwapTarget(): void {
+  showAsOccupiedTarget(swap: boolean): void {
     if (this.dropHintEl) return;
-    this.paneEl.appendChild(this.buildDropHint(this.visible ? docDisplayName(this.visible.filename) : null));
-    this.paneEl.classList.add('pmd-pane-swap-target');
+    this.paneEl.appendChild(
+      this.buildDropHint(this.visible ? docDisplayName(this.visible.filename) : null, swap),
+    );
+    this.paneEl.classList.add('pmd-pane-occupied-target');
   }
 
-  private buildDropHint(swapWith: string | null): HTMLElement {
+  private buildDropHint(occupantName: string | null, swap = false): HTMLElement {
     const hint = document.createElement('div');
     hint.className = 'pmd-pane-dropzone-hint';
     const num = document.createElement('span');
@@ -1543,12 +1524,12 @@ class Slot {
     num.textContent = this.id.replace('slot', '');
     const verb = document.createElement('span');
     verb.className = 'pmd-pane-dropzone-verb';
-    verb.textContent = swapWith === null ? 'Move here' : 'Swap places';
+    verb.textContent = occupantName === null ? 'Move here' : swap ? 'Swap places' : 'Add to stack';
     hint.append(num, verb);
-    if (swapWith !== null) {
+    if (occupantName !== null) {
       const name = document.createElement('span');
       name.className = 'pmd-pane-dropzone-name';
-      name.textContent = swapWith;
+      name.textContent = occupantName;
       hint.appendChild(name);
     }
     this.dropHintEl = hint;
@@ -1560,7 +1541,7 @@ class Slot {
   clearDropZone(): void {
     this.dropHintEl?.remove();
     this.dropHintEl = null;
-    this.paneEl.classList.remove('pmd-pane-dropzone', 'pmd-pane-swap-target', 'pmd-pane-drop-target');
+    this.paneEl.classList.remove('pmd-pane-dropzone', 'pmd-pane-occupied-target', 'pmd-pane-drop-target');
   }
 
   /** Light this pane up as the drag's pending destination. */
@@ -1806,6 +1787,8 @@ class Slot {
       const row = document.createElement('div');
       row.className = 'pmd-pane-chip-dropdown-row';
       if (rec === this.visible) row.classList.add('pmd-active');
+      // The speech doc wears the same amber as its pane's title chip.
+      if (getSpeechDocResolver().isSpeechByUid(rec.uid)) row.classList.add('pmd-speech');
       const name = document.createElement('span');
       name.className = 'pmd-pane-chip-dropdown-name';
       name.textContent = displayFilename(rec.filename);
@@ -2821,10 +2804,11 @@ class MultiPaneShell {
   /** A chip drag started: dress the row for dropping. EMPTY slots come back
    *  into the layout as drop zones (an empty pane is `hidden`, so the one
    *  place you'd most want to drop a doc wouldn't otherwise be on screen),
-   *  occupied panes get a swap overlay, and the move tray offers every slot
+   *  occupied panes get an add-to-stack (or swap) overlay, and the move tray offers every slot
    *  plus another or a new window. */
   beginChipDrag(source: Slot): void {
     this.rowEl.classList.add('pmd-multi-row-dragging');
+    const swapOnPaneDrop = settings.get('swapOnPaneDrop');
     this.moveTraySlots = SLOT_IDS.map((id, i) => {
       const slot = this.slots[id];
       return {
@@ -2832,12 +2816,13 @@ class MultiPaneShell {
         num: i + 1,
         name: slot.visible ? docDisplayName(slot.visible.filename) : null,
         source: slot === source,
+        swap: swapOnPaneDrop,
       };
     });
     for (const id of SLOT_IDS) {
       const slot = this.slots[id];
       if (slot === source) continue;
-      if (slot.stack.length > 0) slot.showAsSwapTarget();
+      if (slot.stack.length > 0) slot.showAsOccupiedTarget(swapOnPaneDrop);
       else slot.showAsDropZone();
     }
     this.moveTrayWindows = [];
@@ -2872,25 +2857,19 @@ class MultiPaneShell {
    *  or a window (`win:new`, `win:<id>`).
    *
    *  Dropping onto an EMPTY slot is a plain move. Dropping onto an
-   *  OCCUPIED one is a SWAP — the target's visible doc comes back and
-   *  takes over `source`'s now-empty spot — not a push onto the
-   *  target's stack: the point of dragging pane 2's doc onto pane 1 is
-   *  to put it in pane 1 and see pane 1's old doc in pane 2, the way
-   *  dragging a tab or a window swaps positions everywhere else. A
-   *  stack-push would instead bury the target's doc a click deep
-   *  behind the ▾ switcher and leave the source pane empty — from
-   *  pane 1 and pane 2 down to "pane 1 has both, pane 2 has neither",
-   *  which reads as the drop being refused (field report, 2026-09-12).
-   *  `sendDocToSlotN` (the ribbon command this began life mirroring)
-   *  keeps its own push behavior — a deliberate keyboard command
-   *  aimed at an occupied slot IS "add to its stack"; a drag's whole
-   *  premise is rearranging where things sit.
+   *  OCCUPIED one ADDS the document to that pane's stack — the same thing
+   *  `sendDocToSlotN` does — and shows it there, with the pane's earlier
+   *  documents one step back behind the ▾ switcher (Ctrl-Tab). The source
+   *  pane shows whatever was under the dragged document, or empties if it
+   *  held only that one. With the `swapOnPaneDrop` setting on it SWAPS
+   *  instead: the target's visible doc comes back and takes over
+   *  `source`'s now-empty spot (the behaviour before 2026-10-27, from the
+   *  2026-09-12 field report that a stack-push read as a refused drop).
    *
-   *  `arranging` suppresses the empty-workspace home-screen show: with
-   *  exactly two panes occupied (the reported case), releasing both
-   *  visible docs before either push lands passes through an
-   *  all-empty instant that must not be mistaken for the workspace
-   *  actually emptying out. */
+   *  `arranging` suppresses the empty-workspace home-screen show: when the
+   *  dragged document was the window's only one, releasing it passes
+   *  through an all-empty instant before the push lands, which must not be
+   *  mistaken for the workspace actually emptying out. */
   dropChipOnSlot(source: Slot, slotId: string): void {
     if (slotId.startsWith('win:')) {
       const win = slotId === 'win:new' ? 'new-window' : Number(slotId.slice(4));
@@ -2907,12 +2886,13 @@ class MultiPaneShell {
     try {
       const incoming = source.releaseVisible();
       if (!incoming) return;
-      // Only the target's VISIBLE doc swaps out — a stack member
+      // Swap: only the target's VISIBLE doc trades places — a stack member
       // further down stays exactly where it was, now one deeper.
-      const displaced = targetSlot.releaseVisible();
-      // Displaced doc into source FIRST: each push re-focuses its
-      // slot, so the incoming doc's push (target, always last) is the
-      // one that wins — focus lands where the user actually dropped.
+      const displaced = settings.get('swapOnPaneDrop') ? targetSlot.releaseVisible() : null;
+      // Displaced doc into source FIRST: each push re-focuses its slot, so
+      // the incoming doc's push (target, always last) wins — focus lands
+      // where the user actually dropped. A plain stack drop is just that
+      // last push, which shows the incoming doc on top of the stack.
       if (displaced) source.push(displaced);
       targetSlot.push(incoming);
     } finally {
@@ -4052,6 +4032,17 @@ class MultiPaneShell {
     return opened;
   }
 
+  /** No document in any slot — the window a reopened workspace window can
+   *  fill in place instead of spawning another. */
+  hasNoDocs(): boolean {
+    return SLOT_IDS.every((id) => this.slots[id].stack.length === 0);
+  }
+
+  /** Whether `path` is already open in one of this window's slots. */
+  async hasDocAtPath(path: string): Promise<boolean> {
+    return (await this.findOpenRecordByHandle(path)) !== null;
+  }
+
   /** Duplicate-open guard: if `opened` is already loaded in the
    *  workspace, focus + show the existing copy, toast the user,
    *  and return true so the caller can short-circuit. The shell
@@ -4726,6 +4717,17 @@ export async function restoreWorkspaceIntoSlots(
 ): Promise<number> {
   if (!shell) return 0;
   return shell.restoreWorkspaceDocs(docs);
+}
+
+/** True when this window's workspace holds no document (or the shell
+ *  isn't active). */
+export function workspaceIsEmpty(): boolean {
+  return !shell || shell.hasNoDocs();
+}
+
+/** Whether `path` is already open in this window's workspace. */
+export async function workspaceHasPath(path: string): Promise<boolean> {
+  return shell ? shell.hasDocAtPath(path) : false;
 }
 
 /** Toggle expand-mode on the focused slot. No-op when no slot is

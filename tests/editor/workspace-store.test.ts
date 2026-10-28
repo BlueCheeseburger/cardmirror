@@ -20,8 +20,7 @@ import {
   saveWorkspaceNow,
   clearLastWorkspace,
   subscribeLastWorkspace,
-  setWorkspaceExcluded,
-  selectedDocs,
+  setWindowWorkspaceName,
   forgetWindowWorkspace,
   installWindowCloseForget,
 } from '../../src/editor/workspace-store.js';
@@ -32,6 +31,7 @@ const LAST_KEY = 'pmd-last-workspace';
 beforeEach(() => {
   localStorage.clear();
   settings.set('lastWorkspaceEnabled', true);
+  setWindowWorkspaceName(null);
 });
 
 function report(paths: string[]): void {
@@ -42,11 +42,19 @@ function report(paths: string[]): void {
 }
 
 /** Seed a LIVE entry as if it came from another window. */
-function seedLive(id: string, updatedAt: number, paths: string[], mode: 'panes' | 'windows' = 'windows'): void {
+function seedLive(
+  id: string,
+  updatedAt: number,
+  paths: string[],
+  mode: 'panes' | 'windows' = 'windows',
+  extra: { name?: string | null; openedAt?: number } = {},
+): void {
   const live = JSON.parse(localStorage.getItem(LIVE_KEY) ?? '{}');
   live[id] = {
+    openedAt: extra.openedAt ?? updatedAt,
     updatedAt,
     mode,
+    name: extra.name ?? null,
     docs: paths.map((path) => ({
       path,
       filename: path.split('/').pop()!,
@@ -102,16 +110,62 @@ describe('workspace store', () => {
     expect(rolled?.pinned).toBe(false);
   });
 
-  it('merges windows oldest-first and de-duplicates by path', () => {
+  it('keeps windows apart, oldest first, and de-duplicates by path', () => {
     seedLive('win-new', Date.now() - 1_000, ['/w/b.cmir', '/w/a.cmir']);
     seedLive('win-old', Date.now() - 2_000, ['/w/a.cmir']);
-    expect(rolloverLastWorkspace()?.docs.map((d) => d.path)).toEqual(['/w/a.cmir', '/w/b.cmir']);
+    const snapshot = rolloverLastWorkspace()!;
+    expect(snapshot.windows.map((w) => w.docs.map((d) => d.path))).toEqual([['/w/a.cmir'], ['/w/b.cmir']]);
+    expect(snapshot.docs.map((d) => d.path)).toEqual(['/w/a.cmir', '/w/b.cmir']);
   });
 
-  it('takes its mode from the most recently updated window', () => {
-    seedLive('win-old', Date.now() - 2_000, ['/w/a.cmir'], 'windows');
-    seedLive('win-new', Date.now() - 1_000, ['/w/b.cmir'], 'panes');
-    expect(rolloverLastWorkspace()?.mode).toBe('panes');
+  it('lists windows in the order they were opened, not the order they last changed', () => {
+    const now = Date.now();
+    // "first" opened earlier but its doc set changed more recently.
+    seedLive('first', now - 100, ['/w/a.cmir'], 'panes', { openedAt: now - 9_000 });
+    seedLive('second', now - 5_000, ['/w/b.cmir'], 'panes', { openedAt: now - 8_000 });
+    expect(rolloverLastWorkspace()!.windows.map((w) => w.docs[0]!.path)).toEqual(['/w/a.cmir', '/w/b.cmir']);
+  });
+
+  it('a window keeps its place in the list when it opens another doc', () => {
+    reportWindowWorkspace('panes', [{ path: '/w/a.cmir', filename: 'a.cmir', format: 'cmir', slot: 'slot1' }]);
+    // Another window opens after this one ...
+    seedLive('later', Date.now() + 5_000, ['/w/later.cmir'], 'panes', { openedAt: Date.now() + 5_000 });
+    // ... then this window opens a second doc: it must not hop behind it.
+    reportWindowWorkspace('panes', [
+      { path: '/w/a.cmir', filename: 'a.cmir', format: 'cmir', slot: 'slot1' },
+      { path: '/w/b.cmir', filename: 'b.cmir', format: 'cmir', slot: 'slot2' },
+    ]);
+    expect(rolloverLastWorkspace()!.windows.map((w) => w.docs.length)).toEqual([2, 1]);
+  });
+
+  it('records each window\'s own layout and name', () => {
+    seedLive('win-a', Date.now() - 2_000, ['/w/a.cmir', '/w/b.cmir'], 'panes', { name: 'Prep' });
+    seedLive('win-b', Date.now() - 1_000, ['/w/c.cmir'], 'windows');
+    const { windows } = rolloverLastWorkspace()!;
+    expect(windows.map((w) => [w.name, w.mode, w.docs.length])).toEqual([
+      ['Prep', 'panes', 2],
+      [null, 'windows', 1],
+    ]);
+  });
+
+  it('setWindowWorkspaceName labels this window, and clears again', () => {
+    setWindowWorkspaceName('  Aff blocks  ');
+    report(['/w/a.cmir']);
+    expect(JSON.parse(localStorage.getItem(LIVE_KEY)!)).toEqual({
+      [Object.keys(JSON.parse(localStorage.getItem(LIVE_KEY)!))[0]!]: expect.objectContaining({ name: 'Aff blocks' }),
+    });
+    // Renaming rewrites the entry in place, no new report needed.
+    setWindowWorkspaceName('Neg blocks');
+    expect(rolloverLastWorkspace()!.windows[0]!.name).toBe('Neg blocks');
+    report(['/w/a.cmir']);
+    setWindowWorkspaceName(null);
+    expect(rolloverLastWorkspace()!.windows[0]!.name).toBeNull();
+  });
+
+  it('drops a window left with nothing after de-duplication', () => {
+    seedLive('a', Date.now() - 2_000, ['/w/a.cmir']);
+    seedLive('b', Date.now() - 1_000, ['/w/a.cmir']); // stale duplicate
+    expect(rolloverLastWorkspace()!.windows).toHaveLength(1);
   });
 
   it('preserves slot assignments through a fold', () => {
@@ -154,9 +208,13 @@ describe('workspace store', () => {
     expect(rolloverLastWorkspace()).toBeNull();
   });
 
-  it('caps a snapshot at 24 documents', () => {
-    report(Array.from({ length: 40 }, (_, i) => `/w/f${i}.cmir`));
-    expect(rolloverLastWorkspace()?.docs).toHaveLength(24);
+  it('caps a snapshot at 24 documents, across windows', () => {
+    seedLive('a', Date.now() - 3_000, Array.from({ length: 20 }, (_, i) => `/w/a${i}.cmir`));
+    seedLive('b', Date.now() - 2_000, Array.from({ length: 20 }, (_, i) => `/w/b${i}.cmir`));
+    seedLive('c', Date.now() - 1_000, ['/w/c.cmir']);
+    const snapshot = rolloverLastWorkspace()!;
+    expect(snapshot.docs).toHaveLength(24);
+    expect(snapshot.windows.map((w) => w.docs.length)).toEqual([20, 4]);
   });
 
   it('notifies subscribers on save, clear, and another window’s write', () => {
@@ -179,48 +237,23 @@ describe('workspace store', () => {
     expect(seen).toEqual([1, null, 1]);
   });
 
-  it('unticks persist across a roll-over for documents still in the set', () => {
-    report(['/w/a.cmir', '/w/b.cmir']);
-    rolloverLastWorkspace();
-    setWorkspaceExcluded(['/w/b.cmir']);
-    // Next session: both were open again at quit.
-    report(['/w/a.cmir', '/w/b.cmir']);
-    const rolled = rolloverLastWorkspace()!;
-    expect(rolled.excluded).toEqual(['/w/b.cmir']);
-    expect(selectedDocs(rolled).map((d) => d.path)).toEqual(['/w/a.cmir']);
-  });
-
-  it('drops an untick once its document leaves the set', () => {
-    report(['/w/a.cmir', '/w/b.cmir']);
-    rolloverLastWorkspace();
-    setWorkspaceExcluded(['/w/b.cmir']);
-    report(['/w/a.cmir']); // b wasn't open this time
-    expect(rolloverLastWorkspace()!.excluded).toEqual([]);
-    // And if b comes back later it is ticked again, not silently suppressed.
-    report(['/w/a.cmir', '/w/b.cmir']);
-    const back = rolloverLastWorkspace()!;
-    expect(selectedDocs(back).map((d) => d.path)).toEqual(['/w/a.cmir', '/w/b.cmir']);
-  });
-
-  it('an explicit save keeps the standing unticks', () => {
-    report(['/w/a.cmir', '/w/b.cmir']);
-    rolloverLastWorkspace();
-    setWorkspaceExcluded(['/w/b.cmir']);
-    report(['/w/a.cmir', '/w/b.cmir']);
-    expect(saveWorkspaceNow()!.excluded).toEqual(['/w/b.cmir']);
-  });
-
-  it('ignores unticks for paths outside the snapshot', () => {
-    report(['/w/a.cmir']);
-    rolloverLastWorkspace();
-    setWorkspaceExcluded(['/w/a.cmir', '/w/nowhere.cmir']);
-    expect(lastWorkspace()!.excluded).toEqual(['/w/a.cmir']);
-  });
-
-  it('selectedDocs returns everything when nothing is unticked', () => {
-    report(['/w/a.cmir', '/w/b.cmir']);
-    const snapshot = rolloverLastWorkspace()!;
-    expect(selectedDocs(snapshot)).toHaveLength(2);
+  it('reads a snapshot written before windows were kept apart', () => {
+    const doc = (p: string) => ({ path: p, filename: p.split('/').pop(), format: 'cmir', slot: null });
+    localStorage.setItem(
+      LAST_KEY,
+      JSON.stringify({ savedAt: 1, mode: 'windows', docs: [doc('/w/a.cmir'), doc('/w/b.cmir')], excluded: ['/w/a.cmir'] }),
+    );
+    // One document per window in single-doc mode ...
+    expect(lastWorkspace()!.windows.map((w) => w.docs.length)).toEqual([1, 1]);
+    localStorage.setItem(
+      LAST_KEY,
+      JSON.stringify({ savedAt: 1, mode: 'panes', docs: [doc('/w/a.cmir'), doc('/w/b.cmir')] }),
+    );
+    // ... and one window holding them all in three-pane mode.
+    const panes = lastWorkspace()!;
+    expect(panes.windows).toHaveLength(1);
+    expect(panes.windows[0]!.mode).toBe('panes');
+    expect(panes.docs).toHaveLength(2);
   });
 
   it('forgetting this window drops only its own entry', () => {

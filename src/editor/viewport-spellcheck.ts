@@ -9,9 +9,10 @@
  * re-checked after scroll/edit settles. The cost tracks
  * words-on-screen, not document size.
  *
- * Dictionary: nspell (Hunspell-in-JS) over the en `.aff`/`.dic`,
- * dynamically imported so the ~550KB dictionary is a separate async
- * chunk loaded only the first time spellcheck is switched on.
+ * Dictionary: nspell (Hunspell-in-JS) over the en `.aff`/`.dic` plus
+ * `dict/debate.dic` (debate / policy vocabulary), dynamically imported so
+ * the ~550KB dictionary is a separate async chunk loaded only the first
+ * time spellcheck is switched on.
  */
 import { Plugin, PluginKey } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
@@ -77,12 +78,15 @@ async function ensureSpell(onReady: () => void): Promise<void> {
   if (spell || building) return;
   building = true;
   try {
-    const [{ default: nspell }, aff, dic] = await Promise.all([
+    const [{ default: nspell }, aff, dic, extra] = await Promise.all([
       import('nspell'),
       import('./dict/en.aff?raw'),
       import('./dict/en.dic?raw'),
+      import('./dict/debate.dic?raw'),
     ]);
-    const s = nspell(aff.default, dic.default);
+    // The base list is general English; the supplement adds the debate and
+    // policy vocabulary it lacks (same `word/flags` format, one per line).
+    const s = nspell(aff.default, dic.default + '\n' + extra.default);
     for (const w of userDict) s.add(w); // teach it the user's words
     spell = s;
   } finally {
@@ -126,6 +130,7 @@ export function misspelledRangesIn(
   node: PMNode,
   base: number,
   isWordCorrect: (word: string) => boolean,
+  opts: { skipNames?: boolean } = {},
 ): Array<{ from: number; to: number }> {
   const parts: string[] = [];
   const map: number[] = []; // map[i] = doc position of the joined string's i-th char
@@ -153,18 +158,42 @@ export function misspelledRangesIn(
     if (w.length < 3) continue; // skip a/an/etc.
     if (w === w.toUpperCase()) continue; // skip ACRONYMS / ALLCAPS
     if (isWordCorrect(w)) continue;
+    if (opts.skipNames && looksLikeName(text, m.index, w)) continue;
     out.push({ from: map[m.index]!, to: map[m.index + w.length - 1]! + 1 });
   }
   return out;
+}
+
+/** A capitalized word that isn't opening a sentence, or a word with a capital
+ *  inside it (McKinsey, iPhone) — taken to be a name the dictionary can't be
+ *  expected to know. The start of a textblock does NOT count as a sentence
+ *  start: cites and headings open with author names. A capitalized word after
+ *  a sentence-ending . ! ? IS still checked, unless the period closes an
+ *  abbreviation (Dr., U.S., Inc.). */
+function looksLikeName(text: string, index: number, word: string): boolean {
+  if (/[A-Z]/.test(word.slice(1))) return true;
+  if (!/^[A-Z]/.test(word)) return false;
+  let i = index - 1;
+  while (i >= 0 && /[\s"'“”‘’([{]/.test(text[i]!)) i--;
+  if (i < 0) return true;
+  const c = text[i]!;
+  if (c === '!' || c === '?') return false;
+  if (c !== '.') return true;
+  // A period: sentence end, or an abbreviation's? Look at the token before it.
+  let j = i - 1;
+  while (j >= 0 && /[A-Za-z.]/.test(text[j]!)) j--;
+  const token = text.slice(j + 1, i);
+  return token.length <= 3 || token.includes('.');
 }
 
 function computeDecos(view: EditorView): DecorationSet {
   if (!spell) return DecorationSet.empty;
   const { from, to } = visibleRange(view);
   const decos: Decoration[] = [];
+  const skipNames = settings.get('spellcheckSkipNames');
   view.state.doc.nodesBetween(from, to, (node, pos) => {
     if (!node.isTextblock) return; // descend into containers; words live in textblocks
-    for (const r of misspelledRangesIn(node, pos + 1, isCorrect)) {
+    for (const r of misspelledRangesIn(node, pos + 1, isCorrect, { skipNames })) {
       decos.push(Decoration.inline(r.from, r.to, { class: 'pmd-misspelled' }));
     }
     return false; // inline content handled above; don't re-descend into it
@@ -220,6 +249,7 @@ export function viewportSpellcheckPlugin(): Plugin {
     view(view) {
       let timer = 0;
       let lastEnabled = settings.get('editorSpellcheck');
+      let lastSkipNames = settings.get('spellcheckSkipNames');
       const setDecos = (set: DecorationSet): void => {
         view.dispatch(view.state.tr.setMeta(key, set).setMeta('addToHistory', false));
       };
@@ -256,8 +286,9 @@ export function viewportSpellcheckPlugin(): Plugin {
       // React to the spellcheck toggle flipping (clear when off, check
       // when on) without reacting to every unrelated settings change.
       const unsub = settings.subscribe((s) => {
-        if (s.editorSpellcheck !== lastEnabled) {
+        if (s.editorSpellcheck !== lastEnabled || s.spellcheckSkipNames !== lastSkipNames) {
           lastEnabled = s.editorSpellcheck;
+          lastSkipNames = s.spellcheckSkipNames;
           schedule();
         }
       });

@@ -964,6 +964,10 @@ export interface Settings {
    *  Ignore. Off by default because debate evidence (author names,
    *  jargon) produces many false positives. */
   editorSpellcheck: boolean;
+  /** With Editor spellcheck on, don't flag capitalized words that aren't at
+   *  the start of a sentence (names, places, organizations) or words with a
+   *  capital mid-word (McKinsey, iPhone). On by default. */
+  spellcheckSkipNames: boolean;
   /** Word-style smart quotes: as you type a straight ' or ", curl it to the
    *  right direction based on the preceding character. Off by default. */
   smartQuotes: boolean;
@@ -1212,6 +1216,10 @@ export interface Settings {
    *  speech-side slot while no speech doc is marked gets marked as the
    *  speech doc. Off by default. */
   autoMarkSpeechSlotDoc: boolean;
+  /** Three-pane: dropping a dragged title chip on an OCCUPIED pane swaps
+   *  the two documents instead of adding the dragged one to that pane's
+   *  stack. Off by default (stack). */
+  swapOnPaneDrop: boolean;
   /**
    * Per-style font sizes (in points). See DisplaySizes for details.
    * Each field becomes a CSS custom property on `#editor`.
@@ -2034,6 +2042,7 @@ const DEFAULTS: Settings = {
   cardNumberingMatchHeadingColor: false,
   flashcardDueDot: true,
   editorSpellcheck: false,
+  spellcheckSkipNames: true,
   smartQuotes: false,
   smartQuoteDatesAsApostrophes: true,
   autoLinkUrls: false,
@@ -2093,6 +2102,7 @@ const DEFAULTS: Settings = {
   arrangeSpeechPct: 50,
   newSpeechDocInSpeechSlot: false,
   autoMarkSpeechSlotDoc: false,
+  swapOnPaneDrop: false,
   displaySizes: { ...DEFAULT_DISPLAY_SIZES },
   displayParagraphSpacing: { ...DEFAULT_PARAGRAPH_SPACING },
   displayTypography: { ...DEFAULT_DISPLAY_TYPOGRAPHY },
@@ -2526,6 +2536,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['auto mark speech doc', 'mark speech doc automatically', 'speech slot'],
   },
   {
+    key: 'swapOnPaneDrop',
+    label: 'Dropping a document on an occupied pane swaps instead of stacking',
+    description:
+      "Off by default: dragging a title chip onto a pane that already has a document adds the dragged document to that pane's stack (Ctrl-Tab steps through the stack). On, the two documents trade places instead. Dropping on an empty slot always just moves the document.",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Workspace',
+    dependsOn: 'multiDocWorkspace',
+    aliases: ['swap panes', 'swap on drop', 'stack on drop', 'drag chip swap', 'chip drop stack'],
+  },
+  {
     key: 'multiDocLayoutMode',
     label: 'Multi-doc layout',
     description:
@@ -2593,6 +2614,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'toggle',
     category: 'general',
     section: 'Editor behavior',
+  },
+  {
+    key: 'spellcheckSkipNames',
+    label: 'Spellcheck: skip names and capitalized words',
+    description:
+      "With Editor spellcheck on, don't underline a capitalized word in the middle of a sentence (author names, countries, organizations) or a word with a capital inside it (McKinsey, iPhone). On by default, since names are what the dictionary knows least. The catch: a typo in a capitalized word mid-sentence goes unflagged. A capitalized word right after a period, question mark or exclamation mark is still checked; the first word of a paragraph or heading is not, because cites and headings open with names.",
+    kind: 'toggle',
+    category: 'general',
+    section: 'Editor behavior',
+    dependsOn: 'editorSpellcheck',
   },
   {
     key: 'jumpToDocTopOnReadModeToggle',
@@ -5164,6 +5195,7 @@ function sanitize(s: Settings): Settings {
     cardNumberingMatchHeadingColor: !!s.cardNumberingMatchHeadingColor,
     flashcardDueDot: s.flashcardDueDot === false ? false : true,
     editorSpellcheck: !!s.editorSpellcheck,
+    spellcheckSkipNames: s.spellcheckSkipNames === false ? false : true,
     copyPreviousCiteNearestOnly: s.copyPreviousCiteNearestOnly === false ? false : true,
     insertHeadingsAfterSection: !!s.insertHeadingsAfterSection,
     smartQuotes: !!s.smartQuotes,
@@ -5245,6 +5277,7 @@ function sanitize(s: Settings): Settings {
         : 50,
     newSpeechDocInSpeechSlot: s.newSpeechDocInSpeechSlot === true,
     autoMarkSpeechSlotDoc: s.autoMarkSpeechSlotDoc === true,
+    swapOnPaneDrop: s.swapOnPaneDrop === true,
     displaySizes: sanitizeDisplaySizes(s.displaySizes),
     displayParagraphSpacing: sanitizeParagraphSpacing(s.displayParagraphSpacing),
     underlineFollowsFontColor: s.underlineFollowsFontColor === true,

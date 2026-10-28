@@ -442,6 +442,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  which windows can take a file into their slot picker. */
   registerMultipane: (isMultiPane: boolean) =>
     ipcRenderer.invoke('host:register-multipane', isMultiPane),
+  /** A full-window tool (Compare documents) is up over this window (or gone
+   *  again): main's "which window?" chooser leaves the window out meanwhile. */
+  setWindowTakenOver: (taken: boolean) => ipcRenderer.invoke('host:window-taken-over', taken),
   /** Report the filenames open in this window (multi-pane) so main's
    *  "which window?" chooser can list them under a named window. */
   reportWindowDocs: (names: string[]) => ipcRenderer.invoke('host:window-docs', names),
@@ -519,6 +522,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     focusAnchor?: { quote: string; prefix: string; suffix: string; approxPos: number };
     joinShareCode?: string;
     resumeRoomId?: string;
+    restoreWorkspaceDocs?: Array<{ path: string; filename: string; slot: string | null }>;
+    windowName?: string | null;
   } | null) => ipcRenderer.invoke('host:spawn-window', payload),
 
   /** Called once at renderer boot to retrieve any initial-doc

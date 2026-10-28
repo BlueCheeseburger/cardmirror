@@ -43,6 +43,7 @@ import { planMerge, buildMerged, type MergePlan, type MergeChoice } from './doc-
 import { serializeNative } from '../native/index.js';
 import { toDocx } from '../export/index.js';
 import { settings } from './settings.js';
+import { enterTakeover } from './window-takeover.js';
 
 const DOC_FILTERS: FileFilter[] = [{ name: 'CardMirror / Word documents', extensions: ['cmir', 'docx'] }];
 
@@ -74,6 +75,9 @@ class DocDiffModal {
   /** The parsed pair behind the current results, kept for "Merge into new file". */
   private parsed: { docA: PMNode; docB: PMNode } | null = null;
   private closed = false;
+  /** Names the window "Compare documents" and keeps documents from opening
+   *  into it while this is open. */
+  private readonly releaseTakeover: () => void;
   /** Hidden read-only views behind each side's real navigation panel. */
   private navViews: EditorView[] = [];
   /** Rows keyed by their (trimmed) text, one array per occurrence — a
@@ -97,6 +101,7 @@ class DocDiffModal {
     this.overlay.addEventListener('click', (e) => {
       if (e.target === this.overlay) this.close();
     });
+    this.releaseTakeover = enterTakeover('Compare documents');
     this.restoreFocus = captureFocusForDialog();
     this.removeKeys = installModalKeys(this.dialog, this.overlayToken, (e) => {
       if (e.key === 'Escape') {
@@ -115,6 +120,7 @@ class DocDiffModal {
     this.closed = true;
     this.destroyNavViews();
     this.removeKeys();
+    this.releaseTakeover();
     popOverlay(this.overlayToken);
     this.overlay.remove();
     this.restoreFocus();

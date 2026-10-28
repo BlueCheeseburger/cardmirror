@@ -44,6 +44,15 @@ describe('chooserHtml', () => {
     const noCancel = chooserHtml({ message: 'm', labels: ['A', 'B'], withCancel: false, dark: false });
     expect(noCancel).toContain('class="x" data-pick="3"');
   });
+  it('keeps the window-drag strip clear of the close X', () => {
+    const html = chooserHtml({ message: 'm', labels: ['A'], withCancel: false, dark: false });
+    // The title is the drag region; its box must END before the X (margin),
+    // not run underneath it with padding, or the OS takes the click as a drag.
+    expect(html).toContain('h1{margin:0 34px 0 0;');
+    expect(html).not.toMatch(/h1\{[^}]*padding-right/);
+    expect(html).toContain('class="drag"');
+    expect(html).toMatch(/\.x\{[^}]*-webkit-app-region:no-drag/);
+  });
   it('can report its natural height so the window fits the rows', () => {
     expect(chooserHtml({ message: 'm', labels: ['A'], withCancel: false, dark: false })).toContain('function naturalHeight()');
   });

@@ -1770,6 +1770,42 @@ function everyHasMark(node: import('prosemirror-model').Node, search: string, ma
 }
 
 describe('applyUnderline (F9 / Mod-U)', () => {
+  function mixedEmphasisState() {
+    const em = schema.marks['emphasis_mark']!.create();
+    const body = schema.nodes['card_body']!.create(null, [
+      schema.text('plain '),
+      schema.text('loud', [em]),
+      schema.text(' more'),
+    ]);
+    const doc = makeDoc([cardWithChildren(tag('T'), body)]);
+    let start = -1;
+    let end = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'plain ') start = p;
+      if (n.isText && n.text === ' more') end = p + n.nodeSize;
+      return true;
+    });
+    const base = EditorState.create({ doc });
+    return base.apply(base.tr.setSelection(TextSelection.create(base.doc, start, end)));
+  }
+
+  it('keeps emphasized words emphasized when underlining a mixed selection', () => {
+    const next = apply(mixedEmphasisState(), applyUnderline());
+    expect(next).not.toBeNull();
+    expect(everyHasMark(next!.doc, 'loud', 'emphasis_mark')).toBe(true);
+    expect(hasMark(next!.doc, 'loud', 'underline_mark')).toBe(false);
+    expect(everyHasMark(next!.doc, 'plain ', 'underline_mark')).toBe(true);
+    expect(everyHasMark(next!.doc, ' more', 'underline_mark')).toBe(true);
+  });
+
+  it('a second press clears the underline and the emphasis with it', () => {
+    const once = apply(mixedEmphasisState(), applyUnderline());
+    const twice = apply(once!, applyUnderline());
+    expect(twice).not.toBeNull();
+    expect(hasMark(twice!.doc, 'loud', 'emphasis_mark')).toBe(false);
+    expect(hasMark(twice!.doc, 'plain ', 'underline_mark')).toBe(false);
+  });
+
   it('non-empty selection in card_body: applies underline_mark (named style)', () => {
     const doc = makeDoc([
       cardWithChildren(tag('T'), cardBody('hello world')),

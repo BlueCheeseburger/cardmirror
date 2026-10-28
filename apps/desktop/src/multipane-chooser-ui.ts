@@ -75,7 +75,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 .x{all:unset;box-sizing:border-box;position:absolute;top:8px;right:10px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:5px;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;-webkit-app-region:no-drag}
 .x:hover{color:var(--text);background:var(--hover)}
 .drag{-webkit-app-region:drag}
-h1{margin:0;padding-right:26px;font-size:15px;font-weight:700;line-height:1.3;word-break:break-word}
+/* The drag strip stops short of the close X (the h1's margin, not padding, leaves the room) so a click on the X is never swallowed as a window drag. */
+h1{margin:0 34px 0 0;font-size:15px;font-weight:700;line-height:1.3;word-break:break-word}
 .list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0;flex:1}
 .row{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft);cursor:pointer}
 .row:hover{background:var(--hover)}
@@ -147,6 +148,8 @@ export function showChooserWindow(opts: {
       alwaysOnTop: true,
       skipTaskbar: true,
       show: false,
+      // A first click lands on the page even when the window isn't active yet.
+      acceptFirstMouse: true,
       title: 'CardMirror',
       backgroundColor: nativeTheme.shouldUseDarkColors ? '#1a1a1a' : '#ffffff',
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },

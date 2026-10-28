@@ -149,6 +149,7 @@ import { bulkCompressEnabled } from './bulk-compress-gate.js';
 import { openClean, runCleanSingleFileWeb } from './clean-ui.js';
 import { openDocDiff } from './doc-diff-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
+import { currentTakeoverTitle, isTakenOver, onTakeoverChange } from './window-takeover.js';
 import { recordRecent, removeRecent, listRecents, clearRecents, subscribeRecents, type RecentFile } from './recents-store.js';
 import { recordRecentWorkspace, type RecentWorkspace } from './recent-workspaces-store.js';
 import { buildMenuRecents } from './menu-recents.js';
@@ -157,9 +158,11 @@ import {
   rolloverLastWorkspace,
   lastWorkspace,
   saveWorkspaceNow,
-  selectedDocs,
+  setWindowWorkspaceName,
   installWindowCloseForget,
+  type WorkspaceDoc,
   type WorkspaceSnapshot,
+  type WorkspaceWindow,
 } from './workspace-store.js';
 
 /** sessionStorage marker a mode-switch reload leaves for itself.
@@ -666,6 +669,7 @@ if (getHost().kind === 'electron') {
     ?.windowNameGet()
     .then((r) => {
       currentWindowName = r.name;
+      setWindowWorkspaceName(r.name);
       updateWindowTitle();
     });
 }
@@ -676,6 +680,7 @@ async function setWindowName(name: string | null): Promise<void> {
   const eh = getElectronHost();
   if (!eh) return;
   currentWindowName = name;
+  setWindowWorkspaceName(name);
   await eh.windowNameSet(name);
   updateWindowTitle();
 }
@@ -1982,10 +1987,6 @@ const ribbonContext: RibbonContext = {
     const snapshot = lastWorkspace();
     if (!snapshot) {
       showToast('No saved workspace yet.');
-      return;
-    }
-    if (selectedDocs(snapshot).length === 0) {
-      showToast('Nothing ticked in your last workspace — tick a document on the home screen.');
       return;
     }
     void (async () => {
@@ -7438,6 +7439,36 @@ async function runOpenFlow(): Promise<void> {
   for (const file of opened) await routeOpenedFile(file);
 }
 
+/** While a full-window tool (Compare documents) is up over this window it is
+ *  not a place to open documents: skip the slot picker and the in-place mount
+ *  and open each in a window of its own. Returns true when it took the files
+ *  (the caller is done), false when nothing is up or the host can't spawn
+ *  windows (the caller carries on as usual). */
+async function openInNewWindowWhileTakenOver(
+  files: Array<{ name: string; bytes: Uint8Array; handle?: unknown; format?: 'cmir' | 'docx' | null }>,
+): Promise<boolean> {
+  const host = getHost();
+  if (!isTakenOver() || !host.canSpawnWindow) return false;
+  for (const f of files) {
+    try {
+      await host.spawnWindow({
+        filename: f.name,
+        bytes: f.bytes,
+        handle:
+          typeof f.handle === 'string' || (f.handle != null && typeof f.handle === 'object')
+            ? (f.handle as string | FileSystemFileHandle)
+            : null,
+        format: f.format ?? formatFromFilename(f.name),
+        uid: null,
+      });
+    } catch (err) {
+      console.error('Spawn window failed:', err);
+      void alertDialog(`Failed to open in new window: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+  return true;
+}
+
 /** Several files from one Open dialog in the three-pane workspace: run
  *  the same journal decode and cross-window guard as `routeOpenedFile`
  *  on each, then hand the survivors to the shell, which asks for one
@@ -7457,6 +7488,7 @@ async function routeOpenedFilesToSlot(opened: OpenedFile[]): Promise<void> {
     files.push({ name: src.name, bytes: src.bytes, handle: src.handle });
   }
   if (files.length === 0) return;
+  if (await openInNewWindowWhileTakenOver(files)) return;
   try {
     await multiDocOnFilesOpen!(files);
   } catch (err) {
@@ -7489,6 +7521,7 @@ async function routeOpenedFile(opened: OpenedFile): Promise<void> {
     showToast(`"${src.name}" is already open in another window.`);
     return;
   }
+  if (await openInNewWindowWhileTakenOver([src])) return;
   if (multiDocActive && multiDocOnFileOpen) {
     // Multi-pane shell runs its own within-window duplicate-open
     // guard (checks every slot's stack) before showing the slot
@@ -7911,8 +7944,12 @@ const homeCallbacks: HomeScreenCallbacks = {
   // file handles), so the home screen omits the section without it.
   ...(getElectronHost()
     ? {
-        reopenWorkspace: (snapshot: WorkspaceSnapshot): void => {
-          void restoreWorkspace(snapshot);
+        reopenWorkspaceWindows: (wins: WorkspaceWindow[]): void => {
+          void (async () => {
+            // One after another, so the first can claim this window while it
+            // is empty and the rest each get a window of their own.
+            for (const win of wins) await restoreWorkspaceWindow(win);
+          })();
         },
         reopenRecentWorkspace: (ws: RecentWorkspace): void => {
           reopenWorkspaceFromHome(ws);
@@ -8331,6 +8368,14 @@ async function routeInitialDocIntoWorkspace(): Promise<boolean> {
     await m.resumeSessionFlow(makeMultiPaneSessionDeps(), payload.resumeRoomId);
     return true;
   }
+  // A reopened workspace window (home screen's Last workspace): reopen its
+  // documents by path into their slots, and give the window its old name.
+  if (payload.restoreWorkspaceDocs && payload.restoreWorkspaceDocs.length > 0) {
+    if (payload.windowName) await setWindowName(payload.windowName);
+    const { restoreWorkspaceIntoSlots } = await import('./multi-pane-shell.js');
+    await restoreWorkspaceIntoSlots(payload.restoreWorkspaceDocs);
+    return true;
+  }
   if (payload.blank) {
     // Explicit "spawn a blank doc" request ("New document → New
     // window"). Multi-pane has no fallback for a payload-less spawn —
@@ -8415,37 +8460,82 @@ async function readFileForReopen(
   return file;
 }
 
-/** Reopen a saved workspace — the TICKED documents only, re-derived
- *  from the store so the home screen's button and the Reopen Last
- *  Workspace command can't drift apart. Three-pane hands the set to the shell,
- *  which restores each doc into the slot it was saved from.
- *  Single-doc mounts the first doc in THIS window when it still holds
- *  the pristine starter, and spawns a window for each of the rest —
- *  the one-doc-per-window convention every other desktop flow follows.
- *  Docs already open (here or in another window) are skipped rather
- *  than duplicated. Resolves with how many actually opened. */
+/** Reopen the whole saved workspace: every window in it, in order. The
+ *  Reopen Last Workspace command uses this; the home screen reopens one
+ *  window at a time (`restoreWorkspaceWindow`). Resolves with how many
+ *  documents actually opened. */
 async function restoreWorkspace(snapshot: WorkspaceSnapshot): Promise<number> {
+  let opened = 0;
+  for (const win of snapshot.windows) opened += await restoreWorkspaceWindow(win);
+  return opened;
+}
+
+/** Reopen one window of a saved workspace.
+ *  Three-pane: the window's documents go back to the slots they sat in,
+ *  in THIS window while it is empty, otherwise in a new window of their
+ *  own (carrying the name the window had), so a window stays a window.
+ *  Single-doc: a window holds one document, so each of the window's
+ *  documents opens the way every other desktop flow does — the first in
+ *  THIS window while it still holds the pristine starter, the rest in
+ *  windows of their own. Documents already open (here or in another
+ *  window) are skipped rather than duplicated. Resolves with how many
+ *  documents actually opened. */
+async function restoreWorkspaceWindow(win: WorkspaceWindow): Promise<number> {
   const electron = getElectronHost();
   if (!electron) {
     showToast('Reopening a workspace requires the desktop edition.');
     return 0;
   }
-  const wanted = selectedDocs(snapshot);
-  if (wanted.length === 0) return 0;
+  if (win.docs.length === 0) return 0;
   homeScreen.hide();
-  if (multiDocActive) {
-    const { restoreWorkspaceIntoSlots } = await import('./multi-pane-shell.js');
-    // Slot assignments only mean something for a snapshot taken in
-    // three-pane mode; one taken in single-doc mode fills the slots
-    // in order instead.
-    return restoreWorkspaceIntoSlots(
-      wanted.map((d) => ({
-        path: d.path,
-        filename: d.filename,
-        slot: snapshot.mode === 'panes' ? d.slot : null,
-      })),
-    );
+  if (!multiDocActive) return restoreDocsAsWindows(electron, win.docs);
+
+  const shellModule = await import('./multi-pane-shell.js');
+  // Slot assignments only mean something for a window saved in three-pane
+  // mode; one saved in single-doc mode fills the slots in order instead.
+  const docs = win.docs.map((d) => ({
+    path: d.path,
+    filename: d.filename,
+    slot: win.mode === 'panes' ? d.slot : null,
+  }));
+  if (shellModule.workspaceIsEmpty() || !electron.canSpawnWindow) {
+    const opened = await shellModule.restoreWorkspaceIntoSlots(docs);
+    // Name this window after the one it replaces, unless it already has a name.
+    if (opened > 0 && win.name && !currentWindowName) await setWindowName(win.name);
+    return opened;
   }
+  // This window is in use: bring the saved window back as its own.
+  const fresh: typeof docs = [];
+  for (const d of docs) {
+    if (await shellModule.workspaceHasPath(d.path)) continue;
+    let takenByOther = false;
+    try {
+      takenByOther = (await electron.openPathCheck(d.path)).takenByOther;
+    } catch {
+      /* old preload — let the new window decide */
+    }
+    if (!takenByOther) fresh.push(d);
+  }
+  if (fresh.length === 0) return 0;
+  await electron.spawnWindow({
+    filename: '',
+    bytes: new Uint8Array(0),
+    handle: null,
+    format: null,
+    uid: null,
+    restoreWorkspaceDocs: fresh,
+    windowName: win.name,
+  });
+  return fresh.length;
+}
+
+/** Single-doc restore: mount the first document in THIS window when it
+ *  still holds the pristine starter, and spawn a window for each of the
+ *  rest — the one-doc-per-window convention. */
+async function restoreDocsAsWindows(
+  electron: NonNullable<ReturnType<typeof getElectronHost>>,
+  wanted: WorkspaceDoc[],
+): Promise<number> {
   let opened = 0;
   let missing = 0;
   let inPlaceAvailable = isPristineStarter;
@@ -8880,6 +8970,9 @@ function updateWindowTitle(): void {
         multiDocGetAllFilenames().filter((n): n is string => !!n).map(displayFilename),
       );
     }
+  } else if (currentTakeoverTitle()) {
+    // Something full-window (Compare documents) is open over the document.
+    document.title = `${currentTakeoverTitle()} — CardMirror`;
   } else if (multiDocActive && multiDocGetAllFilenames) {
     const names = multiDocGetAllFilenames()
       .filter((n): n is string => !!n)
@@ -8907,6 +9000,13 @@ function updateWindowTitle(): void {
     singleFileBadge?.refresh();
   }
 }
+
+// The title follows a Compare documents dialog opening and closing, and main
+// is told so the "which window?" chooser can leave the window out.
+onTakeoverChange(() => {
+  updateWindowTitle();
+  void getElectronHost()?.setWindowTakenOver(isTakenOver());
+});
 
 /** 1–2 letter initials from a display name, for a baked-in comment's
  *  margin badge. */
@@ -11934,7 +12034,10 @@ async function initSingleDocBoot(): Promise<void> {
       await mountResumedSession(payload.resumeRoomId);
       return;
     }
-    if (payload.blank) {
+    if (payload.blank || payload.restoreWorkspaceDocs) {
+      // (`restoreWorkspaceDocs` is a three-pane window's reopen; landing
+      // here means the layout changed between the click and this boot, so
+      // the placeholder payload can only become a blank document.)
       // Explicit "spawn a blank doc" request ("New document → New
       // window") — mount it directly and skip the home screen, same as
       // any other spawn payload. Unlike a plain `null` payload, this

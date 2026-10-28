@@ -24,11 +24,28 @@ const tile = (target: string): HTMLElement | null => document.querySelector(`[da
 
 describe('describeMoveTarget', () => {
   it('says what dropping would do', () => {
-    expect(describeMoveTarget('slot1', slots, windows)).toBe('Swap with 1AC Case');
+    expect(describeMoveTarget('slot1', slots, windows)).toBe('Add to stack with 1AC Case');
     expect(describeMoveTarget('slot3', slots, windows)).toBe('Move to slot 3');
     expect(describeMoveTarget('win:new', slots, windows)).toBe('Open in a new window');
     expect(describeMoveTarget(windowTarget(7), slots, windows)).toBe('Send to Window 7');
     expect(describeMoveTarget('nope', slots, windows)).toBe('');
+  });
+});
+
+describe('swap mode (the swap-on-drop setting)', () => {
+  const swapSlots = slots.map((x) => ({ ...x, swap: true }));
+  it('words an occupied slot as a swap, and leaves empty slots alone', () => {
+    expect(describeMoveTarget('slot1', swapSlots, windows)).toBe('Swap with 1AC Case');
+    expect(describeMoveTarget('slot3', swapSlots, windows)).toBe('Move to slot 3');
+  });
+  it('labels the occupied tile Swap instead of Add to stack', () => {
+    showMoveTray(swapSlots, windows);
+    expect(tile('slot1')?.textContent).toContain('Swap');
+    expect(tile('slot1')?.textContent).not.toContain('Add to stack');
+  });
+  it('labels the occupied tile Add to stack by default', () => {
+    showMoveTray(slots, windows);
+    expect(tile('slot1')?.textContent).toContain('Add to stack');
   });
 });
 

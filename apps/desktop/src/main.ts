@@ -284,6 +284,12 @@ interface InitialDocPayload {
   /** Resume a persisted collaboration session instead of mounting a doc.
    *  Passed through opaquely, like joinShareCode. */
   resumeRoomId?: string;
+  /** Reopen these documents by path into the new window's slots instead of
+   *  mounting a doc (placeholder doc fields). Passed through opaquely. */
+  restoreWorkspaceDocs?: Array<{ path: string; filename: string; slot: string | null }>;
+  /** The name to give the new window. Passed through opaquely; the renderer
+   *  applies it with `host:window-name-set`. */
+  windowName?: string | null;
 }
 const pendingInitialDocs = new Map<number, InitialDocPayload>();
 
@@ -342,11 +348,17 @@ const windowNames = new Map<number, string>();
  *  under a window that has a custom name (its title is then just the name). */
 const windowDocFilenames = new Map<number, string[]>();
 
+/** Windows with a full-window tool (Compare documents) open over them: not a
+ *  place to open documents, so the "which window?" chooser leaves them out.
+ *  Cleared when the window closes or its renderer boots again (a reload
+ *  loses the tool). */
+const takenOverWindows = new Set<number>();
+
 /** Every live multi-pane window, candidates for receiving an
  *  externally-opened file. */
 function liveMultiPaneWindows(): BrowserWindow[] {
   return BrowserWindow.getAllWindows().filter(
-    (w) => !w.isDestroyed() && multiPaneWindows.has(w.id),
+    (w) => !w.isDestroyed() && multiPaneWindows.has(w.id) && !takenOverWindows.has(w.id),
   );
 }
 
@@ -705,6 +717,7 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
     pendingInitialDocs.delete(win.id);
     skipCloseConfirm.delete(win.id);
     multiPaneWindows.delete(win.id);
+    takenOverWindows.delete(win.id);
     windowNames.delete(win.id);
     windowDocFilenames.delete(win.id);
     // A lone floating timer must not outlive the last document
@@ -2301,6 +2314,15 @@ ipcMain.handle('host:register-multipane', async (event, isMultiPane: boolean) =>
   if (!win) return;
   if (isMultiPane) multiPaneWindows.add(win.id);
   else multiPaneWindows.delete(win.id);
+  // Called at every renderer boot: whatever tool was up died with the old page.
+  takenOverWindows.delete(win.id);
+});
+
+ipcMain.handle('host:window-taken-over', async (event, taken: unknown) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return;
+  if (taken === true) takenOverWindows.add(win.id);
+  else takenOverWindows.delete(win.id);
 });
 
 // New Document routes through the SAME "which window?" chooser an

@@ -199,7 +199,7 @@ fork's own additions; upstream CardMirror doesn't have them.
 - **[Independent three-pane windows](#multiple-workspaces)** **(fork)** —
   each window keeps its own layout and documents. Drag a pane's title chip
   to move its document to another slot or, on the desktop app, to another or
-  a new window (or right-click the chip), unsaved edits and all.
+  a new window, unsaved edits and all.
 - **[Window names and in-app renaming](#naming-windows-and-renaming-documents)**
   **(fork)** — name a window so you can tell windows apart, and rename a
   document's file by double-clicking its name.
@@ -467,8 +467,8 @@ below say which fallback applies where it matters.
 | Function | Shortcut | What it does |
 |----------|----------|--------------|
 | **Cite** | F8 | Applies the Cite style — meant for just the author last name and date, not the whole line. With nothing selected, it applies to the word at the cursor. Skips heading text in a mixed selection. |
-| **Underline** | F9 / Mod-U | Toggles underline on the selection (press again to remove). With **nothing selected** the two differ: **F9** underlines the word at the cursor; **Mod-U** instead turns on underline for the text you're about to type (like Mod-I for italics). |
-| **Emphasis** | F10 | Applies the Emphasis style (a box, by default). Apply-only: pressing it again keeps the Emphasis. **Mod-F10** removes it from the selection (the text comes back plain, not underlined); Clear and Underline also swap it off. |
+| **Underline** | F9 / Mod-U | Toggles underline on the selection (press again to remove, which also clears any emphasis in it). Emphasized words inside the selection stay emphasized when you underline. With **nothing selected** the two differ: **F9** underlines the word at the cursor; **Mod-U** instead turns on underline for the text you're about to type (like Mod-I for italics). |
+| **Emphasis** | F10 | Applies the Emphasis style (a box, by default). Apply-only: pressing it again keeps the Emphasis. **Mod-F10** removes it from the selection (the text comes back plain, not underlined); Clear also removes it. **Underline** leaves emphasized words as they are, so underlining a selection that contains emphasis keeps the emphasis. |
 | **Highlight** | F11 | Toggles the active highlight color. Press again to remove. |
 | **Clear** | F12 | Strips direct formatting back to plain text (leaves highlighting unless **Clear (F12) also removes highlighting** is on in Settings → Editing). |
 | **Bold / Italic** | Mod-B / Mod-I | Standard direct formatting. With nothing selected, toggles it for the text you're about to type; while italic typing is on, the cursor tilts to match. Tags and headings are bold by default, so **Bold inside a tag un-bolds** the selected words (press it again to restore) — and .docx files with un-bolded words in tags now show that correctly. |
@@ -1092,7 +1092,13 @@ under Settings → Keybindings (listed with the Editing utilities).
 
 Off by default — debate evidence (author names, jargon, citations) trips a
 lot of false positives. Turn it on under **Settings → General → Editor
-spellcheck**. Misspellings get a red underline. **Right-click** a flagged
+spellcheck**. Misspellings get a red underline. **(Fork)** The dictionary
+includes about 1,100 extra debate and policy terms (empirics, neoliberalism,
+kritik, securitization and so on). **Spellcheck: skip names and capitalized
+words** (on by default, right below it) leaves capitalized words in the middle
+of a sentence, and words with a capital inside (McKinsey), alone; the first
+word of a paragraph or heading is treated the same way, but a capitalized word
+after a period, question mark or exclamation mark is still checked. **Right-click** a flagged
 word for spelling suggestions, **Add to Dictionary** (your personal
 dictionary persists across documents and sessions), or **Ignore** (for this
 session).
@@ -1343,18 +1349,19 @@ workspace while another shows a single document.
   document only.
 - **(fork)** **Drag a title chip onto another slot** to move that document
   there. While you drag, every pane shows its slot number and what dropping
-  does: **Move here** on an empty slot, **Swap places** (with the other
-  document's name) on an occupied one. The label following the pointer says
-  the same. A **move tray** at the bottom of the window has a tile for each
+  does: **Move here** on an empty slot, **Add to stack** (with the other
+  document's name) on an occupied one: the document joins that pane's stack
+  and shows there, with the pane's earlier documents behind the ▾ switcher
+  (**Ctrl-Tab**). The label following the pointer says the same. If you'd
+  rather the two documents trade places, turn on **Settings → General →
+  Workspace → Dropping a document on an occupied pane swaps instead of
+  stacking**; the labels then say **Swap places** / **Swap**. A **move tray** at the bottom of the window has a tile for each
   slot, and on the desktop app also **New window** and a tile for every other
   open three-pane window: drop the chip on a tile to send the document there,
   unsaved edits included. **Esc** cancels the drag.
-- **(fork)** **Right-click a title chip** for **Move to…**, which lists
-  every other open three-pane window plus **New Window**. The document goes
-  with its current content, unsaved edits included. If the move fails, the
-  document stays where it was. **(Desktop only.)**
 - **(fork)** The pane holding your speech document stays tinted amber even
-  while it's the focused pane, so you can always see which one it is.
+  while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
+  document's row is amber too.
 - **(fork)** **Hover a title chip** and a greyed microphone appears at its left;
   click it to make that document the active speech doc (click again to clear).
   A single window has the same blue bar above its one document, with the same
@@ -2675,24 +2682,28 @@ so **Ctrl-Tab** cycles through them; a slot's own Open button does the same
 without asking. In one-window-per-document mode each file gets its own window.
 
 **Reopening your last set of documents.** On the desktop app, CardMirror
-remembers which files you had open when you last quit and lists them on the Home screen under
-**Last workspace**, each with a tick box. **Reopen** opens the ticked ones —
-untick the ones you don't want, or use **All** / **None** to flip the whole
-list. In the three-pane workspace each document goes back to the pane it was
-in; in single-document mode each gets its own window.
+remembers which windows you had open when you last quit and lists them on the Home screen under
+**Last workspace**, one row per window, in the order you opened them. A row is
+titled with the window's name (**Name This Window…**, from the ribbon's
+right-click menu), or "3 docs" when the window has no name, and the documents
+in that window are listed under it, slightly indented. Every window starts
+ticked; untick the ones you don't want, then press **Open** (it says how many,
+for example "Open 2 windows") to reopen the ticked windows. A three-pane window
+comes back with each document in the pane it was in, in a window of its own
+(or in the current window when it is empty); in single-document mode each
+document gets its own window. The ticks are for the current visit to the Home
+screen: a new set of windows starts all ticked again.
 
 CardMirror never reopens documents behind your back: a launch with no file
 lands on the Home screen, where the list is waiting, and nothing opens until
-you say so. Your ticks are remembered between sessions, so a document you
-untick stays unticked as the set changes from one session to the next until
-you tick it again.
+you say so.
 
 Close every document (or its window) before you quit and there's nothing to
 offer, so the section disappears — a clean quit means a clean start. To keep a particular
 working set regardless, run **Save Workspace** (command bar — try "save
 session"): a saved set survives quitting with nothing open, and stays on offer
 until you open other documents and quit with those. **Reopen Last Workspace**
-restores it without going via the Home screen, and **Forget** drops it.
+restores every window in it without going via the Home screen, and **Forget** drops it.
 Documents that have never been saved aren't included — there's no file to
 reopen — and one that has moved or been deleted is skipped with a note.
 
@@ -2808,7 +2819,9 @@ yours, or a file before and after cutting.
 **Compare different files** returns to the file picker; **Close** (or
 **Esc**) returns to the Home screen. The comparison is text only — formatting such as highlighting
 and underlining isn't compared — and it's read-only: neither file is opened
-for editing or changed. There is no size limit; two very long files that
+for editing or changed. While it is open the window is named **Compare
+documents** (not the blank document underneath), and files you open meanwhile
+open in a new window rather than into it. There is no size limit; two very long files that
 differ almost everywhere take a few seconds. On a
 narrow window the outlines hide and each changed line stacks its two
 versions.

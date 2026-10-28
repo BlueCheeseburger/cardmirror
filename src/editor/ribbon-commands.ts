@@ -2026,12 +2026,35 @@ function notePainted(tr: Transaction, paint: ReturnType<typeof paintRanges>): vo
  * underline / emphasis" policy), structural gets `underline_direct`
  * (doesn't conflict with anything).
  */
+/** The parts of `[from, to)` whose text does NOT carry `mark`. */
+function withoutMark(
+  doc: PMNode,
+  from: number,
+  to: number,
+  mark: MarkType,
+): { from: number; to: number }[] {
+  const out: { from: number; to: number }[] = [];
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (!node.isText) return true;
+    if (node.marks.some((m) => m.type === mark)) return false;
+    const f = Math.max(from, pos);
+    const t = Math.min(to, pos + node.nodeSize);
+    if (f >= t) return false;
+    const last = out[out.length - 1];
+    if (last && last.to === f) last.to = t;
+    else out.push({ from: f, to: t });
+    return false;
+  });
+  return out;
+}
+
 export function applyUnderline(
   clearFormattingOnToggleOff: () => boolean = () => true,
 ): Command {
   return withGapFix((state, dispatch) => {
     const namedMark = schema.marks['underline_mark']!;
     const directMark = schema.marks['underline_direct']!;
+    const emphasisMark = schema.marks['emphasis_mark']!;
 
     // Operating ranges: PM selection > shadow ranges > word-at-cursor.
     // A collapsed cursor with NO word (empty block, whitespace) is a
@@ -2055,8 +2078,10 @@ export function applyUnderline(
       state.doc.nodesBetween(scan.from, scan.to, (node) => {
         if (!node.isText) return true;
         anyText = true;
+        // Emphasis is underline + bold, so emphasized text counts as
+        // already underlined.
         const u = node.marks.some(
-          (m) => m.type === namedMark || m.type === directMark,
+          (m) => m.type === namedMark || m.type === directMark || m.type === emphasisMark,
         );
         if (!u) everyUnderlined = false;
         return true;
@@ -2068,10 +2093,12 @@ export function applyUnderline(
 
     const tr = state.tr;
     if (everyUnderlined) {
-      // Toggle off: strip both underline marks across each range.
+      // Toggle off: strip both underline marks across each range, and
+      // the emphasis that sits on top of them.
       for (const { from, to } of opRanges) {
         tr.removeMark(from, to, namedMark);
         tr.removeMark(from, to, directMark);
+        tr.removeMark(from, to, emphasisMark);
         // Verbatim's "press F9 twice clears formatting" — opt-out
         // via setting.
         if (clearFormattingOnToggleOff()) stripDirectFormatting(tr, from, to);
@@ -2101,9 +2128,13 @@ export function applyUnderline(
       for (const seg of segments) {
         const markType = seg.structural ? directMark : namedMark;
         const otherMark = seg.structural ? namedMark : directMark;
-        tr.removeMark(seg.from, seg.to, otherMark);
-        tr.addMark(seg.from, seg.to, markType.create());
-        stripDirectFormattingOnApply(tr, seg.from, seg.to);
+        // Emphasized text is already underlined; the underline style would
+        // replace the emphasis, so skip over it.
+        for (const piece of withoutMark(state.doc, seg.from, seg.to, emphasisMark)) {
+          tr.removeMark(piece.from, piece.to, otherMark);
+          tr.addMark(piece.from, piece.to, markType.create());
+          stripDirectFormattingOnApply(tr, piece.from, piece.to);
+        }
       }
     }
     if (op.fromShadow) tr.setMeta(META_OPERATING_ON_SHADOW, true);
