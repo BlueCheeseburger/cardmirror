@@ -43,6 +43,12 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **The update chip shows the download in progress.** The home screen's
+  update button and the status-bar chip used to stay blank from the moment
+  an update was found until it had finished downloading, then jump straight
+  to "restart to install". They now read "Downloading update 1.17.0… 42%"
+  while it stages (closes #104).
+
 - **Insert Received Card (At Cursor / At End)** now mark the inserted card
   as read. Inserting with Mod-P or Mod-Alt-P used to leave the card
   counted as new, so the Receive badge kept showing it and the arrival
