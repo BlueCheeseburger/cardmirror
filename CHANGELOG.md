@@ -7,6 +7,15 @@ see `DETAILED_CHANGELOG.md`.
 
 ## Unreleased
 
+### Added
+
+- **Refresh File Search Index** *(desktop; a command, unbound by default)*
+  re-walks every file search folder immediately and reports what it found
+  (files indexed, files changed, folders missing on disk). Use it when a
+  document saved from Word or Finder is not showing up in the palette yet.
+  Changing the file search folders in Settings now re-scans right away too,
+  instead of waiting for the next palette open.
+
 ### Fixed
 
 - **Self-hosted relay:** the server starts again on a fresh install.
