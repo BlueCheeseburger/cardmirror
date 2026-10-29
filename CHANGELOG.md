@@ -18,6 +18,11 @@ see `DETAILED_CHANGELOG.md`.
 
 ### Fixed
 
+- **Insert Received Card (At Cursor / At End)** now mark the inserted card
+  as read. Inserting with Mod-P or Mod-Alt-P used to leave the card
+  counted as new, so the Receive badge kept showing it and the arrival
+  flash kept going until you opened the pill. The card stays in the list.
+
 - **Self-hosted relay:** the server starts again on a fresh install.
   SQLAlchemy 2.1 switched its default Postgres driver to psycopg 3,
   which the relay image did not install, so new builds crashed on
