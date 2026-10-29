@@ -5,6 +5,17 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed
+
+- **Self-hosted relay:** the server starts again on a fresh install.
+  SQLAlchemy 2.1 switched its default Postgres driver to psycopg 3,
+  which the relay image did not install, so new builds crashed on
+  startup. The relay now installs psycopg 3 and names the driver in the
+  connection URL itself, so the same `DATABASE_URL` works under either
+  SQLAlchemy. Thanks to Cora (@coralynnkc)!
+
 ## 1.16.0 — 2026-10-24
 
 ### Added
