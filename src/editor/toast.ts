@@ -4,6 +4,8 @@
  * listener so callers don't need to thread an event through.
  */
 
+import { icon, type IconName } from './icons.js';
+
 let lastMouseX = 0;
 let lastMouseY = 0;
 let tracked = false;
@@ -26,6 +28,12 @@ export interface ToastOptions {
   durationMs?: number;
   /** Fade-out animation length (ms). Default 200. */
   fadeMs?: number;
+  /** A small icon before the message. */
+  icon?: IconName;
+  /** Quieter text after the message (e.g. what was sent). */
+  detail?: string;
+  /** A small outlined pill at the end (e.g. "at end"). */
+  pill?: string;
 }
 
 /** Default visibility from reading time, not vibes (toast audit,
@@ -51,7 +59,28 @@ export function showToast(message: string, opts: ToastOptions = {}): void {
 
   const toast = document.createElement('div');
   toast.className = 'pmd-toast';
-  toast.textContent = message;
+  if (opts.icon || opts.detail || opts.pill) {
+    toast.classList.add('pmd-toast-rich');
+    if (opts.icon) toast.appendChild(icon(opts.icon));
+    const main = document.createElement('span');
+    main.className = 'pmd-toast-main';
+    main.textContent = message;
+    toast.appendChild(main);
+    if (opts.detail) {
+      const detail = document.createElement('span');
+      detail.className = 'pmd-toast-detail';
+      detail.textContent = opts.detail;
+      toast.appendChild(detail);
+    }
+    if (opts.pill) {
+      const pill = document.createElement('span');
+      pill.className = 'pmd-toast-pill';
+      pill.textContent = opts.pill;
+      toast.appendChild(pill);
+    }
+  } else {
+    toast.textContent = message;
+  }
   // Offset slightly down/right from the cursor so it doesn't sit
   // under the pointer.
   toast.style.left = `${lastMouseX + 10}px`;
@@ -78,4 +107,47 @@ export function showToast(message: string, opts: ToastOptions = {}): void {
     toast.classList.add('pmd-toast-fade');
     setTimeout(() => toast.remove(), fadeMs);
   }, visibleMs);
+}
+
+export interface ActionToastOptions {
+  /** The button's label, e.g. "Go back". */
+  actionLabel: string;
+  /** Runs when the button is pressed; the toast closes first. */
+  onAction: () => void;
+  /** How long it stays up (ms). Default 8000: long enough to reach for. */
+  durationMs?: number;
+}
+
+/** A toast with one button. Unlike `showToast` it sits at the bottom centre
+ *  rather than at the pointer, takes clicks, and waits longer, because it
+ *  offers something to do rather than confirming something done. Returns a
+ *  function that closes it. */
+export function showActionToast(message: string, opts: ActionToastOptions): () => void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return () => {};
+  const toast = document.createElement('div');
+  toast.className = 'pmd-toast pmd-toast-action';
+  toast.setAttribute('role', 'status');
+  const text = document.createElement('span');
+  text.className = 'pmd-toast-action-text';
+  text.textContent = message;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'pmd-toast-action-btn';
+  button.textContent = opts.actionLabel;
+  toast.append(text, button);
+  document.body.appendChild(toast);
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const close = (): void => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    toast.classList.add('pmd-toast-fade');
+    setTimeout(() => toast.remove(), 200);
+  };
+  button.addEventListener('click', () => {
+    close();
+    opts.onAction();
+  });
+  timer = setTimeout(close, opts.durationMs ?? 8000);
+  return close;
 }

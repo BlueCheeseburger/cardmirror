@@ -10,6 +10,44 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.16.0-bcb.4 — 2026-10-30
+
+### Added: "Sent to speech doc" notice (`speech-doc-send.ts`, `toast.ts`)
+
+Sending to the speech doc (`sendToSpeech`, at cursor or at end) gave no feedback on success; only the failures and the self-send case spoke. With the speech doc in another pane or another window the send looked like it did nothing. `showToast` gained optional `icon`, `detail` and `pill` (a flex toast: mic, bold message, quieter quoted detail, outlined pill) with the plain-text path unchanged. `toastSent` fires from the three delivery points: the same-window insert's `afterInsert` (so only after the insert really ran; `insertSpeechSlice` is deferred a tick and can bail), the Electron cross-window `speechSendSlice` result when `delivered` is true, and the web cross-tab ack. Not shown on a failed delivery or a self-send, which keep their existing messages. The detail is the first non-empty line of the slice (a card's tag, a heading, the start of a selection), cut to 48 characters; a slice with no text shows just the mic, the message and the pill. It is always on (an earlier version had a setting to turn it off; removed at the maintainer's request, so there is nothing to toggle). It sits near the pointer like the other toasts (the one stays up 2.2 s), not at the caret, which suits mouse sends better than the backtick key; moving it is a small change if wanted.
+
+Checked: unit tests (same window at cursor / at end, other window delivered / not delivered, self-send, the description text) and a render of the toast in Chromium in both themes. **Not verified:** the real desktop app, and the cross-window path against a real second window.
+
+### Fixed: Reload From Disk keeps the caret and scroll position (`reload-position.ts`)
+
+Reload (Mod-R, "Keep their changes", the pill) discards the open document and mounts a fresh read of the file, which gave a new view at the top with the caret at position 1; only the outline's folded state was carried over. `captureReloadPosition` now saves the selection and the line at the reading line (via the existing `captureViewportAnchor`) before the swap, and `restoreReloadPosition` maps them onto the new document and puts them back: caret first, then a rough `scrollIntoView` jump (long documents are laid out lazily, so a far position has no real height yet) and the existing `restoreViewportAnchor` refine loop. Wired into both the single-document path (`reloadActiveFromDisk` in `index.ts`) and the three-pane path (`MultiPaneShell.reloadFromDisk`). Nothing is saved when the document is at the very top.
+
+Mapping across the difference compares top-level blocks and **ignores heading ids**: a first version used ProseMirror's `findDiffStart` / `findDiffEnd` and put every caret back at the top, because the reload gave every heading a fresh id so the whole document looked changed (the unit test that caught it builds docs with new ids per call, as the .docx import does). A caret ahead of the first changed block stays put, one behind the last shifts by the size change, one inside the changed stretch keeps its offset into it, held inside.
+
+Checked in Chromium on a 300-card document: caret in card 150, window scrolled so it sat 160 px down; after swapping in a fresh view the caret was back in card 150 at 160 px. Unit tests cover the mapping and the caret/selection restore. **Not verified:** the real Reload From Disk in the packaged app (it needs Electron's file read), a .docx reload, three-pane stacks with the document behind another (only the caret is restored there, there is no layout to measure), and Reading view.
+
+**Not covered (not asked for, noted):** reopening a file from Home or after quitting still opens at the top; no per-file position is stored across sessions.
+
+### Changed: stack list marks the speech doc with the mic, not amber (`multi-pane-shell.ts`, `style.css`)
+
+Reverses the 2026-10-27 amber row. `openStackDropdown` now puts a `pmd-pane-chip-dropdown-mic` slot at the left of every row while any row is the speech doc, and fills it with the `mic` icon (the one the pane's title chip uses) for the speech doc's row only, so names stay aligned. The `pmd-speech` class stays on the row as a hook but has no styling; the amber background, its hover tint and the ✕ colour overrides are gone. Looked at in a browser with a copy of the row markup and the real stylesheet; not checked in the packaged app or inside a live multi-pane stack.
+
+### Window pills, greyed Compare windows, Go back
+
+**What.** One vocabulary of pills (`src/editor/window-pills.ts`): This window, Speech doc, Minimized, Comparing documents. Used by the "which window?" chooser (Open in / New document in), the pane-drag move tray, Select Speech Document and the Switch Window palette. **Last viewed** exists only in the chooser, and only when nothing asks (a file opened from Finder or the Dock): it marks the first window in main's focus order (`windowFocusOrder`) that is a candidate. In every other dialog the window you are in is the one you viewed last, so no *other* window can be "last viewed"; an earlier version of this change got that wrong and showed the previous window as Last viewed in the tray, Select Speech Document and the Switch Window list. Those are gone, along with the `lastViewed` / `isLastViewed` fields on `host:list-docs`, `host:list-windows` and `host:list-multipane-windows`.
+
+**Chooser.** The desktop chooser is a separate page that cannot import renderer code, so `multipane-chooser.ts` keeps its own copy of the pill text; a test fails if the two drift. The chooser's order stays alphabetical on purpose (stable number keys), so recency is shown by a pill, not by sorting. A window busy with Compare is now a greyed row: it keeps its place and its number, but no number key, no click, and the arrow keys skip it (number keys now come from each row's own `data-key`, not its position). **This window** only appears for New Document, where the asker is a candidate; for an OS-opened file there is no asker, so **Last viewed** is simply the most recently focused window.
+
+**Move tray.** Windows still come most recently used first (main sorts by focus order), but nothing marks that. A tile with pills shows them on the verb's line ("Send there" is dropped) so tiles are all two lines tall, and such a tile may be a little wider (14rem instead of 11rem) so Speech doc + Minimized fit on one row. A Compare window is a tile with no drop token, so a drop on it is impossible, not merely refused.
+
+**Select Speech Document.** "this window" / "current speech doc" grey text became pills (This window, Minimized, Speech doc). The caption under a document is now the window's own name (it was fetched but never shown) else its title, "Untitled window" instead of "Window N" for an empty title, and it is left out when it only repeats the document name.
+
+**Go back.** There is no right-click "Move to…" menu in the code (only stale comments); the move tray is the only way to send a document to another window. Moving already brings the destination to the front, so a "Go there" button would never be seen. Instead the destination shows **Moved "X" here from <window>** with **Go back** (new `showActionToast`: bottom centre, clickable, 8 s). The source is named by its window name, else by the documents still in it, else "your other window". Moves to a brand-new window don't show it (that path doesn't carry the source).
+
+**Rejected.** Sorting the chooser by recency (breaks muscle memory); making Enter pick the last-viewed window (changes what Enter does today; easy to add if wanted).
+
+**Not verified.** None of this has run in the packaged Electron app: the chooser page and the in-app dialogs were rendered in Chromium against stubbed host data, and the real focus order, minimized state and Compare takeover come from main, which only unit tests and typecheck cover. Moving a document between real windows and the Go back button have not been tried end to end.
+
 ## 1.16.0-bcb.3 — 2026-10-28
 
 ### Changed: Compare's two outlines fold together and follow the scroll (`doc-diff-ui.ts`, `nav-panel.ts`)

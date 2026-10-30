@@ -408,6 +408,9 @@ import {
   canSwitchSpeedMode,
 } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
+import type { MultiPaneWindowInfo } from './host/electron-host.js';
+import { showMovedDocNotice } from './moved-doc-notice.js';
+import { captureReloadPosition, restoreReloadPosition } from './reload-position.js';
 import {
   installGlobalErrorSurface,
   fileLockedMessage,
@@ -8331,8 +8334,10 @@ function installExternalOpenListener(): void {
   // `routeOpenedFile` is the exact same funnel an OS open uses — slot
   // picker, duplicate-open guard, recents — the only difference is the
   // bytes came from another live window instead of disk.
-  electron.onReceiveDoc?.(({ filename, bytes, handle, markDirty }) => {
+  electron.onReceiveDoc?.(({ filename, bytes, handle, markDirty, from }) => {
     void routeOpenedFile({ name: filename, bytes, handle, markDirty });
+    // This window just came to the front on its own; offer the way back.
+    showMovedDocNotice(filename, from, electron.focusWindow?.bind(electron), (m) => showToast(m));
   });
 }
 
@@ -9837,10 +9842,7 @@ async function serializeActiveForSave(format: 'cmir' | 'docx', docId: string | n
 
 /** A live multi-pane window this doc could move to (right-click a
  *  pane's title chip → "Move to…"). Desktop only. */
-export interface MoveDocWindowCandidate {
-  id: number;
-  label: string;
-}
+export type MoveDocWindowCandidate = MultiPaneWindowInfo;
 
 /** Other windows the focused doc could move to. Empty on a host that
  *  doesn't support it (web, or an older preload) — the caller then
@@ -10035,6 +10037,9 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
     // The mount builds a fresh outline at the default depth; keep which
     // headings were open instead of folding them all back.
     const navState = navPanel.captureViewState();
+    // Where the caret and the reading line were, so reload does not drop you
+    // at the top of the document.
+    const savedPosition = view ? captureReloadPosition(view) : null;
     // The mount gives the document a fresh uid; the speech designation
     // belongs to the document, so carry it over.
     const wasSpeech = getSpeechDocResolver().isSpeechByUid(currentDocUid);
@@ -10049,6 +10054,7 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
       recordAsRecent: false,
     });
     navPanel.restoreViewState(navState);
+    if (savedPosition && view) restoreReloadPosition(view, savedPosition);
     if (wasSpeech) getSpeechDocResolver().setSpeechByUid(currentDocUid);
     // Same handle as before, so the mount did not re-register: claim the
     // fresh read as the baseline explicitly.

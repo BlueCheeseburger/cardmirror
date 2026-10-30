@@ -483,7 +483,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /** Other live multi-pane windows a doc could move to (right-click a
    *  pane's title chip). Never includes this window. */
-  listMultiPaneWindows: (): Promise<Array<{ id: number; label: string }>> =>
+  listMultiPaneWindows: (): Promise<
+    Array<{
+      id: number;
+      label: string;
+      speech: boolean;
+      minimized: boolean;
+      comparing: boolean;
+    }>
+  > =>
     ipcRenderer.invoke('host:list-multipane-windows'),
 
   /** Hand this doc's current bytes to another live window. */
@@ -501,11 +509,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       bytes: Uint8Array;
       handle: string | null;
       markDirty?: boolean;
+      from?: { id: number; label: string } | null;
     }) => void,
   ): () => void {
     const listener = (
       _event: unknown,
-      payload: { filename: string; bytes: Uint8Array; handle: string | null; markDirty?: boolean },
+      payload: {
+        filename: string;
+        bytes: Uint8Array;
+        handle: string | null;
+        markDirty?: boolean;
+        from?: { id: number; label: string } | null;
+      },
     ): void => handler(payload);
     ipcRenderer.on('host:receive-doc', listener);
     return () => ipcRenderer.removeListener('host:receive-doc', listener);
@@ -870,6 +885,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         isSpeech: boolean;
         isOwnWindow: boolean;
         isFocusedWindow: boolean;
+        isMinimized: boolean;
       }>
     >,
 

@@ -1366,10 +1366,11 @@ workspace while another shows a single document.
   stacking**; the labels then say **Swap places** / **Swap**. A **move tray** at the bottom of the window has a tile for each
   slot, and on the desktop app also **New window** and a tile for every other
   open three-pane window: drop the chip on a tile to send the document there,
-  unsaved edits included. **Esc** cancels the drag.
+  unsaved edits included. **Esc** cancels the drag. **(Fork)** Windows are listed most recently used first, and a tile carries pills: **Speech doc** and **Minimized**; a window busy with Compare documents is greyed with a
+  **Comparing documents** pill and can't be dropped on. When the document arrives, the other window shows **Moved … here from …** with a **Go back** button.
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
-  document's row is amber too.
+  document's row has the speech mic icon at its left.
 - **(fork)** **Hover a title chip** and a greyed microphone appears at its left;
   click it to make that document the active speech doc (click again to clear).
   A single window has the same blue bar above its one document, with the same
@@ -1831,6 +1832,12 @@ moves up). A minimized window is restored. It's the quick way between windows
 where the operating system's Alt+Tab mixes CardMirror in with every other app.
 Desktop only.
 
+**(Fork) Window pills.** Every list that names windows labels them the same way: **This window**, **Speech doc** and **Minimized**.
+You'll see them in the "which window?" chooser that opens when a file or a new document needs a home (a window busy with Compare
+documents is shown greyed, with a **Comparing documents** pill, and can't be picked), in the tray you drop a pane's title chip on,
+in **Select Speech Document**, and here. When you open a file from Finder or the Dock, the chooser also marks the window you were
+looking at with **Last viewed**. The chooser stays in alphabetical order with the same number keys; the pills only tell the windows apart.
+
 In the three-pane workspace, Ctrl+Tab keeps its existing job there: it cycles
 the focused slot's documents (hold Ctrl, tap Tab, release to switch).
 
@@ -1843,7 +1850,10 @@ Assemble a speech document by sending cards into it:
 2. **Send cards.** From a source file, press **`` ` ``** (backtick) to
    send the current card or selection to the speech doc at your cursor,
    or **Alt-`` ` ``** to append it at the end. You can also drag a card or
-   heading across panes.
+   heading across panes. **(Fork)** A small notice near the pointer confirms
+   it: the speech mic, **Sent to speech doc**, the tag that was sent, and a pill
+   saying **at cursor** or **at end**. It shows whether the speech doc is in
+   another pane or another window.
 3. **Read.** Switch the speech doc to read mode; everything that isn't
    read aloud (loose paragraphs, undertags, un-highlighted text) drops
    away, leaving what you'll deliver.
@@ -2757,7 +2767,9 @@ will ask you to re-save it in a current Word first.)
 **Reloading from disk.** **(Fork)** The **Reload From Disk** command
 (**Mod-R**, or the command bar) replaces the document with what's saved in
 its file, for any saved file, and a toast confirms it. The outline keeps
-which headings were open. If the document has unsaved edits it asks before
+which headings were open, and you stay where you were in the document: your
+caret or selection and the line you were reading come back (if the file changed
+in the meantime, a place inside a changed card stays inside that card). If the document has unsaved edits it asks before
 discarding them; a document that hosts a co-editing session can't be
 reloaded until the session ends; an unsaved document has no file to reload.
 There's no button for it, on purpose. In three-pane mode it only touches the

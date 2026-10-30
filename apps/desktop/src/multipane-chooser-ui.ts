@@ -15,6 +15,7 @@
  */
 
 import { BrowserWindow, nativeTheme } from 'electron';
+import { WINDOW_PILL_HINT, WINDOW_PILL_TEXT, type WindowPillKind } from './multipane-chooser.js';
 
 export const CHOOSER_SCHEME = 'cm-chooser:';
 
@@ -28,6 +29,13 @@ export interface ChooserHtmlOptions {
    *  line under the name (given for named windows, whose label is just the
    *  name). null / absent → nothing extra. */
   details?: (string[] | null)[];
+  /** Parallel to `labels`: the little labels drawn at the right of a row
+   *  (Last viewed, This window, Speech doc, Minimized, Comparing documents). */
+  pills?: (WindowPillKind[] | null)[];
+  /** Parallel to `labels`: a row that is shown but cannot be picked (a window
+   *  busy with Compare documents). It keeps its place and number so the other
+   *  windows' number keys do not shift when a window enters or leaves Compare. */
+  disabled?: boolean[];
   withCancel: boolean;
   dark: boolean;
 }
@@ -54,8 +62,17 @@ export function chooserHtml(opts: ChooserHtmlOptions): string {
         .join('');
       const detail = opts.details?.[i];
       const sub = detail && detail.length > 0 ? `<span class="sub">${esc(detail.join(' · '))}</span>` : '';
-      const key = i < 9 ? `<kbd>${i + 1}</kbd>` : '';
-      return `<button class="row" data-pick="${i}" type="button"><span class="docs">${docs}${sub}</span>${key}</button>`;
+      const off = opts.disabled?.[i] === true;
+      const key = i < 9 && !off ? `<kbd>${i + 1}</kbd>` : '';
+      const pills = (opts.pills?.[i] ?? [])
+        .map((k) => `<span class="pill ${k}" title="${esc(WINDOW_PILL_HINT[k])}">${esc(WINDOW_PILL_TEXT[k])}</span>`)
+        .join('');
+      const meta = pills || key ? `<span class="meta">${pills ? `<span class="pills">${pills}</span>` : ''}${key}</span>` : '';
+      // A disabled row has no data-pick (so a click does nothing) and is left out of the arrow-key cycle.
+      if (off) {
+        return `<div class="row off" aria-disabled="true"><span class="docs">${docs}${sub}</span>${meta}</div>`;
+      }
+      return `<button class="row" data-pick="${i}"${i < 9 ? ` data-key="${i + 1}"` : ''} type="button"><span class="docs">${docs}${sub}</span>${meta}</button>`;
     })
     .join('');
   const newIdx = opts.labels.length;
@@ -67,8 +84,8 @@ export function chooserHtml(opts: ChooserHtmlOptions): string {
 <html data-theme="${opts.dark ? 'dark' : 'light'}"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
 <style>
-:root{--bg:#fff;--bg-soft:#f7f7f8;--border:#d0d0d0;--text:#222;--muted:#666;--hover:#ebebeb;--accent:#2563eb;--accent-soft:rgba(37,99,235,.12)}
-:root[data-theme="dark"]{--bg:#1a1a1a;--bg-soft:#222;--border:#3a3a3a;--text:#e6e6e6;--muted:#9a9a9a;--hover:#333;--accent:#5a8fff;--accent-soft:rgba(90,143,255,.18)}
+:root{--bg:#fff;--bg-soft:#f7f7f8;--border:#d0d0d0;--text:#222;--muted:#666;--hover:#ebebeb;--accent:#2563eb;--accent-soft:rgba(37,99,235,.12);--speech-bg:#fff3cd;--speech-border:#ffe69c;--speech-text:#5a3e00}
+:root[data-theme="dark"]{--bg:#1a1a1a;--bg-soft:#222;--border:#3a3a3a;--text:#e6e6e6;--muted:#9a9a9a;--hover:#333;--accent:#5a8fff;--accent-soft:rgba(90,143,255,.18);--speech-bg:#3a3220;--speech-border:#6a5a30;--speech-text:#ffdd88}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none}
 .wrap{position:relative;display:flex;flex-direction:column;height:100%;border:1px solid var(--border);padding:14px 16px 12px;gap:10px}
@@ -90,6 +107,16 @@ h1{margin:0 34px 0 0;font-size:15px;font-weight:700;line-height:1.3;word-break:b
 .plus{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:1px dashed var(--accent);color:var(--accent);font-size:15px;line-height:1}
 .docs{display:flex;flex-direction:column;gap:2px;min-width:0}
 .doc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{display:flex;align-items:center;gap:8px;flex:0 0 auto;max-width:55%}
+.pills{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px}
+.pill{font-size:10px;line-height:1;padding:3px 7px;border-radius:999px;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+.pill.lastViewed{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.pill.thisWindow{color:var(--text);background:var(--hover)}
+.pill.speech{color:var(--speech-text);background:var(--speech-bg);border-color:var(--speech-border)}
+.pill.minimized{border-style:dashed}
+.pill.comparing{border-style:dashed}
+.row.off{opacity:.6;border-style:dashed;background:transparent;cursor:default}
+.row.off:hover{background:transparent}
 .sub{color:var(--muted);font-size:10px;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
 kbd{font:11px ui-monospace,Menlo,Consolas,monospace;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:0 5px;background:var(--bg)}
 .actions{display:flex;justify-content:flex-end;gap:8px;padding-top:2px}
@@ -103,7 +130,7 @@ kbd{font:11px ui-monospace,Menlo,Consolas,monospace;color:var(--muted);border:1p
 ${cancel}
 </div>
 <script>
-var items=[].slice.call(document.querySelectorAll('.row'));
+var items=[].slice.call(document.querySelectorAll('.row:not(.off)'));
 var hasWindows=items.length>1;
 var sel=hasWindows?1:0;
 function mark(){items.forEach(function(r,i){r.classList.toggle('sel',i===sel)});if(items[sel])items[sel].scrollIntoView({block:'nearest'});}
@@ -114,7 +141,7 @@ document.addEventListener('keydown',function(e){
  if(e.key==='Enter'){pick(items[sel].getAttribute('data-pick'));return;}
  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();sel=(sel+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;mark();return;}
  if(e.key==='0'){pick(${newIdx});return;}
- if(/^[1-9]$/.test(e.key)&&Number(e.key)<=items.length-1){pick(Number(e.key)-1);}
+ if(/^[1-9]$/.test(e.key)){var k=document.querySelector('.row[data-key="'+e.key+'"]');if(k)pick(k.getAttribute('data-pick'));}
 });
 mark();
 function naturalHeight(){var w=document.getElementById('wrap');var h=w.style.height;w.style.height='auto';var n=Math.ceil(w.getBoundingClientRect().height);w.style.height=h;return n;}
@@ -127,6 +154,8 @@ export function showChooserWindow(opts: {
   message: string;
   labels: string[];
   details?: (string[] | null)[];
+  pills?: (WindowPillKind[] | null)[];
+  disabled?: boolean[];
   withCancel: boolean;
 }): Promise<number> {
   // Esc, the ✕ and closing the window all mean Cancel, whether or not a

@@ -8,8 +8,12 @@
  * target under the pointer through `data-move-target`; this module only
  * draws the tray and lights up the hovered tile.
  *
- * Target tokens: `slot1`..`slot3`, `win:new`, `win:<windowId>`.
+ * Target tokens: `slot1`..`slot3`, `win:new`, `win:<windowId>`. A window
+ * tile carries pills (Speech doc, Minimized); one busy with
+ * Compare documents is greyed and has no token, so nothing can be dropped on it.
  */
+
+import { renderWindowPills, windowPillKinds } from './window-pills.js';
 
 export interface MoveTraySlot {
   id: string;
@@ -27,6 +31,10 @@ export interface MoveTraySlot {
 export interface MoveTrayWindow {
   id: number;
   label: string;
+  speech?: boolean;
+  minimized?: boolean;
+  /** Busy with Compare documents: drawn greyed, and not a drop target. */
+  comparing?: boolean;
 }
 
 export interface MoveTray {
@@ -105,15 +113,28 @@ export function showMoveTray(
   const windowRow = el('div', 'pmd-move-tray-row');
   windowGroup.appendChild(windowRow);
 
-  const tileFor = (target: string, name: string, verb: string, plus: boolean): HTMLElement => {
+  const tileFor = (
+    target: string | null,
+    name: string,
+    verb: string,
+    plus: boolean,
+    pills?: HTMLElement | null,
+  ): HTMLElement => {
     const tile = el('div', 'pmd-move-tile pmd-move-tile-window');
-    tile.dataset['moveTarget'] = target;
+    if (target) tile.dataset['moveTarget'] = target;
+    else tile.classList.add('pmd-move-tile-off');
     tile.appendChild(el('span', 'pmd-move-tile-num', plus ? '+' : '⧉'));
     const text = el('span', 'pmd-move-tile-text');
     text.appendChild(el('span', 'pmd-move-tile-name', name));
-    text.appendChild(el('span', 'pmd-move-tile-verb', verb));
+    // The pills take the verb's line, so a tile stays two lines tall.
+    if (pills) {
+      pills.classList.add('pmd-move-tile-pills');
+      text.appendChild(pills);
+    } else {
+      text.appendChild(el('span', 'pmd-move-tile-verb', verb));
+    }
     tile.appendChild(text);
-    tiles.set(target, tile);
+    if (target) tiles.set(target, tile);
     return tile;
   };
 
@@ -122,7 +143,14 @@ export function showMoveTray(
       if (key.startsWith('win:')) tiles.delete(key);
     }
     windowRow.replaceChildren(tileFor(NEW_WINDOW, 'New window', 'Open there', true));
-    for (const w of windows) windowRow.appendChild(tileFor(windowTarget(w.id), w.label, 'Send there', false));
+    for (const w of windows) {
+      const pills = renderWindowPills(windowPillKinds(w));
+      windowRow.appendChild(
+        w.comparing
+          ? tileFor(null, w.label, 'Not available', false, pills)
+          : tileFor(windowTarget(w.id), w.label, 'Send there', false, pills),
+      );
+    }
   };
   renderWindows(initialWindows);
 
