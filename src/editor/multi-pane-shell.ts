@@ -61,6 +61,7 @@ import { getCommentsState, loadThreads, type Thread } from './comments-plugin.js
 import { learnStore, type ShowInContextRequest } from './learn-store-host.js';
 import { resolveDescriptor, type AnchorDescriptor } from './learn-anchor.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
+import { captureReloadPosition, restoreReloadPosition } from './reload-position.js';
 
 type DocFormat = 'cmir' | 'docx';
 
@@ -3640,6 +3641,9 @@ class MultiPaneShell {
     // The fresh record's outline starts at the default depth; carry over
     // which headings were open.
     const navState = record.navPanel.captureViewState();
+    // Where the caret and the reading line were, so reload does not drop you
+    // at the top of the document.
+    const savedPosition = captureReloadPosition(record.view);
     // Closing the old record clears the speech designation; the reloaded
     // document is the same document, so it keeps it.
     const wasSpeech = getSpeechDocResolver().isSpeechByUid(record.uid);
@@ -3671,6 +3675,7 @@ class MultiPaneShell {
     slot.navHidden = navHiddenBefore;
     this.applyExpandedState();
     fresh.navPanel.restoreViewState(navState);
+    restoreReloadPosition(fresh.view, savedPosition);
     if (wasSpeech) {
       getSpeechDocResolver().setSpeech(fresh.view);
       this.refreshSpeechChips();

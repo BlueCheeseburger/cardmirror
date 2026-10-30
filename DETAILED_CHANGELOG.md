@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: Reload From Disk keeps the caret and scroll position (`reload-position.ts`)
+
+Reload (Mod-R, "Keep their changes", the pill) discards the open document and mounts a fresh read of the file, which gave a new view at the top with the caret at position 1; only the outline's folded state was carried over. `captureReloadPosition` now saves the selection and the line at the reading line (via the existing `captureViewportAnchor`) before the swap, and `restoreReloadPosition` maps them onto the new document and puts them back: caret first, then a rough `scrollIntoView` jump (long documents are laid out lazily, so a far position has no real height yet) and the existing `restoreViewportAnchor` refine loop. Wired into both the single-document path (`reloadActiveFromDisk` in `index.ts`) and the three-pane path (`MultiPaneShell.reloadFromDisk`). Nothing is saved when the document is at the very top.
+
+Mapping across the difference compares top-level blocks and **ignores heading ids**: a first version used ProseMirror's `findDiffStart` / `findDiffEnd` and put every caret back at the top, because the reload gave every heading a fresh id so the whole document looked changed (the unit test that caught it builds docs with new ids per call, as the .docx import does). A caret ahead of the first changed block stays put, one behind the last shifts by the size change, one inside the changed stretch keeps its offset into it, held inside.
+
+Checked in Chromium on a 300-card document: caret in card 150, window scrolled so it sat 160 px down; after swapping in a fresh view the caret was back in card 150 at 160 px. Unit tests cover the mapping and the caret/selection restore. **Not verified:** the real Reload From Disk in the packaged app (it needs Electron's file read), a .docx reload, three-pane stacks with the document behind another (only the caret is restored there, there is no layout to measure), and Reading view.
+
+**Not covered (not asked for, noted):** reopening a file from Home or after quitting still opens at the top; no per-file position is stored across sessions.
+
 ### Changed: stack list marks the speech doc with the mic, not amber (`multi-pane-shell.ts`, `style.css`)
 
 Reverses the 2026-10-27 amber row. `openStackDropdown` now puts a `pmd-pane-chip-dropdown-mic` slot at the left of every row while any row is the speech doc, and fills it with the `mic` icon (the one the pane's title chip uses) for the speech doc's row only, so names stay aligned. The `pmd-speech` class stays on the row as a hook but has no styling; the amber background, its hover tint and the ✕ colour overrides are gone. Looked at in a browser with a copy of the row markup and the real stylesheet; not checked in the packaged app or inside a live multi-pane stack.

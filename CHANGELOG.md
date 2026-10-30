@@ -20,6 +20,9 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **The move tray lists other windows most recently used first**, so the window you keep flipping between is the first tile. A tile with pills shows them where "Send there" would be, so every tile stays two lines tall.
 - **Select Speech Document shows the window's name under each document**, and no longer says "Window 3" for a window with no title (it says "Untitled window").
 
+### Fixed
+- **Reload From Disk no longer throws you to the top of the document.** It used to open the fresh copy at the top with the caret at the start. Now your caret or selection and the line you were reading come back where they were, even when the file changed in the meantime (a place inside a changed card stays inside that card). Works in the single-document window and in each pane of the three-pane workspace.
+
 ## 1.16.0-bcb.3 — 2026-10-28
 
 ### Added

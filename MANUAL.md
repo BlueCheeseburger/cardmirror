@@ -2764,7 +2764,9 @@ will ask you to re-save it in a current Word first.)
 **Reloading from disk.** **(Fork)** The **Reload From Disk** command
 (**Mod-R**, or the command bar) replaces the document with what's saved in
 its file, for any saved file, and a toast confirms it. The outline keeps
-which headings were open. If the document has unsaved edits it asks before
+which headings were open, and you stay where you were in the document: your
+caret or selection and the line you were reading come back (if the file changed
+in the meantime, a place inside a changed card stays inside that card). If the document has unsaved edits it asks before
 discarding them; a document that hosts a co-editing session can't be
 reloaded until the session ends; an unsaved document has no file to reload.
 There's no button for it, on purpose. In three-pane mode it only touches the

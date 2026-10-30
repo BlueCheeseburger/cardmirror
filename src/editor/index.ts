@@ -410,6 +410,7 @@ import {
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import type { MultiPaneWindowInfo } from './host/electron-host.js';
 import { showMovedDocNotice } from './moved-doc-notice.js';
+import { captureReloadPosition, restoreReloadPosition } from './reload-position.js';
 import {
   installGlobalErrorSurface,
   fileLockedMessage,
@@ -10036,6 +10037,9 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
     // The mount builds a fresh outline at the default depth; keep which
     // headings were open instead of folding them all back.
     const navState = navPanel.captureViewState();
+    // Where the caret and the reading line were, so reload does not drop you
+    // at the top of the document.
+    const savedPosition = view ? captureReloadPosition(view) : null;
     // The mount gives the document a fresh uid; the speech designation
     // belongs to the document, so carry it over.
     const wasSpeech = getSpeechDocResolver().isSpeechByUid(currentDocUid);
@@ -10050,6 +10054,7 @@ async function reloadActiveFromDisk(handle: string): Promise<void> {
       recordAsRecent: false,
     });
     navPanel.restoreViewState(navState);
+    if (savedPosition && view) restoreReloadPosition(view, savedPosition);
     if (wasSpeech) getSpeechDocResolver().setSpeechByUid(currentDocUid);
     // Same handle as before, so the mount did not re-register: claim the
     // fresh read as the baseline explicitly.
