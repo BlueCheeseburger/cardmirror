@@ -973,6 +973,9 @@ export interface Settings {
    *  (McKinsey, iPhone). On by default; only matters while Editor spellcheck
    *  is on, but the toggle is always available. */
   spellcheckSkipNames: boolean;
+  /** Show a small notice (mic icon, what was sent, "at cursor" / "at end")
+   *  when a card or selection is sent to the speech doc. On by default. */
+  speechSendToast: boolean;
   /** Word-style smart quotes: as you type a straight ' or ", curl it to the
    *  right direction based on the preceding character. Off by default. */
   smartQuotes: boolean;
@@ -2049,6 +2052,7 @@ const DEFAULTS: Settings = {
   flashcardDueDot: true,
   editorSpellcheck: false,
   spellcheckSkipNames: true,
+  speechSendToast: true,
   smartQuotes: false,
   smartQuoteDatesAsApostrophes: true,
   autoLinkUrls: false,
@@ -2629,6 +2633,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'toggle',
     category: 'general',
     section: 'Editor behavior',
+  },
+  {
+    key: 'speechSendToast',
+    label: 'Notice when something is sent to the speech doc',
+    description:
+      'When on (default), sending a card or selection to the speech doc (Send to Speech, at the cursor or at the end) shows a small notice near the pointer with the speech mic, what was sent and where it landed. The send itself is otherwise silent, so there is no sign it worked unless the speech doc is on screen. Turn off if you send many cards in a row and the notice is in the way.',
+    kind: 'toggle',
+    category: 'general',
+    section: 'Editor behavior',
+    aliases: ['send to speech toast', 'speech send confirmation', 'sent to speech notice'],
   },
   {
     key: 'jumpToDocTopOnReadModeToggle',
@@ -5211,6 +5225,7 @@ function sanitize(s: Settings): Settings {
     flashcardDueDot: s.flashcardDueDot === false ? false : true,
     editorSpellcheck: !!s.editorSpellcheck,
     spellcheckSkipNames: s.spellcheckSkipNames === false ? false : true,
+    speechSendToast: s.speechSendToast === false ? false : true,
     copyPreviousCiteNearestOnly: s.copyPreviousCiteNearestOnly === false ? false : true,
     insertHeadingsAfterSection: !!s.insertHeadingsAfterSection,
     smartQuotes: !!s.smartQuotes,

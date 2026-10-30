@@ -7600,6 +7600,39 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   opacity: 0;
 }
 
+/* Toast with an icon, a quieter detail and/or a pill (showToast's icon /
+   detail / pill options). */
+.pmd-toast.pmd-toast-rich {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.55rem;
+}
+.pmd-toast-rich .pmd-icon {
+  flex: 0 0 auto;
+}
+.pmd-toast-main {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+.pmd-toast-detail {
+  min-width: 0;
+  max-width: 15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.78;
+}
+.pmd-toast-pill {
+  flex: 0 0 auto;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
 /* Toast with a button: bottom centre, takes clicks. */
 .pmd-toast.pmd-toast-action {
   left: 50%;

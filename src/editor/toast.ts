@@ -4,6 +4,8 @@
  * listener so callers don't need to thread an event through.
  */
 
+import { icon, type IconName } from './icons.js';
+
 let lastMouseX = 0;
 let lastMouseY = 0;
 let tracked = false;
@@ -26,6 +28,12 @@ export interface ToastOptions {
   durationMs?: number;
   /** Fade-out animation length (ms). Default 200. */
   fadeMs?: number;
+  /** A small icon before the message. */
+  icon?: IconName;
+  /** Quieter text after the message (e.g. what was sent). */
+  detail?: string;
+  /** A small outlined pill at the end (e.g. "at end"). */
+  pill?: string;
 }
 
 /** Default visibility from reading time, not vibes (toast audit,
@@ -51,7 +59,28 @@ export function showToast(message: string, opts: ToastOptions = {}): void {
 
   const toast = document.createElement('div');
   toast.className = 'pmd-toast';
-  toast.textContent = message;
+  if (opts.icon || opts.detail || opts.pill) {
+    toast.classList.add('pmd-toast-rich');
+    if (opts.icon) toast.appendChild(icon(opts.icon));
+    const main = document.createElement('span');
+    main.className = 'pmd-toast-main';
+    main.textContent = message;
+    toast.appendChild(main);
+    if (opts.detail) {
+      const detail = document.createElement('span');
+      detail.className = 'pmd-toast-detail';
+      detail.textContent = opts.detail;
+      toast.appendChild(detail);
+    }
+    if (opts.pill) {
+      const pill = document.createElement('span');
+      pill.className = 'pmd-toast-pill';
+      pill.textContent = opts.pill;
+      toast.appendChild(pill);
+    }
+  } else {
+    toast.textContent = message;
+  }
   // Offset slightly down/right from the cursor so it doesn't sit
   // under the pointer.
   toast.style.left = `${lastMouseX + 10}px`;

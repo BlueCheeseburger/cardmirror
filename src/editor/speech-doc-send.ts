@@ -27,6 +27,7 @@ import { getSpeechDocResolver } from './speech-doc-registry.js';
 import { getElectronHost } from './host/index.js';
 import { alertDialog } from './text-prompt.js';
 import { showToast } from './toast.js';
+import { settings } from './settings.js';
 import { sectionEndFromHeading } from './headings.js';
 import { checkedSliceFromJSON } from '../schema/slice-check.js';
 
@@ -462,6 +463,40 @@ export function insertSpeechSlice(
   }, 0);
 }
 
+/** What was sent, for the "Sent to speech doc" notice: the text of the first
+ *  non-empty line of the slice (a card's tag, a heading, the start of a
+ *  selection), cut to `max` characters. Null for a slice with no text. */
+export function describeSentSlice(slice: Slice, max = 48): string | null {
+  let text: string | null = null;
+  slice.content.descendants((node) => {
+    if (text !== null) return false;
+    if (node.isTextblock) {
+      const t = node.textContent.replace(/\s+/g, ' ').trim();
+      if (t) text = t;
+      return false;
+    }
+    return true;
+  });
+  if (text === null) return null;
+  const t: string = text;
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+
+/** Tell the sender the card landed. The send itself shows nothing, and the
+ *  speech doc is often off screen (another pane or another window), so without
+ *  this there is no sign it worked. Off with Settings → General → Editor
+ *  behavior → Notice when something is sent to the speech doc. */
+function toastSent(slice: Slice, atEnd: boolean): void {
+  if (!settings.get('speechSendToast')) return;
+  const what = describeSentSlice(slice);
+  showToast('Sent to speech doc', {
+    icon: 'mic',
+    ...(what ? { detail: `“${what}”` } : {}),
+    pill: atEnd ? 'at end' : 'at cursor',
+    durationMs: 2200,
+  });
+}
+
 /** Main entry point. Reads the speech-doc resolver, computes the
  *  slice, and routes — either dispatching locally if the speech doc
  *  lives in this renderer, or serializing + IPCing via the host
@@ -508,7 +543,10 @@ export function sendToSpeech(
       showToast('This is already the speech doc — nothing to send.');
       return;
     }
-    insertSpeechSlice(localView, slice, atEnd, afterInsert);
+    insertSpeechSlice(localView, slice, atEnd, (v) => {
+      toastSent(slice, atEnd);
+      afterInsert?.(v);
+    });
     return;
   }
 
@@ -516,12 +554,15 @@ export function sendToSpeech(
   const electron = getElectronHost();
   if (!electron) {
     // Web multi-tab: broadcast the slice to whichever tab owns the speech doc.
-    sendSpeechSliceCrossTab(speechUid, slice.toJSON(), atEnd, sourceView);
+    sendSpeechSliceCrossTab(speechUid, slice.toJSON(), atEnd, sourceView, () => toastSent(slice, atEnd));
     return;
   }
   const sliceJson = slice.toJSON();
   void electron.speechSendSlice({ sliceJson, atEnd }).then((result) => {
-    if (result.delivered) return;
+    if (result.delivered) {
+      toastSent(slice, atEnd);
+      return;
+    }
     if (result.reason === 'speech-window-gone') {
       // Stale designation — main already cleared it. The local
       // resolver will pick up the change via the `speech:changed`
@@ -548,6 +589,7 @@ function sendSpeechSliceCrossTab(
   sliceJson: unknown,
   atEnd: boolean,
   sourceView: EditorView,
+  onDelivered?: () => void,
 ): void {
   if (!speechChannel) {
     void alertDialog("This browser can't reach the speech document in another tab.");
@@ -559,6 +601,7 @@ function sendSpeechSliceCrossTab(
     if (e.data?.kind === 'ack' && e.data.nonce === nonce) {
       speechChannel?.removeEventListener('message', onAck);
       clearTimeout(timer);
+      onDelivered?.();
     }
   };
   speechChannel.addEventListener('message', onAck);

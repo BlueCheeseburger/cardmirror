@@ -1850,7 +1850,11 @@ Assemble a speech document by sending cards into it:
 2. **Send cards.** From a source file, press **`` ` ``** (backtick) to
    send the current card or selection to the speech doc at your cursor,
    or **Alt-`` ` ``** to append it at the end. You can also drag a card or
-   heading across panes.
+   heading across panes. **(Fork)** A small notice near the pointer confirms
+   it: the speech mic, **Sent to speech doc**, the tag that was sent, and a pill
+   saying **at cursor** or **at end**. It shows whether the speech doc is in
+   another pane or another window. Turn it off in **Settings → General →
+   Editor behavior → Notice when something is sent to the speech doc**.
 3. **Read.** Switch the speech doc to read mode; everything that isn't
    read aloud (loose paragraphs, undertags, un-highlighted text) drops
    away, leaving what you'll deliver.
