@@ -408,6 +408,8 @@ import {
   canSwitchSpeedMode,
 } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
+import type { MultiPaneWindowInfo } from './host/electron-host.js';
+import { showMovedDocNotice } from './moved-doc-notice.js';
 import {
   installGlobalErrorSurface,
   fileLockedMessage,
@@ -8331,8 +8333,10 @@ function installExternalOpenListener(): void {
   // `routeOpenedFile` is the exact same funnel an OS open uses — slot
   // picker, duplicate-open guard, recents — the only difference is the
   // bytes came from another live window instead of disk.
-  electron.onReceiveDoc?.(({ filename, bytes, handle, markDirty }) => {
+  electron.onReceiveDoc?.(({ filename, bytes, handle, markDirty, from }) => {
     void routeOpenedFile({ name: filename, bytes, handle, markDirty });
+    // This window just came to the front on its own; offer the way back.
+    showMovedDocNotice(filename, from, electron.focusWindow?.bind(electron), (m) => showToast(m));
   });
 }
 
@@ -9837,10 +9841,7 @@ async function serializeActiveForSave(format: 'cmir' | 'docx', docId: string | n
 
 /** A live multi-pane window this doc could move to (right-click a
  *  pane's title chip → "Move to…"). Desktop only. */
-export interface MoveDocWindowCandidate {
-  id: number;
-  label: string;
-}
+export type MoveDocWindowCandidate = MultiPaneWindowInfo;
 
 /** Other windows the focused doc could move to. Empty on a host that
  *  doesn't support it (web, or an older preload) — the caller then

@@ -8,6 +8,17 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+- **Windows are labelled in every list that names them.** Small pills now say which window is which: **Last viewed** (the window you were in just before this one), **This window**, **Speech doc** and **Minimized**. They appear in the "which window?" chooser that opens when a file or a new document needs a home, in the tray you drag a pane's title chip onto, in **Select Speech Document**, and in the **Switch Window** list. The chooser keeps its alphabetical order and number keys; the pills just show where you came from.
+- **A window busy with Compare documents now shows up, greyed.** The chooser and the move tray used to leave it out, which looked like it had vanished. It now appears with a **Comparing documents** pill and can't be picked or dropped on.
+- **Go back after moving a document.** When a document you moved arrives in another window, a notice at the bottom says **Moved "name" here from …** with a **Go back** button that returns you to the window it came from.
+
+### Changed
+- **The move tray lists other windows most recently viewed first**, so the window you keep flipping between is the first tile.
+- **Select Speech Document shows the window's name under each document**, and no longer says "Window 3" for a window with no title (it says "Untitled window").
+
 ## 1.16.0-bcb.3 — 2026-10-28
 
 ### Added

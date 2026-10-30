@@ -56,4 +56,42 @@ describe('chooserHtml', () => {
   it('can report its natural height so the window fits the rows', () => {
     expect(chooserHtml({ message: 'm', labels: ['A'], withCancel: false, dark: false })).toContain('function naturalHeight()');
   });
+
+  it('draws pills at the right of a row, with a hint on each', () => {
+    const html = chooserHtml({
+      message: 'm',
+      labels: ['A', 'B'],
+      pills: [['lastViewed', 'speech'], []],
+      withCancel: false,
+      dark: false,
+    });
+    expect(html).toContain('<span class="pill lastViewed" title="The window you were in just before this one">Last viewed</span>');
+    expect(html).toContain('<span class="pill speech" title="This window holds the speech doc">Speech doc</span>');
+    expect(html.match(/class="pill /g)).toHaveLength(2);
+    // The number key still sits at the far right, after the pills.
+    expect(html.indexOf('class="pills"')).toBeLessThan(html.indexOf('<kbd>1</kbd>'));
+  });
+  it('shows a window busy with Compare greyed: no pick, no number key, same numbers for the rest', () => {
+    const html = chooserHtml({
+      message: 'm',
+      labels: ['A', 'B', 'C'],
+      pills: [[], ['comparing'], ['lastViewed']],
+      disabled: [false, true, false],
+      withCancel: false,
+      dark: false,
+    });
+    expect(html).toContain('<div class="row off" aria-disabled="true">');
+    expect(html).not.toContain('data-pick="1"');
+    expect(html).toContain('data-pick="2" data-key="3"');
+    expect(html).toContain('<kbd>3</kbd>');
+    expect(html).not.toContain('<kbd>2</kbd>');
+    expect(html).toContain('Comparing documents');
+    // The arrow keys and Enter only visit rows that can be picked.
+    expect(html).toContain("querySelectorAll('.row:not(.off)')");
+  });
+  it('picks by each row\'s own number key', () => {
+    const html = chooserHtml({ message: 'm', labels: ['A'], withCancel: false, dark: false });
+    expect(html).toContain('data-key="1"');
+    expect(html).toContain('.row[data-key="');
+  });
 });

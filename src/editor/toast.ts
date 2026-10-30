@@ -79,3 +79,46 @@ export function showToast(message: string, opts: ToastOptions = {}): void {
     setTimeout(() => toast.remove(), fadeMs);
   }, visibleMs);
 }
+
+export interface ActionToastOptions {
+  /** The button's label, e.g. "Go back". */
+  actionLabel: string;
+  /** Runs when the button is pressed; the toast closes first. */
+  onAction: () => void;
+  /** How long it stays up (ms). Default 8000: long enough to reach for. */
+  durationMs?: number;
+}
+
+/** A toast with one button. Unlike `showToast` it sits at the bottom centre
+ *  rather than at the pointer, takes clicks, and waits longer, because it
+ *  offers something to do rather than confirming something done. Returns a
+ *  function that closes it. */
+export function showActionToast(message: string, opts: ActionToastOptions): () => void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return () => {};
+  const toast = document.createElement('div');
+  toast.className = 'pmd-toast pmd-toast-action';
+  toast.setAttribute('role', 'status');
+  const text = document.createElement('span');
+  text.className = 'pmd-toast-action-text';
+  text.textContent = message;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'pmd-toast-action-btn';
+  button.textContent = opts.actionLabel;
+  toast.append(text, button);
+  document.body.appendChild(toast);
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const close = (): void => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    toast.classList.add('pmd-toast-fade');
+    setTimeout(() => toast.remove(), 200);
+  };
+  button.addEventListener('click', () => {
+    close();
+    opts.onAction();
+  });
+  timer = setTimeout(close, opts.durationMs ?? 8000);
+  return close;
+}

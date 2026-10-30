@@ -9,9 +9,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildChooserPrompt,
+  lastViewedWindowId,
   readChooserResponse,
   sortChooserEntries,
+  windowPillKinds,
+  WINDOW_PILL_HINT,
+  WINDOW_PILL_TEXT,
 } from '../../apps/desktop/src/multipane-chooser.js';
+import * as rendererPills from '../../src/editor/window-pills.js';
 
 const LABELS = ['Aff Case · Untitled', '2NR Blocks'];
 
@@ -82,5 +87,34 @@ describe('sortChooserEntries', () => {
       { id: 2, label: 'Doc 2' },
     ]);
     expect(out.map((e) => e.id)).toEqual([2, 1]);
+  });
+});
+
+describe('last viewed window', () => {
+  it('is the most recently focused candidate', () => {
+    expect(lastViewedWindowId([5, 3, 9], [3, 9])).toBe(3);
+  });
+  it('leaves out the window that is asking', () => {
+    expect(lastViewedWindowId([5, 3, 9], [3, 5, 9], 5)).toBe(3);
+  });
+  it('ignores windows that are not candidates (the chooser itself, timers)', () => {
+    expect(lastViewedWindowId([100, 5, 3], [3, 5])).toBe(5);
+  });
+  it('is null when nothing qualifies, including windows never seen focused', () => {
+    expect(lastViewedWindowId([5], [5], 5)).toBeNull();
+    expect(lastViewedWindowId([], [1, 2])).toBeNull();
+  });
+});
+
+describe('window pills', () => {
+  it('come out in a fixed order', () => {
+    expect(
+      windowPillKinds({ comparing: true, minimized: true, speech: true, lastViewed: true, thisWindow: true }),
+    ).toEqual(['thisWindow', 'lastViewed', 'speech', 'minimized', 'comparing']);
+    expect(windowPillKinds({})).toEqual([]);
+  });
+  it('use the same words as the in-app dialogs', () => {
+    expect(WINDOW_PILL_TEXT).toEqual(rendererPills.WINDOW_PILL_TEXT);
+    expect(WINDOW_PILL_HINT).toEqual(rendererPills.WINDOW_PILL_HINT);
   });
 });

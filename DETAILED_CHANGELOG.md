@@ -10,6 +10,24 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Window pills, greyed Compare windows, Go back
+
+**What.** One vocabulary of pills (`src/editor/window-pills.ts`): This window, Last viewed, Speech doc, Minimized, Comparing documents. Used by the "which window?" chooser (Open in / New document in), the pane-drag move tray, Select Speech Document and the Switch Window palette. Main already recorded focus order for Switch Window (`windowFocusOrder`); it now also derives **Last viewed** (first window in that order that is a candidate, leaving out the asker) and sends it with `host:list-docs`, `host:list-windows` and `host:list-multipane-windows`.
+
+**Chooser.** The desktop chooser is a separate page that cannot import renderer code, so `multipane-chooser.ts` keeps its own copy of the pill text; a test fails if the two drift. The chooser's order stays alphabetical on purpose (stable number keys), so recency is shown by a pill, not by sorting. A window busy with Compare is now a greyed row: it keeps its place and its number, but no number key, no click, and the arrow keys skip it (number keys now come from each row's own `data-key`, not its position). **This window** only appears for New Document, where the asker is a candidate; for an OS-opened file there is no asker, so **Last viewed** is simply the most recently focused window.
+
+**Move tray.** Windows come most recently viewed first. A Compare window is a tile with no drop token, so a drop on it is impossible, not merely refused.
+
+**Select Speech Document.** "this window" / "current speech doc" grey text became pills. The caption under a document is now the window's own name (it was fetched but never shown) else its title, "Untitled window" instead of "Window N" for an empty title, and it is left out when it only repeats the document name.
+
+**Go back.** There is no right-click "Move to…" menu in the code (only stale comments); the move tray is the only way to send a document to another window. Moving already brings the destination to the front, so a "Go there" button would never be seen. Instead the destination shows **Moved "X" here from <window>** with **Go back** (new `showActionToast`: bottom centre, clickable, 8 s). The source is named by its window name, else by the documents still in it, else "your other window". Moves to a brand-new window don't show it (that path doesn't carry the source).
+
+**Rejected.** Sorting the chooser by recency (breaks muscle memory); making Enter pick the last-viewed window (changes what Enter does today; easy to add if wanted).
+
+**Not verified.** None of this has run in the packaged Electron app: the chooser page and the in-app dialogs were rendered in Chromium against stubbed host data, and the real focus order, minimized state and Compare takeover come from main, which only unit tests and typecheck cover. Moving a document between real windows and the Go back button have not been tried end to end.
+
 ## 1.16.0-bcb.3 — 2026-10-28
 
 ### Changed: Compare's two outlines fold together and follow the scroll (`doc-diff-ui.ts`, `nav-panel.ts`)

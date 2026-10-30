@@ -69,6 +69,7 @@ import { CATEGORY_TABS, visibleCategoryTabs, type SettingsTarget } from './setti
 import { appVersion } from './install-info.js';
 import { getHost, getElectronHost, isWindowsHost } from './host/index.js';
 import type { WindowListEntry } from './host/electron-host.js';
+import { renderWindowPills, windowPillKinds, type WindowPillKind } from './window-pills.js';
 import { showToast } from './toast.js';
 import { confirmDialog } from './text-prompt.js';
 import { showConfirm } from './confirm-dialog.js';
@@ -542,6 +543,8 @@ interface PaletteResult {
   logosSide?: 'A' | 'N';
   /** Window to bring to the front (window source). */
   windowId?: number;
+  /** Pills drawn in place of `meta` (window source: Last viewed, Speech doc, Minimized). */
+  pills?: WindowPillKind[];
   /** Outline depth (1-4) for indentation in the nav-pane-style browse. */
   indentLevel?: number;
   /** Index into `inFile.outline` (outline browse rows only) — the key
@@ -824,12 +827,17 @@ export function searchWindowSource(windows: WindowListEntry[], query: string): P
     .map((w) => ({
       source: 'window' as const,
       name: windowLabel(w),
-      meta: [w.isSpeech ? 'Speech doc' : '', w.isMinimized ? 'Minimized' : '']
+      meta: [w.isLastViewed ? 'Last viewed' : '', w.isSpeech ? 'Speech doc' : '', w.isMinimized ? 'Minimized' : '']
         .filter(Boolean)
         .join(' · '),
       matchedName: true,
       snippet: null,
       windowId: w.windowId,
+      pills: windowPillKinds({
+        lastViewed: w.isLastViewed === true,
+        speech: w.isSpeech,
+        minimized: w.isMinimized,
+      }),
     }));
 }
 
@@ -3031,7 +3039,11 @@ class QuickCardSearchUI {
       name.textContent = r.name;
       top.appendChild(name);
       let meta: HTMLSpanElement | null = null;
-      if (r.meta) {
+      const pills = r.pills ? renderWindowPills(r.pills) : null;
+      if (pills) {
+        pills.classList.add('pmd-qcs-row-pills');
+        top.appendChild(pills);
+      } else if (r.meta) {
         meta = document.createElement('span');
         meta.className = 'pmd-qcs-row-tags';
         meta.textContent = r.meta;

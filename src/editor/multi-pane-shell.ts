@@ -2839,7 +2839,7 @@ class MultiPaneShell {
     this.moveTray = tray;
     void listMoveDocTargets().then((targets) => {
       if (this.moveTray !== tray) return; // the drag already ended
-      this.moveTrayWindows = targets.map((t) => ({ id: t.id, label: t.label }));
+      this.moveTrayWindows = targets.map((t) => ({ ...t }));
       tray.setWindows(this.moveTrayWindows);
     });
   }

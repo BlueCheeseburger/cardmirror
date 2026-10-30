@@ -91,3 +91,25 @@ describe('showMoveTray', () => {
     expect(document.querySelector('.pmd-move-tray')).toBeNull();
   });
 });
+
+describe('window pills on the tray', () => {
+  it('puts pills under a window tile', () => {
+    showMoveTray(slots, [{ id: 7, label: 'Politics DA', lastViewed: true, speech: true, minimized: true }]);
+    const pills = [...(tile('win:7')?.querySelectorAll('.pmd-win-pill') ?? [])].map((p) => p.textContent);
+    expect(pills).toEqual(['Last viewed', 'Speech doc', 'Minimized']);
+    expect(tile('win:7')?.textContent).toContain('Send there');
+  });
+  it('greys a window busy with Compare and leaves it out of the drop targets', () => {
+    showMoveTray(slots, [{ id: 8, label: 'Warming', comparing: true }]);
+    expect(tile('win:8')).toBeNull();
+    const off = document.querySelector('.pmd-move-tile-off');
+    expect(off?.textContent).toContain('Warming');
+    expect(off?.textContent).toContain('Comparing documents');
+    expect(off?.textContent).toContain('Not available');
+  });
+  it('fills the pills in when the windows arrive late', () => {
+    const tray = showMoveTray(slots, []);
+    tray.setWindows([{ id: 9, label: 'Late', lastViewed: true }]);
+    expect(tile('win:9')?.querySelector('.pmd-win-pill-lastViewed')).not.toBeNull();
+  });
+});

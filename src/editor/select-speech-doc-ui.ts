@@ -19,6 +19,7 @@ import { showToast } from './toast.js';
 import { setIcon } from './icons';
 import { pushOverlay, popOverlay } from './overlay-stack.js';
 import { isBackdropClick } from './backdrop-click.js';
+import { renderWindowPills, windowPillKinds } from './window-pills.js';
 
 let openOverlay: HTMLDivElement | null = null;
 let overlayToken: symbol | null = null;
@@ -28,9 +29,23 @@ interface DocRow {
   filename: string | null;
   windowId: number;
   windowTitle: string;
+  /** The name the user gave the window, if any. */
+  windowName?: string | null;
   isSpeech: boolean;
   isOwnWindow: boolean;
   isFocusedWindow: boolean;
+  /** The window the asker was in just before this one. */
+  isLastViewed?: boolean;
+  isMinimized?: boolean;
+}
+
+/** What names a row's window: the name the user gave it, else its title
+ *  minus the app suffix (a home-screen or untitled window is just
+ *  "CardMirror"). */
+export function windowCaption(row: Pick<DocRow, 'windowName' | 'windowTitle'>): string {
+  if (row.windowName) return row.windowName;
+  const title = row.windowTitle.replace(/\s+—\s+CardMirror$/, '').trim();
+  return title && title !== 'CardMirror' ? title : 'Untitled window';
 }
 
 /** Focus restorer captured when the modal opened — closing an in-DOM overlay
@@ -80,17 +95,30 @@ function renderRow(host: NonNullable<ReturnType<typeof getElectronHost>>, row: D
   name.textContent = row.filename ?? 'Untitled';
   text.appendChild(name);
 
-  const sub = document.createElement('span');
-  sub.className = 'pmd-select-speech-row-sub';
-  const parts: string[] = [];
-  if (row.isOwnWindow) parts.push('this window');
-  else if (row.windowTitle) parts.push(row.windowTitle);
-  else parts.push(`Window ${row.windowId}`);
-  if (row.isSpeech) parts.push('current speech doc');
-  sub.textContent = parts.join(' · ');
-  text.appendChild(sub);
+  // The window's name under the document: left out when it only repeats the
+  // document's own name (a one-document window is titled after it).
+  const caption = windowCaption(row);
+  if (caption !== row.filename) {
+    const sub = document.createElement('span');
+    sub.className = 'pmd-select-speech-row-sub';
+    sub.textContent = caption;
+    text.appendChild(sub);
+  }
 
   btn.appendChild(text);
+
+  const pills = renderWindowPills(
+    windowPillKinds({
+      thisWindow: row.isOwnWindow,
+      lastViewed: row.isLastViewed === true && !row.isOwnWindow,
+      minimized: row.isMinimized === true,
+      speech: row.isSpeech,
+    }),
+  );
+  if (pills) {
+    pills.classList.add('pmd-select-speech-row-pills');
+    btn.appendChild(pills);
+  }
 
   btn.addEventListener('click', () => {
     // Clicking the current speech doc unsets it (toggle off);

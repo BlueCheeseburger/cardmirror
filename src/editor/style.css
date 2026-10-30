@@ -7600,6 +7600,37 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   opacity: 0;
 }
 
+/* Toast with a button: bottom centre, takes clicks. */
+.pmd-toast.pmd-toast-action {
+  left: 50%;
+  top: auto;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.8rem;
+  pointer-events: auto;
+}
+.pmd-toast-action-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.15rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+.pmd-toast-action-btn:hover {
+  background: color-mix(in srgb, currentColor 26%, transparent);
+}
+.pmd-toast-action-btn:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 /* Ribbon tooltip — custom-rendered (see ribbon-tooltips.ts). We don't use the
    native `title` attribute; Electron/Chromium on macOS renders it erratically.
    One shared element, positioned in JS, faded in after a hover delay. */
@@ -11444,6 +11475,10 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.pmd-qcs-row-pills {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
 .pmd-qcs-row-snippet {
   font-size: 0.76rem;
   color: var(--pmd-c-text-muted);
@@ -12389,6 +12424,11 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.pmd-select-speech-row-pills {
+  flex: 0 0 auto;
+  max-width: 45%;
+  justify-content: flex-end;
+}
 .pmd-select-speech-row-current {
   background: var(--pmd-c-speech-bg);
   border-color: var(--pmd-c-speech-border);
@@ -12788,6 +12828,44 @@ body.pmd-pane-dragging * {
   transform: translate(-50%, 14px);
   transition: opacity 140ms ease, transform 160ms ease;
 }
+/* Window pills: Last viewed / This window / Speech doc / Minimized /
+   Comparing documents, on every row that names a window. */
+.pmd-win-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+.pmd-win-pill {
+  flex: 0 0 auto;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--pmd-c-border-soft);
+  font-size: 0.66rem;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-win-pill-lastViewed {
+  color: var(--pmd-c-accent);
+  border-color: var(--pmd-c-accent);
+  background: color-mix(in srgb, var(--pmd-c-accent) 12%, transparent);
+}
+.pmd-win-pill-thisWindow {
+  color: var(--pmd-c-text);
+  background: color-mix(in srgb, var(--pmd-c-text) 8%, transparent);
+}
+.pmd-win-pill-speech {
+  color: var(--pmd-c-speech-text);
+  background: var(--pmd-c-speech-bg);
+  border-color: var(--pmd-c-speech-border);
+}
+.pmd-win-pill-minimized,
+.pmd-win-pill-comparing {
+  border-style: dashed;
+}
+
 .pmd-move-tray-in {
   opacity: 1;
   transform: translate(-50%, 0);
@@ -12866,6 +12944,24 @@ body.pmd-pane-dragging * {
 .pmd-move-tile-source {
   opacity: 0.55;
   background: transparent;
+}
+/* A window busy with Compare documents: shown, but not a drop target. */
+.pmd-move-tile-off {
+  opacity: 0.6;
+  border-style: dashed;
+  background: transparent;
+}
+.pmd-move-tile-pills {
+  align-self: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 0.2rem;
+}
+.pmd-move-tile-pills .pmd-win-pill {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pmd-move-tile-hot {
   background: color-mix(in srgb, var(--pmd-c-accent) 14%, var(--pmd-c-surface));
