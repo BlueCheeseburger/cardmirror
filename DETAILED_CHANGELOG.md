@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.16.0-bcb.4 — 2026-10-30
 
 ### Added: "Sent to speech doc" notice (`speech-doc-send.ts`, `toast.ts`)
 

@@ -8,21 +8,21 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.16.0-bcb.4 — 2026-10-30
 
 ### Added
-- **Windows are labelled in every list that names them.** Small pills now say which window is which: **This window**, **Speech doc** and **Minimized**, and **Last viewed** on the one window you were looking at when you opened a file from Finder or the Dock. They appear in the "which window?" chooser that opens when a file or a new document needs a home, in the tray you drag a pane's title chip onto, in **Select Speech Document**, and in the **Switch Window** list. The chooser keeps its alphabetical order and number keys; the pills just tell the windows apart.
-- **A window busy with Compare documents now shows up, greyed.** The chooser and the move tray used to leave it out, which looked like it had vanished. It now appears with a **Comparing documents** pill and can't be picked or dropped on.
-- **A notice when something is sent to the speech doc.** Sending a card or selection to the speech doc (the backtick, or at the end) now shows a small notice near the pointer: the speech mic, **Sent to speech doc**, the tag that was sent, and a pill saying **at cursor** or **at end**. Before, a send that worked showed nothing, so with the speech doc in another pane or window there was no sign it had landed. It also shows for a speech doc in another window, and not when the other window never received it.
-- **Go back after moving a document.** When a document you moved arrives in another window, a notice at the bottom says **Moved "name" here from …** with a **Go back** button that returns you to the window it came from.
+- **Windows are labelled in every list that names them.** Small pills say which window is which: **This window**, **Speech doc** and **Minimized**, plus **Last viewed** on the window you were looking at when you opened a file from Finder or the Dock. They appear in the "which window?" chooser, the tray you drag a pane's title chip onto, **Select Speech Document** and the **Switch Window** list. The chooser keeps its alphabetical order and number keys.
+- **A window busy with Compare documents now shows up, greyed.** The chooser and the move tray used to leave it out, so it looked like it had vanished. It now appears with a **Comparing documents** pill and can't be picked or dropped on.
+- **A notice when something is sent to the speech doc.** Sending a card or selection to the speech doc (the backtick, or at the end) shows a small notice near the pointer: the speech mic, **Sent to speech doc**, the tag that was sent, and a pill saying **at cursor** or **at end**. Before, a send that worked showed nothing, so with the speech doc in another pane or window there was no sign it had landed.
+- **Go back after moving a document.** When a document you moved arrives in another window, a notice says **Moved "name" here from …** with a **Go back** button that returns you to the window it came from.
 
 ### Changed
-- **The speech document is marked with the speech mic in a pane's stack list, not an amber background.** Open a pane's stack (the ▾ with the document count) and the speech doc's row has the mic icon at its left; rows line up the same either way.
-- **The move tray lists other windows most recently used first**, so the window you keep flipping between is the first tile. A tile with pills shows them where "Send there" would be, so every tile stays two lines tall.
-- **Select Speech Document shows the window's name under each document**, and no longer says "Window 3" for a window with no title (it says "Untitled window").
+- **The speech document is marked with the speech mic in a pane's stack list, not an amber background.** Open a pane's stack (the ▾ with the document count) and the speech doc's row has the mic icon at its left.
+- **The move tray lists other windows most recently used first**, so the window you keep flipping between is the first tile. Pills take the place of "Send there", so every tile stays two lines tall.
+- **Select Speech Document shows the window's name under each document**, and says "Untitled window" instead of "Window 3" for a window with no title.
 
 ### Fixed
-- **Reload From Disk no longer throws you to the top of the document.** It used to open the fresh copy at the top with the caret at the start. Now your caret or selection and the line you were reading come back where they were, even when the file changed in the meantime (a place inside a changed card stays inside that card). Works in the single-document window and in each pane of the three-pane workspace.
+- **Reload From Disk no longer throws you to the top of the document.** It used to open the fresh copy at the top with the caret at the start. Now your caret or selection and the line you were reading come back where they were, even if the file changed in the meantime. It works in the single-document window and in each pane of the three-pane workspace.
 
 ## 1.16.0-bcb.3 — 2026-10-28
 
