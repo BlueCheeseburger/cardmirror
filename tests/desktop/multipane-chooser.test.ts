@@ -94,14 +94,11 @@ describe('last viewed window', () => {
   it('is the most recently focused candidate', () => {
     expect(lastViewedWindowId([5, 3, 9], [3, 9])).toBe(3);
   });
-  it('leaves out the window that is asking', () => {
-    expect(lastViewedWindowId([5, 3, 9], [3, 5, 9], 5)).toBe(3);
-  });
   it('ignores windows that are not candidates (the chooser itself, timers)', () => {
     expect(lastViewedWindowId([100, 5, 3], [3, 5])).toBe(5);
   });
   it('is null when nothing qualifies, including windows never seen focused', () => {
-    expect(lastViewedWindowId([5], [5], 5)).toBeNull();
+    expect(lastViewedWindowId([5], [])).toBeNull();
     expect(lastViewedWindowId([], [1, 2])).toBeNull();
   });
 });
@@ -113,8 +110,10 @@ describe('window pills', () => {
     ).toEqual(['thisWindow', 'lastViewed', 'speech', 'minimized', 'comparing']);
     expect(windowPillKinds({})).toEqual([]);
   });
-  it('use the same words as the in-app dialogs', () => {
-    expect(WINDOW_PILL_TEXT).toEqual(rendererPills.WINDOW_PILL_TEXT);
-    expect(WINDOW_PILL_HINT).toEqual(rendererPills.WINDOW_PILL_HINT);
+  it('use the same words as the in-app dialogs (which have no Last viewed)', () => {
+    const { lastViewed: _t, ...sharedText } = WINDOW_PILL_TEXT;
+    const { lastViewed: _h, ...sharedHint } = WINDOW_PILL_HINT;
+    expect(sharedText).toEqual(rendererPills.WINDOW_PILL_TEXT);
+    expect(sharedHint).toEqual(rendererPills.WINDOW_PILL_HINT);
   });
 });

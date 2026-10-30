@@ -65,7 +65,7 @@ describe('chooserHtml', () => {
       withCancel: false,
       dark: false,
     });
-    expect(html).toContain('<span class="pill lastViewed" title="The window you were in just before this one">Last viewed</span>');
+    expect(html).toContain('<span class="pill lastViewed" title="The window you were last looking at">Last viewed</span>');
     expect(html).toContain('<span class="pill speech" title="This window holds the speech doc">Speech doc</span>');
     expect(html.match(/class="pill /g)).toHaveLength(2);
     // The number key still sits at the far right, after the pills.

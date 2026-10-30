@@ -428,11 +428,15 @@ async function pickMultiPaneTarget(
   const busy = BrowserWindow.getAllWindows().filter(
     (w) => !w.isDestroyed() && multiPaneWindows.has(w.id) && takenOverWindows.has(w.id),
   );
-  const lastViewed = lastViewedWindowId(
-    windowFocusOrder,
-    candidates.map((w) => w.id),
-    opts.asker,
-  );
+  // "Last viewed" only when nothing is asking (a file from Finder or the
+  // Dock). A window that asks is the one you are in; it gets "This window".
+  const lastViewed =
+    opts.asker === undefined
+      ? lastViewedWindowId(
+          windowFocusOrder,
+          candidates.map((w) => w.id),
+        )
+      : null;
   const sorted = sortChooserEntries(
     [...candidates, ...busy].map((win) => ({
       win,
@@ -2405,7 +2409,6 @@ ipcMain.handle(
     Array<{
       id: number;
       label: string;
-      lastViewed: boolean;
       speech: boolean;
       minimized: boolean;
       comparing: boolean;
@@ -2417,15 +2420,9 @@ ipcMain.handle(
     const wins = BrowserWindow.getAllWindows()
       .filter((w) => !w.isDestroyed() && multiPaneWindows.has(w.id) && w.id !== requester?.id)
       .sort((a, b) => focusRank(a.id) - focusRank(b.id));
-    const lastViewed = lastViewedWindowId(
-      windowFocusOrder,
-      wins.filter((w) => !takenOverWindows.has(w.id)).map((w) => w.id),
-      requester?.id,
-    );
     return wins.map((w) => ({
       id: w.id,
       label: labelForChooser(w),
-      lastViewed: w.id === lastViewed,
       speech: speechRegistration?.windowId === w.id,
       minimized: w.isMinimized(),
       comparing: takenOverWindows.has(w.id),
@@ -2768,10 +2765,8 @@ ipcMain.handle('host:list-docs', async (event) => {
     isSpeech: boolean;
     isOwnWindow: boolean;
     isFocusedWindow: boolean;
-    isLastViewed: boolean;
     isMinimized: boolean;
   }> = [];
-  const lastViewedId = lastViewedWindowId(windowFocusOrder, [...new Set(docOwners.values())], senderId);
   for (const [uid, windowId] of docOwners.entries()) {
     const win = BrowserWindow.fromId(windowId);
     if (!win || win.isDestroyed()) continue;
@@ -2785,7 +2780,6 @@ ipcMain.handle('host:list-docs', async (event) => {
       isSpeech: speechRegistration?.uid === uid,
       isOwnWindow: windowId === senderId,
       isFocusedWindow: windowId === focusedId,
-      isLastViewed: windowId === lastViewedId,
       isMinimized: win.isMinimized(),
     });
   }
@@ -2818,11 +2812,6 @@ ipcMain.handle('host:list-windows', async (event) => {
   const shown = BrowserWindow.getAllWindows()
     .filter((w) => !w.isDestroyed() && !isTimerWindow(w))
     .sort((a, b) => focusRank(a.id) - focusRank(b.id));
-  const lastViewedId = lastViewedWindowId(
-    windowFocusOrder,
-    shown.map((w) => w.id),
-    senderId,
-  );
   return shown.map((w) => ({
     windowId: w.id,
     title: w.getTitle(),
@@ -2832,7 +2821,6 @@ ipcMain.handle('host:list-windows', async (event) => {
     isSpeech: speechRegistration?.windowId === w.id,
     isOwnWindow: w.id === senderId,
     isMinimized: w.isMinimized(),
-    isLastViewed: w.id === lastViewedId,
   }));
 });
 

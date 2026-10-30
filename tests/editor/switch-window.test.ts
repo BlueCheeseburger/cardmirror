@@ -137,10 +137,9 @@ describe('searchWindowSource', () => {
     expect(rows.find((r) => r.windowId === 3)!.meta).toBe('Speech doc');
     expect(rows.find((r) => r.windowId === 4)!.meta).toBe('Minimized');
   });
-  it('gives each row pills: Last viewed, Speech doc, Minimized', () => {
-    hostState.windows[1] = { ...hostState.windows[1]!, isLastViewed: true };
+  it('gives each row pills: Speech doc, Minimized (never Last viewed: you are in the last viewed one)', () => {
     const rows = searchWindowSource(hostState.windows, '');
-    expect(rows.find((r) => r.windowId === 2)!.pills).toEqual(['lastViewed']);
+    expect(rows.find((r) => r.windowId === 2)!.pills).toEqual([]);
     expect(rows.find((r) => r.windowId === 3)!.pills).toEqual(['speech']);
     expect(rows.find((r) => r.windowId === 4)!.pills).toEqual(['minimized']);
   });
@@ -238,7 +237,6 @@ describe('Mod-Tab display', () => {
 
 describe('pills in the Switch Window palette', () => {
   it('draw the pills in place of the grey meta text', async () => {
-    hostState.windows[1] = { ...hostState.windows[1]!, isLastViewed: true };
     openOnWindows();
     await settle();
     await settle();
@@ -247,7 +245,7 @@ describe('pills in the Switch Window palette', () => {
       [...(rows.find((r) => r.querySelector('.pmd-qcs-row-name')?.textContent === name)?.querySelectorAll('.pmd-win-pill') ?? [])].map(
         (p) => p.textContent ?? '',
       );
-    expect(pillsOf('Warming Aff.cmir')).toEqual(['Last viewed']);
+    expect(pillsOf('Warming Aff.cmir')).toEqual([]);
     expect(pillsOf('Politics DA.cmir')).toEqual(['Speech doc']);
     expect(pillsOf('Untitled window')).toEqual(['Minimized']);
     expect(document.querySelector('.pmd-qcs-row-tags')).toBeNull();

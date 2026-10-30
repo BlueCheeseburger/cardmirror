@@ -2,7 +2,7 @@
 
 /**
  * Select Speech Document: each row names its window, and the window's pills
- * (This window, Last viewed, Minimized, Speech doc) sit at the right.
+ * (This window, Minimized, Speech doc) sit at the right.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -27,7 +27,6 @@ function row(uid: string, over: Record<string, unknown> = {}): Record<string, un
     isSpeech: false,
     isOwnWindow: false,
     isFocusedWindow: false,
-    isLastViewed: false,
     isMinimized: false,
     ...over,
   };
@@ -60,25 +59,18 @@ describe('windowCaption', () => {
 });
 
 describe('Select Speech Document pills', () => {
-  it('marks this window, the last viewed one, a minimized one and the speech doc', async () => {
+  it('marks this window, a minimized one and the speech doc', async () => {
     hostState.rows = [
       row('Own', { windowId: 1, isOwnWindow: true }),
-      row('Prev', { windowId: 2, isLastViewed: true }),
       row('Hidden', { windowId: 3, isMinimized: true }),
       row('Speech', { windowId: 4, isSpeech: true }),
       row('Plain', { windowId: 5 }),
     ];
     await openSelectSpeechDocModal();
     expect(pillsIn(rowFor('Own.cmir'))).toEqual(['This window']);
-    expect(pillsIn(rowFor('Prev.cmir'))).toEqual(['Last viewed']);
     expect(pillsIn(rowFor('Hidden.cmir'))).toEqual(['Minimized']);
     expect(pillsIn(rowFor('Speech.cmir'))).toEqual(['Speech doc']);
     expect(pillsIn(rowFor('Plain.cmir'))).toEqual([]);
-  });
-  it('never marks the asking window as last viewed', async () => {
-    hostState.rows = [row('Own', { isOwnWindow: true, isLastViewed: true })];
-    await openSelectSpeechDocModal();
-    expect(pillsIn(rowFor('Own.cmir'))).toEqual(['This window']);
   });
   it('leaves out a caption that only repeats the document name', async () => {
     hostState.rows = [row('Solo', { windowTitle: 'Solo.cmir — CardMirror' })];

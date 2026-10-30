@@ -9,7 +9,7 @@
  * draws the tray and lights up the hovered tile.
  *
  * Target tokens: `slot1`..`slot3`, `win:new`, `win:<windowId>`. A window
- * tile carries pills (Last viewed, Speech doc, Minimized); one busy with
+ * tile carries pills (Speech doc, Minimized); one busy with
  * Compare documents is greyed and has no token, so nothing can be dropped on it.
  */
 
@@ -31,8 +31,6 @@ export interface MoveTraySlot {
 export interface MoveTrayWindow {
   id: number;
   label: string;
-  /** The window you were in just before this one. */
-  lastViewed?: boolean;
   speech?: boolean;
   minimized?: boolean;
   /** Busy with Compare documents: drawn greyed, and not a drop target. */
@@ -128,10 +126,12 @@ export function showMoveTray(
     tile.appendChild(el('span', 'pmd-move-tile-num', plus ? '+' : '⧉'));
     const text = el('span', 'pmd-move-tile-text');
     text.appendChild(el('span', 'pmd-move-tile-name', name));
-    text.appendChild(el('span', 'pmd-move-tile-verb', verb));
+    // The pills take the verb's line, so a tile stays two lines tall.
     if (pills) {
       pills.classList.add('pmd-move-tile-pills');
       text.appendChild(pills);
+    } else {
+      text.appendChild(el('span', 'pmd-move-tile-verb', verb));
     }
     tile.appendChild(text);
     if (target) tiles.set(target, tile);

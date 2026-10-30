@@ -487,7 +487,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     Array<{
       id: number;
       label: string;
-      lastViewed: boolean;
       speech: boolean;
       minimized: boolean;
       comparing: boolean;
@@ -886,7 +885,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         isSpeech: boolean;
         isOwnWindow: boolean;
         isFocusedWindow: boolean;
-        isLastViewed: boolean;
         isMinimized: boolean;
       }>
     >,
@@ -906,7 +904,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         isSpeech: boolean;
         isOwnWindow: boolean;
         isMinimized: boolean;
-        isLastViewed: boolean;
       }>
     >,
 

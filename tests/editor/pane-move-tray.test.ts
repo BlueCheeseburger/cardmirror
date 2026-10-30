@@ -93,10 +93,15 @@ describe('showMoveTray', () => {
 });
 
 describe('window pills on the tray', () => {
-  it('puts pills under a window tile', () => {
-    showMoveTray(slots, [{ id: 7, label: 'Politics DA', lastViewed: true, speech: true, minimized: true }]);
+  it('puts the pills on the verb line, so a tile stays two lines tall', () => {
+    showMoveTray(slots, [{ id: 7, label: 'Politics DA', speech: true, minimized: true }]);
     const pills = [...(tile('win:7')?.querySelectorAll('.pmd-win-pill') ?? [])].map((p) => p.textContent);
-    expect(pills).toEqual(['Last viewed', 'Speech doc', 'Minimized']);
+    expect(pills).toEqual(['Speech doc', 'Minimized']);
+    expect(tile('win:7')?.querySelector('.pmd-move-tile-verb')).toBeNull();
+    expect(tile('win:7')?.querySelectorAll('.pmd-move-tile-text > *')).toHaveLength(2);
+  });
+  it('keeps "Send there" on a window with no pills', () => {
+    showMoveTray(slots, [{ id: 7, label: 'Plain' }]);
     expect(tile('win:7')?.textContent).toContain('Send there');
   });
   it('greys a window busy with Compare and leaves it out of the drop targets', () => {
@@ -105,11 +110,11 @@ describe('window pills on the tray', () => {
     const off = document.querySelector('.pmd-move-tile-off');
     expect(off?.textContent).toContain('Warming');
     expect(off?.textContent).toContain('Comparing documents');
-    expect(off?.textContent).toContain('Not available');
+    expect(off?.querySelectorAll('.pmd-move-tile-text > *')).toHaveLength(2);
   });
   it('fills the pills in when the windows arrive late', () => {
     const tray = showMoveTray(slots, []);
-    tray.setWindows([{ id: 9, label: 'Late', lastViewed: true }]);
-    expect(tile('win:9')?.querySelector('.pmd-win-pill-lastViewed')).not.toBeNull();
+    tray.setWindows([{ id: 9, label: 'Late', minimized: true }]);
+    expect(tile('win:9')?.querySelector('.pmd-win-pill-minimized')).not.toBeNull();
   });
 });

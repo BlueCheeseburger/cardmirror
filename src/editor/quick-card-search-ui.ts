@@ -543,7 +543,7 @@ interface PaletteResult {
   logosSide?: 'A' | 'N';
   /** Window to bring to the front (window source). */
   windowId?: number;
-  /** Pills drawn in place of `meta` (window source: Last viewed, Speech doc, Minimized). */
+  /** Pills drawn in place of `meta` (window source: Speech doc, Minimized). */
   pills?: WindowPillKind[];
   /** Outline depth (1-4) for indentation in the nav-pane-style browse. */
   indentLevel?: number;
@@ -827,14 +827,13 @@ export function searchWindowSource(windows: WindowListEntry[], query: string): P
     .map((w) => ({
       source: 'window' as const,
       name: windowLabel(w),
-      meta: [w.isLastViewed ? 'Last viewed' : '', w.isSpeech ? 'Speech doc' : '', w.isMinimized ? 'Minimized' : '']
+      meta: [w.isSpeech ? 'Speech doc' : '', w.isMinimized ? 'Minimized' : '']
         .filter(Boolean)
         .join(' · '),
       matchedName: true,
       snippet: null,
       windowId: w.windowId,
       pills: windowPillKinds({
-        lastViewed: w.isLastViewed === true,
         speech: w.isSpeech,
         minimized: w.isMinimized,
       }),

@@ -65,7 +65,7 @@ export const WINDOW_PILL_TEXT: Record<WindowPillKind, string> = {
 
 export const WINDOW_PILL_HINT: Record<WindowPillKind, string> = {
   thisWindow: 'The window you asked from',
-  lastViewed: 'The window you were in just before this one',
+  lastViewed: 'The window you were last looking at',
   speech: 'This window holds the speech doc',
   minimized: 'This window is minimized',
   comparing: 'Busy with Compare documents, so it cannot take a document',
@@ -90,17 +90,18 @@ export function windowPillKinds(f: WindowPillFlags): WindowPillKind[] {
   return out;
 }
 
-/** The window you were in just before this one: the first of `focusOrder`
- *  (window ids, most recently focused first) that is among `candidates`,
- *  leaving out `excludeId` (the window that is asking). Null when there is
- *  none. Windows main never saw focused rank last, so they never win. */
+/** The window you were last looking at: the first of `focusOrder` (window
+ *  ids, most recently focused first) that is among `candidates`. Null when
+ *  there is none. Windows main never saw focused rank last, so they never
+ *  win. Only meaningful when nothing in the app is asking (a file opened from
+ *  Finder or the Dock): a window that asks is the one you are in, so it is
+ *  the last viewed itself and gets "This window" instead. */
 export function lastViewedWindowId(
   focusOrder: readonly number[],
   candidates: readonly number[],
-  excludeId?: number,
 ): number | null {
   for (const id of focusOrder) {
-    if (id !== excludeId && candidates.includes(id)) return id;
+    if (candidates.includes(id)) return id;
   }
   return null;
 }

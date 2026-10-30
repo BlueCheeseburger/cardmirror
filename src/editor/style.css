@@ -12828,7 +12828,7 @@ body.pmd-pane-dragging * {
   transform: translate(-50%, 14px);
   transition: opacity 140ms ease, transform 160ms ease;
 }
-/* Window pills: Last viewed / This window / Speech doc / Minimized /
+/* Window pills: This window / Speech doc / Minimized /
    Comparing documents, on every row that names a window. */
 .pmd-win-pills {
   display: inline-flex;
@@ -12846,11 +12846,6 @@ body.pmd-pane-dragging * {
   line-height: 1.25;
   white-space: nowrap;
   color: var(--pmd-c-text-muted);
-}
-.pmd-win-pill-lastViewed {
-  color: var(--pmd-c-accent);
-  border-color: var(--pmd-c-accent);
-  background: color-mix(in srgb, var(--pmd-c-accent) 12%, transparent);
 }
 .pmd-win-pill-thisWindow {
   color: var(--pmd-c-text);
@@ -12951,17 +12946,22 @@ body.pmd-pane-dragging * {
   border-style: dashed;
   background: transparent;
 }
+/* One row of pills in the verb's place; a tile with pills is a little wider. */
+.pmd-move-tile-window:has(.pmd-move-tile-pills) {
+  max-width: 14rem;
+}
 .pmd-move-tile-pills {
+  flex-wrap: nowrap;
   align-self: flex-start;
   max-width: 100%;
   min-width: 0;
-  margin-top: 0.2rem;
+  margin-top: 0.15rem;
 }
 .pmd-move-tile-pills .pmd-win-pill {
   min-width: 0;
-  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding-block: 0.08rem;
 }
 .pmd-move-tile-hot {
   background: color-mix(in srgb, var(--pmd-c-accent) 14%, var(--pmd-c-surface));

@@ -34,8 +34,6 @@ interface DocRow {
   isSpeech: boolean;
   isOwnWindow: boolean;
   isFocusedWindow: boolean;
-  /** The window the asker was in just before this one. */
-  isLastViewed?: boolean;
   isMinimized?: boolean;
 }
 
@@ -110,7 +108,6 @@ function renderRow(host: NonNullable<ReturnType<typeof getElectronHost>>, row: D
   const pills = renderWindowPills(
     windowPillKinds({
       thisWindow: row.isOwnWindow,
-      lastViewed: row.isLastViewed === true && !row.isOwnWindow,
       minimized: row.isMinimized === true,
       speech: row.isSpeech,
     }),

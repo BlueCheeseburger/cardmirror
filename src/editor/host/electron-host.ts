@@ -128,7 +128,6 @@ export interface PairingInboxItemIpc {
 export interface MultiPaneWindowInfo {
   id: number;
   label: string;
-  lastViewed?: boolean;
   speech?: boolean;
   minimized?: boolean;
   comparing?: boolean;
@@ -145,8 +144,6 @@ export interface WindowListEntry {
   /** The window asking — listed so the palette can mark or skip it. */
   isOwnWindow: boolean;
   isMinimized: boolean;
-  /** The window the asker was in just before this one. */
-  isLastViewed?: boolean;
 }
 
 export interface FlowAvailable {
@@ -361,7 +358,7 @@ interface ElectronAPI {
    *  Optional, same reason. Returns unsubscribe. */
   onNewDoc?(handler: () => void): () => void;
   /** Other multi-pane windows a doc could move to (the pane-chip drag
-   *  tray), most recently viewed first. A window with `comparing` set is
+   *  tray), most recently focused first. A window with `comparing` set is
    *  busy with Compare documents and cannot take a document. Optional — an
    *  older preload lacks the channel, and an older main omits the flags. */
   listMultiPaneWindows?(): Promise<MultiPaneWindowInfo[]>;
@@ -484,7 +481,6 @@ interface ElectronAPI {
       isSpeech: boolean;
       isOwnWindow: boolean;
       isFocusedWindow: boolean;
-      isLastViewed?: boolean;
       isMinimized?: boolean;
     }>
   >;
@@ -1428,7 +1424,6 @@ export class ElectronHost implements Host {
       isSpeech: boolean;
       isOwnWindow: boolean;
       isFocusedWindow: boolean;
-      isLastViewed?: boolean;
       isMinimized?: boolean;
     }>
   > {
