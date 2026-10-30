@@ -4,7 +4,7 @@
  * show nothing at all when it worked, so with the speech doc in another pane
  * or window there was no sign it had landed.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
@@ -22,7 +22,6 @@ vi.mock('../../src/editor/confirm-dialog.js', () => ({ alertDialog: vi.fn(async 
 
 import { describeSentSlice, sendToSpeech, takeSendSlice } from '../../src/editor/speech-doc-send.js';
 import { getSpeechDocResolver } from '../../src/editor/speech-doc-registry.js';
-import { settings } from '../../src/editor/settings.js';
 
 function card(tag: string, body: string): PMNode {
   return schema.nodes['card']!.create(null, [
@@ -53,9 +52,6 @@ function sourceWithCard(tag: string): EditorView {
 const toasts = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('.pmd-toast')];
 const settle = (ms = 30): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-beforeEach(() => {
-  settings.set('speechSendToast', true);
-});
 afterEach(() => {
   document.body.innerHTML = '';
   const r = getSpeechDocResolver();
@@ -101,14 +97,6 @@ describe('the notice', () => {
     sendToSpeech(src, true);
     await settle();
     expect(document.querySelector('.pmd-toast-pill')?.textContent).toBe('at end');
-  });
-
-  it('can be turned off in Settings', async () => {
-    settings.set('speechSendToast', false);
-    const { src } = setUpLocalSpeechDoc();
-    sendToSpeech(src, false);
-    await settle();
-    expect(document.querySelector('.pmd-toast-rich')).toBeNull();
   });
 
   it('shows after a send to a speech doc in another window', async () => {

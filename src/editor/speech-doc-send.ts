@@ -27,7 +27,6 @@ import { getSpeechDocResolver } from './speech-doc-registry.js';
 import { getElectronHost } from './host/index.js';
 import { alertDialog } from './text-prompt.js';
 import { showToast } from './toast.js';
-import { settings } from './settings.js';
 import { sectionEndFromHeading } from './headings.js';
 import { checkedSliceFromJSON } from '../schema/slice-check.js';
 
@@ -484,10 +483,8 @@ export function describeSentSlice(slice: Slice, max = 48): string | null {
 
 /** Tell the sender the card landed. The send itself shows nothing, and the
  *  speech doc is often off screen (another pane or another window), so without
- *  this there is no sign it worked. Off with Settings → General → Editor
- *  behavior → Notice when something is sent to the speech doc. */
+ *  this there is no sign it worked. Always on: it is not a setting. */
 function toastSent(slice: Slice, atEnd: boolean): void {
-  if (!settings.get('speechSendToast')) return;
   const what = describeSentSlice(slice);
   showToast('Sent to speech doc', {
     icon: 'mic',

@@ -298,9 +298,8 @@ you'll see "Close this dialog first."
 - **A notice when you send to the speech doc.** Press the backtick (or Alt-backtick
   for the end) and a small notice near the pointer shows the speech mic, **Sent to
   speech doc**, the tag that was sent and a pill saying **at cursor** or **at end**.
-  It also shows when the speech doc is in another window. Turn it off in
-  **Settings → General → Editor behavior → Notice when something is sent to the
-  speech doc**.
+  It also shows when the speech doc is in another window. It is always on; there is
+  no setting for it.
 - **Window pills.** Lists that name windows (the "which window?" chooser, the tray
   you drop a pane's title chip on, **Select Speech Document**, **Switch Window**)
   label them with **This window**, **Speech doc**, **Minimized** and, when you open a

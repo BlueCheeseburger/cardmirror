@@ -1853,8 +1853,7 @@ Assemble a speech document by sending cards into it:
    heading across panes. **(Fork)** A small notice near the pointer confirms
    it: the speech mic, **Sent to speech doc**, the tag that was sent, and a pill
    saying **at cursor** or **at end**. It shows whether the speech doc is in
-   another pane or another window. Turn it off in **Settings → General →
-   Editor behavior → Notice when something is sent to the speech doc**.
+   another pane or another window.
 3. **Read.** Switch the speech doc to read mode; everything that isn't
    read aloud (loose paragraphs, undertags, un-highlighted text) drops
    away, leaving what you'll deliver.
