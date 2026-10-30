@@ -52,7 +52,39 @@
 >      appears on hover to mark the speech doc, so you don't have to teach 
 >      newcomers how to use keyboard shortcuts.
 >    - e. **A decluttered toolbar** — you can toggle off irrelevant formatting buttons that won't be used in debate.
->      
+>    - f. **Intuitive toasts and markers** — CardMirror says what just happened
+>      and labels what it is showing you, so you are never guessing whether
+>      something worked or which window is which:
+>      - **"Sent to speech doc" notice.** Send a card with the backtick and a small
+>        notice appears with the speech mic, the tag that was sent, and a pill
+>        saying **at cursor** or **at end**. Before, a send looked like it did
+>        nothing unless the speech doc was on screen. It works for a speech doc in
+>        another pane or window, and can be turned off in Settings.
+>      - **Window pills.** Every list that names windows (the "which window?"
+>        chooser, the tray you drop a pane on, Select Speech Document, Switch
+>        Window) labels them: **This window**, **Speech doc**, **Minimized**, and
+>        **Last viewed** when you open a file from Finder or the Dock. A window
+>        busy with Compare documents shows up greyed with a **Comparing documents**
+>        pill instead of vanishing.
+>      - **Go back after a move.** When a document you dragged lands in another
+>        window, that window says **Moved "name" here from …** with a **Go back**
+>        button.
+>      - **The speech mic, everywhere the speech doc shows up.** A mic on the
+>        document bar (hover to mark), and the same mic beside the speech doc in a
+>        pane's stack list, instead of a colour you have to learn.
+>      - **Reading-position marker.** A blue line in the margin glides down at the
+>        pace that finishes your speech on time, so you can see where you should
+>        be reading.
+>      - **Reading markers on cards.** **Mark Card** (**Mod-Alt-D**) drops a red
+>        **Marked at 2:15** marker where you were in the speech; the outline flags
+>        marked cards and counts them.
+>      - **Compare shows where you are.** The two outlines fold together and light
+>        up the heading you are at, in green, red and yellow for added, removed
+>        and changed.
+>      - **Plain-language status.** The file badge shows a cloud or computer icon
+>        for where the file lives, an amber **Changed on disk** pill offers
+>        **See what changed** before you decide, and a missing file on Reload From
+>        Disk gives a red notice in the bottom bar, not just a pop-up.
 
 CardMirror is a debate text editor focused on high school and college
 policy debate. It's a standalone
