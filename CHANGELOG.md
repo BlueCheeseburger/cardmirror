@@ -16,6 +16,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **Go back after moving a document.** When a document you moved arrives in another window, a notice at the bottom says **Moved "name" here from …** with a **Go back** button that returns you to the window it came from.
 
 ### Changed
+- **The speech document is marked with the speech mic in a pane's stack list, not an amber background.** Open a pane's stack (the ▾ with the document count) and the speech doc's row has the mic icon at its left; rows line up the same either way.
 - **The move tray lists other windows most recently viewed first**, so the window you keep flipping between is the first tile.
 - **Select Speech Document shows the window's name under each document**, and no longer says "Window 3" for a window with no title (it says "Untitled window").
 

@@ -1791,12 +1791,24 @@ class Slot {
         this.shell.slotStack(id).map((r) => ({ uid: r.uid, filename: r.filename, handle: r.handle })),
       ),
     );
+    const anySpeech = this.stack.some((r) => getSpeechDocResolver().isSpeechByUid(r.uid));
     for (const rec of this.stack) {
       const row = document.createElement('div');
       row.className = 'pmd-pane-chip-dropdown-row';
       if (rec === this.visible) row.classList.add('pmd-active');
-      // The speech doc wears the same amber as its pane's title chip.
-      if (getSpeechDocResolver().isSpeechByUid(rec.uid)) row.classList.add('pmd-speech');
+      // The speech doc is marked with the speech mic. Every row keeps a slot
+      // for it while any row has one, so the names stay lined up.
+      if (anySpeech) {
+        const mark = document.createElement('span');
+        mark.className = 'pmd-pane-chip-dropdown-mic';
+        mark.setAttribute('aria-hidden', 'true');
+        if (getSpeechDocResolver().isSpeechByUid(rec.uid)) {
+          row.classList.add('pmd-speech');
+          setIcon(mark, 'mic');
+          mark.title = 'Speech document';
+        }
+        row.appendChild(mark);
+      }
       const name = document.createElement('span');
       name.className = 'pmd-pane-chip-dropdown-name';
       name.textContent = displayFilename(rec.filename);

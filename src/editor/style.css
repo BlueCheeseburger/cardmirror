@@ -13223,15 +13223,18 @@ body.pmd-pane-dragging * {
 }
 .pmd-pane-chip-dropdown-row:hover { background: var(--pmd-c-surface); }
 .pmd-pane-chip-dropdown-row.pmd-active { font-weight: 600; }
-/* The speech doc's row is amber, the same tint as a speech pane's title chip. */
-.pmd-pane-chip-dropdown-row.pmd-speech {
-  background: var(--pmd-c-speech-bg);
-  color: var(--pmd-c-speech-text);
+/* The speech doc's row carries the speech mic (no tint). The slot is on every
+   row while any row has the mic, so names line up. */
+.pmd-pane-chip-dropdown-mic {
+  flex: 0 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  line-height: 1;
 }
-.pmd-pane-chip-dropdown-row.pmd-speech:hover {
-  background: color-mix(in srgb, var(--pmd-c-speech-bg) 80%, var(--pmd-c-speech-border));
-}
-.pmd-pane-chip-dropdown-row.pmd-speech .pmd-pane-chip-dropdown-close { color: inherit; opacity: 0.7; }
+
+.pmd-pane-chip-dropdown-close { color: inherit; opacity: 0.7; }
 .pmd-pane-chip-dropdown-row.pmd-speech .pmd-pane-chip-dropdown-close:hover { opacity: 1; }
 
 .pmd-pane-chip-dropdown-close {

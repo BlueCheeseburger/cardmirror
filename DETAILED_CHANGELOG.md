@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: stack list marks the speech doc with the mic, not amber (`multi-pane-shell.ts`, `style.css`)
+
+Reverses the 2026-10-27 amber row. `openStackDropdown` now puts a `pmd-pane-chip-dropdown-mic` slot at the left of every row while any row is the speech doc, and fills it with the `mic` icon (the one the pane's title chip uses) for the speech doc's row only, so names stay aligned. The `pmd-speech` class stays on the row as a hook but has no styling; the amber background, its hover tint and the ✕ colour overrides are gone. Looked at in a browser with a copy of the row markup and the real stylesheet; not checked in the packaged app or inside a live multi-pane stack.
+
 ### Window pills, greyed Compare windows, Go back
 
 **What.** One vocabulary of pills (`src/editor/window-pills.ts`): This window, Last viewed, Speech doc, Minimized, Comparing documents. Used by the "which window?" chooser (Open in / New document in), the pane-drag move tray, Select Speech Document and the Switch Window palette. Main already recorded focus order for Switch Window (`windowFocusOrder`); it now also derives **Last viewed** (first window in that order that is a candidate, leaving out the asker) and sends it with `host:list-docs`, `host:list-windows` and `host:list-multipane-windows`.
