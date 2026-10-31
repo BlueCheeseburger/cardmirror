@@ -52,7 +52,17 @@
 >      appears on hover to mark the speech doc, so you don't have to teach 
 >      newcomers how to use keyboard shortcuts.
 >    - e. **A decluttered toolbar** — you can toggle off irrelevant formatting buttons that won't be used in debate.
->      
+>    - f. **Intuitive toasts and markers (new).** CardMirror says what just
+>      happened and labels what it is showing you:
+>      - **“Sent to speech doc” notice.**
+>      - **Window pills.** This window, Speech doc, Minimized, and Last viewed
+>        when you open a file from Finder or the Dock.
+>      - **Go back after a move.** Moved “name” here from … with a Go back button.
+>      - **The speech mic everywhere the speech doc shows up:** on the document
+>        bar and in a pane’s stack list.
+>      - **Plain-language status.** The file badge’s cloud or computer icon, the
+>        amber Changed on disk pill with See what changed, and a red notice when
+>        Reload From Disk can’t find the file.
 
 CardMirror is a debate text editor focused on high school and college
 policy debate. It's a standalone

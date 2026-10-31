@@ -36,7 +36,12 @@ import { decideNavigation, decideWindowOpen } from './navigation-guard.js';
 import { existsSync } from 'node:fs';
 import { autoUpdater } from 'electron-updater';
 import { bundlePathFromExe, launchSwapHelper, macBundleSelfUpdatable } from './mac-swap-update.js';
-import { readChooserResponse, sortChooserEntries } from './multipane-chooser.js';
+import {
+  lastViewedWindowId,
+  readChooserResponse,
+  sortChooserEntries,
+  windowPillKinds,
+} from './multipane-chooser.js';
 import { showChooserWindow } from './multipane-chooser-ui.js';
 import {
   validateRenameTarget,
@@ -371,6 +376,15 @@ function labelForChooser(win: BrowserWindow): string {
   return win.getTitle().replace(/ — CardMirror$/, '') || 'Untitled';
 }
 
+/** How a window that just gave up a document is named in the destination's
+ *  "Moved here from…" notice. */
+function describeSourceWindow(windowId: number, movedFilename: string): string {
+  const name = windowNames.get(windowId);
+  if (name) return name;
+  const rest = (windowDocFilenames.get(windowId) ?? []).filter((n) => n !== movedFilename);
+  return rest.length > 0 ? rest.join(' · ') : 'your other window';
+}
+
 type MultiPaneChoice =
   | { kind: 'window'; win: BrowserWindow }
   | { kind: 'new-window' }
@@ -399,7 +413,7 @@ type MultiPaneChoice =
  *  leaves this unset and keeps the plain shortcut. */
 async function pickMultiPaneTarget(
   message: string,
-  opts: { withCancel?: boolean; autoRouteOnlyTo?: number } = {},
+  opts: { withCancel?: boolean; autoRouteOnlyTo?: number; asker?: number } = {},
 ): Promise<MultiPaneChoice> {
   const candidates = liveMultiPaneWindows();
   if (candidates.length === 0) return { kind: 'new-window' };
@@ -409,13 +423,41 @@ async function pickMultiPaneTarget(
   ) {
     return { kind: 'window', win: candidates[0]! };
   }
+  // A window busy with Compare documents cannot take a document, but it is
+  // still listed (greyed, with a pill) so it does not seem to have vanished.
+  const busy = BrowserWindow.getAllWindows().filter(
+    (w) => !w.isDestroyed() && multiPaneWindows.has(w.id) && takenOverWindows.has(w.id),
+  );
+  // "Last viewed" only when nothing is asking (a file from Finder or the
+  // Dock). A window that asks is the one you are in; it gets "This window".
+  const lastViewed =
+    opts.asker === undefined
+      ? lastViewedWindowId(
+          windowFocusOrder,
+          candidates.map((w) => w.id),
+        )
+      : null;
   const sorted = sortChooserEntries(
-    candidates.map((win) => ({ win, id: win.id, label: labelForChooser(win) })),
+    [...candidates, ...busy].map((win) => ({
+      win,
+      id: win.id,
+      label: labelForChooser(win),
+      comparing: takenOverWindows.has(win.id),
+    })),
   );
   const labels = sorted.map((e) => e.label);
   // A named window's label is only its name — list its docs underneath.
   const details = sorted.map((e) =>
     windowNames.has(e.id) ? (windowDocFilenames.get(e.id) ?? null) : null,
+  );
+  const pills = sorted.map((e) =>
+    windowPillKinds({
+      thisWindow: e.id === opts.asker,
+      lastViewed: e.id === lastViewed,
+      speech: speechRegistration?.windowId === e.id,
+      minimized: e.win.isMinimized(),
+      comparing: e.comparing,
+    }),
   );
   // The chooser's Esc and ✕ always report Cancel (a Cancel BUTTON is drawn
   // only with `withCancel`), so decode with the cancel slot always on.
@@ -423,10 +465,16 @@ async function pickMultiPaneTarget(
     message,
     labels,
     details,
+    pills,
+    disabled: sorted.map((e) => e.comparing),
     withCancel: opts.withCancel === true,
   });
   const parsed = readChooserResponse(response, labels.length, { withCancel: true });
-  if (parsed.kind === 'window') return { kind: 'window', win: sorted[parsed.index]!.win };
+  if (parsed.kind === 'window') {
+    const picked = sorted[parsed.index]!;
+    // The chooser cannot pick a greyed row; stay safe if it ever did.
+    return picked.comparing ? { kind: 'new-window' } : { kind: 'window', win: picked.win };
+  }
   return parsed.kind === 'cancel' ? { kind: 'cancel' } : { kind: 'new-window' };
 }
 
@@ -2341,7 +2389,7 @@ ipcMain.handle('host:new-doc-target', async (event): Promise<'sent' | 'new-windo
     withCancel: true,
     // Only THIS window may take a new doc without being named; see
     // pickMultiPaneTarget.
-    ...(asker ? { autoRouteOnlyTo: asker.id } : {}),
+    ...(asker ? { autoRouteOnlyTo: asker.id, asker: asker.id } : {}),
   });
   if (choice.kind === 'cancel') return 'cancel';
   if (choice.kind !== 'window') return 'new-window';
@@ -2355,11 +2403,30 @@ ipcMain.handle('host:new-doc-target', async (event): Promise<'sent' | 'new-windo
 // same-window rearranging) so the renderer can build the menu.
 ipcMain.handle(
   'host:list-multipane-windows',
-  async (event): Promise<Array<{ id: number; label: string }>> => {
+  async (
+    event,
+  ): Promise<
+    Array<{
+      id: number;
+      label: string;
+      speech: boolean;
+      minimized: boolean;
+      comparing: boolean;
+    }>
+  > => {
     const requester = BrowserWindow.fromWebContents(event.sender);
-    return liveMultiPaneWindows()
-      .filter((w) => w.id !== requester?.id)
-      .map((w) => ({ id: w.id, label: labelForChooser(w) }));
+    // Windows busy with Compare documents are listed too (flagged), so the
+    // tray can show them greyed instead of leaving them out.
+    const wins = BrowserWindow.getAllWindows()
+      .filter((w) => !w.isDestroyed() && multiPaneWindows.has(w.id) && w.id !== requester?.id)
+      .sort((a, b) => focusRank(a.id) - focusRank(b.id));
+    return wins.map((w) => ({
+      id: w.id,
+      label: labelForChooser(w),
+      speech: speechRegistration?.windowId === w.id,
+      minimized: w.isMinimized(),
+      comparing: takenOverWindows.has(w.id),
+    }));
   },
 );
 
@@ -2411,7 +2478,15 @@ ipcMain.handle(
       }
       set.add(norm);
     }
+    // Where it came from, so the destination can offer a way back. Named by
+    // the window's own name, else by the documents still left in it (its
+    // title still lists the one being moved).
+    const source = BrowserWindow.fromWebContents(event.sender);
     const delivered = handOffToWindow(win, 'host:receive-doc', {
+      from:
+        source && !source.isDestroyed()
+          ? { id: source.id, label: describeSourceWindow(source.id, payload.filename) }
+          : null,
       filename: payload.filename,
       bytes: payload.bytes,
       handle: typeof payload.handle === 'string' ? payload.handle : null,
@@ -2690,6 +2765,7 @@ ipcMain.handle('host:list-docs', async (event) => {
     isSpeech: boolean;
     isOwnWindow: boolean;
     isFocusedWindow: boolean;
+    isMinimized: boolean;
   }> = [];
   for (const [uid, windowId] of docOwners.entries()) {
     const win = BrowserWindow.fromId(windowId);
@@ -2704,6 +2780,7 @@ ipcMain.handle('host:list-docs', async (event) => {
       isSpeech: speechRegistration?.uid === uid,
       isOwnWindow: windowId === senderId,
       isFocusedWindow: windowId === focusedId,
+      isMinimized: win.isMinimized(),
     });
   }
   return out;
@@ -2717,6 +2794,13 @@ ipcMain.handle('host:list-docs', async (event) => {
 // focus changes; closed windows drop out when listed.
 const windowFocusOrder: number[] = []; // window ids, most recent first
 
+/** Where a window sits in the focus order (0 = focused most recently);
+ *  windows main never saw focused sort last. */
+function focusRank(id: number): number {
+  const i = windowFocusOrder.indexOf(id);
+  return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+}
+
 app.on('browser-window-focus', (_event, win) => {
   const i = windowFocusOrder.indexOf(win.id);
   if (i !== -1) windowFocusOrder.splice(i, 1);
@@ -2725,23 +2809,19 @@ app.on('browser-window-focus', (_event, win) => {
 
 ipcMain.handle('host:list-windows', async (event) => {
   const senderId = BrowserWindow.fromWebContents(event.sender)?.id ?? -1;
-  const rank = (id: number): number => {
-    const i = windowFocusOrder.indexOf(id);
-    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
-  };
-  return BrowserWindow.getAllWindows()
+  const shown = BrowserWindow.getAllWindows()
     .filter((w) => !w.isDestroyed() && !isTimerWindow(w))
-    .sort((a, b) => rank(a.id) - rank(b.id))
-    .map((w) => ({
-      windowId: w.id,
-      title: w.getTitle(),
-      docNames: [...(windowDocs.get(w.id) ?? [])]
-        .map((uid) => docInfo.get(uid)?.filename ?? null)
-        .filter((n): n is string => !!n),
-      isSpeech: speechRegistration?.windowId === w.id,
-      isOwnWindow: w.id === senderId,
-      isMinimized: w.isMinimized(),
-    }));
+    .sort((a, b) => focusRank(a.id) - focusRank(b.id));
+  return shown.map((w) => ({
+    windowId: w.id,
+    title: w.getTitle(),
+    docNames: [...(windowDocs.get(w.id) ?? [])]
+      .map((uid) => docInfo.get(uid)?.filename ?? null)
+      .filter((n): n is string => !!n),
+    isSpeech: speechRegistration?.windowId === w.id,
+    isOwnWindow: w.id === senderId,
+    isMinimized: w.isMinimized(),
+  }));
 });
 
 ipcMain.handle('host:focus-window', async (_event, windowId: unknown) => {
@@ -4190,21 +4270,41 @@ async function pluginChipAction(): Promise<void> {
 /** The verified update zip electron-updater staged (mac swap path). */
 let macStagedUpdateZip: string | null = null;
 
-function setUpdateChip(next: AppUpdateChip): void {
+function setUpdateChip(next: AppUpdateChip | null): void {
   updateChip = next;
   broadcastChip();
 }
 
-/** Dev aid: `CM_FAKE_UPDATE=ready` (or `available`, optionally with a
- *  version: `ready:9.9.9`) shows the update chip in an UNPACKAGED build so
- *  its surfaces (status bar, home screen) can be looked at without a real
- *  release. Clicking the fake chip does nothing. Ignored when packaged. */
+/** Dev aid: `CM_FAKE_UPDATE=ready` (or `available` / `downloading`,
+ *  optionally with a version: `ready:9.9.9`) shows the update chip in an
+ *  UNPACKAGED build so its surfaces (status bar, home screen) can be
+ *  looked at without a real release. `downloading` animates 0→100% over
+ *  ~30 s, shows `ready` for 10 s, and repeats, so both can be watched.
+ *  Clicking the fake chip does nothing. Ignored when packaged. */
 const fakeUpdateChip: AppUpdateChip | null = (() => {
   if (app.isPackaged) return null;
-  const m = /^(ready|available)(?::(.+))?$/.exec(process.env['CM_FAKE_UPDATE'] ?? '');
-  return m ? { state: m[1] as 'ready' | 'available', version: m[2] ?? '9.9.9' } : null;
+  const m = /^(ready|available|downloading)(?::(.+))?$/.exec(process.env['CM_FAKE_UPDATE'] ?? '');
+  if (!m) return null;
+  const version = m[2] ?? '9.9.9';
+  return m[1] === 'downloading'
+    ? { state: 'downloading', version, pct: 0 }
+    : { state: m[1] as 'ready' | 'available', version };
 })();
-if (fakeUpdateChip) updateChip = fakeUpdateChip;
+if (fakeUpdateChip) {
+  updateChip = fakeUpdateChip;
+  if (fakeUpdateChip.state === 'downloading') {
+    // Loop forever: ~30 s of download, 10 s of "ready", repeat — so the
+    // chip can be looked at whenever, not only in the first seconds.
+    const { version } = fakeUpdateChip;
+    let pct = 0;
+    setInterval(() => {
+      pct += 1;
+      if (pct < 100) setUpdateChip({ state: 'downloading', version, pct });
+      else if (pct === 100) setUpdateChip({ state: 'ready', version });
+      else if (pct >= 133) pct = 0;
+    }, 300);
+  }
+}
 
 /** Late-opened windows pull the current chip state at boot. */
 ipcMain.handle('host:update-chip-state', () => effectiveChip());
@@ -4219,6 +4319,7 @@ ipcMain.handle('host:update-chip-action', async () => {
     console.log('Update chip clicked (CM_FAKE_UPDATE): no action in a dev build.');
     return;
   }
+  // Mid-download there is nothing to do yet; the chip is information.
   if (updateChip.state === 'downloading') return;
   if (updateChip.state === 'ready') {
     if (process.platform === 'darwin') {
@@ -4264,6 +4365,9 @@ function startAutoUpdate(): void {
   autoUpdater.autoInstallOnAppQuit = !isMac;
   autoUpdater.on('error', (err) => {
     console.warn('Auto-update error:', err);
+    // A download that dies mid-way must not leave a "downloading" chip
+    // up forever; the next check starts the sequence over.
+    if (updateChip?.state === 'downloading') setUpdateChip(null);
   });
   autoUpdater.on('update-available', (info) => {
     console.log(`Auto-update: ${info.version} available, downloading…`);
@@ -4287,18 +4391,26 @@ function startAutoUpdate(): void {
       setUpdateChip({ state: 'available', version: info.version });
     }
   });
+  // Progress arrives many times a second; the chip only needs whole
+  // percents, so forward a change of at least one point (each push is an
+  // IPC to every window).
+  let lastPercent = -1;
   autoUpdater.on('download-progress', (progress) => {
     // Only advance an already-'downloading' chip — guards against a
     // stray late progress tick landing after 'update-downloaded' (or
     // the mac staging-failed fallback) already moved the chip on.
     if (!updateChip || updateChip.state !== 'downloading') return;
+    const pct = Math.max(0, Math.min(100, Math.floor(progress.percent)));
+    if (pct === lastPercent) return;
+    lastPercent = pct;
     setUpdateChip({
       state: 'downloading',
       version: updateChip.version,
-      pct: Math.round(progress.percent),
+      pct,
     });
   });
   autoUpdater.on('update-downloaded', (info) => {
+    lastPercent = -1;
     if (isMac) {
       const file = (info as { downloadedFile?: string }).downloadedFile;
       if (file && file.endsWith('.zip')) {

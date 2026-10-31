@@ -124,6 +124,15 @@ export interface PairingInboxItemIpc {
 }
 
 /** Verbatim Flow bridge result shapes (mirrors verbatim-flow.ps1). */
+/** A multi-pane window a document could move to. */
+export interface MultiPaneWindowInfo {
+  id: number;
+  label: string;
+  speech?: boolean;
+  minimized?: boolean;
+  comparing?: boolean;
+}
+
 /** One document window in the Switch Window list (`host:list-windows`). */
 export interface WindowListEntry {
   windowId: number;
@@ -348,10 +357,11 @@ interface ElectronAPI {
   /** Main forwards a New Document request the chooser routed here.
    *  Optional, same reason. Returns unsubscribe. */
   onNewDoc?(handler: () => void): () => void;
-  /** Other live multi-pane windows a doc could move to (right-click a
-   *  pane's title chip's "Move to…" menu). Optional — an older
-   *  preload lacks the channel. */
-  listMultiPaneWindows?(): Promise<Array<{ id: number; label: string }>>;
+  /** Other multi-pane windows a doc could move to (the pane-chip drag
+   *  tray), most recently focused first. A window with `comparing` set is
+   *  busy with Compare documents and cannot take a document. Optional — an
+   *  older preload lacks the channel, and an older main omits the flags. */
+  listMultiPaneWindows?(): Promise<MultiPaneWindowInfo[]>;
   /** Hand this doc's current bytes to another live window. Optional,
    *  same reason. */
   moveDocToWindow?(
@@ -366,6 +376,8 @@ interface ElectronAPI {
       bytes: Uint8Array;
       handle: string | null;
       markDirty?: boolean;
+      /** The window the document came from (absent from an older main). */
+      from?: { id: number; label: string } | null;
     }) => void,
   ): () => void;
   closeSelf(): Promise<void>;
@@ -422,6 +434,8 @@ interface ElectronAPI {
   pairingInboxRemove?(id: string): Promise<void>;
   pairingInboxClear?(): Promise<void>;
   pairingInboxMarkAllRead?(): Promise<void>;
+  /** Mark one inbox card read (absent on preloads older than this). */
+  pairingInboxMarkRead?(id: string): Promise<void>;
   /** Baked relay endpoint from the main process (same base + shared
    *  token card sharing uses) — the renderer-side rooms client falls
    *  back to this when no settings/dev override is present. Optional so
@@ -469,6 +483,7 @@ interface ElectronAPI {
       isSpeech: boolean;
       isOwnWindow: boolean;
       isFocusedWindow: boolean;
+      isMinimized?: boolean;
     }>
   >;
   openPathCheck(path: string): Promise<{ takenByOther: boolean }>;
@@ -1156,7 +1171,7 @@ export class ElectronHost implements Host {
 
   /** Other live multi-pane windows a doc could move to. Empty array
    *  on an older preload (no channel). */
-  async listMultiPaneWindows(): Promise<Array<{ id: number; label: string }>> {
+  async listMultiPaneWindows(): Promise<MultiPaneWindowInfo[]> {
     const fn = api().listMultiPaneWindows;
     return typeof fn === 'function' ? await fn() : [];
   }
@@ -1180,6 +1195,7 @@ export class ElectronHost implements Host {
       bytes: Uint8Array;
       handle: string | null;
       markDirty?: boolean;
+      from?: { id: number; label: string } | null;
     }) => void,
   ): () => void {
     const fn = api().onReceiveDoc;
@@ -1332,6 +1348,10 @@ export class ElectronHost implements Host {
     await api().pairingInboxMarkAllRead?.();
   }
 
+  async pairingInboxMarkRead(id: string): Promise<void> {
+    await api().pairingInboxMarkRead?.(id);
+  }
+
   async collabRelayDefaults(): Promise<{ url: string; token: string; routingCode?: string }> {
     return (await api().collabRelayDefaults?.()) ?? { url: '', token: '', routingCode: '' };
   }
@@ -1410,6 +1430,7 @@ export class ElectronHost implements Host {
       isSpeech: boolean;
       isOwnWindow: boolean;
       isFocusedWindow: boolean;
+      isMinimized?: boolean;
     }>
   > {
     return api().listDocs();

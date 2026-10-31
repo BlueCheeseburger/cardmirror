@@ -753,13 +753,21 @@ by default) makes every highlight and background-color paint — F11,
 Mod-F11, the paintbrush, and the color pickers — land only on text that
 is underlined or emphasized, so you can sweep across a whole paragraph
 and have just the underlined parts light up. In a word that mixes
-emphasis and plain underline, only the emphasized part is painted. The
-spaces between two painted words fill in when "Bridge formatting across
-gaps automatically" is on. Only card body text is filtered this way:
+emphasis and plain underline, only the emphasized part is painted. A
+"word" here is the same thing a double-click selects — letters, digits
+and apostrophes — so an em dash, hyphen or comma splits words rather than
+joining them: in `nuclear—armed` with only `nuclear` emphasized, `armed`
+keeps its own underline paint. A dash that joins two painted words with
+no space is painted with them; punctuation beside a space, and the space
+itself, fill in when "Bridge formatting across gaps automatically" is
+on. Only card body text is filtered this way:
 tags, cites, analytics, and the pocket / hat / block headings always
 paint whole, since a highlight there is deliberate emphasis rather than
 a reading pass. Toggling a highlight off and the "no color" pen still
-clear the whole selection.
+clear the whole selection, and when nothing in the selection is underlined
+or emphasized, F11 removes whatever highlight is there instead of doing
+nothing — so a highlight sitting on plain text (from an import, or painted
+with the setting off) always comes off with the same key.
 
 **Paintbrush mode** (the way Word's highlighter works): click a main
 color button with *nothing* selected to arm it. The cursor changes, and
@@ -1258,7 +1266,14 @@ after `/c` you can wander off and keep typing without being pulled back.
 **Pinning and speed.** Press **Alt-P** to pin or unpin the selected file
 (★). Pinned files sort to the top and stay parsed for instant search;
 your pinned and recent files are warmed in the background, and the file
-list refreshes itself as files change on disk.
+list refreshes itself as files change on disk: each time the palette opens,
+CardMirror re-walks your file search folders a few seconds later, and
+changing the folder list in Settings re-scans right away. If a document you
+just saved from Word or Finder is not showing up yet, run **Refresh File
+Search Index** (a command, unbound by default; find it in Search Everything
+or give it a key in Settings → Keyboard) to re-walk every folder immediately.
+A toast reports how many files it found, how many changed, and whether any
+folder is missing on disk (a disconnected drive keeps its last listing).
 
 **Excluding files.** The **⊘** button beside the star hides a file from
 file search everywhere, after a confirmation — useful for templates,
@@ -1366,10 +1381,11 @@ workspace while another shows a single document.
   stacking**; the labels then say **Swap places** / **Swap**. A **move tray** at the bottom of the window has a tile for each
   slot, and on the desktop app also **New window** and a tile for every other
   open three-pane window: drop the chip on a tile to send the document there,
-  unsaved edits included. **Esc** cancels the drag.
+  unsaved edits included. **Esc** cancels the drag. **(Fork)** Windows are listed most recently used first, and a tile carries pills: **Speech doc** and **Minimized**; a window busy with Compare documents is greyed with a
+  **Comparing documents** pill and can't be dropped on. When the document arrives, the other window shows **Moved … here from …** with a **Go back** button.
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
-  document's row is amber too.
+  document's row has the speech mic icon at its left.
 - **(fork)** **Hover a title chip** and a greyed microphone appears at its left;
   click it to make that document the active speech doc (click again to clear).
   A single window has the same blue bar above its one document, with the same
@@ -1468,7 +1484,12 @@ entire cite* is on. Undo restores the cards.
   undertags, and un-highlighted body text disappear. Of a cite, only
   its cite-marked and highlighted words show unless you turn on
   *Read mode: keep entire cite* (Settings → General), which shows the
-  whole citation; *Read mode: show undertags* (same place) brings the
+  whole citation. Cites that were **bolded by hand** instead of styled as
+  cites still show: in the paragraph right after a tag or undertag, if
+  nothing is underlined or emphasized and some text is bold, the bold
+  reads as the cite (in a body paragraph the bold has to include a
+  number, like a date). *Read mode: treat bold as a cite* (same place,
+  on by default) turns that off; *Read mode: show undertags* (same place) brings the
   undertags back, whole; and *Read mode: show background color* (same
   place) keeps background-colored text visible beside the highlighting —
   handy after [Lock Highlighting](#colors-highlight-background-and-font-color)
@@ -1831,6 +1852,12 @@ moves up). A minimized window is restored. It's the quick way between windows
 where the operating system's Alt+Tab mixes CardMirror in with every other app.
 Desktop only.
 
+**(Fork) Window pills.** Every list that names windows labels them the same way: **This window**, **Speech doc** and **Minimized**.
+You'll see them in the "which window?" chooser that opens when a file or a new document needs a home (a window busy with Compare
+documents is shown greyed, with a **Comparing documents** pill, and can't be picked), in the tray you drop a pane's title chip on,
+in **Select Speech Document**, and here. When you open a file from Finder or the Dock, the chooser also marks the window you were
+looking at with **Last viewed**. The chooser stays in alphabetical order with the same number keys; the pills only tell the windows apart.
+
 In the three-pane workspace, Ctrl+Tab keeps its existing job there: it cycles
 the focused slot's documents (hold Ctrl, tap Tab, release to switch).
 
@@ -1843,7 +1870,10 @@ Assemble a speech document by sending cards into it:
 2. **Send cards.** From a source file, press **`` ` ``** (backtick) to
    send the current card or selection to the speech doc at your cursor,
    or **Alt-`` ` ``** to append it at the end. You can also drag a card or
-   heading across panes.
+   heading across panes. **(Fork)** A small notice near the pointer confirms
+   it: the speech mic, **Sent to speech doc**, the tag that was sent, and a pill
+   saying **at cursor** or **at end**. It shows whether the speech doc is in
+   another pane or another window.
 3. **Read.** Switch the speech doc to read mode; everything that isn't
    read aloud (loose paragraphs, undertags, un-highlighted text) drops
    away, leaving what you'll deliver.
@@ -2012,6 +2042,8 @@ row:
   instead of arriving fully expanded.
 - **Mod-P** inserts the most recently received card at the cursor, and
   **Mod-Alt-Shift-P** appends it, without opening the pill (both rebindable).
+  Either way the card is marked read — it is in your document now — so
+  the badge and the arrival flash stop counting it; it stays in the list.
 - **Preview Received Card** opens the most recent one in the preview
   without inserting it — unbound by default; give it a key under
   Settings → Keyboard shortcuts. The preview's **Read mode** button shows
@@ -2580,7 +2612,7 @@ Keyboard shortcuts**. They appear only on Windows.
 
 ## 15. Voice control
 
-> **Experimental — and, as of 1.16.0, commands are still unreliable.** Dictation works
+> **Experimental — and, as of 1.17.1, commands are still unreliable.** Dictation works
 > well. The single-word commands do not yet: the recognizer decodes an open
 > vocabulary, so a one-word utterance often comes back as some other word
 > and nothing fires. Calibration helps only a little. A keyword-spotting pass
@@ -2757,7 +2789,9 @@ will ask you to re-save it in a current Word first.)
 **Reloading from disk.** **(Fork)** The **Reload From Disk** command
 (**Mod-R**, or the command bar) replaces the document with what's saved in
 its file, for any saved file, and a toast confirms it. The outline keeps
-which headings were open. If the document has unsaved edits it asks before
+which headings were open, and you stay where you were in the document: your
+caret or selection and the line you were reading come back (if the file changed
+in the meantime, a place inside a changed card stays inside that card). If the document has unsaved edits it asks before
 discarding them; a document that hosts a co-editing session can't be
 reloaded until the session ends; an unsaved document has no file to reload.
 There's no button for it, on purpose. In three-pane mode it only touches the
@@ -3229,6 +3263,14 @@ headers shown inside each tab.
   and all — instead of only its cite-marked and highlighted words. A cite
   with nothing marked stays hidden. Off by default. Display-only, and
   Convert Cards to Read Mode follows it too.
+- **Read mode: treat bold as a cite** — when on, read mode shows
+  hand-bolded text in the cite slot as if it were cite-marked: in the
+  paragraph right after a tag or undertag, if nothing is underlined or
+  emphasized and some text is bold, the bold runs are read aloud (in a
+  body paragraph the bold must include a number, like a date). Catches
+  imported files whose cites are bold plain text instead of the Cite
+  style. On by default. Display-only, and Convert Cards to Read Mode,
+  read-mode copy and read-mode export follow it.
 - **Read mode: show undertags** — when on, read mode shows undertags, the
   whole of each one, instead of hiding them. Off by default. Display-only,
   and Convert Cards to Read Mode follows it too. Undertag text still does
@@ -3356,7 +3398,8 @@ file search scans, and how much version history to keep.
 **File search**
 
 - **File search folders** *(desktop)* — the roots scanned for the palette's
-  file search (the `f` prefix). Each folder row has a **Browse…** button, so
+  file search (the `f` prefix). Adding a folder scans it right away; removing
+  one drops it from the index. Each folder row has a **Browse…** button, so
   a folder that gets renamed or moved can be repointed in place instead of
   removed and re-added. Empty disables file search (see
   [The Search Everything palette](#the-search-everything-palette-mod-shift-space)).
@@ -3620,9 +3663,14 @@ Typing helpers and the behavior of the cutting and condense commands
   color paints (F11, Mod-F11, the paintbrush, and the color pickers) only
   land on body text that is underlined or emphasized; in a word that
   mixes emphasis and plain underline, only the emphasized part is
-  painted. Tags, cites, analytics and the pocket / hat / block headings
+  painted (a word is what a double-click selects, so a dash or comma
+  splits words; a dash joining two painted words is painted with them,
+  and punctuation beside a space is left to the gap bridging). Tags,
+  cites, analytics and the pocket / hat / block headings
   always paint whole. Toggling off and the "no color" pen still clear
-  the whole selection. Composes with the automatic gap bridging. Off by
+  the whole selection, and when nothing in the selection is underlined
+  the key removes whatever highlight is there, so removal is never
+  blocked by the filter. Composes with the automatic gap bridging. Off by
   default.
 
 **Standardize exceptions**

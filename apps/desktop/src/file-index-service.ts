@@ -8,7 +8,7 @@
  * the why.
  *
  * Protocol (renderer → service over the forwarded port):
- *   { id, op: 'configure' | 'query' | 'browse' | 'locateCurrentFile' | 'entriesForPaths', args }
+ *   { id, op: 'configure' | 'refresh' | 'query' | 'browse' | 'locateCurrentFile' | 'entriesForPaths', args }
  * → { id, ok: true, result } | { id, ok: false, error }
  * Push (service → every port): { push: 'changed', root } when a scan /
  * revalidation lands a fresh listing (renderer re-queries).
@@ -70,7 +70,7 @@ const taglines = createTaglineIndex({
 
 interface Request {
   id: number;
-  op: 'configure' | 'query' | 'browse' | 'locateCurrentFile' | 'entriesForPaths' | 'taglineQuery';
+  op: 'configure' | 'refresh' | 'query' | 'browse' | 'locateCurrentFile' | 'entriesForPaths' | 'taglineQuery';
   args: unknown;
 }
 
@@ -90,6 +90,8 @@ async function handle(req: Request): Promise<unknown> {
       else void taglines.refresh(roots).catch(() => {});
       return;
     }
+    case 'refresh':
+      return core.refresh((req.args as { roots: string[] }).roots);
     case 'taglineQuery':
       return taglines.query(req.args as Parameters<typeof taglines.query>[0]);
     case 'query':

@@ -7600,6 +7600,70 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   opacity: 0;
 }
 
+/* Toast with an icon, a quieter detail and/or a pill (showToast's icon /
+   detail / pill options). */
+.pmd-toast.pmd-toast-rich {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.55rem;
+}
+.pmd-toast-rich .pmd-icon {
+  flex: 0 0 auto;
+}
+.pmd-toast-main {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+.pmd-toast-detail {
+  min-width: 0;
+  max-width: 15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.78;
+}
+.pmd-toast-pill {
+  flex: 0 0 auto;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* Toast with a button: bottom centre, takes clicks. */
+.pmd-toast.pmd-toast-action {
+  left: 50%;
+  top: auto;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.8rem;
+  pointer-events: auto;
+}
+.pmd-toast-action-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.15rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+.pmd-toast-action-btn:hover {
+  background: color-mix(in srgb, currentColor 26%, transparent);
+}
+.pmd-toast-action-btn:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 /* Ribbon tooltip — custom-rendered (see ribbon-tooltips.ts). We don't use the
    native `title` attribute; Electron/Chromium on macOS renders it erratically.
    One shared element, positioned in JS, faded in after a hover delay. */
@@ -11444,6 +11508,10 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.pmd-qcs-row-pills {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
 .pmd-qcs-row-snippet {
   font-size: 0.76rem;
   color: var(--pmd-c-text-muted);
@@ -12389,6 +12457,11 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.pmd-select-speech-row-pills {
+  flex: 0 0 auto;
+  max-width: 45%;
+  justify-content: flex-end;
+}
 .pmd-select-speech-row-current {
   background: var(--pmd-c-speech-bg);
   border-color: var(--pmd-c-speech-border);
@@ -12788,6 +12861,39 @@ body.pmd-pane-dragging * {
   transform: translate(-50%, 14px);
   transition: opacity 140ms ease, transform 160ms ease;
 }
+/* Window pills: This window / Speech doc / Minimized /
+   Comparing documents, on every row that names a window. */
+.pmd-win-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+.pmd-win-pill {
+  flex: 0 0 auto;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--pmd-c-border-soft);
+  font-size: 0.66rem;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-win-pill-thisWindow {
+  color: var(--pmd-c-text);
+  background: color-mix(in srgb, var(--pmd-c-text) 8%, transparent);
+}
+.pmd-win-pill-speech {
+  color: var(--pmd-c-speech-text);
+  background: var(--pmd-c-speech-bg);
+  border-color: var(--pmd-c-speech-border);
+}
+.pmd-win-pill-minimized,
+.pmd-win-pill-comparing {
+  border-style: dashed;
+}
+
 .pmd-move-tray-in {
   opacity: 1;
   transform: translate(-50%, 0);
@@ -12866,6 +12972,29 @@ body.pmd-pane-dragging * {
 .pmd-move-tile-source {
   opacity: 0.55;
   background: transparent;
+}
+/* A window busy with Compare documents: shown, but not a drop target. */
+.pmd-move-tile-off {
+  opacity: 0.6;
+  border-style: dashed;
+  background: transparent;
+}
+/* One row of pills in the verb's place; a tile with pills is a little wider. */
+.pmd-move-tile-window:has(.pmd-move-tile-pills) {
+  max-width: 14rem;
+}
+.pmd-move-tile-pills {
+  flex-wrap: nowrap;
+  align-self: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 0.15rem;
+}
+.pmd-move-tile-pills .pmd-win-pill {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-block: 0.08rem;
 }
 .pmd-move-tile-hot {
   background: color-mix(in srgb, var(--pmd-c-accent) 14%, var(--pmd-c-surface));
@@ -13127,15 +13256,18 @@ body.pmd-pane-dragging * {
 }
 .pmd-pane-chip-dropdown-row:hover { background: var(--pmd-c-surface); }
 .pmd-pane-chip-dropdown-row.pmd-active { font-weight: 600; }
-/* The speech doc's row is amber, the same tint as a speech pane's title chip. */
-.pmd-pane-chip-dropdown-row.pmd-speech {
-  background: var(--pmd-c-speech-bg);
-  color: var(--pmd-c-speech-text);
+/* The speech doc's row carries the speech mic (no tint). The slot is on every
+   row while any row has the mic, so names line up. */
+.pmd-pane-chip-dropdown-mic {
+  flex: 0 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  line-height: 1;
 }
-.pmd-pane-chip-dropdown-row.pmd-speech:hover {
-  background: color-mix(in srgb, var(--pmd-c-speech-bg) 80%, var(--pmd-c-speech-border));
-}
-.pmd-pane-chip-dropdown-row.pmd-speech .pmd-pane-chip-dropdown-close { color: inherit; opacity: 0.7; }
+
+.pmd-pane-chip-dropdown-close { color: inherit; opacity: 0.7; }
 .pmd-pane-chip-dropdown-row.pmd-speech .pmd-pane-chip-dropdown-close:hover { opacity: 1; }
 
 .pmd-pane-chip-dropdown-close {

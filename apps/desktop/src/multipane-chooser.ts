@@ -50,6 +50,62 @@ export function readChooserResponse(
   return { kind: 'new-window' };
 }
 
+/** The little labels on a window's row. The renderer keeps its own copy of
+ *  this vocabulary (`src/editor/window-pills.ts`); a test holds the two
+ *  in step, because the chooser is a separate page that cannot import it. */
+export type WindowPillKind = 'thisWindow' | 'lastViewed' | 'speech' | 'minimized' | 'comparing';
+
+export const WINDOW_PILL_TEXT: Record<WindowPillKind, string> = {
+  thisWindow: 'This window',
+  lastViewed: 'Last viewed',
+  speech: 'Speech doc',
+  minimized: 'Minimized',
+  comparing: 'Comparing documents',
+};
+
+export const WINDOW_PILL_HINT: Record<WindowPillKind, string> = {
+  thisWindow: 'The window you asked from',
+  lastViewed: 'The window you were last looking at',
+  speech: 'This window holds the speech doc',
+  minimized: 'This window is minimized',
+  comparing: 'Busy with Compare documents, so it cannot take a document',
+};
+
+export interface WindowPillFlags {
+  thisWindow?: boolean;
+  lastViewed?: boolean;
+  speech?: boolean;
+  minimized?: boolean;
+  comparing?: boolean;
+}
+
+/** Pills for a window, in the order they are drawn. */
+export function windowPillKinds(f: WindowPillFlags): WindowPillKind[] {
+  const out: WindowPillKind[] = [];
+  if (f.thisWindow) out.push('thisWindow');
+  if (f.lastViewed) out.push('lastViewed');
+  if (f.speech) out.push('speech');
+  if (f.minimized) out.push('minimized');
+  if (f.comparing) out.push('comparing');
+  return out;
+}
+
+/** The window you were last looking at: the first of `focusOrder` (window
+ *  ids, most recently focused first) that is among `candidates`. Null when
+ *  there is none. Windows main never saw focused rank last, so they never
+ *  win. Only meaningful when nothing in the app is asking (a file opened from
+ *  Finder or the Dock): a window that asks is the one you are in, so it is
+ *  the last viewed itself and gets "This window" instead. */
+export function lastViewedWindowId(
+  focusOrder: readonly number[],
+  candidates: readonly number[],
+): number | null {
+  for (const id of focusOrder) {
+    if (candidates.includes(id)) return id;
+  }
+  return null;
+}
+
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
 /** Windows in a stable, alphabetical order for the chooser, so a window

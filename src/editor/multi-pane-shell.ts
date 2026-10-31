@@ -61,6 +61,7 @@ import { getCommentsState, loadThreads, type Thread } from './comments-plugin.js
 import { learnStore, type ShowInContextRequest } from './learn-store-host.js';
 import { resolveDescriptor, type AnchorDescriptor } from './learn-anchor.js';
 import { preciseScrollIntoView } from './precise-scroll.js';
+import { captureReloadPosition, restoreReloadPosition } from './reload-position.js';
 
 type DocFormat = 'cmir' | 'docx';
 
@@ -1791,12 +1792,24 @@ class Slot {
         this.shell.slotStack(id).map((r) => ({ uid: r.uid, filename: r.filename, handle: r.handle })),
       ),
     );
+    const anySpeech = this.stack.some((r) => getSpeechDocResolver().isSpeechByUid(r.uid));
     for (const rec of this.stack) {
       const row = document.createElement('div');
       row.className = 'pmd-pane-chip-dropdown-row';
       if (rec === this.visible) row.classList.add('pmd-active');
-      // The speech doc wears the same amber as its pane's title chip.
-      if (getSpeechDocResolver().isSpeechByUid(rec.uid)) row.classList.add('pmd-speech');
+      // The speech doc is marked with the speech mic. Every row keeps a slot
+      // for it while any row has one, so the names stay lined up.
+      if (anySpeech) {
+        const mark = document.createElement('span');
+        mark.className = 'pmd-pane-chip-dropdown-mic';
+        mark.setAttribute('aria-hidden', 'true');
+        if (getSpeechDocResolver().isSpeechByUid(rec.uid)) {
+          row.classList.add('pmd-speech');
+          setIcon(mark, 'mic');
+          mark.title = 'Speech document';
+        }
+        row.appendChild(mark);
+      }
       const name = document.createElement('span');
       name.className = 'pmd-pane-chip-dropdown-name';
       name.textContent = displayFilename(rec.filename);
@@ -1944,6 +1957,7 @@ function closeOpenStackDropdown(): void {
  *  shell only rebuilds pane decorations when it actually flips. */
 let shellLastMarkUnread = settings.get('markUnreadAfterMarker');
 let shellLastKeepEntireCite = settings.get('readModeKeepEntireCite');
+let shellLastBoldCites = settings.get('readModeBoldCites');
 let shellLastShowUndertags = settings.get('readModeShowUndertags');
 let shellLastShowBackground = settings.get('readModeShowBackground');
 let shellLastNumberingSig = numberingDisplaySig();
@@ -2124,10 +2138,12 @@ class MultiPaneShell {
       // like the mark-unread nudge: the rebuild is O(doc).
       if (
         s.readModeKeepEntireCite !== shellLastKeepEntireCite ||
+        s.readModeBoldCites !== shellLastBoldCites ||
         s.readModeShowUndertags !== shellLastShowUndertags ||
         s.readModeShowBackground !== shellLastShowBackground
       ) {
         shellLastKeepEntireCite = s.readModeKeepEntireCite;
+        shellLastBoldCites = s.readModeBoldCites;
         shellLastShowUndertags = s.readModeShowUndertags;
         shellLastShowBackground = s.readModeShowBackground;
         for (const id of SLOT_IDS) {
@@ -2839,7 +2855,7 @@ class MultiPaneShell {
     this.moveTray = tray;
     void listMoveDocTargets().then((targets) => {
       if (this.moveTray !== tray) return; // the drag already ended
-      this.moveTrayWindows = targets.map((t) => ({ id: t.id, label: t.label }));
+      this.moveTrayWindows = targets.map((t) => ({ ...t }));
       tray.setWindows(this.moveTrayWindows);
     });
   }
@@ -3628,6 +3644,9 @@ class MultiPaneShell {
     // The fresh record's outline starts at the default depth; carry over
     // which headings were open.
     const navState = record.navPanel.captureViewState();
+    // Where the caret and the reading line were, so reload does not drop you
+    // at the top of the document.
+    const savedPosition = captureReloadPosition(record.view);
     // Closing the old record clears the speech designation; the reloaded
     // document is the same document, so it keeps it.
     const wasSpeech = getSpeechDocResolver().isSpeechByUid(record.uid);
@@ -3659,6 +3678,7 @@ class MultiPaneShell {
     slot.navHidden = navHiddenBefore;
     this.applyExpandedState();
     fresh.navPanel.restoreViewState(navState);
+    restoreReloadPosition(fresh.view, savedPosition);
     if (wasSpeech) {
       getSpeechDocResolver().setSpeech(fresh.view);
       this.refreshSpeechChips();

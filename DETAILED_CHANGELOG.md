@@ -10,6 +10,56 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.17.1-bcb.1 — 2026-10-31
+
+### Added: "Sent to speech doc" notice (`speech-doc-send.ts`, `toast.ts`)
+
+Sending to the speech doc (`sendToSpeech`, at cursor or at end) gave no feedback on success; only the failures and the self-send case spoke. With the speech doc in another pane or another window the send looked like it did nothing. `showToast` gained optional `icon`, `detail` and `pill` (a flex toast: mic, bold message, quieter quoted detail, outlined pill) with the plain-text path unchanged. `toastSent` fires from the three delivery points: the same-window insert's `afterInsert` (so only after the insert really ran; `insertSpeechSlice` is deferred a tick and can bail), the Electron cross-window `speechSendSlice` result when `delivered` is true, and the web cross-tab ack. Not shown on a failed delivery or a self-send, which keep their existing messages. The detail is the first non-empty line of the slice (a card's tag, a heading, the start of a selection), cut to 48 characters; a slice with no text shows just the mic, the message and the pill. It is always on (an earlier version had a setting to turn it off; removed at the maintainer's request, so there is nothing to toggle). It sits near the pointer like the other toasts (the one stays up 2.2 s), not at the caret, which suits mouse sends better than the backtick key; moving it is a small change if wanted.
+
+Checked: unit tests (same window at cursor / at end, other window delivered / not delivered, self-send, the description text) and a render of the toast in Chromium in both themes. **Not verified:** the real desktop app, and the cross-window path against a real second window.
+
+### Fixed: Reload From Disk keeps the caret and scroll position (`reload-position.ts`)
+
+Reload (Mod-R, "Keep their changes", the pill) discards the open document and mounts a fresh read of the file, which gave a new view at the top with the caret at position 1; only the outline's folded state was carried over. `captureReloadPosition` now saves the selection and the line at the reading line (via the existing `captureViewportAnchor`) before the swap, and `restoreReloadPosition` maps them onto the new document and puts them back: caret first, then a rough `scrollIntoView` jump (long documents are laid out lazily, so a far position has no real height yet) and the existing `restoreViewportAnchor` refine loop. Wired into both the single-document path (`reloadActiveFromDisk` in `index.ts`) and the three-pane path (`MultiPaneShell.reloadFromDisk`). Nothing is saved when the document is at the very top.
+
+Mapping across the difference compares top-level blocks and **ignores heading ids**: a first version used ProseMirror's `findDiffStart` / `findDiffEnd` and put every caret back at the top, because the reload gave every heading a fresh id so the whole document looked changed (the unit test that caught it builds docs with new ids per call, as the .docx import does). A caret ahead of the first changed block stays put, one behind the last shifts by the size change, one inside the changed stretch keeps its offset into it, held inside.
+
+Checked in Chromium on a 300-card document: caret in card 150, window scrolled so it sat 160 px down; after swapping in a fresh view the caret was back in card 150 at 160 px. Unit tests cover the mapping and the caret/selection restore. **Not verified:** the real Reload From Disk in the packaged app (it needs Electron's file read), a .docx reload, three-pane stacks with the document behind another (only the caret is restored there, there is no layout to measure), and Reading view.
+
+**Not covered (not asked for, noted):** reopening a file from Home or after quitting still opens at the top; no per-file position is stored across sessions.
+
+### Changed: stack list marks the speech doc with the mic, not amber (`multi-pane-shell.ts`, `style.css`)
+
+Reverses the 2026-10-27 amber row. `openStackDropdown` now puts a `pmd-pane-chip-dropdown-mic` slot at the left of every row while any row is the speech doc, and fills it with the `mic` icon (the one the pane's title chip uses) for the speech doc's row only, so names stay aligned. The `pmd-speech` class stays on the row as a hook but has no styling; the amber background, its hover tint and the ✕ colour overrides are gone. Looked at in a browser with a copy of the row markup and the real stylesheet; not checked in the packaged app or inside a live multi-pane stack.
+
+### Window pills, greyed Compare windows, Go back
+
+**What.** One vocabulary of pills (`src/editor/window-pills.ts`): This window, Speech doc, Minimized, Comparing documents. Used by the "which window?" chooser (Open in / New document in), the pane-drag move tray, Select Speech Document and the Switch Window palette. **Last viewed** exists only in the chooser, and only when nothing asks (a file opened from Finder or the Dock): it marks the first window in main's focus order (`windowFocusOrder`) that is a candidate. In every other dialog the window you are in is the one you viewed last, so no *other* window can be "last viewed"; an earlier version of this change got that wrong and showed the previous window as Last viewed in the tray, Select Speech Document and the Switch Window list. Those are gone, along with the `lastViewed` / `isLastViewed` fields on `host:list-docs`, `host:list-windows` and `host:list-multipane-windows`.
+
+**Chooser.** The desktop chooser is a separate page that cannot import renderer code, so `multipane-chooser.ts` keeps its own copy of the pill text; a test fails if the two drift. The chooser's order stays alphabetical on purpose (stable number keys), so recency is shown by a pill, not by sorting. A window busy with Compare is now a greyed row: it keeps its place and its number, but no number key, no click, and the arrow keys skip it (number keys now come from each row's own `data-key`, not its position). **This window** only appears for New Document, where the asker is a candidate; for an OS-opened file there is no asker, so **Last viewed** is simply the most recently focused window.
+
+**Move tray.** Windows still come most recently used first (main sorts by focus order), but nothing marks that. A tile with pills shows them on the verb's line ("Send there" is dropped) so tiles are all two lines tall, and such a tile may be a little wider (14rem instead of 11rem) so Speech doc + Minimized fit on one row. A Compare window is a tile with no drop token, so a drop on it is impossible, not merely refused.
+
+**Select Speech Document.** "this window" / "current speech doc" grey text became pills (This window, Minimized, Speech doc). The caption under a document is now the window's own name (it was fetched but never shown) else its title, "Untitled window" instead of "Window N" for an empty title, and it is left out when it only repeats the document name.
+
+**Go back.** There is no right-click "Move to…" menu in the code (only stale comments); the move tray is the only way to send a document to another window. Moving already brings the destination to the front, so a "Go there" button would never be seen. Instead the destination shows **Moved "X" here from <window>** with **Go back** (new `showActionToast`: bottom centre, clickable, 8 s). The source is named by its window name, else by the documents still in it, else "your other window". Moves to a brand-new window don't show it (that path doesn't carry the source).
+
+**Rejected.** Sorting the chooser by recency (breaks muscle memory); making Enter pick the last-viewed window (changes what Enter does today; easy to add if wanted).
+
+**Not verified.** None of this has run in the packaged Electron app: the chooser page and the in-app dialogs were rendered in Chromium against stubbed host data, and the real focus order, minimized state and Compare takeover come from main, which only unit tests and typecheck cover. Moving a document between real windows and the Go back button have not been tried end to end.
+
+### From upstream: 1.17.1 sync, and how the overlaps were resolved (`update-chip.ts`, `main.ts`, `read-mode-plugin.ts`, `file-search-client.ts`, `file-index-service.ts`)
+
+The user-facing summary is in CHANGELOG.md's `### From upstream`; upstream's own detailed 1.17.0 and 1.17.1 sections are further down this file. `package.json`, `apps/desktop/package.json` and `package-lock.json` are set to `1.17.1-bcb.1`. This sync was done as a real merge of upstream's `v1.17.1` tag with `v1.16.0` as the common base (a plain `git merge` against the old base re-conflicted on everything the 1.16.0 sync had already resolved), so the next sync finds `v1.17.1` as its merge base. Overlaps, and what was kept:
+
+- **Update chip: this fork's version kept.** Upstream's 1.17.0 added a "Downloading update 1.17.0… 42%" chip (issue #104); this fork already had one with a filling bar and a fixed-width percent (`pct`, `UpdateChipState` with the plugin-update states). Upstream's `update-chip.ts`, its renderer and its two tests were dropped in favour of ours, and its `percent` field was renamed to `pct` in the auto-merged `CM_FAKE_UPDATE=downloading` animation. One upstream improvement was ported: `download-progress` forwards only a change of at least one whole percent (each push is an IPC to every window).
+- **Read mode: bold cites, applied to this fork's copy filter.** Upstream moved the per-paragraph keep rules into `read-mode-rules.ts` (`readKeptMarks(para, prev)`, with the bold-cite rule `isBoldCiteParagraph` behind the new `readModeBoldCites` setting, on by default). The display plugin, Convert Cards to Read Mode and the read-mode DOCX export take it as upstream wrote it. Upstream's `read-mode-copy.ts` stays removed (the 1.16.0 decision: this fork's `filterSliceForReadMode` is the copy filter); its calls to the old `readKeptKind` now go through `readKeptMarks`, passing the paragraph's previous sibling so a copied hand-bolded cite follows the same rule as the screen. A node on the very left edge of a partial slice can't see its real previous sibling and is treated as having none.
+- **File search: both sides kept.** `configure(roots, tagline?)` and the card-tagline index stay (this fork's) beside upstream's new `refresh(roots)` for **Refresh File Search Index**; the service, client and the test fake carry both.
+- **Smaller.** `electron-host.ts` keeps this fork's `onUpdateChipReveal`; the MANUAL's Insert Received Card line keeps this fork's **Mod-Alt-Shift-P** with upstream's "marked read" sentence; `packaging/aur/PKGBUILD` takes upstream's `_origver=1.17.0` (the last upstream release with a Linux `.pacman`); the lockfile's own version line was stale at `1.10.0-bcb.1` and now matches.
+- **Includes this fork's pending work.** The release also carries the window pills, the greyed Compare windows, Go back after a move, the Sent-to-speech-doc notice, the stack-list mic and Reload From Disk keeping your place (their entries are above).
+- **Verified:** root and desktop typechecks and the full test suite pass in this sandbox apart from `mac-swap-update` (fails on `main` here too, running as root); `collab-transclusion-fuzz` (120 s timeout) timed out once in a full run under load and passes alone in 86 s. The desktop typecheck only runs once `npm --prefix apps/desktop ci --ignore-scripts` has installed Electron's types; it caught one error in the merge that CI then reported: upstream's new `autoUpdater.on('error')` clears a stuck download chip with `setUpdateChip(null)`, so this fork's `setUpdateChip` now takes `AppUpdateChip | null`. Not verified in the packaged app.
+
+
 ## 1.16.0-bcb.3 — 2026-10-28
 
 ### Changed: Compare's two outlines fold together and follow the scroll (`doc-diff-ui.ts`, `nav-panel.ts`)
@@ -2931,6 +2981,186 @@ history.
 *The sections below are upstream CardMirror's own detailed release notes,
 synced into this fork. For the user-facing short summary of each upstream
 release, see [CHANGELOG.md § Upstream Releases](./CHANGELOG.md#upstream-releases).*
+
+## 1.17.1 — 2026-10-31
+
+### Fixed: image alt text with `"` produced a malformed .docx
+
+`buildDrawingXml` in `src/export/exporter.ts` escaped the picture alt text
+with `escText` — the element-content escaper, which handles `&`, `<`, `>`
+but not `"` — and then interpolated it into the `descr="…"` attribute of
+`<wp:docPr>` and `<pic:cNvPr>`. A raw quote ended the attribute early, the
+rest of the alt became stray attribute tokens, `word/document.xml` stopped
+being well-formed XML, and Word rejected the whole package (the zip and
+every other part were fine, which is why the file looked intact). Both
+attributes, and the `name` attribute beside them, now use `escAttr`. The
+importer's fast-xml-parser instance already decodes `&quot;`, so the alt
+round-trips unchanged. Regression test in `tests/export/exporter.test.ts`
+asserts the escaped form, validates `document.xml` with `XMLValidator`,
+and reimports the alt. Found on a real 2AC export at Harvard 2026.
+
+## 1.17.0 — 2026-10-29
+
+### Added: Refresh File Search Index (command) + re-scan on settings change
+
+The palette's file index (the out-of-process file-index service) only
+re-walked its roots on two triggers: app boot and every palette open, the
+latter after a 3-second delay so a typing burst finishes first. Nothing
+else — not saving a document, not editing the folder list, not external
+changes — touched it, so a file saved from Word or Finder could be missing
+from the palette for the first several seconds after opening it, with no
+way to force the issue short of a restart.
+
+Two additions. (1) `refreshFileSearchIndex`, a desktop command with no
+default binding (Search group), calls a new `refresh` op on the service:
+a forced, immediate walk of every configured root, cached or not, that
+cancels a pending delayed revalidation, waits out any walk already in
+flight for that root rather than racing it, publishes and notifies per
+root whose listing changed, and answers with `{roots, files, changedFiles,
+missingRoots}` once every walk is done. A root that is not a directory at
+that moment (unmounted drive, cloud folder mid-sync) is reported in
+`missingRoots` and NOT walked, so a good cached listing is never replaced
+by an empty one. The renderer helper (`file-index-refresh.ts`) toasts a
+start notice, the result summary, the no-folders and no-desktop early
+outs, and a failure notice; a second invocation during a walk joins it.
+The refresh request uses a 10-minute timeout instead of the ordinary
+30-second one, because that ordinary timeout doubles as the service's
+crash detector and tears down the port on expiry. (2) The settings
+subscriber that already mirrors `fileSearchRoots` to main for read-scope
+now also sends `configure` to the index service, so a folder added in
+Settings is scanned before the palette is next opened. Covered by new
+core tests (cached/cold/missing/pruned roots) and a flow test with an
+injected client.
+
+### Added: read mode treats hand-bolded cites as cites (`readModeBoldCites`)
+
+Read mode's keep rule was purely style-driven: a cite paragraph showed
+its `cite_mark` and `highlight` runs, a body showed its highlights. A
+cite typed as bold plain text (a common import shape when the Cite
+character style was never applied) therefore showed nothing, and people
+read it as a bug. New rule, in a new pure module
+`src/editor/read-mode-rules.ts` shared by every surface: a paragraph is
+a *bold cite* when it immediately follows a tag or undertag, is a
+`cite_paragraph` or `card_body`, carries no underline / underline_direct
+/ emphasis anywhere, has some `bold` text, and — for a `card_body` only —
+some bold text contains a digit (a cite paragraph already says "cite" by
+its style; the digit test keeps a bolded statistic in a body from
+masquerading). In such a paragraph `bold` joins the paragraph's kept
+marks, so bold runs are read aloud exactly like cite-marked ones; "keep
+entire cite" treats a bold run as the run that unlocks the whole cite.
+Gated by `readModeBoldCites` (General → Editor behavior, default on);
+both shells rebuild decorations on flip like the other read-mode
+toggles. Plumbing: the per-paragraph decision needs the paragraph's
+previous sibling, so `isReadModeKeptText` gained a `prev` parameter and
+the display plugin, `AudibleInlineBuilder` (Convert Cards to Read Mode),
+read-mode copy and the read-mode DOCX export all pass it; the export's
+own mark filter now takes its list from the shared `readKeptMarks`,
+which as a side effect aligns it with the plugin on highlights inside
+cites (the plugin has kept those since 1.0; export had not). A cut copy
+judges a paragraph by the previous sibling inside the slice, so a cite
+copied without its tag is not a bold cite — matching what that cut shows.
+
+### Changed: "Highlight underlined text only" words follow the double-click spec
+
+`restrictToUnderlinedText` segmented words as maximal runs of
+non-whitespace, independently of `word-break.ts`, the Word-compatible
+spec every selection gesture uses. The two disagreed on punctuation:
+`nuclear—armed`, `weapons,`, `U.S.` and `1,234` were one word to the
+filter and several units to a double-click. Because the emphasis rule
+is decided per whole word, an em-dash-joined pair with emphasis in one
+half dropped the plain underline in the other half, and an underlined
+comma attached to an emphasized word was dropped with it. The filter now
+uses `isWordChar` from the spec: a word is a maximal run of letters,
+digits and apostrophes; punctuation, dashes, spaces, tabs and inline
+leaves are non-word and are gap content. Gap content is not kept on its
+own — the gap bridger fills spaces and the punctuation beside them
+between two painted words — with one exception the bridger forces: it
+deliberately never bridges dashes (`formatting-gaps.ts` treats a dash as
+a seam the user chose), so an underlined punctuation run with no
+whitespace that joins two kept words (`nuclear—armed`, `well-known`) is
+kept with them, or the paint would have a hole nothing fills. The join
+rule looks at the whole textblock, so a neighbor outside the selection
+still counts. Tests cover the em dash under emphasis, the hyphen, the
+attached comma, apostrophes staying inside a word, an underlined spaced
+dash (left to the bridger), and the command level with bridging on and
+off.
+
+### Changed: "Highlight underlined text only" never blocks removal
+
+With the setting on, `applyHighlight` / `applyShading` narrowed the
+operating ranges through `restrictToUnderlinedText` and returned false
+when nothing survived, BEFORE reaching the toggle-off / null-pen branch.
+So a highlight on text with no underline or emphasis under it (imported
+documents, paints made before the setting was turned on) could not be
+removed with F11, Mod-F11 or even the "No highlight" pen while the setting
+was on; the user had to turn the setting off first. Now a press whose
+filter leaves nothing to paint is a remove-only press: if the selection
+carries the mark anywhere (any color), the whole selection is stripped,
+filter ignored; if it carries none, it stays a no-op. The paint path and
+the existing same-color toggle over the narrowed pieces are unchanged, so
+repainting a swath still toggles it off and a different pen still
+repaints only the underlined parts. When the selection mixes a highlighted
+plain word with an unhighlighted underlined word, paint still wins (there
+is something to paint); select just the highlighted text to remove it.
+Tests cover the plain-word strip, over-selection, a different pen color,
+the null pen, shading, and the paint-wins mix.
+
+### Fixed: update chip reports the download (issue #104)
+
+The main process's single chip state had two values, `available` and
+`ready`, and nothing was set between electron-updater's `update-available`
+(where Windows/Linux auto-download and the mac swap path call
+`downloadUpdate()`) and `update-downloaded`, so both chip surfaces
+(status bar and the home-screen button, one renderer module) were blank
+for the length of the download. A third state `downloading` with a
+`percent` is now set when the download starts, advanced from the
+updater's `download-progress` event (forwarded only on whole-percent
+changes, since each push is an IPC to every window), cleared on a
+download error so a dead download never leaves a stuck chip, and
+superseded by `ready` as before. Clicking a downloading chip does
+nothing. The host interface imports the chip state type from
+`update-chip.ts` instead of spelling it out inline in three places. Dev
+aid: `CM_FAKE_UPDATE=downloading[:version]` animates 0→100% over ~30 s, shows `ready` for 10 s,
+and repeats in an unpackaged build.
+
+### Fixed: inserting a received card marks it read
+
+`read` on an inbox item meant "the user has opened the Receive pill since
+this arrived" and was only ever set wholesale by `markAllRead` on pill
+open. The keyboard insert commands (`insertReceivedAtCursor` Mod-P,
+`insertReceivedAtEnd` Mod-Alt-P) bypass the pill, so a card inserted that
+way stayed unread: the badge kept saying "N new" and the keep-flashing
+reminder continued until the pill was opened. The shared insert path
+(`inbox-insert.ts` → `insertReceivedItem`) now calls a new
+`inboxStore.markRead(id)` after a successful dispatch, so every insert
+surface (keyboard commands, pill rows) marks the card read while leaving
+it in the inbox. Per-item persistence is a new IPC
+(`host:pairing-inbox-mark-read-one`, preload `pairingInboxMarkRead`,
+host `pairingInboxMarkRead`) mirroring the mark-all handler: no change →
+no broadcast, no write; on the web backend it writes localStorage. On an
+older preload without the IPC the in-window state still updates and the
+next backend snapshot wins. Covered by a jsdom test that inserts the
+newest of two unread items and checks the store, the unread count, the
+doc, the persisted state, and that an undecodable item is neither
+inserted nor marked read.
+
+### Fixed: Self-hosted relay starts under SQLAlchemy 2.1
+
+`relay/requirements.txt` pinned `sqlalchemy>=2.0` with no upper bound
+and installed only `psycopg2-binary`. SQLAlchemy 2.1 (released
+2026-09-25) changed the default DBAPI for plain `postgresql://` URLs
+from psycopg2 to psycopg 3, so every fresh image build since then
+failed at `create_engine` with `ModuleNotFoundError: No module named
+'psycopg'`. PR #114 (Cora) swaps the driver to `psycopg[binary]`. On
+top of that, `server.py` now rewrites `postgresql://` and `postgres://`
+URLs to `postgresql+psycopg://` before building the engine: with
+psycopg2 gone, a host that resolves SQLAlchemy 2.0 (Python 3.10 cannot
+install 2.1) would otherwise fail the opposite way, and the explicit
+scheme makes the pair consistent regardless of which SQLAlchemy pip
+picks. Verified locally against Postgres 16: the mailbox and room
+endpoints return byte-identical responses on psycopg 3 and on the old
+psycopg2 build. The hosted relay inside the scouting backend pins
+SQLAlchemy 2.0 and was never affected.
 
 ## 1.16.0 — 2026-10-24
 

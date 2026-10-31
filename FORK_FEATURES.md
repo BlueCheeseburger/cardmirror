@@ -295,6 +295,20 @@ you'll see "Close this dialog first."
 
 ## 19. Smaller things
 
+- **A notice when you send to the speech doc.** Press the backtick (or Alt-backtick
+  for the end) and a small notice near the pointer shows the speech mic, **Sent to
+  speech doc**, the tag that was sent and a pill saying **at cursor** or **at end**.
+  It also shows when the speech doc is in another window. It is always on; there is
+  no setting for it.
+- **Window pills.** Lists that name windows (the "which window?" chooser, the tray
+  you drop a pane's title chip on, **Select Speech Document**, **Switch Window**)
+  label them with **This window**, **Speech doc**, **Minimized** and, when you open a
+  file from Finder or the Dock, **Last viewed**. A window busy with Compare documents
+  is greyed with a **Comparing documents** pill and can't be picked.
+- **Go back after a move.** A document dragged to another window shows **Moved "name"
+  here from …** there, with a **Go back** button.
+- **The speech doc in a pane's stack list** has the speech mic beside it.
+
 - **What's new:** after an update, a pop-up shows the release notes. You can reopen
   them any time from **Settings → General → About this install → What's new**.
 - **Linux installers** (`.AppImage`, and `.pacman` for Arch) come with every
