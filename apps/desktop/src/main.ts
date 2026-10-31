@@ -4270,7 +4270,7 @@ async function pluginChipAction(): Promise<void> {
 /** The verified update zip electron-updater staged (mac swap path). */
 let macStagedUpdateZip: string | null = null;
 
-function setUpdateChip(next: AppUpdateChip): void {
+function setUpdateChip(next: AppUpdateChip | null): void {
   updateChip = next;
   broadcastChip();
 }
