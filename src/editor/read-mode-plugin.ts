@@ -45,6 +45,7 @@ import { isSyncOrigin } from './sync-origin.js';
 import { NORMALIZER_META } from './normalizer-guard.js';
 import { settings } from './settings.js';
 import { isBlankHighlightColor } from '../schema/marks.js';
+import { readKeptMarks } from './read-mode-rules.js';
 import {
   toggleReadingMarker,
   isReadingMarkerColor,
@@ -283,34 +284,15 @@ function computeFullSet(doc: PMNode): DecorationSet {
   return DecorationSet.create(doc, computeDecorationsInRange(doc, 0, doc.content.size));
 }
 
-/** Textblocks whose text read mode always shows (headings / structural
- *  labels — no rm-keep/hide decoration; block-level CSS shows them). */
-const READ_MODE_HEADING_BLOCKS = new Set(['tag', 'analytic', 'pocket', 'hat', 'block']);
-
-/** Marks whose text a cite paragraph reads aloud: the cite mark, and —
- *  since 1.0 — highlights too, so a highlighted phrase inside a cite no
- *  longer vanishes in read mode (field find, 2026-08-14). */
-const CITE_KEPT_MARKS: readonly string[] = ['cite_mark', 'highlight'];
-const BODY_KEPT_MARKS: readonly string[] = ['highlight'];
-
-/** The read-aloud marks a textblock is filtered by, `'heading'` if its
- *  text is always shown, or null if it isn't read-mode content. Mirrors
- *  computeDecorationsInRange's per-node decision. */
-function readKeptKind(nodeName: string): readonly string[] | 'heading' | null {
-  if (READ_MODE_HEADING_BLOCKS.has(nodeName)) return 'heading';
-  if (nodeName === 'cite_paragraph') return CITE_KEPT_MARKS;
-  if (nodeName === 'card_body' || nodeName === 'paragraph' || nodeName === 'undertag') {
-    return BODY_KEPT_MARKS;
-  }
-  return null;
-}
-
 /** Whether read mode keeps this inline text node of `parent` visible.
- *  Shared with destructive conversions so their audible-text rule cannot
- *  drift from the display-only mode. */
-export function isReadModeKeptText(child: PMNode, parent: PMNode): boolean {
+ *  `prev` is the parent's previous sibling in ITS container (null at the
+ *  start, or when the caller has no container — a lone paragraph can't
+ *  be a bold cite). Shared with destructive conversions, copy and export
+ *  so their audible-text rule cannot drift from the display-only mode;
+ *  the per-paragraph rules themselves live in read-mode-rules.ts. */
+export function isReadModeKeptText(child: PMNode, parent: PMNode, prev: PMNode | null = null): boolean {
   if (!child.isText) return false;
-  const kind = readKeptKind(parent.type.name);
+  const kind = readKeptMarks(parent, prev);
   if (kind === 'heading') return true;
   if (kind === null) return false;
   return isReadKept(child, kind) || keepsWholeParagraph(parent, kind);
@@ -363,8 +345,11 @@ export function filterSliceForReadMode(slice: Slice, source?: ReadModeFilterSour
   if (slice.content.size === 0) return slice;
   if (slice.content.firstChild?.isInline) {
     if (!source) return slice; // no context to know which rule (if any) governs this text
-    const parent = source.doc.resolve(clampPos(source.doc, source.from)).parent;
-    const kind = readKeptKind(parent.type.name);
+    const $from = source.doc.resolve(clampPos(source.doc, source.from));
+    const parent = $from.parent;
+    // The paragraph's previous sibling, for the bold-cite rule.
+    const prev = $from.depth > 0 ? $from.node($from.depth - 1).maybeChild($from.index($from.depth - 1) - 1) : null;
+    const kind = readKeptMarks(parent, prev);
     if (kind === null || kind === 'heading') return slice;
     return new Slice(filterInlineFragment(slice.content, kind, parent), slice.openStart, slice.openEnd);
   }
@@ -411,7 +396,9 @@ function filterFragmentForReadMode(
     const full = onLeft ? leftSpine[0] : onRight ? rightSpine[0] : undefined;
     const childLeft = onLeft ? leftSpine.slice(1) : [];
     const childRight = onRight ? rightSpine.slice(1) : [];
-    const kind = readKeptKind(node.type.name);
+    // A node on the slice's left edge can't see its real previous sibling, so
+    // the bold-cite rule treats it as having none there.
+    const kind = readKeptMarks(node, frag.maybeChild(index - 1) ?? null);
     if (kind === null) {
       out.push(node.content.size ? node.copy(filterFragmentForReadMode(node.content, childLeft, childRight)) : node);
       return;
@@ -491,8 +478,8 @@ export function nearestReadKeptPos(doc: PMNode, pos: number): number | null {
       best = cand;
     }
   };
-  doc.nodesBetween(from, to, (node, nodePos) => {
-    const kind = readKeptKind(node.type.name);
+  doc.nodesBetween(from, to, (node, nodePos, parent, index) => {
+    const kind = readKeptMarks(node, parent?.maybeChild(index - 1) ?? null);
     if (kind === null) return true; // a container — descend
     if (kind === 'heading') {
       if (node.content.size > 0) {
@@ -533,9 +520,9 @@ export function firstReadKeptPos(doc: PMNode, from: number, to: number): number 
   const lo = Math.max(0, Math.min(from, size));
   const hi = Math.max(lo, Math.min(to, size));
   let found: number | null = null;
-  doc.nodesBetween(lo, hi, (node, nodePos) => {
+  doc.nodesBetween(lo, hi, (node, nodePos, parent, index) => {
     if (found !== null) return false;
-    const kind = readKeptKind(node.type.name);
+    const kind = readKeptMarks(node, parent?.maybeChild(index - 1) ?? null);
     if (kind === null) return true; // container — descend
     if (kind === 'heading') {
       if (node.content.size > 0) found = Math.max(lo, nodePos + 1);
@@ -572,8 +559,8 @@ export function firstReadKeptPos(doc: PMNode, from: number, to: number): number 
  */
 function computeDecorationsInRange(doc: PMNode, from: number, to: number): Decoration[] {
   const decos: Decoration[] = [];
-  doc.nodesBetween(from, to, (node, pos) => {
-    const kind = readKeptKind(node.type.name);
+  doc.nodesBetween(from, to, (node, pos, parent, index) => {
+    const kind = readKeptMarks(node, parent?.maybeChild(index - 1) ?? null);
     if (kind !== null && kind !== 'heading') {
       decorateParagraph(node, pos, kind, decos);
       // We've already walked this paragraph's inline children; don't

@@ -8,7 +8,7 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## 1.16.0-bcb.4 — 2026-10-30
+## 1.17.1-bcb.1 — 2026-10-31
 
 ### Added
 - **Windows are labelled in every list that names them.** Small pills say which window is which: **This window**, **Speech doc** and **Minimized**, plus **Last viewed** on the window you were looking at when you opened a file from Finder or the Dock. They appear in the "which window?" chooser, the tray you drag a pane's title chip onto, **Select Speech Document** and the **Switch Window** list. The chooser keeps its alphabetical order and number keys.
@@ -23,6 +23,15 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Fixed
 - **Reload From Disk no longer throws you to the top of the document.** It used to open the fresh copy at the top with the caret at the start. Now your caret or selection and the line you were reading come back where they were, even if the file changed in the meantime. It works in the single-document window and in each pane of the three-pane workspace.
+
+### From upstream
+Synced through upstream CardMirror 1.17.1 (full notes in the `## 1.17.1` and `## 1.17.0` sections further down this file). The highlights:
+- **Refresh File Search Index** (a command in the command bar, unbound) re-walks every file search folder right away and reports what it found. Changing the file search folders in Settings now re-scans immediately too.
+- **Read mode shows hand-bolded cites.** A cite that was bolded by hand instead of styled as a cite no longer vanishes in read mode. Turn it off with **Settings → General → Read mode: treat bold as a cite**.
+- **Highlight underlined text only** never blocks removing a highlight (F11 on plain text now clears it), and a "word" is now what a double-click selects, so a dash splits words.
+- **Inserting a received card at the cursor or at the end marks it read**, so the Receive badge stops counting it.
+- **Word opens exports whose image alt text contains quotation marks.**
+- Not taken from upstream: its simpler update-download percentage, because this fork's update chip already shows the download filling as it goes.
 
 ## 1.16.0-bcb.3 — 2026-10-28
 
@@ -1180,6 +1189,73 @@ user report, but each was a real race with a real bad outcome if hit:
 
 *The sections below are upstream CardMirror's own release notes, synced into
 this fork. This fork's own changes are the release sections above.*
+
+## 1.17.1 — 2026-10-31
+
+### Fixed
+
+- **Word opens exports whose image alt text contains quotation marks.**
+  A picture whose alt text had a double quote in it (for example a chart
+  described as showing an "America First" survey) produced a .docx that
+  Word refused to open, because the quote was written into the document
+  XML unescaped. The alt text is now escaped correctly and still reads
+  back verbatim when the file is reimported.
+
+## 1.17.0 — 2026-10-29
+
+### Added
+
+- **Refresh File Search Index** *(desktop; a command, unbound by default)*
+  re-walks every file search folder immediately and reports what it found
+  (files indexed, files changed, folders missing on disk). Use it when a
+  document saved from Word or Finder is not showing up in the palette yet.
+  Changing the file search folders in Settings now re-scans right away too,
+  instead of waiting for the next palette open.
+
+- **Read mode shows hand-bolded cites.** A cite that was bolded instead
+  of styled as a cite used to vanish in read mode. Now, in the paragraph
+  right after a tag or undertag, if nothing is underlined or emphasized
+  and some text is bold, the bold reads as the cite (in a body paragraph
+  the bold has to include a number, like a date). Convert Cards to Read
+  Mode, read-mode copy and read-mode export follow the same rule. New
+  setting **Read mode: treat bold as a cite** (Settings → General, on by
+  default) turns it off.
+
+### Changed
+
+- **Highlight underlined text only:** removing a highlight is never blocked
+  by the filter. When nothing in the selection is underlined or emphasized,
+  F11 (and Mod-F11 for background color) now removes whatever highlight the
+  selection carries, in any color, instead of doing nothing — so a highlight
+  sitting on plain text, from an import or a paint made with the setting
+  off, comes off with the same key. Painting is unchanged.
+- **Highlight underlined text only:** a "word" is now the same unit a
+  double-click selects (letters, digits, apostrophes). Dashes, hyphens and
+  punctuation split words instead of joining them, so in `nuclear—armed`
+  with only `nuclear` emphasized, `armed` keeps its underline paint instead
+  of being dropped as part of one emphasized word. A dash that joins two
+  painted words is painted with them; punctuation beside a space is left to
+  the gap bridging.
+
+### Fixed
+
+- **The update chip shows the download in progress.** The home screen's
+  update button and the status-bar chip used to stay blank from the moment
+  an update was found until it had finished downloading, then jump straight
+  to "restart to install". They now read "Downloading update 1.17.0… 42%"
+  while it stages (closes #104).
+
+- **Insert Received Card (At Cursor / At End)** now mark the inserted card
+  as read. Inserting with Mod-P or Mod-Alt-P used to leave the card
+  counted as new, so the Receive badge kept showing it and the arrival
+  flash kept going until you opened the pill. The card stays in the list.
+
+- **Self-hosted relay:** the server starts again on a fresh install.
+  SQLAlchemy 2.1 switched its default Postgres driver to psycopg 3,
+  which the relay image did not install, so new builds crashed on
+  startup. The relay now installs psycopg 3 and names the driver in the
+  connection URL itself, so the same `DATABASE_URL` works under either
+  SQLAlchemy. Thanks to Cora (@coralynnkc)!
 
 ## 1.16.0 — 2026-10-24
 
