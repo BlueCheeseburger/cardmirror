@@ -5,7 +5,7 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
-## Unreleased
+## 1.17.1 — 2026-10-31
 
 ### Fixed: image alt text with `"` produced a malformed .docx
 
