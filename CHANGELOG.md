@@ -5,6 +5,17 @@ changes in each release, written for users of the editor. For
 in-depth rationale and implementation context behind each entry,
 see `DETAILED_CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed
+
+- **Word opens exports whose image alt text contains quotation marks.**
+  A picture whose alt text had a double quote in it (for example a chart
+  described as showing an "America First" survey) produced a .docx that
+  Word refused to open, because the quote was written into the document
+  XML unescaped. The alt text is now escaped correctly and still reads
+  back verbatim when the file is reimported.
+
 ## 1.17.0 — 2026-10-29
 
 ### Added

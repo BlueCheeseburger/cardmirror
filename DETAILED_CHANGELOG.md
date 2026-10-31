@@ -5,6 +5,23 @@ behavior, rationale, and (where useful) the implementation context
 behind a change. For a shorter, jargon-free summary of what's new
 in each release, see `CHANGELOG.md`.
 
+## Unreleased
+
+### Fixed: image alt text with `"` produced a malformed .docx
+
+`buildDrawingXml` in `src/export/exporter.ts` escaped the picture alt text
+with `escText` — the element-content escaper, which handles `&`, `<`, `>`
+but not `"` — and then interpolated it into the `descr="…"` attribute of
+`<wp:docPr>` and `<pic:cNvPr>`. A raw quote ended the attribute early, the
+rest of the alt became stray attribute tokens, `word/document.xml` stopped
+being well-formed XML, and Word rejected the whole package (the zip and
+every other part were fine, which is why the file looked intact). Both
+attributes, and the `name` attribute beside them, now use `escAttr`. The
+importer's fast-xml-parser instance already decodes `&quot;`, so the alt
+round-trips unchanged. Regression test in `tests/export/exporter.test.ts`
+asserts the escaped form, validates `document.xml` with `XMLValidator`,
+and reimports the alt. Found on a real 2AC export at Harvard 2026.
+
 ## 1.17.0 — 2026-10-29
 
 ### Added: Refresh File Search Index (command) + re-scan on settings change
