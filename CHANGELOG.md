@@ -8,6 +8,12 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Fixed
+
+- **Mod+F11 (Highlight with White) now erases the whole selection, quotation marks included.** With **Highlight underlined text only** on, it used to clear only the underlined words and leave the highlight on the plain quotation marks around them. It now clears everything you selected.
+
 ## 1.17.1-bcb.1 — 2026-10-31
 
 ### Added

@@ -56,6 +56,7 @@ import {
 } from './plugin-registry.js';
 import { schema } from '../schema/index.js';
 import { newHeadingId } from '../schema/ids.js';
+import { isBlankHighlightColor } from '../schema/marks.js';
 import { extractCard } from './extract-card.js';
 import {
   condenseBranchC,
@@ -2357,7 +2358,12 @@ export function applyHighlight(activeColor: () => string | null): Command {
     // test behind the toggle) covers just the underlined / emphasized
     // pieces; a strip still clears the whole selection, so painting the
     // same swath twice leaves it clean.
-    const paint = paintRanges(state.doc, op.ranges);
+    // A blank color (white, Mod-F11) is an eraser, not a paint: it covers the
+    // whole selection whatever the filter says, or the quotation marks and
+    // other plain text beside an underlined phrase would keep their color.
+    const paint = isBlankHighlightColor(color)
+      ? { ranges: op.ranges, narrowed: false }
+      : paintRanges(state.doc, op.ranges);
     // The filter left nothing to paint (no underline / emphasis in the
     // selection): the only thing F11 can mean here is "remove", so strip
     // whatever highlight the selection carries — any color, filter

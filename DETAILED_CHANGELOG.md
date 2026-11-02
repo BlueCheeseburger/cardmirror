@@ -10,6 +10,12 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Mod-F11 ignores "Highlight underlined text only" (it erases, it doesn't paint)
+
+Report: with the setting on, Mod-F11 over `“perceived relative insulation”` whited out the underlined words but left the (plain) quotation marks cyan. Cause: `applyHighlight` narrows every paint to underlined/emphasized text, and "Highlight with White" is a paint of the blank color `white`. Fix: a blank color (`isBlankHighlightColor`: white / none) skips the narrowing and covers the whole selection, so the toggle test (all white already, so strip) also sees the whole selection. F11 and the colored pens are unchanged. Rejected: making Mod-F11 strip instead of paint white; the white mark is what Verbatim's erase writes and what read mode already treats as blank. Not verified in the packaged app, only by unit test (fails without the fix, passes with it).
+
 ## 1.17.1-bcb.1 — 2026-10-31
 
 ### Added: "Sent to speech doc" notice (`speech-doc-send.ts`, `toast.ts`)
