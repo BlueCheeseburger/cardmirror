@@ -15,6 +15,14 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **Opening a file that is up in Compare documents now opens an editor for it.** Before, it just brought you back to the Compare window and never showed the document. The file now opens in a window of its own. The same goes for **Show in context** on a card whose file is in a Compare window.
 - **Mod+F11 (Highlight with White) now erases the whole selection, quotation marks included.** With **Highlight underlined text only** on, it used to clear only the underlined words and leave the highlight on the plain quotation marks around them. It now clears everything you selected.
 
+### From upstream
+
+Synced through upstream CardMirror 1.17.2 (full notes in the `## 1.17.2` section further down this file). The highlights:
+
+- **Co-editing windows no longer freeze when rejoining a session or catching up on partner edits.** The bundled CRDT library had a bug that could lock a window at 100% CPU; it is updated.
+- **A window that stops responding offers to restart itself**, with **Wait**, **Restart Window** and **Close Window**. Restart restores unsaved work from the recovery journal.
+- **Co-editing no longer locks up on one oversized change.** It is sent whole, or reported if the relay refuses it.
+
 ## 1.17.1-bcb.1 — 2026-10-31
 
 ### Added
@@ -1196,6 +1204,14 @@ user report, but each was a real race with a real bad outcome if hit:
 
 *The sections below are upstream CardMirror's own release notes, synced into
 this fork. This fork's own changes are the release sections above.*
+
+## 1.17.2 — 2026-11-01
+
+### Fixed
+
+- **Co-editing windows no longer freeze when rejoining a session or catching up on a burst of partner edits.** Since 1.16.0 a window could lock up at 100% CPU (the rest of the app kept working) the moment it rejoined a room, resumed after a network change, or received several partner edits at once — most often when cards had been moved or inserted since the window last synced. The cause was a bug in the bundled CRDT library (loro-crdt 1.13.6), fixed upstream in 1.13.7; CardMirror now ships 1.13.9. A frozen window of this kind could not be recovered without force-quitting; its unsent edits were always safe in the journal.
+- **A window that stops responding now offers to restart itself.** When a window's editor hangs, CardMirror shows a dialog with Wait, Restart Window and Close Window. Restart reloads the document and restores unsaved work from the recovery journal; the rest of the app keeps running. Previously the only way out was force-quitting CardMirror.
+- **Co-editing could lock up while sending a single oversized change.** An edit that produced one indivisible update larger than the per-update cap (about 4.5 MB) made the send loop retry splitting it forever, freezing the window. Such updates are now sent whole (the relay accepts up to eight times the cap), and if the relay still refuses one, the session backs off and reports it instead of spinning.
 
 ## 1.17.1 — 2026-10-31
 

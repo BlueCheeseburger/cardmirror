@@ -58,6 +58,10 @@ Reverses the 2026-10-27 amber row. `openStackDropdown` now puts a `pmd-pane-chip
 
 **Not verified.** None of this has run in the packaged Electron app: the chooser page and the in-app dialogs were rendered in Chromium against stubbed host data, and the real focus order, minimized state and Compare takeover come from main, which only unit tests and typecheck cover. Moving a document between real windows and the Go back button have not been tried end to end.
 
+### From upstream: 1.17.2 sync (`main.ts`, `collab-session.ts`, `loro-crdt`)
+
+The user-facing summary is in CHANGELOG.md's `### From upstream`; upstream's own detailed 1.17.2 section is further down this file. The merge was a real merge of upstream's `v1.17.2` tag (merge base `v1.17.1`), so the next sync finds `v1.17.2` as its base. Only the version fields and the lockfile conflicted: `package.json`, `apps/desktop/package.json` and `package-lock.json` keep this fork's `1.17.1-bcb.1` and take upstream's `loro-crdt` 1.13.9 (the lockfile entry copied from upstream's). The version is NOT bumped to `1.17.2-bcb.1` yet and `## Unreleased` is not renamed: that is release prep, done when the release is cut. Upstream's `main.ts` hung-window dialog merged without overlap with this fork's window code. NOT verified: nothing was run in the packaged desktop app, and the hung-window dialog and the co-editing freeze fixes were not exercised.
+
 ### From upstream: 1.17.1 sync, and how the overlaps were resolved (`update-chip.ts`, `main.ts`, `read-mode-plugin.ts`, `file-search-client.ts`, `file-index-service.ts`)
 
 The user-facing summary is in CHANGELOG.md's `### From upstream`; upstream's own detailed 1.17.0 and 1.17.1 sections are further down this file. `package.json`, `apps/desktop/package.json` and `package-lock.json` are set to `1.17.1-bcb.1`. This sync was done as a real merge of upstream's `v1.17.1` tag with `v1.16.0` as the common base (a plain `git merge` against the old base re-conflicted on everything the 1.16.0 sync had already resolved), so the next sync finds `v1.17.1` as its merge base. Overlaps, and what was kept:
@@ -2991,6 +2995,85 @@ history.
 *The sections below are upstream CardMirror's own detailed release notes,
 synced into this fork. For the user-facing short summary of each upstream
 release, see [CHANGELOG.md § Upstream Releases](./CHANGELOG.md#upstream-releases).*
+
+## 1.17.2 — 2026-11-01
+
+### Fixed: co-editing window freezes on rejoin / catch-up (loro-crdt 1.13.6 diff hang)
+
+**Symptom.** From 1.16.0 on, a co-editing window could spin at 100% CPU on
+its renderer main thread, forever, while every other window stayed
+responsive. Triggers: Rejoin Recent Session, a resume after the machine
+changed networks, a catch-up that delivered a relay snapshot plus queued
+updates, or a streamed burst of two or more partner frames — whenever the
+partner had moved or inserted cards since the window last synced. DevTools
+could not pause it and `Runtime.terminateExecution` had no effect, because
+the spin was inside Loro's wasm (Liftoff-compiled code with no interrupt
+checks on that path), reached from a promise continuation in the collab
+session.
+
+**Root cause.** Commit bf21d14f (2026-10-24, "Binding: an import burst
+renders once, from its net diff", shipped in 1.16.0) made the binding's
+import hold call `LoroDoc.diff(frontiersBefore, frontiersAfter)` when the
+hold closes, so a burst of imports renders as one transaction. That was the
+first time shipped code called a Loro history API on a document loaded from
+a snapshot. loro-crdt 1.13.6 has a bug in `ChangeStore::get_change_by_lamport_lte`:
+change-store blocks decoded from a snapshot record a wrong end lamport, and
+when a change is split across blocks the binary search never converges. The
+movable-list diff calculator hits that lookup while resolving historical
+positions — i.e. exactly when the diff range contains list moves/inserts.
+Fixed upstream in loro-crdt 1.13.7 (c37e76a: capped binary search with a
+scan fallback). Verified against the real room data from the field report:
+1.13.6 hangs for any range (even an empty one) once the snapshot plus the
+partner's later changes are loaded; 1.13.7, 1.13.9 and 1.17.1 return in
+~80 ms.
+
+**Fix.** loro-crdt pinned 1.13.6 → 1.13.9 (same minor; the only behavioural
+changes in 1.13.7–1.13.9 are hang/panic fixes). The 1.14–1.17 line changes
+checkout/diff/undo winner selection, movable-list cursor anchoring and
+panic-vs-error semantics that the binding and undo guard depend on, so that
+upgrade is deliberately a separate, rig-tested change.
+
+### Added: hung-renderer recovery dialog (main process)
+
+`main.ts` had a `render-process-gone` handler (log + reload + journal
+recovery) but nothing for `unresponsive`, so a renderer stuck in a
+synchronous loop — which never crashes — left a window at 100% CPU whose
+close box was ignored, recoverable only by force-quitting the whole app
+(and that is how every co-editing freeze above was being "resolved" in the
+field). Chromium's hang monitor emits `unresponsive` on the BrowserWindow
+after the renderer ignores input for a while; the new handler logs an
+`unresponsive` line to `renderer-crashes.log` (with `responsive-again` when
+it recovers) and shows a native dialog: **Wait** (default, so a long but
+legitimate operation survives a stray click), **Restart Window**
+(`webContents.forcefullyCrashRenderer()` — the existing gone-handler then
+reloads, reason `killed`, and the startup flow offers the crash journal) and
+**Close Window** (`win.destroy()`, since `close()` needs the hung renderer to
+answer `beforeunload`). One dialog per window at a time.
+
+### Fixed: send loop spun forever on an indivisible oversized update
+
+`drainQueueInner` split an over-cap queue head with `chunkQueueHead()` and
+`continue`d. `exportChunks` halves op spans until each blob fits — but a
+single op (one counter) cannot be halved, and it was emitted as-is
+("single-op blobs ship as-is; the server cap is 8x our limit"). Back in the
+loop the head was still over the cap, so it was re-chunked into the same
+blob, forever, synchronously — the same 100% CPU wedge as the diff hang,
+reachable by any edit that writes one value over ~4.5 MB (an image stored
+in node attrs, say). Chunk entries now carry `chunked: true` and are posted
+rather than re-split; the 413 path only re-chunks an entry once, after which
+a still-refused update goes through the normal failure/backoff route and
+`onSendStuck` instead of a hot retry. A hard cap on chunking attempts per
+drain backstops both. Regression test: a 2 KB single `set` op against a
+400-byte cap posts exactly once.
+
+**Forensics recipe (for the next report of a frozen window).** `ps -M <renderer pid>`
+shows the main thread at 100%; `sample <pid> 5` gives native frames;
+symbolicate them against Electron's breakpad symbols
+(`electron-v<ver>-darwin-arm64-symbols.zip`) and resolve JIT frames with
+V8's perf map (`--js-flags=--perf-basic-prof --no-sandbox` at launch writes
+`/tmp/perf-<pid>.map`). The wasm function index maps to a name through the
+module's export table. `kill -USR1` on the main process opens a Node
+inspector on :9229 for driving `webContents.debugger` from a script.
 
 ## 1.17.1 — 2026-10-31
 
