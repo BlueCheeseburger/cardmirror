@@ -12,6 +12,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Fixed
 
+- **Opening a file that is up in Compare documents now opens an editor for it.** Before, it just brought you back to the Compare window and never showed the document. The file now opens in a window of its own. The same goes for **Show in context** on a card whose file is in a Compare window.
 - **Mod+F11 (Highlight with White) now erases the whole selection, quotation marks included.** With **Highlight underlined text only** on, it used to clear only the underlined words and leave the highlight on the plain quotation marks around them. It now clears everything you selected.
 
 ## 1.17.1-bcb.1 — 2026-10-31

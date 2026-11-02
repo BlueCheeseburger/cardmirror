@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Opening a file that a Compare window owns opens an editor
+
+Report: Compare documents open over doc 1, then opening doc 1 again only focused the Compare window. Cause: the duplicate-open guard (`focusExistingOwner`, shared by the Open dialog, Finder/Dock opens and `host:open-path-check`) focuses whichever window owns the path, and the owner is the window the tool is drawn over. Fix: a window in `takenOverWindows` no longer counts as an owner, so the file opens normally and the new window takes the path claim (the compare window's later release no-ops because release is owner-guarded). `host:focus-anchor-in-window` returns `delivered: false` for such a window so Show in context spawns a window too. Rejected: closing Compare to reveal the editor under it (loses an unfinished comparison, e.g. a sync conflict). Risk: two windows can then hold the same file; the old one gets the usual changed-on-disk prompt on save. NOT verified in the packaged app; the code is in `main.ts` and has no unit test.
+
 ### Mod-F11 ignores "Highlight underlined text only" (it erases, it doesn't paint)
 
 Report: with the setting on, Mod-F11 over `“perceived relative insulation”` whited out the underlined words but left the (plain) quotation marks cyan. Cause: `applyHighlight` narrows every paint to underlined/emphasized text, and "Highlight with White" is a paint of the blank color `white`. Fix: a blank color (`isBlankHighlightColor`: white / none) skips the narrowing and covers the whole selection, so the toggle test (all white already, so strip) also sees the whole selection. F11 and the colored pens are unchanged. Rejected: making Mod-F11 strip instead of paint white; the white mark is what Verbatim's erase writes and what read mode already treats as blank. Not verified in the packaged app, only by unit test (fails without the fix, passes with it).

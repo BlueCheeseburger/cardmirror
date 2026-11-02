@@ -2668,6 +2668,11 @@ function focusExistingOwner(p: string, excludeWinId?: number): boolean {
     windowOpenPaths.get(ownerId)?.delete(norm);
     return false;
   }
+  // A window with Compare documents up shows the tool, not the editor under
+  // it, so focusing it would never reach the document. Treat the file as free:
+  // it opens in an editor of its own, and takes over the path claim (the
+  // compare window's later release is a no-op, since it no longer owns it).
+  if (takenOverWindows.has(ownerId)) return false;
   if (ownerWin.isMinimized()) ownerWin.restore();
   ownerWin.focus();
   return true;
@@ -3027,6 +3032,9 @@ ipcMain.handle(
       windowOpenPaths.get(ownerId)?.delete(norm);
       return { delivered: false };
     }
+    // Compare documents is up over that window: the card is not reachable
+    // there, so let the caller open the file in a window of its own.
+    if (takenOverWindows.has(ownerId)) return { delivered: false };
     if (ownerWin.isMinimized()) ownerWin.restore();
     ownerWin.focus();
     ownerWin.webContents.send('host:focus-anchor', { descriptor });
