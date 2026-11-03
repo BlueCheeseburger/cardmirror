@@ -262,6 +262,7 @@ describe('outline right-click Doc submenu', () => {
       expect.stringMatching(/^Standardize Highlighting \(except /),
       expect.stringMatching(/^Standardize Background Color \(except /),
       'Select Similar Formatting',
+      'Shrink All',
     ]);
     expect(rowsOfSubmenu('Card').length).toBeGreaterThan(0);
   });

@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Doc menu: Shrink All (`shrinkAll`)
+
+Request: a "shrink all" button in the doc dropdown. Built as a new ribbon command `shrinkAll` (unbound by default, also in the command bar) and a "Text size" section in `buildDocMenuSections`, so the toolbar Doc menu and the outline's right-click Doc submenu both get it. It is Smart Shrink (`smartShrinkText`) with the empty-selection case widened: with a caret, Smart Shrink only reaches the caret's card, so `shrinkAllText` runs it against a state whose selection is the whole document (`AllSelection`) and replays the steps onto the real state, leaving the caret and scroll alone. With a selection it is exactly Smart Shrink. Chosen over the plain cycling Shrink because the cycle is not idempotent and cannot be applied to a whole document meaningfully; Smart Shrink is. Rejected: a new keyboard shortcut (the user asked for a button only). Not verified in the running app, only by unit tests; the 5pt/8pt depths are Smart Shrink's existing ones, so say if "all" should mean one fixed size instead.
+
 ### Opening a file that a Compare window owns opens an editor
 
 Report: Compare documents open over doc 1, then opening doc 1 again only focused the Compare window. Cause: the duplicate-open guard (`focusExistingOwner`, shared by the Open dialog, Finder/Dock opens and `host:open-path-check`) focuses whichever window owns the path, and the owner is the window the tool is drawn over. Fix: a window in `takenOverWindows` no longer counts as an owner, so the file opens normally and the new window takes the path claim (the compare window's later release no-ops because release is owner-guarded). `host:focus-anchor-in-window` returns `delivered: false` for such a window so Show in context spawns a window too. Rejected: closing Compare to reveal the editor under it (loses an unfinished comparison, e.g. a sync conflict). Risk: two windows can then hold the same file; the old one gets the usual changed-on-disk prompt on save. NOT verified in the packaged app; the code is in `main.ts` and has no unit test.

@@ -371,7 +371,8 @@ mirrors Word's Navigation Pane, but does more:
   **Rehighlight** (and back) as in the toolbar. On a **Pocket, Hat or Block**
   there is also a **Doc ▸** row with the toolbar's Doc menu — Cleanup
   (convert analytics to tags, fix formatting gaps, remove hyperlinks, link
-  URLs), Highlighting (the Standardize rows) and Select Similar Formatting —
+  URLs), Highlighting (the Standardize rows), Select Similar Formatting and
+  **Shrink All** (Fork) —
   but each row acts only on that heading and everything under it, not the whole
   document. A tag or analytic has no Doc row. Everything runs as one undo step
   and follows a multi-selection like Cut and Copy do.
@@ -453,7 +454,8 @@ Two caveats:
 
 - When there is no selection, some commands will act on the **whole
   document** — the bulk cleanup commands like **Standardize Highlighting**
-  and **Select Similar Formatting**.
+  and **Select Similar Formatting**. **Shrink All** (Fork) in the Doc menu does
+  too: it shrinks every body paragraph in the document.
 - A few inline-mark commands fall back to the **word at the cursor**
   (**Underline**, **Emphasis**, **Cite**). Some **do nothing** when there's no selection
   (**Highlight**), since that's text you would normally select on purpose.

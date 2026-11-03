@@ -36,7 +36,7 @@
 
 import { linkUrls } from './autolink.js';
 import { Fragment, type Mark, type MarkType, type Node as PMNode, type ResolvedPos } from 'prosemirror-model';
-import { EditorState, Selection, TextSelection, type Command, type Transaction } from 'prosemirror-state';
+import { AllSelection, EditorState, Selection, TextSelection, type Command, type Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { toggleMark } from 'prosemirror-commands';
 import { undo as historyUndo, redo as historyRedo } from 'prosemirror-history';
@@ -3670,6 +3670,34 @@ export function smartShrinkText(
   };
 }
 
+/** Shrink All (Doc menu): Smart Shrink over the selection, or over every body
+ *  paragraph in the document when nothing is selected. Smart Shrink on its own
+ *  with a caret only reaches the caret's card, so the empty-selection case runs
+ *  it against a state whose selection is the whole document and replays its
+ *  steps onto the real one. Same eligibility, protections and idempotency. */
+export function shrinkAllText(
+  effectivePt: (node: PMNode | null, parent: PMNode) => number,
+  normalPt: () => number,
+  restoreOmissions: () => boolean,
+  protectionPatterns: () => readonly RegExp[],
+): Command {
+  const smart = smartShrinkText(effectivePt, normalPt, restoreOmissions, protectionPatterns);
+  return (state, dispatch) => {
+    if (!state.selection.empty) return smart(state, dispatch);
+    const whole = state.apply(state.tr.setSelection(new AllSelection(state.doc)));
+    return smart(
+      whole,
+      dispatch
+        ? (tr) => {
+            const real = state.tr;
+            for (const step of tr.steps) real.step(step);
+            dispatch(real);
+          }
+        : undefined,
+    );
+  };
+}
+
 function sizeCycleCommand(
   effectivePt: (node: PMNode | null, parent: PMNode) => number,
   normalPt: () => number,
@@ -4823,6 +4851,7 @@ export type RibbonCommandId =
   | 'clearToNormal'
   | 'shrink'
   | 'smartShrink'
+  | 'shrinkAll'
   | 'regrow'
   | 'createReference'
   | 'lockHighlighting'
@@ -5121,6 +5150,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'clearToNormal',
   'shrink',
   'smartShrink',
+  'shrinkAll',
   'regrow',
   'createReference',
   'lockHighlighting',
@@ -5362,6 +5392,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   clearToNormal: 'Clear',
   shrink: 'Shrink Card Text',
   smartShrink: 'Smart Shrink (Deeper for Unmarked Paragraphs)',
+  shrinkAll: 'Shrink All',
   regrow: 'Restore Card Text Size',
   createReference: 'Create Reference',
   lockHighlighting: 'Lock Highlighting',
@@ -5645,6 +5676,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   standardizeShadingExcept: ['standardize background except', 'standardize shading except', 'exception shading'],
   regrow: ['unshrink', 'regrow', 'restore text size', 'unshrink card text'],
   smartShrink: ['smart shrink', 'deep shrink'],
+  shrinkAll: ['shrink document', 'shrink whole doc', 'shrink everything'],
   condenseAndShrink: ['fast condense', 'condense and shrink', 'condense shrink'],
   aiAskAboutSelection: ['question'],
   reformatAllCites: ['reformat all cites', 'reformat cites', 'all cites', 'every cite', 'bulk cite'],
@@ -5829,6 +5861,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   clearToNormal: 'F12',
   shrink: 'Mod-8',
   smartShrink: 'Mod-Alt-8',
+  shrinkAll: '',
   regrow: 'Mod-Shift-8',
   // Menu / button commands — exposed for user-defined bindings via
   // the keybinding editor; no default key.
@@ -6610,6 +6643,13 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       );
     case 'smartShrink':
       return smartShrinkText(
+        ctx.effectivePtForNode,
+        ctx.normalPt,
+        ctx.shrinkRestoresOmissionsToNormal,
+        ctx.shrinkProtectionPatterns,
+      );
+    case 'shrinkAll':
+      return shrinkAllText(
         ctx.effectivePtForNode,
         ctx.normalPt,
         ctx.shrinkRestoresOmissionsToNormal,

@@ -22,7 +22,7 @@ export function buildDocMenuSections(host: DocMenuHost): DocMenuSection[] {
     commandId,
     run: () => host.run(commandId),
   });
-  // Sections alphabetical by title — Cleanup, Highlighting, Select. The
+  // Sections alphabetical by title — Cleanup, Highlighting, Select, Text size. The
   // exception rows read the live colors from settings, so the menu is built
   // fresh each time it opens.
   return [
@@ -54,6 +54,10 @@ export function buildDocMenuSections(host: DocMenuHost): DocMenuSection[] {
     {
       title: 'Select',
       items: [row('Select Similar Formatting', 'selectSimilar')],
+    },
+    {
+      title: 'Text size',
+      items: [row('Shrink All', 'shrinkAll')],
     },
   ];
 }

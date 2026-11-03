@@ -120,6 +120,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'clearToNormal',
       'shrink',
       'smartShrink',
+      'shrinkAll',
       'regrow',
       'copyPreviousCite',
       'extractCard',

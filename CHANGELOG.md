@@ -10,6 +10,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **Shrink All in the Doc menu.** It shrinks the body text of the whole document in one click: paragraphs with no underline or emphasis go to 5pt, and the rest shrink their connective text to 8pt, the same as Smart Shrink. Select some text first and it shrinks only that. The outline's right-click **Doc** submenu has it too, and shrinks just that heading and what is under it. Click it again and nothing changes.
+
 ### Fixed
 
 - **Opening a file that is up in Compare documents now opens an editor for it.** Before, it just brought you back to the Compare window and never showed the document. The file now opens in a window of its own. The same goes for **Show in context** on a card whose file is in a Compare window.
