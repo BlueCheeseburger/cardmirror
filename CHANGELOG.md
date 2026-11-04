@@ -12,6 +12,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **Choose whether read times start on Flow or Lay.** A new **Default read-time speed** control (**Settings → General → Word counts**, right under the readers) sets the speed a document opens on, so you no longer click to lay every time. A document you switch yourself keeps its own choice. Lay needs a lay rate on one of the two readers shown in the bottom bar; until one is set, documents start on flow.
 - **Starred Doc now works like Send Doc, Read Doc and Marked Doc.** Its file name starts with `STARRED_` (change it, or leave it empty, under **Settings → Files → Send / Read / Marked / Starred docs**), and that section also has the Starred Doc destination, folder, format and card numbers. A new **Save Starred Doc** command saves a starred doc without the dialog, to your folder, in your format. It has no shortcut by default; run it from the command bar, or bind a key. If nothing is starred, it tells you.
 - **Shrink All in the Doc menu.** It shrinks the body text of the whole document in one click: paragraphs with no underline or emphasis go to 5pt, and the rest shrink their connective text to 8pt, the same as Smart Shrink. Select some text first and it shrinks only that. The outline's right-click **Doc** submenu has it too, and shrinks just that heading and what is under it. Click it again and nothing changes.
 

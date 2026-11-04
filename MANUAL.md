@@ -1647,6 +1647,12 @@ in lay mode, so you can see who still needs one. If neither reader shown in
 the bar has a lay rate yet, clicking does nothing. The readers editor also
 links to an online reading-speed test.
 
+**(Fork)** Right under the readers, **Default read-time speed** (**Flow** or
+**Lay**) sets the speed a document starts on, so you don't have to click to lay
+every time you open one. A document you have switched yourself keeps its own
+choice. Lay only takes effect once a reader shown in the bar has a lay rate;
+until then everything starts on flow.
+
 Click the word count (the **Σ** button / Word Count) for the full
 breakdown — that dialog shows the read time for **every** reader on your
 list, not just the two in the bar, and the word count and read time for
@@ -3315,6 +3321,9 @@ headers shown inside each tab.
   the **Lay speaking** section below the divider.
   The first two show live in the status bar; all appear in the Word
   Count dialog (see [Read-time estimates](#read-time-estimates)).
+- **Default read-time speed** **(fork)** — **Flow** (default) or **Lay**: the
+  speed a document starts on. A document you have switched keeps its own choice;
+  lay needs a lay rate on a reader shown in the bar.
 - **Live word count for the whole document** — on by default. Off drops
   the bar's first readout (the whole document's count and read times) so
   a narrow window can show only the specific counts you keep on. The Word

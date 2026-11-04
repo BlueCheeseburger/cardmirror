@@ -90,6 +90,7 @@ import {
 import {
   hasLaySpeeds,
   canSwitchSpeedMode,
+  defaultLaySpeaking,
   liveContainerSegment,
   orderWordCountSegments,
   primaryReadSegment,
@@ -5100,10 +5101,10 @@ function buildDocRecord(
     // New docs always start with read mode OFF. The user toggles
     // it per-pane via the ribbon command after opening.
     readMode: false,
-    // Flow speeds unless this file was last left on lay (remembered per
-    // path — see lay-speaking-store.ts), toggled per-pane by clicking
+    // The file's remembered choice (per path — see lay-speaking-store.ts),
+    // else the Default read-time speed setting; toggled per-pane by clicking
     // that pane's footer readout.
-    laySpeaking: isLaySpeakingForPath(opts.handle),
+    laySpeaking: isLaySpeakingForPath(opts.handle, defaultLaySpeaking()),
     readerView: false,
     zoomPct: settings.get('defaultZoomPct'),
     // Autosave is per-pane in multi-doc — same intent as read mode.

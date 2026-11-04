@@ -12,6 +12,14 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Default read-time speed (Flow / Lay)
+
+Request: an option beside the Flow and Lay reading times in Settings to use either by default. Added `defaultSpeakingMode` (`flow` default | `lay`), a "Default read-time speed" row directly after the readers row in General → Word counts, drawn as a two-way segmented control (`buildSpeakingModeEditor`, the selected side in the same blue the bottom bar uses for lay times). Applies when a document opens (single-doc and each pane) and to new, unsaved ones.
+
+The per-file store only recorded files left on lay, with "absent means flow". With a lay default that cannot say "I switched this back to flow", so `lay-speaking-store.ts` now also records explicit flow (`pmd-flow-speaking-paths`); `isLaySpeakingForPath(path, fallback)` returns the file's own choice, else the fallback. Old data still reads correctly (the old lay list is the same key). `defaultLaySpeaking()` (`live-read-time.ts`) only returns lay when a reader shown live has a lay rate, so a lay default with none set cannot turn every time into "—"; the row's description says so.
+
+Not done: changing the setting does not flip documents already open (they keep their mode until reopened). NOT verified in the packaged app, only by unit tests and a rendered screenshot of the settings row.
+
 ### Starred Doc brought level with Send / Read / Marked Doc
 
 Report: Starred Doc (Save As) was built as a bare export mode and missed what the other three presets have. Audited each against Marked Doc. What was missing and is now added:

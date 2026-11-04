@@ -407,6 +407,7 @@ import {
   remainingReadSegment,
   watchScrollForRemaining,
   canSwitchSpeedMode,
+  defaultLaySpeaking,
 } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import type { MultiPaneWindowInfo } from './host/electron-host.js';
@@ -5741,7 +5742,7 @@ let lastWholeDocWords: ReadAloudCounts | null = null;
  *  clicking the readout itself (`word-count-text`); switches every
  *  reader shown from their flow rate (`wpm`/`tagWpm`) to their lay rate
  *  (`layWpm`), or "—" for a reader with no lay rate configured. */
-let laySpeakingOn = false;
+let laySpeakingOn = defaultLaySpeaking();
 
 function toggleLaySpeaking(): void {
   laySpeakingOn = !laySpeakingOn;
@@ -7695,7 +7696,7 @@ function mountOpenedSingleDoc(args: {
   currentDocFormat = args.format;
   // Restore this file's remembered autosave toggle (off if unknown).
   settings.set('autosaveEnabled', isAutosaveOnForPath(args.handle));
-  laySpeakingOn = isLaySpeakingForPath(args.handle);
+  laySpeakingOn = isLaySpeakingForPath(args.handle, defaultLaySpeaking());
   currentDocUid = newSessionDocUid();
   adoptDocId(args.docId, args.name, args.handle ?? null, args.format);
   // A recovered journal / salvaged copy mounts dirty (no on-disk file
@@ -7856,7 +7857,7 @@ async function loadFileInPlace(file: {
   currentDocFormat = file.format;
   // Restore this file's remembered autosave toggle (off if unknown).
   settings.set('autosaveEnabled', isAutosaveOnForPath(file.handle));
-  laySpeakingOn = isLaySpeakingForPath(file.handle);
+  laySpeakingOn = isLaySpeakingForPath(file.handle, defaultLaySpeaking());
   currentDocUid = newSessionDocUid();
   adoptDocId(docId, file.filename, file.handle, file.format);
   if (file.recovered) markCurrentDocDirty();

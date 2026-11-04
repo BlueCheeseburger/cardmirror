@@ -1178,6 +1178,13 @@ export interface Settings {
    */
   readers: ReaderConfig[];
   /**
+   * Which speed read times show when a document opens and has no remembered
+   * choice: `flow` (default) or `lay`. A file you have switched with the
+   * bottom-bar toggle keeps its own choice. `lay` only takes effect while a
+   * reader shown live has a lay rate; otherwise documents start on flow.
+   */
+  defaultSpeakingMode: 'flow' | 'lay';
+  /**
    * When on, the status-bar read-time / word counter updates live as
    * you change the selection (showing the selection's read time). Off
    * by default: the counter then always reflects the whole doc, and a
@@ -2122,6 +2129,7 @@ const DEFAULTS: Settings = {
     { name: 'Reader 2', wpm: 250 },
   ],
   liveSelectionWordCount: false,
+  defaultSpeakingMode: 'flow',
   liveDocWordCount: true,
   liveContainerReadTime: true,
   liveRemainingReadTime: false,
@@ -2425,6 +2433,7 @@ export interface SettingMeta {
     | 'readDocDestination'
     | 'markedCardsDestination'
     | 'starredDocDestination'
+    | 'speakingMode'
     | 'findCategoryOrder'
     | 'color'
     | 'colorSlots'
@@ -2740,6 +2749,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'readers',
     category: 'general',
     section: 'Word counts',
+    mobile: true,
+  },
+  {
+    key: 'defaultSpeakingMode',
+    label: 'Default read-time speed',
+    description:
+      'Which speed the read times start on: Flow (the default) or Lay. A document you open, and a new one, starts here. Click the read times in the bottom bar to switch one document; it remembers its own choice from then on. Lay only applies once a reader shown live has a lay rate above, so with none set everything stays on flow.',
+    kind: 'speakingMode',
+    category: 'general',
+    section: 'Word counts',
+    aliases: ['flow', 'lay', 'lay speaking', 'flow speaking', 'default speed', 'read time speed'],
     mobile: true,
   },
   {
@@ -5367,6 +5387,7 @@ function sanitize(s: Settings): Settings {
     gestureZoom: !!s.gestureZoom,
     readers: sanitizeReaders(s.readers),
     liveSelectionWordCount: s.liveSelectionWordCount === true,
+    defaultSpeakingMode: s.defaultSpeakingMode === 'lay' ? 'lay' : 'flow',
     liveDocWordCount: s.liveDocWordCount === false ? false : true,
     // Default-on: preserve `false` only when explicitly set, so
     // installs upgrading from before this setting existed get it on.
