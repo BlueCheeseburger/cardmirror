@@ -450,6 +450,14 @@ async function pickMultiPaneTarget(
   const details = sorted.map((e) =>
     windowNames.has(e.id) ? (windowDocFilenames.get(e.id) ?? null) : null,
   );
+  // The speech doc's own name gets the speech marker, in whichever window holds
+  // it (see chooserHtml); its window shows no Speech doc pill when that lands.
+  const speechFilename = speechRegistration
+    ? (docInfo.get(speechRegistration.uid)?.filename ?? 'Untitled')
+    : null;
+  const speechDocs = sorted.map((e) =>
+    speechRegistration?.windowId === e.id ? speechFilename : null,
+  );
   const pills = sorted.map((e) =>
     windowPillKinds({
       thisWindow: e.id === opts.asker,
@@ -466,6 +474,7 @@ async function pickMultiPaneTarget(
     labels,
     details,
     pills,
+    speechDocs,
     disabled: sorted.map((e) => e.comparing),
     withCancel: opts.withCancel === true,
   });

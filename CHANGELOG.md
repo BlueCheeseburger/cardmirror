@@ -18,6 +18,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 
+- **The which-window chooser marks the speech doc on its own name.** The gold **Speech doc** pill that sat over the window is gone. Instead the speech document's name has a gold highlight behind it, with the speech mic to its left, so you can tell which document it is. A long name wraps inside the highlight, and in a window with a speech doc each document sits on its own line.
 - **Starred Doc keeps the headings above what you starred.** A starred block now brings the hat and pocket it sits under, so the copy reads as the same outline. Only those headings come along: the other blocks and hats under them, and their titles, are left out. The same goes for a starred card or analytic, which brings its block, hat and pocket.
 
 ### Fixed

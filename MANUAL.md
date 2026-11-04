@@ -1865,6 +1865,8 @@ You'll see them in the "which window?" chooser that opens when a file or a new d
 documents is shown greyed, with a **Comparing documents** pill, and can't be picked), in the tray you drop a pane's title chip on,
 in **Select Speech Document**, and here. When you open a file from Finder or the Dock, the chooser also marks the window you were
 looking at with **Last viewed**. The chooser stays in alphabetical order with the same number keys; the pills only tell the windows apart.
+In the chooser the speech doc is marked on its own name rather than on the window: the document's name sits on a gold highlight with the speech mic
+at its left, so you can see which document it is. A long name wraps inside the highlight.
 
 In the three-pane workspace, Ctrl+Tab keeps its existing job there: it cycles
 the focused slot's documents (hold Ctrl, tap Tab, release to switch).

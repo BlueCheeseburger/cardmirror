@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Which-window chooser: speech doc marked on its own name
+
+Request: drop the window-level "Speech doc" pill in the chooser; put the pill behind the text of the specific doc that is the speech doc, with the mic icon at its left; show a name that spills onto a second line. `chooserHtml` takes `speechDocs` (parallel to `labels`: the speech doc's filename in that window, from `speechRegistration` and `docInfo`, `Untitled` when it has no filename). The matching name, in the label's lines for an unnamed window or in the grey list for a named one, is drawn as a `.speechdoc` block (gold tokens, the editor's mic drawing inline, name in a hanging column so a long name wraps under itself). In a named window every doc is then its own line (the old text was one run joined by " · " clamped to two lines, which broke the highlight and cut the name). When the speech filename matches nothing shown (renamed since the title was set, say), the window keeps its old pill so the speech doc is never unmarked. Only the chooser changed: the move tray, Select Speech Document, the command palette and Switch Window still show the pill on the window, since the user's screenshot and request were about the chooser. The `speech` pill stays in the shared vocabulary (parity test unchanged). I hit one bug on the way: a class named `wrap` collided with the dialog's own outer `.wrap` and drew a border; renamed `long`. NOT verified in the running app (rendered as HTML in Chromium at the chooser's 460px width, dark theme); only the dark theme was looked at.
+
 ### Default read-time speed (Flow / Lay)
 
 Request: an option beside the Flow and Lay reading times in Settings to use either by default. Added `defaultSpeakingMode` (`flow` default | `lay`), a "Default read-time speed" row directly after the readers row in General → Word counts, drawn as a two-way segmented control (`buildSpeakingModeEditor`, the selected side in the same blue the bottom bar uses for lay times). Applies when a document opens (single-doc and each pane) and to new, unsaved ones.

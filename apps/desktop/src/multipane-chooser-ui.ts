@@ -36,8 +36,23 @@ export interface ChooserHtmlOptions {
    *  busy with Compare documents). It keeps its place and number so the other
    *  windows' number keys do not shift when a window enters or leaves Compare. */
   disabled?: boolean[];
+  /** Parallel to `labels`: the filename of the speech doc when it is in that
+   *  window. Its name is drawn on a gold highlight with the mic icon at its
+   *  left, and that window gets no "Speech doc" pill. When the name matches
+   *  none of the window's docs the pill stays, so the speech doc is never
+   *  left unmarked. null / absent → no speech doc in that window. */
+  speechDocs?: (string | null)[];
   withCancel: boolean;
   dark: boolean;
+}
+
+/** The mic icon, the same drawing the editor uses for the speech doc. */
+const MIC_SVG =
+  '<svg class="mic" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 10v2a7 7 0 0 1-7 7m-7-9v2a7 7 0 0 0 7 7m0 0v3m-4 0h8m-4-7a3 3 0 0 1-3-3V5a3 3 0 1 1 6 0v7a3 3 0 0 1-3 3Z"/></svg>';
+
+/** A doc name drawn as the speech doc: highlight behind the text, mic first. */
+function speechDocHtml(name: string): string {
+  return `<span class="speechdoc" title="This is the speech doc">${MIC_SVG}<span class="sd-name">${esc(name)}</span></span>`;
 }
 
 function esc(s: string): string {
@@ -57,14 +72,39 @@ export function splitLabel(label: string): string[] {
 export function chooserHtml(opts: ChooserHtmlOptions): string {
   const rows = opts.labels
     .map((label, i) => {
-      const docs = splitLabel(label)
-        .map((d) => `<span class="doc">${esc(d)}</span>`)
-        .join('');
+      // The speech doc is marked on its own name: in the label's lines for an
+      // unnamed window, in the grey list under the name for a named one.
+      const speechName = opts.speechDocs?.[i] ?? null;
+      let speechMarked = false;
       const detail = opts.details?.[i];
-      const sub = detail && detail.length > 0 ? `<span class="sub">${esc(detail.join(' · '))}</span>` : '';
+      const docs = splitLabel(label)
+        .map((d) => {
+          if (speechName !== null && !(detail && detail.length > 0) && !speechMarked && d === speechName) {
+            speechMarked = true;
+            return `<span class="doc long">${speechDocHtml(d)}</span>`;
+          }
+          return `<span class="doc">${esc(d)}</span>`;
+        })
+        .join('');
+      let sub = '';
+      if (detail && detail.length > 0) {
+        const speechAt = speechName === null ? -1 : detail.indexOf(speechName);
+        if (speechAt >= 0) {
+          // Each doc on its own line, so the speech doc's highlight is a clean
+          // block and a long name wraps inside it.
+          speechMarked = true;
+          const lines = detail.map((d, j) =>
+            j === speechAt ? speechDocHtml(d) : `<span class="line">${esc(d)}</span>`,
+          );
+          sub = `<span class="sub roomy">${lines.join('')}</span>`;
+        } else {
+          sub = `<span class="sub">${esc(detail.join(' · '))}</span>`;
+        }
+      }
       const off = opts.disabled?.[i] === true;
       const key = i < 9 && !off ? `<kbd>${i + 1}</kbd>` : '';
       const pills = (opts.pills?.[i] ?? [])
+        .filter((k) => !(k === 'speech' && speechMarked))
         .map((k) => `<span class="pill ${k}" title="${esc(WINDOW_PILL_HINT[k])}">${esc(WINDOW_PILL_TEXT[k])}</span>`)
         .join('');
       const meta = pills || key ? `<span class="meta">${pills ? `<span class="pills">${pills}</span>` : ''}${key}</span>` : '';
@@ -113,11 +153,21 @@ h1{margin:0 34px 0 0;font-size:15px;font-weight:700;line-height:1.3;word-break:b
 .pill.lastViewed{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
 .pill.thisWindow{color:var(--text);background:var(--hover)}
 .pill.speech{color:var(--speech-text);background:var(--speech-bg);border-color:var(--speech-border)}
+.doc.long{white-space:normal;overflow:visible}
+/* The speech doc's name: one gold block with the mic hanging at its left, so a long name wraps inside it, under itself. */
+.speechdoc{display:inline-flex;align-items:flex-start;gap:5px;max-width:100%;vertical-align:top;color:var(--speech-text);background:var(--speech-bg);border:1px solid var(--speech-border);border-radius:5px;padding:1px 7px 1px 5px;line-height:1.4;white-space:normal}
+.speechdoc .mic{flex:none;margin-top:2px}
+.speechdoc .sd-name{min-width:0;word-break:break-word}
 .pill.minimized{border-style:dashed}
 .pill.comparing{border-style:dashed}
 .row.off{opacity:.6;border-style:dashed;background:transparent;cursor:default}
 .row.off:hover{background:transparent}
 .sub{color:var(--muted);font-size:10px;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+/* With the speech doc named in it, every doc gets its own line, so that name is never cut. */
+.sub.roomy{display:flex;flex-direction:column;align-items:flex-start;gap:2px;-webkit-line-clamp:unset}
+.sub.roomy .line{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub .speechdoc{font-size:11px}
+.sub .speechdoc .mic{margin-top:2.5px}
 kbd{font:11px ui-monospace,Menlo,Consolas,monospace;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:0 5px;background:var(--bg)}
 .actions{display:flex;justify-content:flex-end;gap:8px;padding-top:2px}
 .btn{font:inherit;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg-soft);color:var(--text);cursor:pointer}
@@ -156,6 +206,7 @@ export function showChooserWindow(opts: {
   details?: (string[] | null)[];
   pills?: (WindowPillKind[] | null)[];
   disabled?: boolean[];
+  speechDocs?: (string | null)[];
   withCancel: boolean;
 }): Promise<number> {
   // Esc, the ✕ and closing the window all mean Cancel, whether or not a
