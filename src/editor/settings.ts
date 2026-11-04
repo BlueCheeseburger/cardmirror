@@ -474,12 +474,12 @@ export function applyNumberingSeparator(text: string, sep: NumberingSeparator): 
 }
 
 /** Schema for all editor settings. Add new fields here with sensible defaults. */
-/** Per-type format for the silent Send / Read / Marked saves: `docx`
+/** Per-type format for the silent Send / Read / Marked / Starred saves: `docx`
  *  (the default — what judges and opponents open), `cmir`, or `default`
  *  = follow `defaultSaveFormat`. */
 export type DocTypeFormat = 'default' | 'cmir' | 'docx';
 
-/** What the Send Doc and Marked Cards presets do with card numbers: `freeze`
+/** What the Send Doc, Marked Cards and Starred Doc presets do with card numbers: `freeze`
  *  writes each number into its heading as text (the copy keeps the
  *  numbers it was prepped with); `remove` clears them (the copy has no
  *  numbers). Live numbering is not offered — those exports drop analytics
@@ -568,11 +568,11 @@ export interface Settings {
    *  handle wins over this default. */
   defaultSaveFormat: 'cmir' | 'docx';
   /** When on (default), saving via the Save-As dialog's Send Doc / Read Doc /
-   *  Marked Doc presets (and their commands) prepends a per-type prefix to the
-   *  file name (e.g. `SEND_1AC.docx`). The As-Is preset and the Save Custom
-   *  button are never prefixed. Off saves presets under the exact name shown in
-   *  the box. The prefix strings are `sendDocPrefix` / `readDocPrefix` /
-   *  `markedDocPrefix`. */
+   *  Marked Doc / Starred Doc presets (and their commands) prepends a per-type
+   *  prefix to the file name (e.g. `SEND_1AC.docx`). The As-Is preset and the
+   *  Save Custom button are never prefixed. Off saves presets under the exact
+   *  name shown in the box. The prefix strings are `sendDocPrefix` /
+   *  `readDocPrefix` / `markedDocPrefix` / `starredDocPrefix`. */
   prefixPresetSaveFilenames: boolean;
   /** Filename prefix for Send Doc saves when `prefixPresetSaveFilenames` is on.
    *  Default `SEND_`. Empty = no prefix for this type. */
@@ -583,6 +583,9 @@ export interface Settings {
   /** Filename prefix for Marked Doc saves when `prefixPresetSaveFilenames` is on.
    *  Default `MARKED_`. */
   markedDocPrefix: string;
+  /** Filename prefix for Starred Doc saves when `prefixPresetSaveFilenames` is on.
+   *  Default `STARRED_`. */
+  starredDocPrefix: string;
   /** Where Save Send Doc writes. `sameFolder` (default) drops the
    *  send doc beside the source file; `fixedFolder` always writes into
    *  `sendDocFolder`. Either way, an unresolvable destination (a
@@ -605,6 +608,11 @@ export interface Settings {
   /** Destination folder for Save Marked Cards when `markedCardsDestination`
    *  is `fixedFolder`. Empty falls the command back to the OS save dialog. */
   markedCardsFolder: string;
+  /** Where Save Starred Doc writes — same model as `sendDocDestination`. */
+  starredDocDestination: 'sameFolder' | 'fixedFolder';
+  /** Destination folder for Save Starred Doc when `starredDocDestination` is
+   *  `fixedFolder`. Empty falls the command back to the OS save dialog. */
+  starredDocFolder: string;
   /** Format the Save Send Doc command (and its shortcut) writes: `docx`
    *  (default), `cmir`, or `default` = follow `defaultSaveFormat`. The Save
    *  As dialog's presets are untouched — the dialog has its own format
@@ -614,12 +622,16 @@ export interface Settings {
   readDocFormat: DocTypeFormat;
   /** Same for Save Marked Cards. */
   markedDocFormat: DocTypeFormat;
+  /** Same for Save Starred Doc. */
+  starredDocFormat: DocTypeFormat;
   /** Card numbers in a Send Doc: frozen as heading text (default) or
    *  removed. Read by the Save Send Doc command AND the Save As dialog's
    *  Send Doc preset. */
   sendDocNumbering: NumberingExport;
   /** Same for Marked Cards. */
   markedDocNumbering: NumberingExport;
+  /** Same for Starred Doc. */
+  starredDocNumbering: NumberingExport;
   /** When on, the highlight marks in the doc render in the colors
    *  defined by `overrideHighlightSlots` rather than their stored
    *  colors. Display-only — does NOT mutate the doc, so saving
@@ -1981,17 +1993,22 @@ const DEFAULTS: Settings = {
   sendDocPrefix: 'SEND_',
   readDocPrefix: 'READ_',
   markedDocPrefix: 'MARKED_',
+  starredDocPrefix: 'STARRED_',
   sendDocDestination: 'sameFolder',
   sendDocFolder: '',
   markedCardsDestination: 'sameFolder',
   markedCardsFolder: '',
+  starredDocDestination: 'sameFolder',
+  starredDocFolder: '',
   readDocDestination: 'sameFolder',
   readDocFolder: '',
   sendDocFormat: 'docx',
   readDocFormat: 'docx',
   markedDocFormat: 'docx',
+  starredDocFormat: 'docx',
   sendDocNumbering: 'freeze',
   markedDocNumbering: 'freeze',
+  starredDocNumbering: 'freeze',
   theme: 'system',
   docTheme: 'light',
   iconSet: 'modern',
@@ -2407,6 +2424,7 @@ export interface SettingMeta {
     | 'sendDocDestination'
     | 'readDocDestination'
     | 'markedCardsDestination'
+    | 'starredDocDestination'
     | 'findCategoryOrder'
     | 'color'
     | 'colorSlots'
@@ -2905,10 +2923,10 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'prefixPresetSaveFilenames',
     label: 'Prefix preset saves',
     description:
-      'When on (default), the Save As dialog\'s Send Doc / Read Doc / Marked Doc presets (and their commands) prepend the prefixes below to the file name (e.g. SEND_1AC.docx). The As-Is preset and the Save Custom button are never prefixed. Turn off to save presets under the exact name shown in the box.',
+      'When on (default), the Save As dialog\'s Send Doc / Read Doc / Marked Doc / Starred Doc presets (and their commands) prepend the prefixes below to the file name (e.g. SEND_1AC.docx). The As-Is preset and the Save Custom button are never prefixed. Turn off to save presets under the exact name shown in the box.',
     kind: 'toggle',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
   },
   {
     key: 'sendDocPrefix',
@@ -2916,7 +2934,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     description: 'Prepended to Send Doc saves when the option above is on. Default SEND_. Leave empty for no prefix.',
     kind: 'text',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
     dependsOn: 'prefixPresetSaveFilenames',
   },
   {
@@ -2925,7 +2943,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     description: 'Prepended to Read Doc saves when the option above is on. Default READ_. Leave empty for no prefix.',
     kind: 'text',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
     dependsOn: 'prefixPresetSaveFilenames',
   },
   {
@@ -2934,7 +2952,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     description: 'Prepended to Marked Doc saves when the option above is on. Default MARKED_. Leave empty for no prefix.',
     kind: 'text',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
+    dependsOn: 'prefixPresetSaveFilenames',
+  },
+  {
+    key: 'starredDocPrefix',
+    label: 'Starred Doc filename prefix',
+    description: 'Prepended to Starred Doc saves when the option above is on. Default STARRED_. Leave empty for no prefix.',
+    kind: 'text',
+    category: 'files',
+    section: 'Send / Read / Marked / Starred docs',
     dependsOn: 'prefixPresetSaveFilenames',
   },
   {
@@ -2944,7 +2971,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Where the Save Send Doc command (and its shortcut) writes — a send doc is the document with comments, analytics, and undertags stripped, the same content the Save As dialog\'s Send Doc preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. The send doc is written in the Send Doc format below, and prefixed SEND_ when that option is on.',
     kind: 'sendDocDestination',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
     electronOnly: true,
   },
   {
@@ -2954,7 +2981,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Destination folder for Save Send Doc when the destination above is set to "Fixed folder". Leave empty to fall back to the Save As dialog.',
     kind: 'folder',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
     electronOnly: true,
   },
   {
@@ -2964,7 +2991,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'The file format the Save Send Doc command (and its shortcut) writes: .docx (the default — what judges and opponents open), .cmir, or "Same as new documents" to follow the default file format for new documents above. The Save As dialog is not affected — it has its own format choice.',
     kind: 'docTypeFormat',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
   },
   {
     key: 'sendDocNumbering',
@@ -2973,7 +3000,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'What a Send Doc does with card numbers. Freeze writes each number into its heading as text, so the copy keeps the numbers you prepped with even though its analytics are gone and even if you delete cards from it later. Remove clears the numbers instead. Applies to the Save Send Doc command and to the Save As dialog\'s Send Doc preset; Custom save has its own choice.',
     kind: 'numberingExport',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
     aliases: ['freeze numbering', 'remove numbering', 'send doc numbering'],
   },
   {
@@ -2983,7 +3010,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Where the Save Read Doc command writes — a read doc is the read-mode view of the document (what you would read aloud, with comments, analytics, and undertags stripped), the same content the Save As dialog\'s Read Doc preset produces. The command has no shortcut by default; run it from the command bar or give it a key. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. A doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the Save As dialog. Written in the Read Doc format below, and prefixed READ_ when that option is on.',
     kind: 'readDocDestination',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
     electronOnly: true,
   },
   {
@@ -2993,7 +3020,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Destination folder for Save Read Doc when the destination above is set to "Fixed folder". Leave empty to fall back to the Save As dialog.',
     kind: 'folder',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
     electronOnly: true,
   },
   {
@@ -3003,7 +3030,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'The file format the Save Read Doc command writes: .docx (default), .cmir, or "Same as new documents" to follow the default file format for new documents above. The Save As dialog is not affected.',
     kind: 'docTypeFormat',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
   },
   {
     key: 'markedCardsDestination',
@@ -3012,7 +3039,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Where the Save Marked Cards command (and its shortcut) writes — a marked-cards doc is just the cards that contain a reading marker, flattened (no headings, no analytics), the same content the Save As dialog\'s Marked Cards preset produces. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. Either way, a doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the normal Save As dialog. Written in the Marked Cards format below, and prefixed MARKED_ when that option is on.',
     kind: 'markedCardsDestination',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
     electronOnly: true,
   },
   {
@@ -3022,7 +3049,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'Destination folder for Save Marked Cards when the destination above is set to "Fixed folder". Leave empty to fall back to the Save As dialog.',
     kind: 'folder',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
     electronOnly: true,
   },
   {
@@ -3032,7 +3059,7 @@ export const SETTING_METADATA: SettingMeta[] = [
       'The file format the Save Marked Cards command (and its shortcut) writes: .docx (default), .cmir, or "Same as new documents" to follow the default file format for new documents above. The Save As dialog is not affected.',
     kind: 'docTypeFormat',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
   },
   {
     key: 'markedDocNumbering',
@@ -3040,8 +3067,47 @@ export const SETTING_METADATA: SettingMeta[] = [
     description: 'Same choice for Marked Cards: freeze the card numbers as heading text (default) or remove them.',
     kind: 'numberingExport',
     category: 'files',
-    section: 'Send / Read / Marked docs',
+    section: 'Send / Read / Marked / Starred docs',
     aliases: ['marked doc numbering', 'marked cards numbering'],
+  },
+  {
+    key: 'starredDocDestination',
+    label: 'Starred Doc destination',
+    description:
+      'Where the Save Starred Doc command writes — a starred doc is the headings you starred in the outline (a starred card whole, everything under a starred pocket, hat or block) plus the pocket, hat and block headings above them, the same content the Save As dialog\'s Starred Doc preset produces. The command has no shortcut by default; run it from the command bar or give it a key. "Same folder as the document" drops it beside the source file; "Fixed folder" always writes into the folder below. A doc you haven\'t saved yet (same-folder mode) or an unset fixed folder falls back to the Save As dialog. Written in the Starred Doc format below, and prefixed STARRED_ when that option is on.',
+    kind: 'starredDocDestination',
+    category: 'files',
+    section: 'Send / Read / Marked / Starred docs',
+    electronOnly: true,
+  },
+  {
+    key: 'starredDocFolder',
+    label: 'Starred Doc folder',
+    description:
+      'Destination folder for Save Starred Doc when the destination above is set to "Fixed folder". Leave empty to fall back to the Save As dialog.',
+    kind: 'folder',
+    category: 'files',
+    section: 'Send / Read / Marked / Starred docs',
+    electronOnly: true,
+  },
+  {
+    key: 'starredDocFormat',
+    label: 'Starred Doc format',
+    description:
+      'The file format the Save Starred Doc command writes: .docx (default), .cmir, or "Same as new documents" to follow the default file format for new documents above. The Save As dialog is not affected.',
+    kind: 'docTypeFormat',
+    category: 'files',
+    section: 'Send / Read / Marked / Starred docs',
+  },
+  {
+    key: 'starredDocNumbering',
+    label: 'Starred Doc card numbers',
+    description:
+      'Same choice for Starred Doc: freeze the card numbers as heading text (default) or remove them. Applies to the Save Starred Doc command and to the Save As dialog\'s Starred Doc preset.',
+    kind: 'numberingExport',
+    category: 'files',
+    section: 'Send / Read / Marked / Starred docs',
+    aliases: ['starred doc numbering'],
   },
   {
     key: 'fileSearchRoots',
@@ -5078,6 +5144,7 @@ function sanitize(s: Settings): Settings {
     sendDocPrefix: typeof s.sendDocPrefix === 'string' ? s.sendDocPrefix : 'SEND_',
     readDocPrefix: typeof s.readDocPrefix === 'string' ? s.readDocPrefix : 'READ_',
     markedDocPrefix: typeof s.markedDocPrefix === 'string' ? s.markedDocPrefix : 'MARKED_',
+    starredDocPrefix: typeof s.starredDocPrefix === 'string' ? s.starredDocPrefix : 'STARRED_',
     sendDocDestination:
       s.sendDocDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
     sendDocFolder: typeof s.sendDocFolder === 'string' ? s.sendDocFolder : '',
@@ -5085,14 +5152,19 @@ function sanitize(s: Settings): Settings {
       s.markedCardsDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
     markedCardsFolder:
       typeof s.markedCardsFolder === 'string' ? s.markedCardsFolder : '',
+    starredDocDestination:
+      s.starredDocDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
+    starredDocFolder: typeof s.starredDocFolder === 'string' ? s.starredDocFolder : '',
     readDocDestination:
       s.readDocDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
     readDocFolder: typeof s.readDocFolder === 'string' ? s.readDocFolder : '',
     sendDocFormat: sanitizeDocTypeFormat(s.sendDocFormat),
     readDocFormat: sanitizeDocTypeFormat(s.readDocFormat),
     markedDocFormat: sanitizeDocTypeFormat(s.markedDocFormat),
+    starredDocFormat: sanitizeDocTypeFormat(s.starredDocFormat),
     sendDocNumbering: sanitizeNumberingExport(s.sendDocNumbering),
     markedDocNumbering: sanitizeNumberingExport(s.markedDocNumbering),
+    starredDocNumbering: sanitizeNumberingExport(s.starredDocNumbering),
     theme:
       s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system',
     // Migration: pre-independent-doc-theme installs had a boolean
@@ -6539,7 +6611,7 @@ export function migrateWorkspaceDefaults(): void {
 
 /** The format a silent per-type save writes: the type's own setting, or the
  *  default new-document format when it says `default`. */
-export function effectiveDocTypeFormat(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'): 'cmir' | 'docx' {
+export function effectiveDocTypeFormat(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat' | 'starredDocFormat'): 'cmir' | 'docx' {
   const v = settings.get(key);
   return v === 'default' ? settings.get('defaultSaveFormat') : v;
 }

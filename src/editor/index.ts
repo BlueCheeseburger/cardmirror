@@ -2367,6 +2367,9 @@ const ribbonContext: RibbonContext = {
   saveMarkedCards: () => {
     void runSaveMarkedCardsFlow();
   },
+  saveStarredDoc: () => {
+    void runSaveStarredDocFlow();
+  },
   toggleAutosave: () => {
     if (multiDocActive && multiDocToggleAutosave) {
       multiDocToggleAutosave();
@@ -9533,16 +9536,17 @@ async function runSaveAsFlowInner(): Promise<boolean> {
 interface SilentExportSpec {
   /** For the failure alert ("Send doc save failed: …"). */
   label: string;
-  formatKey: 'sendDocFormat' | 'readDocFormat';
-  prefixKey: 'sendDocPrefix' | 'readDocPrefix';
-  destinationKey: 'sendDocDestination' | 'readDocDestination';
-  folderKey: 'sendDocFolder' | 'readDocFolder';
+  formatKey: 'sendDocFormat' | 'readDocFormat' | 'starredDocFormat';
+  prefixKey: 'sendDocPrefix' | 'readDocPrefix' | 'starredDocPrefix';
+  destinationKey: 'sendDocDestination' | 'readDocDestination' | 'starredDocDestination';
+  folderKey: 'sendDocFolder' | 'readDocFolder' | 'starredDocFolder';
   /** The preset's own export options (save-as-ui.ts). */
   exportOptions: {
     includeComments: boolean;
     includeAnalytics: boolean;
     includeUndertags: boolean;
     readMode: boolean;
+    starredOnly?: boolean;
     numbering: NumberingExportMode;
   };
 }
@@ -9659,6 +9663,38 @@ export async function runSaveReadDocFlow(): Promise<boolean> {
       readMode: true,
       // Read mode keeps every heading, so nothing renumbers: live numbering.
       numbering: 'keep',
+    },
+  });
+}
+
+/**
+ * Save a Starred Doc silently — the automation of the Save-As dialog's "Starred
+ * Doc" preset: every card, analytic, pocket, hat and block you starred in the
+ * outline (a starred heading brings everything under it), plus the pocket / hat
+ * / block headings above each, and nothing else. Unbound by default. Settings:
+ * `starredDocDestination` / `starredDocFolder` / `starredDocFormat` /
+ * `starredDocNumbering` / `STARRED_` prefix. No-ops with a toast when nothing is
+ * starred.
+ */
+export async function runSaveStarredDocFlow(): Promise<boolean> {
+  const docToExport = view ? view.state.doc : currentDoc;
+  if (countStarred(docToExport) === 0) {
+    showToast('Nothing starred to save.');
+    return false;
+  }
+  return runSilentExportFlow({
+    label: 'Starred doc',
+    formatKey: 'starredDocFormat',
+    prefixKey: 'starredDocPrefix',
+    destinationKey: 'starredDocDestination',
+    folderKey: 'starredDocFolder',
+    exportOptions: {
+      includeComments: false,
+      includeAnalytics: true,
+      includeUndertags: true,
+      readMode: false,
+      starredOnly: true,
+      numbering: settings.get('starredDocNumbering'),
     },
   });
 }

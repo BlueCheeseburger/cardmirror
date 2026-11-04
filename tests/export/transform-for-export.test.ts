@@ -466,6 +466,74 @@ describe('starredOnly (Save As "Starred Doc")', () => {
   });
 });
 
+describe('starredOnly keeps the headings above what is starred', () => {
+  const head = (type: string, text: string, starred = false) =>
+    schema.nodes[type]!.create({ id: newHeadingId(), starred }, schema.text(text));
+  const card1 = (t: string, starred = false) =>
+    schema.nodes['card']!.createChecked(null, [head('tag', t, starred), schema.nodes['card_body']!.create(null, schema.text('body ' + t))]);
+  const loose = (t: string) => schema.nodes['paragraph']!.create(null, schema.text(t));
+  const opts = { includeComments: true, includeAnalytics: true, includeUndertags: true, readMode: false, starredOnly: true };
+  /** Doc-level outline as "type:text" strings, cards as "card:tag". */
+  const outline = (d: any) => {
+    const out: string[] = [];
+    d.forEach((n: any) => out.push(`${n.type.name}:${n.type.name === 'card' ? n.firstChild.textContent : n.textContent}`));
+    return out;
+  };
+
+  it('a starred block brings its hat and pocket headings, and nothing else of them', () => {
+    const doc = schema.nodes['doc']!.createChecked(null, [
+      head('pocket', 'P'), loose('under P'),
+      head('hat', 'H1'), card1('h1 card'),
+      head('block', 'B1'), card1('b1 card'),
+      head('block', 'B2', true), card1('b2 a'), card1('b2 b'),
+      head('block', 'B3'), card1('b3 card'),
+      head('hat', 'H2'), head('block', 'B4'), card1('b4 card'),
+    ]);
+    expect(outline(transformForExport(doc, opts))).toEqual([
+      'pocket:P', 'hat:H1', 'block:B2', 'card:b2 a', 'card:b2 b',
+    ]);
+  });
+
+  it('a starred card brings the block, hat and pocket it is in', () => {
+    const doc = schema.nodes['doc']!.createChecked(null, [
+      head('pocket', 'P'), head('hat', 'H'), head('block', 'B'),
+      card1('one'), card1('two', true), card1('three'),
+    ]);
+    expect(outline(transformForExport(doc, opts))).toEqual(['pocket:P', 'hat:H', 'block:B', 'card:two']);
+  });
+
+  it('writes a shared heading once for several starred pieces, and each new one under its own', () => {
+    const doc = schema.nodes['doc']!.createChecked(null, [
+      head('pocket', 'P'), head('hat', 'H'),
+      head('block', 'B1'), card1('a', true),
+      head('block', 'B2'), card1('b'), card1('c', true),
+      head('hat', 'H2'), head('block', 'B3', true), card1('d'),
+    ]);
+    expect(outline(transformForExport(doc, opts))).toEqual([
+      'pocket:P', 'hat:H', 'block:B1', 'card:a',
+      'block:B2', 'card:c',
+      'hat:H2', 'block:B3', 'card:d',
+    ]);
+  });
+
+  it('a starred hat keeps everything under it plus its pocket heading', () => {
+    const doc = schema.nodes['doc']!.createChecked(null, [
+      head('pocket', 'P'), loose('under P'),
+      head('hat', 'H', true), head('block', 'B'), card1('x'),
+      head('hat', 'H2'), card1('y'),
+    ]);
+    expect(outline(transformForExport(doc, opts))).toEqual(['pocket:P', 'hat:H', 'block:B', 'card:x']);
+  });
+
+  it('a starred pocket keeps all of it and has no ancestors to add', () => {
+    const doc = schema.nodes['doc']!.createChecked(null, [
+      head('pocket', 'P0'), card1('z'),
+      head('pocket', 'P', true), head('hat', 'H'), card1('x'),
+    ]);
+    expect(outline(transformForExport(doc, opts))).toEqual(['pocket:P', 'hat:H', 'card:x']);
+  });
+});
+
 describe('countMarkedCards ignores plain red text', () => {
   it('counts only "Marked …" runs', () => {
     const red = schema.marks['font_color']!.create({ color: 'FF0000' });

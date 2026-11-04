@@ -122,7 +122,7 @@ const SHORT: Record<string, string> = {
   'Add Note to Selection': 'Note', 'Ask AI About Selection': 'Ask AI', 'Translate Selection to Clipboard (AI)': 'Translate',
   'Repair OCR/PDF Text (AI)': 'Repair OCR', 'Repair Formatting (AI)': 'Repair fmt', 'Toggle voice control': 'Voice',
   'Cut card with AI…': 'Cut card', 'Add / Remove Hyperlink': 'Link', 'Open File': 'Open', Save: 'Save', 'Save As…': 'Save as',
-  'Save Send Doc': 'Send doc', 'Save Marked Cards': 'Marked doc', 'Send to Speech (At Cursor)': 'To speech',
+  'Save Send Doc': 'Send doc', 'Save Marked Cards': 'Marked doc', 'Save Starred Doc': 'Starred doc', 'Send to Speech (At Cursor)': 'To speech',
   'Send to Speech (At End)': 'To speech end', 'Send to Dropzone': 'Dropzone', 'Insert Received Card (At Cursor)': 'Insert card',
   'Insert Received Card (At End)': 'Insert end', 'Select Current Heading': 'Select head', 'Search Everything': 'Search all',
   'Zoom In': 'Zoom in', 'Zoom Out': 'Zoom out', 'Chrome Scale Up': 'UI bigger', 'Chrome Scale Down': 'UI smaller',

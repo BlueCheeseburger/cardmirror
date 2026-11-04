@@ -12,7 +12,12 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **Starred Doc now works like Send Doc, Read Doc and Marked Doc.** Its file name starts with `STARRED_` (change it, or leave it empty, under **Settings → Files → Send / Read / Marked / Starred docs**), and that section also has the Starred Doc destination, folder, format and card numbers. A new **Save Starred Doc** command saves a starred doc without the dialog, to your folder, in your format. It has no shortcut by default; run it from the command bar, or bind a key. If nothing is starred, it tells you.
 - **Shrink All in the Doc menu.** It shrinks the body text of the whole document in one click: paragraphs with no underline or emphasis go to 5pt, and the rest shrink their connective text to 8pt, the same as Smart Shrink. Select some text first and it shrinks only that. The outline's right-click **Doc** submenu has it too, and shrinks just that heading and what is under it. Click it again and nothing changes.
+
+### Changed
+
+- **Starred Doc keeps the headings above what you starred.** A starred block now brings the hat and pocket it sits under, so the copy reads as the same outline. Only those headings come along: the other blocks and hats under them, and their titles, are left out. The same goes for a starred card or analytic, which brings its block, hat and pocket.
 
 ### Fixed
 

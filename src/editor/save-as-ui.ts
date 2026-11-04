@@ -10,8 +10,8 @@
  *     where the receiving party needs Word.
  *
  * Layout: a Name section, a Save section — a radio list (As-Is / Send
- * Doc / Read Doc / Marked Doc / Custom Save, the last revealing its
- * content checkboxes inline when selected; keys 1–5 pick a mode, shown
+ * Doc / Read Doc / Marked Doc / Starred Doc / Custom Save, the last revealing
+ * its content checkboxes inline when selected; keys 1–6 pick a mode, shown
  * in a badge at each row's right edge) — a "Save in a previously saved
  * location" section (also a radio list: "Choose location when saving"
  * plus one row per remembered folder), a Format section (last: it is
@@ -68,12 +68,13 @@ export interface SaveAsResult {
   /** Keep ONLY the cards that contain a reading marker, flat (no headings, no
    *  analytics). Mutually exclusive with the include-* / readMode options. */
   markedCardsOnly: boolean;
-  /** Keep ONLY what's starred in the outline (starred cards whole, and
-   *  everything under a starred hat / block). Optional: absent means off. */
+  /** Keep ONLY what's starred in the outline (starred cards whole, everything
+   *  under a starred pocket / hat / block) plus the headings above it.
+   *  Optional: absent means off. */
   starredOnly?: boolean;
   /** Card numbers: `keep` the live skeleton (As-Is, or Custom with neither
-   *  box ticked), `freeze` them as heading text, or `remove` them. Send Doc
-   *  and Marked Doc read the `*DocNumbering` settings. */
+   *  box ticked), `freeze` them as heading text, or `remove` them. Send Doc,
+   *  Marked Doc and Starred Doc read the `*DocNumbering` settings. */
   numbering: NumberingExportMode;
   /** Set when the user selected a remembered folder instead of "Choose
    *  location when saving": write `filename` straight into this
@@ -148,10 +149,10 @@ interface ModeDef {
   /** Settings key for this mode's filename prefix (subject to
    *  `prefixPresetSaveFilenames`). Omitted for As-Is and Custom Save
    *  — neither has ever taken a prefix. */
-  prefixSetting?: 'sendDocPrefix' | 'readDocPrefix' | 'markedDocPrefix';
+  prefixSetting?: 'sendDocPrefix' | 'readDocPrefix' | 'markedDocPrefix' | 'starredDocPrefix';
   /** Settings key overriding `options.numbering` at save time. Read Doc
    *  has none — read mode keeps every heading, so nothing renumbers. */
-  numberingSetting?: 'sendDocNumbering' | 'markedDocNumbering';
+  numberingSetting?: 'sendDocNumbering' | 'markedDocNumbering' | 'starredDocNumbering';
 }
 
 const MODE_DEFS: ModeDef[] = [
@@ -214,7 +215,7 @@ const MODE_DEFS: ModeDef[] = [
   {
     id: 'starredDoc',
     label: 'Starred Doc',
-    description: 'Saves only the headings you starred in the outline, and what is under them.',
+    description: 'Saves only what you starred in the outline, with the headings above it.',
     options: {
       includeComments: false,
       includeAnalytics: true,
@@ -226,6 +227,8 @@ const MODE_DEFS: ModeDef[] = [
       starredOnly: true,
       numbering: 'keep',
     },
+    prefixSetting: 'starredDocPrefix',
+    numberingSetting: 'starredDocNumbering',
   },
   {
     id: 'custom',

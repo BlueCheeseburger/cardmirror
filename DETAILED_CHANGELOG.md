@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Starred Doc brought level with Send / Read / Marked Doc
+
+Report: Starred Doc (Save As) was built as a bare export mode and missed what the other three presets have. Audited each against Marked Doc. What was missing and is now added:
+
+- **Ancestor headings (the structural bug).** `extractStarred` kept a starred block with no hat or pocket above it, so the copy lost its place in the outline. It now tracks the pocket / hat / block heading in scope at each level and writes each unwritten ancestor heading, once, just before the first kept piece under it. Only the headings come along: a hat's or pocket's own loose content, and sibling blocks / hats and their titles, stay out. A starred hat keeps its pocket; a starred pocket has no ancestors. Five tests in `transform-for-export.test.ts`.
+- **Filename prefix.** `starredDocPrefix` (default `STARRED_`), a Settings row beside the other three, honored by the dialog preset and the command, gated on `prefixPresetSaveFilenames` (whose description now names Starred Doc).
+- **Card numbers.** The preset read no setting and always froze via `exportFreezesNumbering`. Added `starredDocNumbering` (freeze default, or remove), read by the preset and the command.
+- **A silent command.** `saveStarredDoc` / "Save Starred Doc", built on `runSilentExportFlow` (widened to take the starred keys and `starredOnly`), with `starredDocDestination`, `starredDocFolder` and `starredDocFormat`, a command-bar entry, aliases and the File group. No default shortcut (Send has Mod-Alt-S, Marked Mod-Alt-M; none was picked for this one). With nothing starred it toasts "Nothing starred to save." and writes nothing, like Marked.
+- The Settings section is renamed "Send / Read / Marked / Starred docs" (the settings tests that pin the name were updated).
+
+Not done: the nav pane's right-click menu has no Starred save entry, because Marked has none either. NOT verified in the running app, only by unit tests; nothing was saved to disk and opened in Word. Settings written by older versions load fine (each new key falls back to its default).
+
 ### Doc menu: Shrink All (`shrinkAll`)
 
 Request: a "shrink all" button in the doc dropdown. Built as a new ribbon command `shrinkAll` (unbound by default, also in the command bar) and a "Text size" section in `buildDocMenuSections`, so the toolbar Doc menu and the outline's right-click Doc submenu both get it. It is Smart Shrink (`smartShrinkText`) with the empty-selection case widened: with a caret, Smart Shrink only reaches the caret's card, so `shrinkAllText` runs it against a state whose selection is the whole document (`AllSelection`) and replays the steps onto the real state, leaving the caret and scroll alone. With a selection it is exactly Smart Shrink. Chosen over the plain cycling Shrink because the cycle is not idempotent and cannot be applied to a whole document meaningfully; Smart Shrink is. Rejected: a new keyboard shortcut (the user asked for a button only). Not verified in the running app, only by unit tests; the 5pt/8pt depths are Smart Shrink's existing ones, so say if "all" should mean one fixed size instead.

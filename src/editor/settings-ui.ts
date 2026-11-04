@@ -1094,11 +1094,11 @@ class SettingsModal {
       return row;
     } else if (meta.kind === 'docTypeFormat') {
       row.appendChild(text);
-      row.appendChild(buildDocTypeFormatEditor(meta.key as 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'));
+      row.appendChild(buildDocTypeFormatEditor(meta.key as 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat' | 'starredDocFormat'));
       return row;
     } else if (meta.kind === 'numberingExport') {
       row.appendChild(text);
-      row.appendChild(buildNumberingExportEditor(meta.key as 'sendDocNumbering' | 'markedDocNumbering'));
+      row.appendChild(buildNumberingExportEditor(meta.key as 'sendDocNumbering' | 'markedDocNumbering' | 'starredDocNumbering'));
       return row;
     } else if (meta.kind === 'aiProvider') {
       row.appendChild(text);
@@ -1119,6 +1119,10 @@ class SettingsModal {
     } else if (meta.kind === 'readDocDestination') {
       row.appendChild(text);
       row.appendChild(buildDestinationEditor('readDocDestination', 'pmd-read-doc-dest'));
+      return row;
+    } else if (meta.kind === 'starredDocDestination') {
+      row.appendChild(text);
+      row.appendChild(buildDestinationEditor('starredDocDestination', 'pmd-starred-doc-dest'));
       return row;
     } else if (meta.kind === 'markedCardsDestination') {
       row.appendChild(text);
@@ -6311,7 +6315,7 @@ function buildDefaultTextStyleEditor(): HTMLElement {
 /** Per-type format for the silent Send / Read / Marked saves: .docx
  *  (default), .cmir, or follow the new-document format. Same chrome as the
  *  default-format editor above. */
-function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'): HTMLElement {
+function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat' | 'starredDocFormat'): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-multi-doc-layout-mode-editor pmd-doc-type-format-editor';
   const options: { value: 'default' | 'docx' | 'cmir'; label: string }[] = [
@@ -6342,7 +6346,7 @@ function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'mark
 }
 
 /** Freeze-or-remove radio pair for the two `*DocNumbering` settings. */
-function buildNumberingExportEditor(key: 'sendDocNumbering' | 'markedDocNumbering'): HTMLElement {
+function buildNumberingExportEditor(key: 'sendDocNumbering' | 'markedDocNumbering' | 'starredDocNumbering'): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-multi-doc-layout-mode-editor pmd-numbering-export-editor';
   const options: { value: 'freeze' | 'remove'; label: string }[] = [
@@ -6589,9 +6593,9 @@ function buildMarkedCardsDestinationEditor(): HTMLElement {
 }
 
 /** Same/fixed-folder radio for a save destination setting (Send Doc, Read
- *  Doc, Marked Cards). `key` is the setting; `idPrefix` keeps the radio group distinct. */
+ *  Doc, Marked Cards, Starred Doc). `key` is the setting; `idPrefix` keeps the radio group distinct. */
 function buildDestinationEditor(
-  key: 'sendDocDestination' | 'readDocDestination' | 'markedCardsDestination',
+  key: 'sendDocDestination' | 'readDocDestination' | 'markedCardsDestination' | 'starredDocDestination',
   idPrefix: string,
 ): HTMLElement {
   const wrap = document.createElement('div');

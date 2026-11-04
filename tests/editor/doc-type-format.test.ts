@@ -53,13 +53,13 @@ describe('doc-type formats', () => {
     expect(effectiveDocTypeFormat('markedDocFormat')).toBe('docx');
   });
 
-  it('live in the Send / Read / Marked docs section, everywhere (the fallback dialog honors them on the web too)', () => {
+  it('live in the Send / Read / Marked / Starred docs section, everywhere (the fallback dialog honors them on the web too)', () => {
     for (const key of ['sendDocFormat', 'readDocFormat', 'markedDocFormat'] as const) {
       const meta = SETTING_METADATA.find((m) => m.key === key)!;
       expect(meta, key).toBeTruthy();
       expect(meta.kind).toBe('docTypeFormat');
       expect(meta.category).toBe('files');
-      expect(meta.section).toBe('Send / Read / Marked docs');
+      expect(meta.section).toBe('Send / Read / Marked / Starred docs');
       expect(meta.electronOnly).toBeFalsy();
     }
     // Each format row follows its command's folder row.
