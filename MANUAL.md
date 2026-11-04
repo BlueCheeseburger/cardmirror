@@ -371,7 +371,8 @@ mirrors Word's Navigation Pane, but does more:
   **Rehighlight** (and back) as in the toolbar. On a **Pocket, Hat or Block**
   there is also a **Doc ▸** row with the toolbar's Doc menu — Cleanup
   (convert analytics to tags, fix formatting gaps, remove hyperlinks, link
-  URLs), Highlighting (the Standardize rows) and Select Similar Formatting —
+  URLs), Highlighting (the Standardize rows), Select Similar Formatting and
+  **Shrink All** (Fork) —
   but each row acts only on that heading and everything under it, not the whole
   document. A tag or analytic has no Doc row. Everything runs as one undo step
   and follows a multi-selection like Cut and Copy do.
@@ -453,7 +454,8 @@ Two caveats:
 
 - When there is no selection, some commands will act on the **whole
   document** — the bulk cleanup commands like **Standardize Highlighting**
-  and **Select Similar Formatting**.
+  and **Select Similar Formatting**. **Shrink All** (Fork) in the Doc menu does
+  too: it shrinks every body paragraph in the document.
 - A few inline-mark commands fall back to the **word at the cursor**
   (**Underline**, **Emphasis**, **Cite**). Some **do nothing** when there's no selection
   (**Highlight**), since that's text you would normally select on purpose.
@@ -1645,6 +1647,12 @@ in lay mode, so you can see who still needs one. If neither reader shown in
 the bar has a lay rate yet, clicking does nothing. The readers editor also
 links to an online reading-speed test.
 
+**(Fork)** Right under the readers, **Default read-time speed** (**Flow** or
+**Lay**) sets the speed a document starts on, so you don't have to click to lay
+every time you open one. A document you have switched yourself keeps its own
+choice. Lay only takes effect once a reader shown in the bar has a lay rate;
+until then everything starts on flow.
+
 Click the word count (the **Σ** button / Word Count) for the full
 breakdown — that dialog shows the read time for **every** reader on your
 list, not just the two in the bar, and the word count and read time for
@@ -1857,6 +1865,8 @@ You'll see them in the "which window?" chooser that opens when a file or a new d
 documents is shown greyed, with a **Comparing documents** pill, and can't be picked), in the tray you drop a pane's title chip on,
 in **Select Speech Document**, and here. When you open a file from Finder or the Dock, the chooser also marks the window you were
 looking at with **Last viewed**. The chooser stays in alphabetical order with the same number keys; the pills only tell the windows apart.
+In the chooser the speech doc is marked on its own name rather than on the window: the document's name is in amber with the speech mic
+at its left, so you can see which document it is. A long name wraps onto the next line.
 
 In the three-pane workspace, Ctrl+Tab keeps its existing job there: it cycles
 the focused slot's documents (hold Ctrl, tap Tab, release to switch).
@@ -1916,6 +1926,22 @@ fixed folder), using the `MARKED_` filename prefix and the Marked Cards format �
 Save Send Doc. It keeps cards only (analytics and headings are dropped); if nothing is marked,
 it does nothing and tells you so. Card numbers are frozen into the saved copy as text (see
 [Send Doc](#16-saving-and-file-formats)), so the marked cards keep the numbers they had.
+
+### Saving a starred doc
+
+**(Fork)** To send a copy of just what you starred in the outline, use the
+**Starred Doc** option in the [Save As](#save-as) dialog, or the **Save Starred
+Doc** command. The command has no shortcut by default; run it from the command bar or bind
+a key. It saves silently to a destination you choose under Settings → Files →
+*Starred Doc destination* (the source file's folder, or a fixed folder), in the
+*Starred Doc format* (`.docx` by default), with the `STARRED_` filename prefix —
+the same way Save Send Doc and Save Marked Cards work. A starred card or analytic
+is kept whole, and a starred pocket, hat or block is kept with everything under it.
+Each kept piece also keeps the pocket, hat and block *headings* above it, so the
+copy has the same outline; other blocks and hats under those headings, and their
+titles, are left out. Card numbers are frozen into the copy as text, or removed, per
+*Starred Doc card numbers*. If nothing is starred, the command does nothing and
+tells you so.
 
 ### Printing
 
@@ -2612,7 +2638,7 @@ Keyboard shortcuts**. They appear only on Windows.
 
 ## 15. Voice control
 
-> **Experimental — and, as of 1.17.1, commands are still unreliable.** Dictation works
+> **Experimental — and, as of 1.17.2, commands are still unreliable.** Dictation works
 > well. The single-word commands do not yet: the recognizer decodes an open
 > vocabulary, so a one-word utterance often comes back as some other word
 > and nothing fires. Calibration helps only a little. A keyword-spotting pass
@@ -3000,7 +3026,11 @@ bottom of the dialog.
     cards that is, beside the name.
   - **Starred Doc** — only what you starred in the outline (see
     the outline's right-click menu (above)), with the count beside
-    the name.
+    the name. A starred card, hat or block brings the pocket, hat and
+    block headings it sits under, so the copy keeps its place in the outline;
+    the other blocks and hats under those headings, and their titles, are left
+    out. It takes the `STARRED_` filename prefix like the other presets (see
+    [Saving a starred doc](#saving-a-starred-doc)).
   - **Custom Save** — shows checkboxes under it so you choose exactly what
     to include: comments, analytics, undertags, **Freeze card numbers as
     text** or **Remove card numbers** (one or the other; neither keeps live
@@ -3016,13 +3046,13 @@ bottom of the dialog.
 - **Format** — CardMirror native (`.cmir`) or Microsoft Word (`.docx`), last
   because it's usually left alone. Switching updates the name's extension.
 
-Send and Marked Docs **freeze their card numbers**: every numbered heading
+Send, Marked and Starred Docs **freeze their card numbers**: every numbered heading
 gets its number written in as plain text, in your display format, and the
 copy is no longer auto-numbered. Dropping the analytics (or the unmarked
 cards) therefore does not renumber what is left, and deleting a card from
-the copy during the round leaves the other numbers alone. Each of the two
+the copy during the round leaves the other numbers alone. Each of the three
 can **remove** the numbers instead (Settings → Files → *Send Doc card
-numbers* and *Marked Cards card numbers*). A Read Doc keeps every heading,
+numbers*, *Marked Cards card numbers* and *Starred Doc card numbers*). A Read Doc keeps every heading,
 so it keeps live numbering, as do As-Is and a normal save.
 
 **Save Send Doc (Mod-Alt-S)** does the Send Doc export in one keystroke,
@@ -3035,12 +3065,14 @@ read-mode view of the document). It has no shortcut by default — run it
 from the command bar or bind a key — and has its own destination, folder,
 and format settings beside the Send Doc ones.
 
-The filename prefixes for the preset saves — **Send Doc**, **Read Doc**, and
-**Marked Doc** (defaults `SEND_`, `READ_`, `MARKED_`) — are configurable under
-Settings → Files; change any of them, or leave one empty for no prefix. They
-apply to both the Save As modes and the silent Save Send Doc /
-Save Read Doc / [Save Marked Cards](#saving-marked-cards) commands, gated on
-the existing "Prefix preset saves" toggle.
+The filename prefixes for the preset saves — **Send Doc**, **Read Doc**,
+**Marked Doc** and **Starred Doc** (defaults `SEND_`, `READ_`, `MARKED_`,
+`STARRED_`) — are configurable under Settings → Files; change any of them, or
+leave one empty for no prefix. They apply to both the Save As modes and the
+silent Save Send Doc / Save Read Doc /
+[Save Marked Cards](#saving-marked-cards) /
+[Save Starred Doc](#saving-a-starred-doc) commands, gated on the existing
+"Prefix preset saves" toggle.
 
 ### Crash recovery
 
@@ -3291,6 +3323,9 @@ headers shown inside each tab.
   the **Lay speaking** section below the divider.
   The first two show live in the status bar; all appear in the Word
   Count dialog (see [Read-time estimates](#read-time-estimates)).
+- **Default read-time speed** **(fork)** — **Flow** (default) or **Lay**: the
+  speed a document starts on. A document you have switched keeps its own choice;
+  lay needs a lay rate on a reader shown in the bar.
 - **Live word count for the whole document** — on by default. Off drops
   the bar's first readout (the whole document's count and read times) so
   a narrow window can show only the specific counts you keep on. The Word
@@ -3361,14 +3396,14 @@ file search scans, and how much version history to keep.
   **Tag**, **Analytic** (the default), **Undertag** or **Clear** (a plain
   paragraph). Affects new documents only, never files you open.
 
-**Send / Read / Marked docs**
+**Send / Read / Marked / Starred docs**
 
 - **Prefix preset saves** — when on, the Save As Send Doc / Read Doc /
-  Marked Doc presets and the silent Save Send Doc / Save Read Doc / Save
-  Marked Cards commands prepend a filename prefix.
-- **Send Doc / Read Doc / Marked Doc filename prefix** — the prefix each
-  preset uses (defaults `SEND_` / `READ_` / `MARKED_`); change any, or leave one
-  empty for no prefix.
+  Marked Doc / Starred Doc presets and the silent Save Send Doc / Save Read
+  Doc / Save Marked Cards / Save Starred Doc commands prepend a filename prefix.
+- **Send Doc / Read Doc / Marked Doc / Starred Doc filename prefix** — the prefix
+  each preset uses (defaults `SEND_` / `READ_` / `MARKED_` / `STARRED_`); change any,
+  or leave one empty for no prefix.
 - **Send Doc destination** *(desktop)* — whether Save Send Doc writes
   beside the source file or into a fixed folder
   (see [Saving a send doc](#saving-a-send-doc)).
@@ -3394,6 +3429,10 @@ file search scans, and how much version history to keep.
 - **Marked Cards card numbers** — freeze the card numbers as heading text
   (default) or remove them. Read by Save Marked Cards and by the Save As
   dialog's Marked Doc preset; Custom save has its own choice.
+- **Starred Doc destination / folder / format / card numbers** *(destination and
+  folder: desktop)* — the same four options for the Save Starred Doc command
+  (unbound by default; see [Saving a starred doc](#saving-a-starred-doc)). The
+  card numbers choice is also read by the Save As dialog's Starred Doc preset.
 
 **File search**
 

@@ -8,6 +8,32 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.17.2-bcb.1 — 2026-11-04
+
+### Added
+
+- **Choose whether read times start on Flow or Lay.** A new **Default read-time speed** control (**Settings → General → Word counts**, right under the readers) sets the speed a document opens on, so you no longer click to lay every time. A document you switch yourself keeps its own choice. Lay needs a lay rate on one of the two readers shown in the bottom bar; until one is set, documents start on flow.
+- **Starred Doc now works like Send Doc, Read Doc and Marked Doc.** Its file name starts with `STARRED_` (change it, or leave it empty, under **Settings → Files → Send / Read / Marked / Starred docs**), and that section also has the Starred Doc destination, folder, format and card numbers. A new **Save Starred Doc** command saves a starred doc without the dialog, to your folder, in your format. It has no shortcut by default; run it from the command bar, or bind a key. If nothing is starred, it tells you.
+- **Shrink All in the Doc menu.** It shrinks the body text of the whole document in one click: paragraphs with no underline or emphasis go to 5pt, and the rest shrink their connective text to 8pt, the same as Smart Shrink. Select some text first and it shrinks only that. The outline's right-click **Doc** submenu has it too, and shrinks just that heading and what is under it. Click it again and nothing changes.
+
+### Changed
+
+- **The which-window chooser marks the speech doc on its own name.** The gold **Speech doc** pill that sat over the window is gone. Instead the speech document's name is in amber, with the speech mic to its left, so you can tell which document it is. A long name wraps onto the next line.
+- **Starred Doc keeps the headings above what you starred.** A starred block now brings the hat and pocket it sits under, so the copy reads as the same outline. Only those headings come along: the other blocks and hats under them, and their titles, are left out. The same goes for a starred card or analytic, which brings its block, hat and pocket.
+
+### Fixed
+
+- **Opening a file that is up in Compare documents now opens an editor for it.** Before, it just brought you back to the Compare window and never showed the document. The file now opens in a window of its own. The same goes for **Show in context** on a card whose file is in a Compare window.
+- **Mod+F11 (Highlight with White) now erases the whole selection, quotation marks included.** With **Highlight underlined text only** on, it used to clear only the underlined words and leave the highlight on the plain quotation marks around them. It now clears everything you selected.
+
+### From upstream
+
+Synced through upstream CardMirror 1.17.2 (full notes in the `## 1.17.2` section further down this file). The highlights:
+
+- **Co-editing windows no longer freeze when rejoining a session or catching up on partner edits.** The bundled CRDT library had a bug that could lock a window at 100% CPU; it is updated.
+- **A window that stops responding offers to restart itself**, with **Wait**, **Restart Window** and **Close Window**. Restart restores unsaved work from the recovery journal.
+- **Co-editing no longer locks up on one oversized change.** It is sent whole, or reported if the relay refuses it.
+
 ## 1.17.1-bcb.1 — 2026-10-31
 
 ### Added
@@ -1189,6 +1215,14 @@ user report, but each was a real race with a real bad outcome if hit:
 
 *The sections below are upstream CardMirror's own release notes, synced into
 this fork. This fork's own changes are the release sections above.*
+
+## 1.17.2 — 2026-11-01
+
+### Fixed
+
+- **Co-editing windows no longer freeze when rejoining a session or catching up on a burst of partner edits.** Since 1.16.0 a window could lock up at 100% CPU (the rest of the app kept working) the moment it rejoined a room, resumed after a network change, or received several partner edits at once — most often when cards had been moved or inserted since the window last synced. The cause was a bug in the bundled CRDT library (loro-crdt 1.13.6), fixed upstream in 1.13.7; CardMirror now ships 1.13.9. A frozen window of this kind could not be recovered without force-quitting; its unsent edits were always safe in the journal.
+- **A window that stops responding now offers to restart itself.** When a window's editor hangs, CardMirror shows a dialog with Wait, Restart Window and Close Window. Restart reloads the document and restores unsaved work from the recovery journal; the rest of the app keeps running. Previously the only way out was force-quitting CardMirror.
+- **Co-editing could lock up while sending a single oversized change.** An edit that produced one indivisible update larger than the per-update cap (about 4.5 MB) made the send loop retry splitting it forever, freezing the window. Such updates are now sent whole (the relay accepts up to eight times the cap), and if the relay still refuses one, the session backs off and reports it instead of spinning.
 
 ## 1.17.1 — 2026-10-31
 

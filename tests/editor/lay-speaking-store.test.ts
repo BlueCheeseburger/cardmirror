@@ -27,4 +27,36 @@ describe('lay-speaking-store', () => {
     expect(isLaySpeakingForPath(null)).toBe(false);
     expect(localStorage.getItem('pmd-lay-speaking-paths')).toBeNull();
   });
+
+  it('a file you switched keeps its own choice whatever the default is', () => {
+    setLaySpeakingForPath('/lay.docx', true);
+    setLaySpeakingForPath('/flow.docx', false);
+    // Default flow: untouched files follow it, touched ones keep theirs.
+    expect(isLaySpeakingForPath('/new.docx', false)).toBe(false);
+    expect(isLaySpeakingForPath('/lay.docx', false)).toBe(true);
+    // Default lay: an untouched file follows it; a file left on flow stays on flow.
+    expect(isLaySpeakingForPath('/new.docx', true)).toBe(true);
+    expect(isLaySpeakingForPath('/flow.docx', true)).toBe(false);
+    expect(isLaySpeakingForPath('/lay.docx', true)).toBe(true);
+  });
+
+  it('a file with no path (new or unsaved) takes the default', () => {
+    expect(isLaySpeakingForPath(null, true)).toBe(true);
+    expect(isLaySpeakingForPath(undefined, false)).toBe(false);
+    expect(isLaySpeakingForPath('', true)).toBe(true);
+  });
+
+  it('switching back and forth leaves one entry per file', () => {
+    setLaySpeakingForPath('/a.docx', true);
+    setLaySpeakingForPath('/a.docx', false);
+    setLaySpeakingForPath('/a.docx', true);
+    expect(JSON.parse(localStorage.getItem('pmd-lay-speaking-paths')!)).toEqual(['/a.docx']);
+    expect(JSON.parse(localStorage.getItem('pmd-flow-speaking-paths')!)).toEqual([]);
+  });
+
+  it('files remembered as lay by an older version still open on lay', () => {
+    localStorage.setItem('pmd-lay-speaking-paths', JSON.stringify(['/old.docx']));
+    expect(isLaySpeakingForPath('/old.docx', false)).toBe(true);
+    expect(isLaySpeakingForPath('/old.docx', true)).toBe(true);
+  });
 });

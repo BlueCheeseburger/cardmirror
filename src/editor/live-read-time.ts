@@ -170,6 +170,13 @@ export function hasLaySpeeds(): boolean {
     .some((r) => Number.isFinite(r.layWpm) && (r.layWpm as number) > 0);
 }
 
+/** The speed a document starts on when it has no remembered choice: the
+ *  Default read-time speed setting, but only when a reader shown live has a lay
+ *  rate (otherwise every time would read "—", so it stays on flow). */
+export function defaultLaySpeaking(): boolean {
+  return settings.get('defaultSpeakingMode') === 'lay' && hasLaySpeeds();
+}
+
 /** Whether clicking the read times may switch flow ↔ lay. Switching TO
  *  lay with no lay rate on either reader shown would turn every time
  *  into "—", so that click does nothing; switching back is always fine. */

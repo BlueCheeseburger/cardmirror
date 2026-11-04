@@ -181,8 +181,8 @@ together.
   number on its button. Press the number to pick it. In Save As, use **Alt+number**
   while the cursor is in the Name field.
 
-**Settings:** **Settings → Files → Send / Read / Marked docs** sets each mode's
-file-name prefix, folder and format.
+**Settings:** **Settings → Files → Send / Read / Marked / Starred docs** sets each
+mode's file-name prefix, folder, format and card-number handling.
 
 ## 10. Mark Card and Marked Doc
 
@@ -203,7 +203,20 @@ Star the headings and cards you want to keep, then save only those.
 
 - **Star something:** hover a hat, block, card or analytic in the outline and click
   the star at the left of its row. Starred rows show a filled star.
-- **Starred Doc** (in Save As) saves a copy with only your starred items.
+- **Starred Doc** (in Save As) saves a copy with only your starred items. A starred
+  card or analytic is kept whole, and a starred pocket, hat or block is kept with
+  everything under it.
+- **It keeps the outline around what you starred.** Each kept piece also keeps the
+  pocket, hat and block *headings* above it, so a starred block comes with the hat
+  and pocket it sits under. The other blocks and hats under those headings, and
+  their titles, are left out.
+- **Same as Send, Read and Marked Doc.** The file name starts with `STARRED_`,
+  there is a **Save Starred Doc** command (no shortcut by default; run it from the
+  command bar) that saves without the dialog, and card numbers are frozen as text
+  or removed. If nothing is starred, it tells you.
+
+**Settings:** **Settings → Files → Send / Read / Marked / Starred docs** has the
+Starred Doc file-name prefix, destination, folder, format and card numbers.
 
 Stars are saved in `.cmir` files. A `.docx` does not keep them.
 
@@ -304,7 +317,9 @@ you'll see "Close this dialog first."
   you drop a pane's title chip on, **Select Speech Document**, **Switch Window**)
   label them with **This window**, **Speech doc**, **Minimized** and, when you open a
   file from Finder or the Dock, **Last viewed**. A window busy with Compare documents
-  is greyed with a **Comparing documents** pill and can't be picked.
+  is greyed with a **Comparing documents** pill and can't be picked. In the chooser
+  the speech doc is marked on its own name, not on the window: that document's name
+  is in amber with the speech mic at its left, and a long name wraps onto the next line.
 - **Go back after a move.** A document dragged to another window shows **Moved "name"
   here from …** there, with a **Go back** button.
 - **The speech doc in a pane's stack list** has the speech mic beside it.

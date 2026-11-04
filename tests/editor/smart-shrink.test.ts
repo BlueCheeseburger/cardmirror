@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema, newHeadingId } from '../../src/schema/index.js';
-import { smartShrinkText, compileShrinkProtections } from '../../src/editor/ribbon-commands.js';
+import { smartShrinkText, shrinkAllText, compileShrinkProtections } from '../../src/editor/ribbon-commands.js';
 
 const m = (name: string, attrs?: Record<string, unknown>) => schema.marks[name]!.create(attrs);
 const t = (text: string, ...marks: ReturnType<typeof m>[]) => schema.text(text, marks);
@@ -161,5 +161,54 @@ describe('smartShrinkText', () => {
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 2)));
     const ok = command()(state, () => {});
     expect(ok).toBe(false);
+  });
+});
+
+describe('shrinkAllText (Doc menu: Shrink All)', () => {
+  const all = () =>
+    shrinkAllText(
+      effectivePt,
+      () => NORMAL_PT,
+      () => false,
+      () => compileShrinkProtections([], '', ''),
+    );
+  const twoCards = () =>
+    makeDoc(
+      card(tag('One'), body(t('first unmarked paragraph'))),
+      card(tag('Two'), body(t('second unmarked paragraph'))),
+    );
+
+  it('with a caret, shrinks every card in the document, not just the caret card', () => {
+    let state = EditorState.create({ doc: twoCards() });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 3)));
+    let next: EditorState | null = null;
+    expect(all()(state, (tr) => { next = state.apply(tr); })).toBe(true);
+    expect(ptOf(next!.doc, 'first unmarked')).toBe(5);
+    expect(ptOf(next!.doc, 'second unmarked')).toBe(5);
+    // The real state's selection is untouched.
+    expect(next!.selection.from).toBe(3);
+  });
+
+  it('with a selection, shrinks only the selected text', () => {
+    const doc = twoCards();
+    let pos = 0;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text!.includes('first')) pos = p;
+      return true;
+    });
+    let state = EditorState.create({ doc });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, pos, pos + 5)));
+    let next: EditorState | null = null;
+    expect(all()(state, (tr) => { next = state.apply(tr); })).toBe(true);
+    expect(ptOf(next!.doc, 'first')).toBe(5);
+    expect(ptOf(next!.doc, 'second unmarked')).toBe(NORMAL_PT);
+  });
+
+  it('is a no-op the second time (idempotent)', () => {
+    let state = EditorState.create({ doc: twoCards() });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 3)));
+    let once: EditorState = state;
+    all()(state, (tr) => { once = state.apply(tr); });
+    expect(all()(once, () => {})).toBe(false);
   });
 });

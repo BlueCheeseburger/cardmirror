@@ -297,6 +297,19 @@ describe('Highlight underlined text only — commands', () => {
     expect(mask(next.doc, 'highlight')).toBe('        ');
   });
 
+  it('on: Highlight with White (Mod-F11) erases the quotation marks around an underlined phrase too', () => {
+    // “perceived insulation” — only the words are underlined, the quotes are plain
+    // but highlighted. The eraser must clear all of it, not just the underlined part.
+    const doc = docOf(['“', [HL('cyan')]], ['perceived insulation', [U(), HL('cyan')]], ['”', [HL('cyan')]]);
+    const next = run(doc, '“perceived insulation”', applyHighlight(() => 'white'));
+    const marks: string[] = [];
+    next.doc.descendants((n) => {
+      if (n.isText) marks.push(`${n.text}:${n.marks.find((m) => m.type.name === 'highlight')?.attrs['color']}`);
+      return true;
+    });
+    expect(marks.every((m) => m.endsWith(':white'))).toBe(true);
+  });
+
   // Removal is never stuck behind the filter: a highlight sitting on text
   // with no underline / emphasis under it comes off with the same key.
   it('on: a highlighted plain word with nothing underlined is stripped by F11', () => {

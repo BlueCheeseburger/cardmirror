@@ -1094,11 +1094,15 @@ class SettingsModal {
       return row;
     } else if (meta.kind === 'docTypeFormat') {
       row.appendChild(text);
-      row.appendChild(buildDocTypeFormatEditor(meta.key as 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'));
+      row.appendChild(buildDocTypeFormatEditor(meta.key as 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat' | 'starredDocFormat'));
+      return row;
+    } else if (meta.kind === 'speakingMode') {
+      row.appendChild(text);
+      row.appendChild(buildSpeakingModeEditor());
       return row;
     } else if (meta.kind === 'numberingExport') {
       row.appendChild(text);
-      row.appendChild(buildNumberingExportEditor(meta.key as 'sendDocNumbering' | 'markedDocNumbering'));
+      row.appendChild(buildNumberingExportEditor(meta.key as 'sendDocNumbering' | 'markedDocNumbering' | 'starredDocNumbering'));
       return row;
     } else if (meta.kind === 'aiProvider') {
       row.appendChild(text);
@@ -1119,6 +1123,10 @@ class SettingsModal {
     } else if (meta.kind === 'readDocDestination') {
       row.appendChild(text);
       row.appendChild(buildDestinationEditor('readDocDestination', 'pmd-read-doc-dest'));
+      return row;
+    } else if (meta.kind === 'starredDocDestination') {
+      row.appendChild(text);
+      row.appendChild(buildDestinationEditor('starredDocDestination', 'pmd-starred-doc-dest'));
       return row;
     } else if (meta.kind === 'markedCardsDestination') {
       row.appendChild(text);
@@ -6311,7 +6319,7 @@ function buildDefaultTextStyleEditor(): HTMLElement {
 /** Per-type format for the silent Send / Read / Marked saves: .docx
  *  (default), .cmir, or follow the new-document format. Same chrome as the
  *  default-format editor above. */
-function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat'): HTMLElement {
+function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'markedDocFormat' | 'starredDocFormat'): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-multi-doc-layout-mode-editor pmd-doc-type-format-editor';
   const options: { value: 'default' | 'docx' | 'cmir'; label: string }[] = [
@@ -6341,8 +6349,46 @@ function buildDocTypeFormatEditor(key: 'sendDocFormat' | 'readDocFormat' | 'mark
   return wrap;
 }
 
+/** Flow-or-lay choice for the speed new documents start on, as a two-way
+ *  segmented control that sits under the readers list. */
+function buildSpeakingModeEditor(): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'pmd-speaking-mode-editor';
+  wrap.setAttribute('role', 'radiogroup');
+  wrap.setAttribute('aria-label', 'Default read-time speed');
+  const options: { value: 'flow' | 'lay'; label: string; hint: string }[] = [
+    { value: 'flow', label: 'Flow', hint: 'Times use each reader\'s flow rates (the default)' },
+    { value: 'lay', label: 'Lay', hint: 'Times use each reader\'s lay rates; needs a lay rate set above' },
+  ];
+  const buttons = new Map<string, HTMLButtonElement>();
+  const sync = (): void => {
+    const current = settings.get('defaultSpeakingMode');
+    for (const [value, btn] of buttons) {
+      const on = value === current;
+      btn.classList.toggle('pmd-speaking-mode-on', on);
+      btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      btn.tabIndex = on ? 0 : -1;
+    }
+  };
+  for (const o of options) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pmd-speaking-mode-btn';
+    btn.setAttribute('role', 'radio');
+    btn.title = o.hint;
+    btn.textContent = o.label;
+    btn.addEventListener('click', () => settings.set('defaultSpeakingMode', o.value));
+    buttons.set(o.value, btn);
+    wrap.appendChild(btn);
+  }
+  sync();
+  const unsub = settings.subscribe(sync);
+  registerRowCleanup(wrap, () => unsub());
+  return wrap;
+}
+
 /** Freeze-or-remove radio pair for the two `*DocNumbering` settings. */
-function buildNumberingExportEditor(key: 'sendDocNumbering' | 'markedDocNumbering'): HTMLElement {
+function buildNumberingExportEditor(key: 'sendDocNumbering' | 'markedDocNumbering' | 'starredDocNumbering'): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'pmd-multi-doc-layout-mode-editor pmd-numbering-export-editor';
   const options: { value: 'freeze' | 'remove'; label: string }[] = [
@@ -6589,9 +6635,9 @@ function buildMarkedCardsDestinationEditor(): HTMLElement {
 }
 
 /** Same/fixed-folder radio for a save destination setting (Send Doc, Read
- *  Doc, Marked Cards). `key` is the setting; `idPrefix` keeps the radio group distinct. */
+ *  Doc, Marked Cards, Starred Doc). `key` is the setting; `idPrefix` keeps the radio group distinct. */
 function buildDestinationEditor(
-  key: 'sendDocDestination' | 'readDocDestination' | 'markedCardsDestination',
+  key: 'sendDocDestination' | 'readDocDestination' | 'markedCardsDestination' | 'starredDocDestination',
   idPrefix: string,
 ): HTMLElement {
   const wrap = document.createElement('div');

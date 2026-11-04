@@ -407,6 +407,7 @@ import {
   remainingReadSegment,
   watchScrollForRemaining,
   canSwitchSpeedMode,
+  defaultLaySpeaking,
 } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import type { MultiPaneWindowInfo } from './host/electron-host.js';
@@ -2366,6 +2367,9 @@ const ribbonContext: RibbonContext = {
   },
   saveMarkedCards: () => {
     void runSaveMarkedCardsFlow();
+  },
+  saveStarredDoc: () => {
+    void runSaveStarredDocFlow();
   },
   toggleAutosave: () => {
     if (multiDocActive && multiDocToggleAutosave) {
@@ -5738,7 +5742,7 @@ let lastWholeDocWords: ReadAloudCounts | null = null;
  *  clicking the readout itself (`word-count-text`); switches every
  *  reader shown from their flow rate (`wpm`/`tagWpm`) to their lay rate
  *  (`layWpm`), or "—" for a reader with no lay rate configured. */
-let laySpeakingOn = false;
+let laySpeakingOn = defaultLaySpeaking();
 
 function toggleLaySpeaking(): void {
   laySpeakingOn = !laySpeakingOn;
@@ -7692,7 +7696,7 @@ function mountOpenedSingleDoc(args: {
   currentDocFormat = args.format;
   // Restore this file's remembered autosave toggle (off if unknown).
   settings.set('autosaveEnabled', isAutosaveOnForPath(args.handle));
-  laySpeakingOn = isLaySpeakingForPath(args.handle);
+  laySpeakingOn = isLaySpeakingForPath(args.handle, defaultLaySpeaking());
   currentDocUid = newSessionDocUid();
   adoptDocId(args.docId, args.name, args.handle ?? null, args.format);
   // A recovered journal / salvaged copy mounts dirty (no on-disk file
@@ -7853,7 +7857,7 @@ async function loadFileInPlace(file: {
   currentDocFormat = file.format;
   // Restore this file's remembered autosave toggle (off if unknown).
   settings.set('autosaveEnabled', isAutosaveOnForPath(file.handle));
-  laySpeakingOn = isLaySpeakingForPath(file.handle);
+  laySpeakingOn = isLaySpeakingForPath(file.handle, defaultLaySpeaking());
   currentDocUid = newSessionDocUid();
   adoptDocId(docId, file.filename, file.handle, file.format);
   if (file.recovered) markCurrentDocDirty();
@@ -9533,16 +9537,17 @@ async function runSaveAsFlowInner(): Promise<boolean> {
 interface SilentExportSpec {
   /** For the failure alert ("Send doc save failed: …"). */
   label: string;
-  formatKey: 'sendDocFormat' | 'readDocFormat';
-  prefixKey: 'sendDocPrefix' | 'readDocPrefix';
-  destinationKey: 'sendDocDestination' | 'readDocDestination';
-  folderKey: 'sendDocFolder' | 'readDocFolder';
+  formatKey: 'sendDocFormat' | 'readDocFormat' | 'starredDocFormat';
+  prefixKey: 'sendDocPrefix' | 'readDocPrefix' | 'starredDocPrefix';
+  destinationKey: 'sendDocDestination' | 'readDocDestination' | 'starredDocDestination';
+  folderKey: 'sendDocFolder' | 'readDocFolder' | 'starredDocFolder';
   /** The preset's own export options (save-as-ui.ts). */
   exportOptions: {
     includeComments: boolean;
     includeAnalytics: boolean;
     includeUndertags: boolean;
     readMode: boolean;
+    starredOnly?: boolean;
     numbering: NumberingExportMode;
   };
 }
@@ -9659,6 +9664,38 @@ export async function runSaveReadDocFlow(): Promise<boolean> {
       readMode: true,
       // Read mode keeps every heading, so nothing renumbers: live numbering.
       numbering: 'keep',
+    },
+  });
+}
+
+/**
+ * Save a Starred Doc silently — the automation of the Save-As dialog's "Starred
+ * Doc" preset: every card, analytic, pocket, hat and block you starred in the
+ * outline (a starred heading brings everything under it), plus the pocket / hat
+ * / block headings above each, and nothing else. Unbound by default. Settings:
+ * `starredDocDestination` / `starredDocFolder` / `starredDocFormat` /
+ * `starredDocNumbering` / `STARRED_` prefix. No-ops with a toast when nothing is
+ * starred.
+ */
+export async function runSaveStarredDocFlow(): Promise<boolean> {
+  const docToExport = view ? view.state.doc : currentDoc;
+  if (countStarred(docToExport) === 0) {
+    showToast('Nothing starred to save.');
+    return false;
+  }
+  return runSilentExportFlow({
+    label: 'Starred doc',
+    formatKey: 'starredDocFormat',
+    prefixKey: 'starredDocPrefix',
+    destinationKey: 'starredDocDestination',
+    folderKey: 'starredDocFolder',
+    exportOptions: {
+      includeComments: false,
+      includeAnalytics: true,
+      includeUndertags: true,
+      readMode: false,
+      starredOnly: true,
+      numbering: settings.get('starredDocNumbering'),
     },
   });
 }

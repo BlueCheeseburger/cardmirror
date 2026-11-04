@@ -30,7 +30,7 @@ describe('*DocNumbering settings', () => {
       const meta = SETTING_METADATA.find((m) => m.key === k)!;
       expect(meta.kind).toBe('numberingExport');
       expect(meta.category).toBe('files');
-      expect(meta.section).toBe('Send / Read / Marked docs');
+      expect(meta.section).toBe('Send / Read / Marked / Starred docs');
     }
   });
 });

@@ -154,6 +154,33 @@ describe('Save As — mode selection', () => {
     expect(result?.filename.startsWith(settings.get('sendDocPrefix'))).toBe(true);
   });
 
+  it('Starred Doc takes its prefix and its card-number setting, like Send and Marked Doc', async () => {
+    settings.set('prefixPresetSaveFilenames', true);
+    settings.set('starredDocNumbering', 'remove');
+    const p = open();
+    selectMode('Starred Doc');
+    saveAsBtn().click();
+    const result = await p;
+    expect(result).toMatchObject({ starredOnly: true, numbering: 'remove', includeComments: false });
+    expect(settings.get('starredDocPrefix')).toBe('STARRED_');
+    expect(result?.filename).toBe('STARRED_R2 1NR.docx');
+  });
+
+  it('Starred Doc is not prefixed when preset prefixes are turned off, or its own prefix is empty', async () => {
+    settings.set('prefixPresetSaveFilenames', false);
+    let p = open();
+    selectMode('Starred Doc');
+    saveAsBtn().click();
+    expect((await p)?.filename).toBe('R2 1NR.docx');
+    settings.set('prefixPresetSaveFilenames', true);
+    settings.set('starredDocPrefix', '');
+    p = open();
+    selectMode('Starred Doc');
+    saveAsBtn().click();
+    expect((await p)?.filename).toBe('R2 1NR.docx');
+    settings.set('starredDocPrefix', 'STARRED_');
+  });
+
   it('Read Doc sets readMode and excludes the include-* layers', async () => {
     const p = open();
     selectMode('Read Doc');

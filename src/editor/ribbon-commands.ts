@@ -36,7 +36,7 @@
 
 import { linkUrls } from './autolink.js';
 import { Fragment, type Mark, type MarkType, type Node as PMNode, type ResolvedPos } from 'prosemirror-model';
-import { EditorState, Selection, TextSelection, type Command, type Transaction } from 'prosemirror-state';
+import { AllSelection, EditorState, Selection, TextSelection, type Command, type Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { toggleMark } from 'prosemirror-commands';
 import { undo as historyUndo, redo as historyRedo } from 'prosemirror-history';
@@ -56,6 +56,7 @@ import {
 } from './plugin-registry.js';
 import { schema } from '../schema/index.js';
 import { newHeadingId } from '../schema/ids.js';
+import { isBlankHighlightColor } from '../schema/marks.js';
 import { extractCard } from './extract-card.js';
 import {
   condenseBranchC,
@@ -2357,7 +2358,12 @@ export function applyHighlight(activeColor: () => string | null): Command {
     // test behind the toggle) covers just the underlined / emphasized
     // pieces; a strip still clears the whole selection, so painting the
     // same swath twice leaves it clean.
-    const paint = paintRanges(state.doc, op.ranges);
+    // A blank color (white, Mod-F11) is an eraser, not a paint: it covers the
+    // whole selection whatever the filter says, or the quotation marks and
+    // other plain text beside an underlined phrase would keep their color.
+    const paint = isBlankHighlightColor(color)
+      ? { ranges: op.ranges, narrowed: false }
+      : paintRanges(state.doc, op.ranges);
     // The filter left nothing to paint (no underline / emphasis in the
     // selection): the only thing F11 can mean here is "remove", so strip
     // whatever highlight the selection carries — any color, filter
@@ -3664,6 +3670,34 @@ export function smartShrinkText(
   };
 }
 
+/** Shrink All (Doc menu): Smart Shrink over the selection, or over every body
+ *  paragraph in the document when nothing is selected. Smart Shrink on its own
+ *  with a caret only reaches the caret's card, so the empty-selection case runs
+ *  it against a state whose selection is the whole document and replays its
+ *  steps onto the real one. Same eligibility, protections and idempotency. */
+export function shrinkAllText(
+  effectivePt: (node: PMNode | null, parent: PMNode) => number,
+  normalPt: () => number,
+  restoreOmissions: () => boolean,
+  protectionPatterns: () => readonly RegExp[],
+): Command {
+  const smart = smartShrinkText(effectivePt, normalPt, restoreOmissions, protectionPatterns);
+  return (state, dispatch) => {
+    if (!state.selection.empty) return smart(state, dispatch);
+    const whole = state.apply(state.tr.setSelection(new AllSelection(state.doc)));
+    return smart(
+      whole,
+      dispatch
+        ? (tr) => {
+            const real = state.tr;
+            for (const step of tr.steps) real.step(step);
+            dispatch(real);
+          }
+        : undefined,
+    );
+  };
+}
+
 function sizeCycleCommand(
   effectivePt: (node: PMNode | null, parent: PMNode) => number,
   normalPt: () => number,
@@ -4817,6 +4851,7 @@ export type RibbonCommandId =
   | 'clearToNormal'
   | 'shrink'
   | 'smartShrink'
+  | 'shrinkAll'
   | 'regrow'
   | 'createReference'
   | 'lockHighlighting'
@@ -4893,6 +4928,7 @@ export type RibbonCommandId =
   | 'saveSendDoc'
   | 'saveReadDoc'
   | 'saveMarkedCards'
+  | 'saveStarredDoc'
   | 'toggleAutosave'
   | 'newSpeechDocument'
   | 'markActiveAsSpeech'
@@ -5115,6 +5151,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'clearToNormal',
   'shrink',
   'smartShrink',
+  'shrinkAll',
   'regrow',
   'createReference',
   'lockHighlighting',
@@ -5191,6 +5228,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'saveSendDoc',
   'saveReadDoc',
   'saveMarkedCards',
+  'saveStarredDoc',
   'toggleAutosave',
   'newSpeechDocument',
   'markActiveAsSpeech',
@@ -5356,6 +5394,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   clearToNormal: 'Clear',
   shrink: 'Shrink Card Text',
   smartShrink: 'Smart Shrink (Deeper for Unmarked Paragraphs)',
+  shrinkAll: 'Shrink All',
   regrow: 'Restore Card Text Size',
   createReference: 'Create Reference',
   lockHighlighting: 'Lock Highlighting',
@@ -5432,6 +5471,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   saveSendDoc: 'Save Send Doc',
   saveReadDoc: 'Save Read Doc',
   saveMarkedCards: 'Save Marked Cards',
+  saveStarredDoc: 'Save Starred Doc',
   toggleAutosave: 'Toggle Autosave',
   newSpeechDocument: 'New Speech Document',
   markActiveAsSpeech: 'Mark / Unmark Active Doc as the Speech Doc',
@@ -5639,6 +5679,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   standardizeShadingExcept: ['standardize background except', 'standardize shading except', 'exception shading'],
   regrow: ['unshrink', 'regrow', 'restore text size', 'unshrink card text'],
   smartShrink: ['smart shrink', 'deep shrink'],
+  shrinkAll: ['shrink document', 'shrink whole doc', 'shrink everything'],
   condenseAndShrink: ['fast condense', 'condense and shrink', 'condense shrink'],
   aiAskAboutSelection: ['question'],
   reformatAllCites: ['reformat all cites', 'reformat cites', 'all cites', 'every cite', 'bulk cite'],
@@ -5743,6 +5784,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   saveSendDoc: ['send doc', 'export send doc', 'send version'],
   saveReadDoc: ['read doc', 'export read doc', 'read version', 'save read'],
   saveMarkedCards: ['marked cards', 'extract marked cards', 'export marked cards', 'save marked'],
+  saveStarredDoc: ['starred doc', 'starred cards', 'export starred', 'save starred', 'extract starred'],
   startFlowHost: ['warm flow', 'prewarm flow', 'flow connection', 'connect to flow', 'speed up flow'],
   toggleVoice: ['voice control', 'voice mode', 'dictation', 'speech', 'microphone', 'start voice', 'stop voice'],
   calibrateVoice: ['voice calibration', 'train voice', 'calibrate microphone', 'my voice'],
@@ -5823,6 +5865,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   clearToNormal: 'F12',
   shrink: 'Mod-8',
   smartShrink: 'Mod-Alt-8',
+  shrinkAll: '',
   regrow: 'Mod-Shift-8',
   // Menu / button commands — exposed for user-defined bindings via
   // the keybinding editor; no default key.
@@ -5918,6 +5961,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   saveSendDoc: 'Mod-Alt-s',
   saveReadDoc: '',
   saveMarkedCards: 'Mod-Alt-m',
+  saveStarredDoc: '',
   toggleAutosave: '',
   insertLiveZone: '',
   insertSelfLiveZone: '',
@@ -6212,6 +6256,7 @@ export interface RibbonContext {
   saveSendDoc: () => void;
   saveReadDoc: () => void;
   saveMarkedCards: () => void;
+  saveStarredDoc: () => void;
   toggleAutosave: () => void;
   /** Speech-doc commands (Verbatim's `Paperless.SendToSpeech` family).
    *  All four are wired via the speech-doc registry — when the host
@@ -6429,6 +6474,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   saveSendDoc: () => {},
   saveReadDoc: () => {},
   saveMarkedCards: () => {},
+  saveStarredDoc: () => {},
   toggleAutosave: () => {},
   newSpeechDocument: () => {},
   markActiveAsSpeech: () => {},
@@ -6604,6 +6650,13 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       );
     case 'smartShrink':
       return smartShrinkText(
+        ctx.effectivePtForNode,
+        ctx.normalPt,
+        ctx.shrinkRestoresOmissionsToNormal,
+        ctx.shrinkProtectionPatterns,
+      );
+    case 'shrinkAll':
+      return shrinkAllText(
         ctx.effectivePtForNode,
         ctx.normalPt,
         ctx.shrinkRestoresOmissionsToNormal,
@@ -7003,6 +7056,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.saveMarkedCards();
+        return true;
+      };
+    case 'saveStarredDoc':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.saveStarredDoc();
         return true;
       };
     case 'toggleAutosave':

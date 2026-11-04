@@ -450,6 +450,14 @@ async function pickMultiPaneTarget(
   const details = sorted.map((e) =>
     windowNames.has(e.id) ? (windowDocFilenames.get(e.id) ?? null) : null,
   );
+  // The speech doc's own name gets the speech marker, in whichever window holds
+  // it (see chooserHtml); its window shows no Speech doc pill when that lands.
+  const speechFilename = speechRegistration
+    ? (docInfo.get(speechRegistration.uid)?.filename ?? 'Untitled')
+    : null;
+  const speechDocs = sorted.map((e) =>
+    speechRegistration?.windowId === e.id ? speechFilename : null,
+  );
   const pills = sorted.map((e) =>
     windowPillKinds({
       thisWindow: e.id === opts.asker,
@@ -466,6 +474,7 @@ async function pickMultiPaneTarget(
     labels,
     details,
     pills,
+    speechDocs,
     disabled: sorted.map((e) => e.comparing),
     withCancel: opts.withCancel === true,
   });
@@ -706,6 +715,65 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
       return;
     }
     win.webContents.reload();
+  });
+
+  // Hung-renderer recovery. A renderer whose main thread is stuck in a
+  // synchronous loop (a wasm or native call that never reaches a V8
+  // interrupt check — the loro-crdt 1.13.6 diff hang shipped in 1.16.0
+  // was one) never crashes, so the handler above never fires: the window
+  // just sits at 100% CPU with the close box ignored, and the only way
+  // out used to be force-quitting the whole app. Chromium's hang monitor
+  // raises `unresponsive` after the renderer has ignored input for a
+  // while; we log it beside the crash records and offer the same
+  // recovery as a crash: force-kill the renderer so the handler above
+  // reloads it and the crash journal restores unsaved work. "Wait" is the
+  // default so a legitimately long operation (a huge import) survives a
+  // stray click.
+  let hangDialogOpen = false;
+  win.on('responsive', () => {
+    if (win.isDestroyed()) return;
+    const stamp = `${new Date().toISOString()} responsive-again title=${JSON.stringify(win.getTitle())}`;
+    void fs
+      .appendFile(path.join(app.getPath('userData'), 'renderer-crashes.log'), stamp + '\n')
+      .catch(() => {});
+  });
+  win.on('unresponsive', () => {
+    if (win.isDestroyed() || hangDialogOpen) return;
+    const stamp = `${new Date().toISOString()} unresponsive title=${JSON.stringify(win.getTitle())}`;
+    console.error(`[main:renderer-hang] ${stamp}`);
+    void fs
+      .appendFile(path.join(app.getPath('userData'), 'renderer-crashes.log'), stamp + '\n')
+      .catch(() => {});
+    hangDialogOpen = true;
+    void dialog
+      .showMessageBox(win, {
+        type: 'warning',
+        message: 'This window has stopped responding.',
+        detail:
+          'CardMirror can keep waiting, or restart this window. Restarting reloads the ' +
+          'document and restores unsaved work from the recovery journal. Your other ' +
+          'windows are not affected.',
+        buttons: ['Wait', 'Restart Window', 'Close Window'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      })
+      .then(({ response }) => {
+        hangDialogOpen = false;
+        if (win.isDestroyed()) return;
+        if (response === 1) {
+          // Kills the hung renderer; `render-process-gone` above reloads
+          // it (reason 'killed'), and the reloaded renderer's startup
+          // flow offers the crash journal.
+          win.webContents.forcefullyCrashRenderer();
+        } else if (response === 2) {
+          // close() needs the renderer to answer beforeunload — it can't.
+          win.destroy();
+        }
+      })
+      .catch(() => {
+        hangDialogOpen = false;
+      });
   });
 
   // Stash the initial doc (if any) BEFORE loading the renderer so
@@ -2668,6 +2736,11 @@ function focusExistingOwner(p: string, excludeWinId?: number): boolean {
     windowOpenPaths.get(ownerId)?.delete(norm);
     return false;
   }
+  // A window with Compare documents up shows the tool, not the editor under
+  // it, so focusing it would never reach the document. Treat the file as free:
+  // it opens in an editor of its own, and takes over the path claim (the
+  // compare window's later release is a no-op, since it no longer owns it).
+  if (takenOverWindows.has(ownerId)) return false;
   if (ownerWin.isMinimized()) ownerWin.restore();
   ownerWin.focus();
   return true;
@@ -3027,6 +3100,9 @@ ipcMain.handle(
       windowOpenPaths.get(ownerId)?.delete(norm);
       return { delivered: false };
     }
+    // Compare documents is up over that window: the card is not reachable
+    // there, so let the caller open the file in a window of its own.
+    if (takenOverWindows.has(ownerId)) return { delivered: false };
     if (ownerWin.isMinimized()) ownerWin.restore();
     ownerWin.focus();
     ownerWin.webContents.send('host:focus-anchor', { descriptor });

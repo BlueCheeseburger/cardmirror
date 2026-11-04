@@ -18,7 +18,7 @@ export interface RibbonGroup {
 export const RIBBON_GROUPS: RibbonGroup[] = [
   {
     title: 'File',
-    commands: ['newDocument', 'openFile', 'save', 'saveAs', 'saveSendDoc', 'saveReadDoc', 'saveMarkedCards', 'printDocument', 'toggleAutosave', 'openContainingFolder', 'reloadFromDisk', 'saveWorkspace', 'reopenWorkspace', 'goHome'],
+    commands: ['newDocument', 'openFile', 'save', 'saveAs', 'saveSendDoc', 'saveReadDoc', 'saveMarkedCards', 'saveStarredDoc', 'printDocument', 'toggleAutosave', 'openContainingFolder', 'reloadFromDisk', 'saveWorkspace', 'reopenWorkspace', 'goHome'],
   },
   {
     title: 'Speech',
@@ -120,6 +120,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'clearToNormal',
       'shrink',
       'smartShrink',
+      'shrinkAll',
       'regrow',
       'copyPreviousCite',
       'extractCard',

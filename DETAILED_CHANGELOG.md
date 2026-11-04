@@ -10,6 +10,48 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.17.2-bcb.1 — 2026-11-04
+
+### Which-window chooser: speech doc marked on its own name
+
+Request: drop the window-level "Speech doc" pill in the chooser; mark the specific doc that is the speech doc, with the mic icon at its left; show a name that spills onto a second line. `chooserHtml` takes `speechDocs` (parallel to `labels`: the speech doc's filename in that window, from `speechRegistration` and `docInfo`, `Untitled` when it has no filename). The matching name, in the label's lines for an unnamed window or in the grey list for a named one, is drawn as a `.speechdoc` span: the editor's mic drawing inline, then the name in amber (`--speech-amber`: #f0b429 dark, #9a6700 light). A named window's list is one text run joined by " · " clamped to two lines; with a speech doc in it the clamp rises to five so the name is not cut. When the speech filename matches nothing shown (renamed since the title was set, say), the window keeps its old pill so the speech doc is never unmarked.
+
+First attempt, rejected by the user after seeing it: a gold highlight box behind the name (first as broken inline fragments, then a hanging-mic block with each doc on its own line). The user wanted plain amber text instead.
+
+Only the chooser changed: the move tray, Select Speech Document, the command palette and Switch Window still show the pill on the window. The `speech` pill stays in the shared vocabulary (parity test unchanged). NOT verified in the running app (rendered as HTML in Chromium at the chooser's 460px width, in both themes).
+
+### Default read-time speed (Flow / Lay)
+
+Request: an option beside the Flow and Lay reading times in Settings to use either by default. Added `defaultSpeakingMode` (`flow` default | `lay`), a "Default read-time speed" row directly after the readers row in General → Word counts, drawn as a two-way segmented control (`buildSpeakingModeEditor`, the selected side in the same blue the bottom bar uses for lay times). Applies when a document opens (single-doc and each pane) and to new, unsaved ones.
+
+The per-file store only recorded files left on lay, with "absent means flow". With a lay default that cannot say "I switched this back to flow", so `lay-speaking-store.ts` now also records explicit flow (`pmd-flow-speaking-paths`); `isLaySpeakingForPath(path, fallback)` returns the file's own choice, else the fallback. Old data still reads correctly (the old lay list is the same key). `defaultLaySpeaking()` (`live-read-time.ts`) only returns lay when a reader shown live has a lay rate, so a lay default with none set cannot turn every time into "—"; the row's description says so.
+
+Not done: changing the setting does not flip documents already open (they keep their mode until reopened). NOT verified in the packaged app, only by unit tests and a rendered screenshot of the settings row.
+
+### Starred Doc brought level with Send / Read / Marked Doc
+
+Report: Starred Doc (Save As) was built as a bare export mode and missed what the other three presets have. Audited each against Marked Doc. What was missing and is now added:
+
+- **Ancestor headings (the structural bug).** `extractStarred` kept a starred block with no hat or pocket above it, so the copy lost its place in the outline. It now tracks the pocket / hat / block heading in scope at each level and writes each unwritten ancestor heading, once, just before the first kept piece under it. Only the headings come along: a hat's or pocket's own loose content, and sibling blocks / hats and their titles, stay out. A starred hat keeps its pocket; a starred pocket has no ancestors. Five tests in `transform-for-export.test.ts`.
+- **Filename prefix.** `starredDocPrefix` (default `STARRED_`), a Settings row beside the other three, honored by the dialog preset and the command, gated on `prefixPresetSaveFilenames` (whose description now names Starred Doc).
+- **Card numbers.** The preset read no setting and always froze via `exportFreezesNumbering`. Added `starredDocNumbering` (freeze default, or remove), read by the preset and the command.
+- **A silent command.** `saveStarredDoc` / "Save Starred Doc", built on `runSilentExportFlow` (widened to take the starred keys and `starredOnly`), with `starredDocDestination`, `starredDocFolder` and `starredDocFormat`, a command-bar entry, aliases and the File group. No default shortcut (Send has Mod-Alt-S, Marked Mod-Alt-M; none was picked for this one). With nothing starred it toasts "Nothing starred to save." and writes nothing, like Marked.
+- The Settings section is renamed "Send / Read / Marked / Starred docs" (the settings tests that pin the name were updated).
+
+Not done: the nav pane's right-click menu has no Starred save entry, because Marked has none either. NOT verified in the running app, only by unit tests; nothing was saved to disk and opened in Word. Settings written by older versions load fine (each new key falls back to its default).
+
+### Doc menu: Shrink All (`shrinkAll`)
+
+Request: a "shrink all" button in the doc dropdown. Built as a new ribbon command `shrinkAll` (unbound by default, also in the command bar) and a "Text size" section in `buildDocMenuSections`, so the toolbar Doc menu and the outline's right-click Doc submenu both get it. It is Smart Shrink (`smartShrinkText`) with the empty-selection case widened: with a caret, Smart Shrink only reaches the caret's card, so `shrinkAllText` runs it against a state whose selection is the whole document (`AllSelection`) and replays the steps onto the real state, leaving the caret and scroll alone. With a selection it is exactly Smart Shrink. Chosen over the plain cycling Shrink because the cycle is not idempotent and cannot be applied to a whole document meaningfully; Smart Shrink is. Rejected: a new keyboard shortcut (the user asked for a button only). Not verified in the running app, only by unit tests; the 5pt/8pt depths are Smart Shrink's existing ones, so say if "all" should mean one fixed size instead.
+
+### Opening a file that a Compare window owns opens an editor
+
+Report: Compare documents open over doc 1, then opening doc 1 again only focused the Compare window. Cause: the duplicate-open guard (`focusExistingOwner`, shared by the Open dialog, Finder/Dock opens and `host:open-path-check`) focuses whichever window owns the path, and the owner is the window the tool is drawn over. Fix: a window in `takenOverWindows` no longer counts as an owner, so the file opens normally and the new window takes the path claim (the compare window's later release no-ops because release is owner-guarded). `host:focus-anchor-in-window` returns `delivered: false` for such a window so Show in context spawns a window too. Rejected: closing Compare to reveal the editor under it (loses an unfinished comparison, e.g. a sync conflict). Risk: two windows can then hold the same file; the old one gets the usual changed-on-disk prompt on save. NOT verified in the packaged app; the code is in `main.ts` and has no unit test.
+
+### Mod-F11 ignores "Highlight underlined text only" (it erases, it doesn't paint)
+
+Report: with the setting on, Mod-F11 over `“perceived relative insulation”` whited out the underlined words but left the (plain) quotation marks cyan. Cause: `applyHighlight` narrows every paint to underlined/emphasized text, and "Highlight with White" is a paint of the blank color `white`. Fix: a blank color (`isBlankHighlightColor`: white / none) skips the narrowing and covers the whole selection, so the toggle test (all white already, so strip) also sees the whole selection. F11 and the colored pens are unchanged. Rejected: making Mod-F11 strip instead of paint white; the white mark is what Verbatim's erase writes and what read mode already treats as blank. Not verified in the packaged app, only by unit test (fails without the fix, passes with it).
+
 ## 1.17.1-bcb.1 — 2026-10-31
 
 ### Added: "Sent to speech doc" notice (`speech-doc-send.ts`, `toast.ts`)
@@ -47,6 +89,10 @@ Reverses the 2026-10-27 amber row. `openStackDropdown` now puts a `pmd-pane-chip
 **Rejected.** Sorting the chooser by recency (breaks muscle memory); making Enter pick the last-viewed window (changes what Enter does today; easy to add if wanted).
 
 **Not verified.** None of this has run in the packaged Electron app: the chooser page and the in-app dialogs were rendered in Chromium against stubbed host data, and the real focus order, minimized state and Compare takeover come from main, which only unit tests and typecheck cover. Moving a document between real windows and the Go back button have not been tried end to end.
+
+### From upstream: 1.17.2 sync (`main.ts`, `collab-session.ts`, `loro-crdt`)
+
+The user-facing summary is in CHANGELOG.md's `### From upstream`; upstream's own detailed 1.17.2 section is further down this file. The merge was a real merge of upstream's `v1.17.2` tag (merge base `v1.17.1`), so the next sync finds `v1.17.2` as its base. Only the version fields and the lockfile conflicted: `package.json`, `apps/desktop/package.json` and `package-lock.json` took upstream's `loro-crdt` 1.13.9 (the lockfile entry copied from upstream's) and kept this fork's version numbering; the release prep in the same PR then set them to `1.17.2-bcb.1`. Upstream's `main.ts` hung-window dialog merged without overlap with this fork's window code. NOT verified: nothing was run in the packaged desktop app, and the hung-window dialog and the co-editing freeze fixes were not exercised.
 
 ### From upstream: 1.17.1 sync, and how the overlaps were resolved (`update-chip.ts`, `main.ts`, `read-mode-plugin.ts`, `file-search-client.ts`, `file-index-service.ts`)
 
@@ -2981,6 +3027,85 @@ history.
 *The sections below are upstream CardMirror's own detailed release notes,
 synced into this fork. For the user-facing short summary of each upstream
 release, see [CHANGELOG.md § Upstream Releases](./CHANGELOG.md#upstream-releases).*
+
+## 1.17.2 — 2026-11-01
+
+### Fixed: co-editing window freezes on rejoin / catch-up (loro-crdt 1.13.6 diff hang)
+
+**Symptom.** From 1.16.0 on, a co-editing window could spin at 100% CPU on
+its renderer main thread, forever, while every other window stayed
+responsive. Triggers: Rejoin Recent Session, a resume after the machine
+changed networks, a catch-up that delivered a relay snapshot plus queued
+updates, or a streamed burst of two or more partner frames — whenever the
+partner had moved or inserted cards since the window last synced. DevTools
+could not pause it and `Runtime.terminateExecution` had no effect, because
+the spin was inside Loro's wasm (Liftoff-compiled code with no interrupt
+checks on that path), reached from a promise continuation in the collab
+session.
+
+**Root cause.** Commit bf21d14f (2026-10-24, "Binding: an import burst
+renders once, from its net diff", shipped in 1.16.0) made the binding's
+import hold call `LoroDoc.diff(frontiersBefore, frontiersAfter)` when the
+hold closes, so a burst of imports renders as one transaction. That was the
+first time shipped code called a Loro history API on a document loaded from
+a snapshot. loro-crdt 1.13.6 has a bug in `ChangeStore::get_change_by_lamport_lte`:
+change-store blocks decoded from a snapshot record a wrong end lamport, and
+when a change is split across blocks the binary search never converges. The
+movable-list diff calculator hits that lookup while resolving historical
+positions — i.e. exactly when the diff range contains list moves/inserts.
+Fixed upstream in loro-crdt 1.13.7 (c37e76a: capped binary search with a
+scan fallback). Verified against the real room data from the field report:
+1.13.6 hangs for any range (even an empty one) once the snapshot plus the
+partner's later changes are loaded; 1.13.7, 1.13.9 and 1.17.1 return in
+~80 ms.
+
+**Fix.** loro-crdt pinned 1.13.6 → 1.13.9 (same minor; the only behavioural
+changes in 1.13.7–1.13.9 are hang/panic fixes). The 1.14–1.17 line changes
+checkout/diff/undo winner selection, movable-list cursor anchoring and
+panic-vs-error semantics that the binding and undo guard depend on, so that
+upgrade is deliberately a separate, rig-tested change.
+
+### Added: hung-renderer recovery dialog (main process)
+
+`main.ts` had a `render-process-gone` handler (log + reload + journal
+recovery) but nothing for `unresponsive`, so a renderer stuck in a
+synchronous loop — which never crashes — left a window at 100% CPU whose
+close box was ignored, recoverable only by force-quitting the whole app
+(and that is how every co-editing freeze above was being "resolved" in the
+field). Chromium's hang monitor emits `unresponsive` on the BrowserWindow
+after the renderer ignores input for a while; the new handler logs an
+`unresponsive` line to `renderer-crashes.log` (with `responsive-again` when
+it recovers) and shows a native dialog: **Wait** (default, so a long but
+legitimate operation survives a stray click), **Restart Window**
+(`webContents.forcefullyCrashRenderer()` — the existing gone-handler then
+reloads, reason `killed`, and the startup flow offers the crash journal) and
+**Close Window** (`win.destroy()`, since `close()` needs the hung renderer to
+answer `beforeunload`). One dialog per window at a time.
+
+### Fixed: send loop spun forever on an indivisible oversized update
+
+`drainQueueInner` split an over-cap queue head with `chunkQueueHead()` and
+`continue`d. `exportChunks` halves op spans until each blob fits — but a
+single op (one counter) cannot be halved, and it was emitted as-is
+("single-op blobs ship as-is; the server cap is 8x our limit"). Back in the
+loop the head was still over the cap, so it was re-chunked into the same
+blob, forever, synchronously — the same 100% CPU wedge as the diff hang,
+reachable by any edit that writes one value over ~4.5 MB (an image stored
+in node attrs, say). Chunk entries now carry `chunked: true` and are posted
+rather than re-split; the 413 path only re-chunks an entry once, after which
+a still-refused update goes through the normal failure/backoff route and
+`onSendStuck` instead of a hot retry. A hard cap on chunking attempts per
+drain backstops both. Regression test: a 2 KB single `set` op against a
+400-byte cap posts exactly once.
+
+**Forensics recipe (for the next report of a frozen window).** `ps -M <renderer pid>`
+shows the main thread at 100%; `sample <pid> 5` gives native frames;
+symbolicate them against Electron's breakpad symbols
+(`electron-v<ver>-darwin-arm64-symbols.zip`) and resolve JIT frames with
+V8's perf map (`--js-flags=--perf-basic-prof --no-sandbox` at launch writes
+`/tmp/perf-<pid>.map`). The wasm function index maps to a name through the
+module's export table. `kill -USR1` on the main process opens a Node
+inspector on :9229 for driving `webContents.debugger` from a script.
 
 ## 1.17.1 — 2026-10-31
 

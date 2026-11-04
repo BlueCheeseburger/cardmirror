@@ -49,7 +49,8 @@ export interface ExportTransformOptions {
    *  Optional / defaults off so existing callers don't have to opt in. */
   markedCardsOnly?: boolean;
   /** Keep ONLY what's starred in the outline: each starred card whole, and
-   *  everything under a starred hat / block. Mutually exclusive like the rest. */
+   *  everything under a starred pocket / hat / block, plus the pocket / hat /
+   *  block headings above each (headings only). Mutually exclusive like the rest. */
   starredOnly?: boolean;
   /** Bake the display-only "text after a reading marker is red"
    *  (`markUnreadAfterMarker`) into real `font_color` runs, so the export
@@ -255,9 +256,15 @@ function extractMarkedCards(doc: PMNode): PMNode {
 //
 // A heading starred in the outline (the `starred` attr on a hat / block / tag
 // / analytic) marks what Save As's "Starred Doc" keeps: a starred card or
-// analytic whole, and everything under a starred hat / block (down to the next
-// heading of the same or a shallower level). The doc is flat, so each starred
-// block is a run of siblings; overlapping stars never repeat a node.
+// analytic whole, and everything under a starred pocket / hat / block (down to
+// the next heading of the same or a shallower level). The doc is flat, so each
+// starred block is a run of siblings; overlapping stars never repeat a node.
+//
+// Each kept piece also keeps the headings it sits under, so the copy reads as
+// the same outline: a starred block brings its hat and pocket, but ONLY their
+// headings. The hat's and pocket's other content, and the sibling blocks and
+// hats under them (titles included), stay out. An ancestor heading is written
+// once however many starred pieces share it.
 
 const STAR_LEVEL: Record<string, number> = { pocket: 1, hat: 2, block: 3 };
 
@@ -272,21 +279,46 @@ function extractStarred(doc: PMNode): PMNode {
   const schema = doc.type.schema;
   const out: PMNode[] = [];
   let keepBelow = 0; // while > 0, keep everything until a heading ≤ this level
+  // The pocket / hat / block heading currently in scope at each level
+  // (index 0 = pocket), and whether it has been written out yet.
+  const scope: (PMNode | null)[] = [null, null, null];
+  const written = [false, false, false];
+  /** Write the in-scope headings above `belowLevel` (3 = all of them) that
+   *  have not been written yet, then `node`. */
+  const keep = (node: PMNode, belowLevel: number): void => {
+    for (let l = 0; l < belowLevel && l < 3; l++) {
+      const heading = scope[l];
+      if (heading && !written[l]) {
+        out.push(heading);
+        written[l] = true;
+      }
+    }
+    out.push(node);
+  };
   doc.forEach((child) => {
     const level = STAR_LEVEL[child.type.name];
     if (level !== undefined) {
+      // A new heading replaces the one at its level and drops the deeper ones.
+      scope[level - 1] = child;
+      written[level - 1] = false;
+      for (let l = level; l < 3; l++) {
+        scope[l] = null;
+        written[l] = false;
+      }
       if (keepBelow > 0 && level > keepBelow) {
-        out.push(child);
+        keep(child, level - 1);
+        written[level - 1] = true;
         return;
       }
       keepBelow = 0;
       if (child.attrs['starred'] === true) {
         keepBelow = level;
-        out.push(child);
+        keep(child, level - 1);
+        written[level - 1] = true;
       }
       return;
     }
-    if (keepBelow > 0 || headStarred(child)) out.push(child);
+    if (keepBelow > 0 || headStarred(child)) keep(child, 3);
   });
   return schema.nodes['doc']!.create(null, out);
 }

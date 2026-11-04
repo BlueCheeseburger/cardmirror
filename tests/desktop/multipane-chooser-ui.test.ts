@@ -71,6 +71,68 @@ describe('chooserHtml', () => {
     // The number key still sits at the far right, after the pills.
     expect(html.indexOf('class="pills"')).toBeLessThan(html.indexOf('<kbd>1</kbd>'));
   });
+  it('marks the speech doc on its own name in amber, with the mic first, and leaves the window without a Speech doc pill', () => {
+    const html = chooserHtml({
+      message: 'm',
+      labels: ['Stocks DA'],
+      details: [['Stocks DA---Glenbrooks.docx', 'Sameer---Stocks DA.docx']],
+      pills: [['lastViewed', 'speech']],
+      speechDocs: ['Sameer---Stocks DA.docx'],
+      withCancel: false,
+      dark: false,
+    });
+    expect(html).toMatch(/<span class="speechdoc" title="This is the speech doc"><svg class="mic"[^>]*>.*?<\/svg>Sameer---Stocks DA\.docx<\/span>/);
+    // Only the speech doc's name is highlighted, and its window lost the pill.
+    expect(html.match(/class="speechdoc"/g)).toHaveLength(1);
+    expect(html).not.toContain('class="pill speech"');
+    expect(html).toContain('class="pill lastViewed"');
+    // The list around it may run to more lines so the name is not cut.
+    expect(html).toContain('<span class="sub roomy">Stocks DA---Glenbrooks.docx · <span class="speechdoc"');
+    // Amber text, not a highlight box.
+    expect(html).toMatch(/\.speechdoc\{color:var\(--speech-amber\)\}/);
+    expect(html).not.toMatch(/\.speechdoc\{[^}]*background/);
+  });
+
+  it('marks the speech doc in an unnamed window\'s own lines, letting that line wrap', () => {
+    const html = chooserHtml({
+      message: 'm',
+      labels: ['A.docx · B.docx'],
+      speechDocs: ['B.docx'],
+      pills: [['speech']],
+      withCancel: false,
+      dark: false,
+    });
+    expect(html).toContain('<span class="doc">A.docx</span>');
+    expect(html).toMatch(/<span class="doc long"><span class="speechdoc"[^>]*><svg class="mic"[^>]*>.*?<\/svg>B\.docx<\/span><\/span>/);
+    expect(html).not.toContain('class="pill speech"');
+    expect(html).toContain('.doc.long{white-space:normal');
+  });
+
+  it('keeps the window\'s Speech doc pill when the speech doc matches none of the names shown', () => {
+    const html = chooserHtml({
+      message: 'm',
+      labels: ['A.docx'],
+      speechDocs: ['Something else.docx'],
+      pills: [['speech']],
+      withCancel: false,
+      dark: false,
+    });
+    expect(html).not.toContain('class="speechdoc"');
+    expect(html).toContain('<span class="pill speech"');
+  });
+
+  it('escapes the speech doc name', () => {
+    const html = chooserHtml({
+      message: 'm',
+      labels: ['<b>x</b>.docx'],
+      speechDocs: ['<b>x</b>.docx'],
+      withCancel: false,
+      dark: false,
+    });
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;.docx</span>');
+    expect(html).not.toContain('<b>x</b>');
+  });
+
   it('shows a window busy with Compare greyed: no pick, no number key, same numbers for the rest', () => {
     const html = chooserHtml({
       message: 'm',
