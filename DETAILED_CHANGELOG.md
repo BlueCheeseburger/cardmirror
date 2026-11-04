@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.17.2-bcb.1 — 2026-11-04
 
 ### Which-window chooser: speech doc marked on its own name
 
@@ -92,7 +92,7 @@ Reverses the 2026-10-27 amber row. `openStackDropdown` now puts a `pmd-pane-chip
 
 ### From upstream: 1.17.2 sync (`main.ts`, `collab-session.ts`, `loro-crdt`)
 
-The user-facing summary is in CHANGELOG.md's `### From upstream`; upstream's own detailed 1.17.2 section is further down this file. The merge was a real merge of upstream's `v1.17.2` tag (merge base `v1.17.1`), so the next sync finds `v1.17.2` as its base. Only the version fields and the lockfile conflicted: `package.json`, `apps/desktop/package.json` and `package-lock.json` keep this fork's `1.17.1-bcb.1` and take upstream's `loro-crdt` 1.13.9 (the lockfile entry copied from upstream's). The version is NOT bumped to `1.17.2-bcb.1` yet and `## Unreleased` is not renamed: that is release prep, done when the release is cut. Upstream's `main.ts` hung-window dialog merged without overlap with this fork's window code. NOT verified: nothing was run in the packaged desktop app, and the hung-window dialog and the co-editing freeze fixes were not exercised.
+The user-facing summary is in CHANGELOG.md's `### From upstream`; upstream's own detailed 1.17.2 section is further down this file. The merge was a real merge of upstream's `v1.17.2` tag (merge base `v1.17.1`), so the next sync finds `v1.17.2` as its base. Only the version fields and the lockfile conflicted: `package.json`, `apps/desktop/package.json` and `package-lock.json` took upstream's `loro-crdt` 1.13.9 (the lockfile entry copied from upstream's) and kept this fork's version numbering; the release prep in the same PR then set them to `1.17.2-bcb.1`. Upstream's `main.ts` hung-window dialog merged without overlap with this fork's window code. NOT verified: nothing was run in the packaged desktop app, and the hung-window dialog and the co-editing freeze fixes were not exercised.
 
 ### From upstream: 1.17.1 sync, and how the overlaps were resolved (`update-chip.ts`, `main.ts`, `read-mode-plugin.ts`, `file-search-client.ts`, `file-index-service.ts`)
 
