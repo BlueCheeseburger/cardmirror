@@ -319,8 +319,7 @@ you'll see "Close this dialog first."
   file from Finder or the Dock, **Last viewed**. A window busy with Compare documents
   is greyed with a **Comparing documents** pill and can't be picked. In the chooser
   the speech doc is marked on its own name, not on the window: that document's name
-  sits on a gold highlight with the speech mic at its left, and a long name wraps
-  inside it.
+  is in amber with the speech mic at its left, and a long name wraps onto the next line.
 - **Go back after a move.** A document dragged to another window shows **Moved "name"
   here from …** there, with a **Go back** button.
 - **The speech doc in a pane's stack list** has the speech mic beside it.

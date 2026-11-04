@@ -37,7 +37,7 @@ export interface ChooserHtmlOptions {
    *  windows' number keys do not shift when a window enters or leaves Compare. */
   disabled?: boolean[];
   /** Parallel to `labels`: the filename of the speech doc when it is in that
-   *  window. Its name is drawn on a gold highlight with the mic icon at its
+   *  window. Its name is drawn in the speech amber with the mic icon at its
    *  left, and that window gets no "Speech doc" pill. When the name matches
    *  none of the window's docs the pill stays, so the speech doc is never
    *  left unmarked. null / absent → no speech doc in that window. */
@@ -50,9 +50,9 @@ export interface ChooserHtmlOptions {
 const MIC_SVG =
   '<svg class="mic" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 10v2a7 7 0 0 1-7 7m-7-9v2a7 7 0 0 0 7 7m0 0v3m-4 0h8m-4-7a3 3 0 0 1-3-3V5a3 3 0 1 1 6 0v7a3 3 0 0 1-3 3Z"/></svg>';
 
-/** A doc name drawn as the speech doc: highlight behind the text, mic first. */
+/** A doc name drawn as the speech doc: amber text, mic first. */
 function speechDocHtml(name: string): string {
-  return `<span class="speechdoc" title="This is the speech doc">${MIC_SVG}<span class="sd-name">${esc(name)}</span></span>`;
+  return `<span class="speechdoc" title="This is the speech doc">${MIC_SVG}${esc(name)}</span>`;
 }
 
 function esc(s: string): string {
@@ -88,18 +88,14 @@ export function chooserHtml(opts: ChooserHtmlOptions): string {
         .join('');
       let sub = '';
       if (detail && detail.length > 0) {
-        const speechAt = speechName === null ? -1 : detail.indexOf(speechName);
-        if (speechAt >= 0) {
-          // Each doc on its own line, so the speech doc's highlight is a clean
-          // block and a long name wraps inside it.
-          speechMarked = true;
-          const lines = detail.map((d, j) =>
-            j === speechAt ? speechDocHtml(d) : `<span class="line">${esc(d)}</span>`,
-          );
-          sub = `<span class="sub roomy">${lines.join('')}</span>`;
-        } else {
-          sub = `<span class="sub">${esc(detail.join(' · '))}</span>`;
-        }
+        const parts = detail.map((d) => {
+          if (speechName !== null && !speechMarked && d === speechName) {
+            speechMarked = true;
+            return speechDocHtml(d);
+          }
+          return esc(d);
+        });
+        sub = `<span class="sub${speechMarked ? ' roomy' : ''}">${parts.join(' · ')}</span>`;
       }
       const off = opts.disabled?.[i] === true;
       const key = i < 9 && !off ? `<kbd>${i + 1}</kbd>` : '';
@@ -124,8 +120,8 @@ export function chooserHtml(opts: ChooserHtmlOptions): string {
 <html data-theme="${opts.dark ? 'dark' : 'light'}"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
 <style>
-:root{--bg:#fff;--bg-soft:#f7f7f8;--border:#d0d0d0;--text:#222;--muted:#666;--hover:#ebebeb;--accent:#2563eb;--accent-soft:rgba(37,99,235,.12);--speech-bg:#fff3cd;--speech-border:#ffe69c;--speech-text:#5a3e00}
-:root[data-theme="dark"]{--bg:#1a1a1a;--bg-soft:#222;--border:#3a3a3a;--text:#e6e6e6;--muted:#9a9a9a;--hover:#333;--accent:#5a8fff;--accent-soft:rgba(90,143,255,.18);--speech-bg:#3a3220;--speech-border:#6a5a30;--speech-text:#ffdd88}
+:root{--bg:#fff;--bg-soft:#f7f7f8;--border:#d0d0d0;--text:#222;--muted:#666;--hover:#ebebeb;--accent:#2563eb;--accent-soft:rgba(37,99,235,.12);--speech-bg:#fff3cd;--speech-border:#ffe69c;--speech-text:#5a3e00;--speech-amber:#9a6700}
+:root[data-theme="dark"]{--bg:#1a1a1a;--bg-soft:#222;--border:#3a3a3a;--text:#e6e6e6;--muted:#9a9a9a;--hover:#333;--accent:#5a8fff;--accent-soft:rgba(90,143,255,.18);--speech-bg:#3a3220;--speech-border:#6a5a30;--speech-text:#ffdd88;--speech-amber:#f0b429}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none}
 .wrap{position:relative;display:flex;flex-direction:column;height:100%;border:1px solid var(--border);padding:14px 16px 12px;gap:10px}
@@ -154,20 +150,17 @@ h1{margin:0 34px 0 0;font-size:15px;font-weight:700;line-height:1.3;word-break:b
 .pill.thisWindow{color:var(--text);background:var(--hover)}
 .pill.speech{color:var(--speech-text);background:var(--speech-bg);border-color:var(--speech-border)}
 .doc.long{white-space:normal;overflow:visible}
-/* The speech doc's name: one gold block with the mic hanging at its left, so a long name wraps inside it, under itself. */
-.speechdoc{display:inline-flex;align-items:flex-start;gap:5px;max-width:100%;vertical-align:top;color:var(--speech-text);background:var(--speech-bg);border:1px solid var(--speech-border);border-radius:5px;padding:1px 7px 1px 5px;line-height:1.4;white-space:normal}
-.speechdoc .mic{flex:none;margin-top:2px}
-.speechdoc .sd-name{min-width:0;word-break:break-word}
+/* The speech doc's name: amber text with the mic at its left. A long name wraps like any other text. */
+.speechdoc{color:var(--speech-amber)}
+.speechdoc .mic{vertical-align:-1px;margin-right:3px}
 .pill.minimized{border-style:dashed}
 .pill.comparing{border-style:dashed}
 .row.off{opacity:.6;border-style:dashed;background:transparent;cursor:default}
 .row.off:hover{background:transparent}
 .sub{color:var(--muted);font-size:10px;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
-/* With the speech doc named in it, every doc gets its own line, so that name is never cut. */
-.sub.roomy{display:flex;flex-direction:column;align-items:flex-start;gap:2px;-webkit-line-clamp:unset}
-.sub.roomy .line{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sub .speechdoc{font-size:11px}
-.sub .speechdoc .mic{margin-top:2.5px}
+/* With the speech doc named in it the list may run to more lines, so that name is never cut. */
+.sub.roomy{-webkit-line-clamp:5}
+
 kbd{font:11px ui-monospace,Menlo,Consolas,monospace;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:0 5px;background:var(--bg)}
 .actions{display:flex;justify-content:flex-end;gap:8px;padding-top:2px}
 .btn{font:inherit;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg-soft);color:var(--text);cursor:pointer}

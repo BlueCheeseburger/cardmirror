@@ -71,7 +71,7 @@ describe('chooserHtml', () => {
     // The number key still sits at the far right, after the pills.
     expect(html.indexOf('class="pills"')).toBeLessThan(html.indexOf('<kbd>1</kbd>'));
   });
-  it('marks the speech doc on its own name, with the mic first, and leaves the window without a Speech doc pill', () => {
+  it('marks the speech doc on its own name in amber, with the mic first, and leaves the window without a Speech doc pill', () => {
     const html = chooserHtml({
       message: 'm',
       labels: ['Stocks DA'],
@@ -81,13 +81,16 @@ describe('chooserHtml', () => {
       withCancel: false,
       dark: false,
     });
-    expect(html).toMatch(/<span class="speechdoc" title="This is the speech doc"><svg class="mic"[^>]*>.*?<\/svg><span class="sd-name">Sameer---Stocks DA\.docx<\/span><\/span>/);
+    expect(html).toMatch(/<span class="speechdoc" title="This is the speech doc"><svg class="mic"[^>]*>.*?<\/svg>Sameer---Stocks DA\.docx<\/span>/);
     // Only the speech doc's name is highlighted, and its window lost the pill.
     expect(html.match(/class="speechdoc"/g)).toHaveLength(1);
     expect(html).not.toContain('class="pill speech"');
     expect(html).toContain('class="pill lastViewed"');
-    // Each doc gets its own line, so the name is never cut and the highlight is a clean block.
-    expect(html).toContain('<span class="sub roomy"><span class="line">Stocks DA---Glenbrooks.docx</span><span class="speechdoc"');
+    // The list around it may run to more lines so the name is not cut.
+    expect(html).toContain('<span class="sub roomy">Stocks DA---Glenbrooks.docx · <span class="speechdoc"');
+    // Amber text, not a highlight box.
+    expect(html).toMatch(/\.speechdoc\{color:var\(--speech-amber\)\}/);
+    expect(html).not.toMatch(/\.speechdoc\{[^}]*background/);
   });
 
   it('marks the speech doc in an unnamed window\'s own lines, letting that line wrap', () => {
@@ -100,7 +103,7 @@ describe('chooserHtml', () => {
       dark: false,
     });
     expect(html).toContain('<span class="doc">A.docx</span>');
-    expect(html).toMatch(/<span class="doc long"><span class="speechdoc"[^>]*><svg class="mic"[^>]*>.*?<\/svg><span class="sd-name">B\.docx<\/span><\/span><\/span>/);
+    expect(html).toMatch(/<span class="doc long"><span class="speechdoc"[^>]*><svg class="mic"[^>]*>.*?<\/svg>B\.docx<\/span><\/span>/);
     expect(html).not.toContain('class="pill speech"');
     expect(html).toContain('.doc.long{white-space:normal');
   });
@@ -126,7 +129,7 @@ describe('chooserHtml', () => {
       withCancel: false,
       dark: false,
     });
-    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;.docx</span></span>');
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;.docx</span>');
     expect(html).not.toContain('<b>x</b>');
   });
 
