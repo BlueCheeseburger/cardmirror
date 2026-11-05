@@ -23,6 +23,59 @@ import type {
   ExtractedKind,
 } from './plugin-api.js';
 
+/** The underlined stretches of a textblock's text, as `[start, end)` offsets
+ *  into the text AFTER `text.replace(/\s+/g, ' ').trim()`: each character is
+ *  flagged, a whitespace run collapses to one space (underlined only when the
+ *  whole run was), and the ends are trimmed, so the offsets line up with the
+ *  text that is emitted. Null when nothing is underlined, or when the rebuilt
+ *  text doesn't equal `clean` (never hand a plugin offsets that don't fit). */
+export function underlineRanges(node: PMNode, clean: string): [number, number][] | null {
+  let text = '';
+  const flags: boolean[] = [];
+  node.descendants((child) => {
+    if (!child.isText) return true;
+    const u = child.marks.some((m) => m.type.name === 'underline_mark');
+    const t = child.text ?? '';
+    for (let i = 0; i < t.length; i++) flags.push(u);
+    text += t;
+    return false;
+  });
+  if (!flags.some(Boolean)) return null;
+  // Collapse whitespace runs, tracking the flag of each kept character.
+  let out = '';
+  const kept: boolean[] = [];
+  for (let i = 0; i < text.length; ) {
+    if (/\s/.test(text[i]!)) {
+      let all = true;
+      while (i < text.length && /\s/.test(text[i]!)) {
+        if (!flags[i]) all = false;
+        i++;
+      }
+      out += ' ';
+      kept.push(all);
+    } else {
+      out += text[i]!;
+      kept.push(flags[i]!);
+      i++;
+    }
+  }
+  const lead = out.length - out.trimStart().length;
+  const end = out.trimEnd().length;
+  if (out.slice(lead, end) !== clean) return null;
+  const ranges: [number, number][] = [];
+  let start = -1;
+  for (let i = lead; i < end; i++) {
+    const u = kept[i]!;
+    if (u && start < 0) start = i - lead;
+    if (!u && start >= 0) {
+      ranges.push([start, i - lead]);
+      start = -1;
+    }
+  }
+  if (start >= 0) ranges.push([start, end - lead]);
+  return ranges.length > 0 ? ranges : null;
+}
+
 export function extractSelection(
   view: EditorView,
   ident: { docId: string; docTitle: string },
@@ -119,9 +172,12 @@ function collectItems(
     const contentFrom = pos + 1;
     const contentTo = pos + node.nodeSize - 1;
     const anchor = contentTo > contentFrom ? buildDescriptor(contentFrom, contentTo) : null;
+    const underline =
+      kind === 'tag' || kind === 'analytic' || kind === 'undertag' ? underlineRanges(node, clean) : null;
     items.push({
       kind,
       text: clean,
+      ...(underline ? { underline } : {}),
       source: mintSourceToken({
         docId: ident.docId,
         docTitle: ident.docTitle,

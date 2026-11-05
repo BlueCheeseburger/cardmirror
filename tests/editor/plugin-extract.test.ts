@@ -209,3 +209,68 @@ describe('extractSelection', () => {
     expect(grazed?.text).toBe('Grazed heading');
   });
 });
+
+describe('extractSelection underline ranges', () => {
+  const u = () => schema.marks['underline_mark']!.create();
+  const tagWith = (...parts: Array<[string, boolean]>): PMNode =>
+    schema.nodes['tag']!.create(
+      { id: newHeadingId() },
+      parts.map(([t, under]) => schema.text(t, under ? [u()] : [])),
+    );
+  const itemsOf = (n: PMNode) => {
+    const doc = makeDoc([card(n, cardBody('x'))]);
+    const res = extractSelection(fakeView(doc, 2), IDENT);
+    if (!res.ok) throw new Error('extract failed');
+    return res.items;
+  };
+
+  it('gives each underlined stretch as [start, end) offsets into the emitted text', () => {
+    const items = itemsOf(tagWith(['Perm ', false], ['solves', true], [' the ', false], ['case', true]));
+    expect(items[0]!.text).toBe('Perm solves the case');
+    expect(items[0]!.underline).toEqual([
+      [5, 11],
+      [16, 20],
+    ]);
+  });
+
+  it('maps through the whitespace collapse and the trim', () => {
+    // Leading space, a run of three spaces between words, a trailing space.
+    const items = itemsOf(tagWith(['  one', false], ['   two', true], [' three ', false]));
+    expect(items[0]!.text).toBe('one two three');
+    // The whitespace run before "two" is inside the underlined text, so the
+    // single space it collapses to is underlined too.
+    expect(items[0]!.underline).toEqual([[3, 7]]);
+    const [s, e] = items[0]!.underline![0]!;
+    expect(items[0]!.text.slice(s, e)).toBe(' two');
+  });
+
+  it('leaves the field out when nothing is underlined', () => {
+    const items = itemsOf(tagWith(['plain tag', false]));
+    expect('underline' in items[0]!).toBe(false);
+  });
+
+  it('works for analytics and undertags, and not for headings or cites', () => {
+    const doc = makeDoc([
+      heading('block', 'Block'),
+      analyticUnit(
+        schema.nodes['analytic']!.create({ id: newHeadingId() }, [
+          schema.text('an ', []),
+          schema.text('analytic', [u()]),
+        ]),
+      ),
+      card(
+        heading('tag', 'T'),
+        schema.nodes['undertag']!.create(null, [schema.text('under', [u()]), schema.text(' tag')]),
+        citePara('Smith 24'),
+        cardBody('x'),
+      ),
+    ]);
+    const res = extractSelection(fakeView(doc, 1, doc.content.size - 1), IDENT);
+    if (!res.ok) throw new Error('extract failed');
+    const by = (k: string) => res.items.find((i) => i.kind === k)!;
+    expect(by('analytic').underline).toEqual([[3, 11]]);
+    expect(by('undertag').underline).toEqual([[0, 5]]);
+    expect('underline' in by('block')).toBe(false);
+    expect('underline' in by('cite')).toBe(false);
+  });
+});

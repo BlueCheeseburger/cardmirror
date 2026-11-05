@@ -12,6 +12,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **Underlined words in a tagline reach a flow app.** When a plugin sends tags, analytics and undertags to a flow, the stretches you underlined now go along with the text (PolicyDebateFlow shows them underlined). Nothing changes for plugins that ignore it.
 - **Macros that type formatted text, with styles and emphasis.** In **Settings → Keyboard shortcuts → Keyboard macros**, press **Format…** next to a macro and a small editor opens. Type what the macro should type, then use the buttons (or your usual F-keys) to make part of it a **Tag**, a **Cite**, **Underline**, **Emphasis** or **Highlight**, **Bold** or **Italic**. Save it, and pressing the macro's key types the text with all of that formatting: a whole card shell with its tag, cite line and underlined body, or just a few emphasized words typed into the line you are on. The list shows each formatted macro as a preview with its styling, and **Edit formatting** reopens it. Existing plain-text macros are unchanged.
 - **A notice when Save Send Doc, Save Read Doc, Save Marked Cards or Save Starred Doc finishes.** They save without a dialog, so nothing said where the copy went. Now a notice at the bottom says, for example, **Send doc saved: SEND_1AC.docx in Round 3**, with a **Show in folder** button.
 - **A notice when you open a file that is also open in Compare documents.** Opening it already opens an editor for it; now a notice at the bottom says **“name” is also open in Compare documents in another window**, with a **Go to Compare** button that brings that window forward.
@@ -22,6 +23,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Fixed
 
+- **Jumping to a card from a flow app now shows a pane you had hidden.** If the document was in a pane hidden with **Hide Slot**, or another pane was expanded, CardMirror came to the front but you saw nothing change. The pane now comes back (or the expanded pane switches to that document) and a notice says what was changed.
 - **A window you named no longer drops back to "CardMirror" in its title.** After a long session the window's title could read just "CardMirror" even though it still had its name (the rename box still showed it, and saving the name again fixed the title). The name is now enforced for the window's title: it is re-applied whenever the title changes behind its back and whenever the window comes back to the front.
 - **A window you named keeps its name when you reopen it from Last workspace.** If the window was in the single-document layout, reopening it brought the document back but dropped the name you had given the window, so the name was "forgotten". It now comes back with the window.
 

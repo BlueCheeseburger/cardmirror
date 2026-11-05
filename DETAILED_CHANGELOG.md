@@ -12,6 +12,14 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Plugin extraction carries underlined stretches (`plugin-extract.ts`, `plugin-api.ts`, `reference-docs/cardmirror-plugin-api.md`)
+
+Requested by the policy-flow plugin session (on the user's behalf): underlined words in a tagline were lost on the way to the flow. `ExtractedItem` gains an optional `underline?: [number, number][]`, `[start, end)` UTF-16 offsets into the emitted `text`, set only for `tag`, `analytic` and `undertag` items that have `underline_mark` text. `underlineRanges` flags each character, collapses whitespace runs exactly as the `\s+` → ' ' replace does (a collapsed space counts as underlined only when the whole run was), trims, and returns null if the rebuilt text differs from the emitted text, so a plugin never gets offsets that don't fit. Left out when nothing is underlined, so older plugins and the source token are unaffected. Emphasis (the boxed style) is not included, only underline; headings and cites don't get the field (the plugin underlines headings itself). Tests in `plugin-extract.test.ts`. Not verified end to end against the flow.
+
+### Plugin jumps reveal a hidden or covered pane (`jump-reveal.ts`, `multi-pane-shell.ts`)
+
+`MultiPaneShell.findViewForDocId` already raised a stacked background record to its slot's visible position, but `showRecord` returns early for a record that is already visible, so it never called `focusSlot`. A doc that was the visible record of a pane hidden with Hide Slot, or of a pane under another pane's expansion (`slotShown` is false for every slot but the expanded one), took the jump inside an invisible pane. Now `jumpRevealNeeded(slot.paneHidden, otherPaneExpanded)` is read before `showRecord`: another pane expanded moves the expansion to the target (`setExpandedSlot`, the same as `focusSlotByIndex`), and a hidden pane is unhidden through `focusSlot`. Either case shows a toast (`jumpRevealToast`) naming the document. Moving the expansion rather than leaving expand mode keeps the one-pane view the user chose. Like the existing raise, it happens before the token resolves, so a jump that then fails not-found still leaves the pane revealed. Window raising and multi-window routing are unchanged. Tests cover the decision and the toast text only (`jump-reveal.test.ts`); NOT verified in the running app, because a jump needs a stamped docId and a plugin to send it.
+
 ### Formatted keyboard macros
 
 Request: macros that type formatted text with styles and emphasis types, and a mockup. Built on the existing keyboard macros (a key bound to text) instead of beside them.
