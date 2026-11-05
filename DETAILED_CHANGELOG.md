@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### "Also open in Compare" notice
+
+Request: tell the user when the Compare-open fix leaves the same file open in two windows. The hook is the claim: `host:open-path-register` now answers `compareWindowId` when the previous owner of the path was a different window with Compare documents up (`compareWindowToNotify` in `apps/desktop/src/compare-owner.ts`, pure, tested), and the shared `registerDocPath` shows `showAlsoInCompareNotice` (`compare-also-open-notice.ts`): "“name” is also open in Compare documents in another window." with a **Go to Compare** button (`focusWindow`; a closed window gets "That Compare window has closed."; a host that cannot focus gets a plain toast). Hooking the claim covers every way in (Open dialog, Finder/Dock open, Show in context, restore) with one rule, and a Reload From Disk (same window re-claiming) never triggers it. The notice shows in the window that took the file, not in Compare. The two windows are still two copies of the file; this only says so. NOT verified in the running app; covered by unit tests of the rule and the notice, not by an end-to-end open.
+
 ### Speech doc marked on its own name in the tray, Select Speech Document, the palette and Switch Window
 
 Request: match these lists to the which-window chooser (amber text, mic first, no window pill). Shared helper in `window-pills.ts`: `renderSpeechName`, `renderDocNames(names, speechDoc)` (names joined by " · ", the first equal to the speech doc drawn by `renderSpeechName`, plus `marked`), `namesSpeechDoc`; new `--pmd-c-speech-amber` token (#9a6700 light, #f0b429 dark, the chooser's colors). Main now sends `speechDoc` (the speech doc's filename in that window, `Untitled` when it has none) on `host:list-multipane-windows` and `host:list-windows` (`speechDocNameIn`, also used by the chooser).

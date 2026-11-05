@@ -10,6 +10,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **A notice when you open a file that is also open in Compare documents.** Opening it already opens an editor for it; now a notice at the bottom says **“name” is also open in Compare documents in another window**, with a **Go to Compare** button that brings that window forward.
+
 ### Changed
 
 - **The speech doc is marked on its own name everywhere, not by a pill on the window.** In the drag tray, **Select Speech Document** and the **Switch Window** list, the speech document's name is now in amber with the speech mic at its left, the same as in the which-window chooser. A window whose list does not show the speech doc's name (a window you named) keeps the **Speech doc** pill. In **Select Speech Document** the speech doc's row no longer has a gold box.

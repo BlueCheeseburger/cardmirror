@@ -43,6 +43,7 @@ import {
   windowPillKinds,
 } from './multipane-chooser.js';
 import { showChooserWindow } from './multipane-chooser-ui.js';
+import { compareWindowToNotify } from './compare-owner.js';
 import {
   validateRenameTarget,
   isSamePathIgnoringCase,
@@ -3150,18 +3151,21 @@ const diskWatch = createDiskWatch({
 // owns the path we overwrite (the caller's pre-load check should have
 // caught the conflict; best-effort for Save-As / recovery paths).
 // Resolves with how the baseline was obtained + the cloud provider, for
-// the renderer's badge.
+// the renderer's badge, and `compareWindowId` when the previous owner was a
+// window with Compare documents up (focusExistingOwner lets a file open
+// beside it), so the renderer can say the file is also open there.
 ipcMain.handle(
   'host:open-path-register',
   async (
     event,
     p: string,
     opts?: { journaledBase?: DiskState | null },
-  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null } | null> => {
+  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null; compareWindowId?: number } | null> => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || typeof p !== 'string' || !p) return null;
     const norm = canonicalOpenPath(p);
     const prevOwner = openPathOwners.get(norm);
+    const compareWindowId = compareWindowToNotify(prevOwner, win.id, takenOverWindows);
     if (prevOwner !== win.id) {
       if (prevOwner !== undefined) {
         windowOpenPaths.get(prevOwner)?.delete(norm);
@@ -3177,7 +3181,7 @@ ipcMain.handle(
     const claim = await claimBaseline(norm, win.id, opts?.journaledBase ?? null);
     const provider = await cloudProviderFor(norm);
     if (provider) diskWatch.start();
-    return { claim, provider };
+    return compareWindowId === undefined ? { claim, provider } : { claim, provider, compareWindowId };
   },
 );
 

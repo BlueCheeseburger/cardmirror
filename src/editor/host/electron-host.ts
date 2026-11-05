@@ -494,7 +494,7 @@ interface ElectronAPI {
   openPathRegister(
     path: string,
     opts?: { journaledBase?: DiskBase | null },
-  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null } | null>;
+  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null; compareWindowId?: number } | null>;
   openPathRelease(path: string): Promise<void>;
   cloudProvider(path: string): Promise<CloudProvider | null>;
   /** The path relative to its sync root, with a leading slash (null = not in
@@ -1454,7 +1454,7 @@ export class ElectronHost implements Host {
   async openPathRegister(
     path: string,
     opts?: { journaledBase?: DiskBase | null },
-  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null } | null> {
+  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null; compareWindowId?: number } | null> {
     const fn = api().openPathRegister;
     return (await fn(path, opts)) ?? null;
   }

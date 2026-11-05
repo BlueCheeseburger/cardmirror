@@ -639,6 +639,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('host:open-path-register', path, opts) as Promise<{
       claim: 'fresh' | 'journaled' | 'changed' | 'unknown';
       provider: 'dropbox' | 'onedrive' | 'gdrive' | 'icloud' | 'other' | null;
+      compareWindowId?: number;
     } | null>,
   openPathRelease: (path: string) =>
     ipcRenderer.invoke('host:open-path-release', path),

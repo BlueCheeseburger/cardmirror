@@ -1383,7 +1383,7 @@ workspace while another shows a single document.
   stacking**; the labels then say **Swap places** / **Swap**. A **move tray** at the bottom of the window has a tile for each
   slot, and on the desktop app also **New window** and a tile for every other
   open three-pane window: drop the chip on a tile to send the document there,
-  unsaved edits included. **Esc** cancels the drag. **(Fork)** Windows are listed most recently used first, and a tile carries pills: **Speech doc** and **Minimized**; a window busy with Compare documents is greyed with a
+  unsaved edits included. **Esc** cancels the drag. **(Fork)** Windows are listed most recently used first, and a tile carries a **Minimized** pill, and the speech doc's own name is amber with the speech mic; a window busy with Compare documents is greyed with a
   **Comparing documents** pill and can't be dropped on. When the document arrives, the other window shows **Moved … here from …** with a **Go back** button.
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
@@ -2927,7 +2927,9 @@ yours, or a file before and after cutting.
 and underlining isn't compared — and it's read-only: neither file is opened
 for editing or changed. While it is open the window is named **Compare
 documents** (not the blank document underneath), and files you open meanwhile
-open in a new window rather than into it. There is no size limit; two very long files that
+open in a new window rather than into it. If you open a file that Compare has up,
+it opens in an editor of its own and a notice says **“name” is also open in Compare
+documents in another window**, with a **Go to Compare** button. There is no size limit; two very long files that
 differ almost everywhere take a few seconds. On a
 narrow window the outlines hide and each changed line stacks its two
 versions.

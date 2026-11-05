@@ -411,6 +411,7 @@ import {
 } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import type { MultiPaneWindowInfo } from './host/electron-host.js';
+import { showAlsoInCompareNotice } from './compare-also-open-notice.js';
 import { showMovedDocNotice } from './moved-doc-notice.js';
 import { captureReloadPosition, restoreReloadPosition } from './reload-position.js';
 import {
@@ -6998,6 +6999,11 @@ export async function registerDocPath(handle: string): Promise<void> {
   try {
     const res = await electron.openPathRegister(handle, { journaledBase: takeJournaledBase(handle) });
     if (res) noteDocRegistered(handle, res.claim, res.provider);
+    // The file was open under Compare documents in another window, and the
+    // window you are in now has taken the claim: say so, with a way there.
+    if (res?.compareWindowId !== undefined) {
+      showAlsoInCompareNotice(handle, res.compareWindowId, electron.focusWindow?.bind(electron), showToast);
+    }
   } catch (err) {
     console.warn('Path registration failed:', err);
   }
