@@ -12,6 +12,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **A notice when Save Send Doc, Save Read Doc, Save Marked Cards or Save Starred Doc finishes.** They save without a dialog, so nothing said where the copy went. Now a notice at the bottom says, for example, **Send doc saved: SEND_1AC.docx in Round 3**, with a **Show in folder** button.
 - **A notice when you open a file that is also open in Compare documents.** Opening it already opens an editor for it; now a notice at the bottom says **“name” is also open in Compare documents in another window**, with a **Go to Compare** button that brings that window forward.
 
 ### Changed

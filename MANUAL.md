@@ -3068,6 +3068,11 @@ read-mode view of the document). It has no shortcut by default — run it
 from the command bar or bind a key — and has its own destination, folder,
 and format settings beside the Send Doc ones.
 
+**(Fork)** When Save Send Doc, Save Read Doc, Save Marked Cards or Save Starred Doc
+finishes, a notice at the bottom says where the copy went — for example **Send doc
+saved: SEND_1AC.docx in Round 3** — with a **Show in folder** button that opens the folder
+with the file selected.
+
 The filename prefixes for the preset saves — **Send Doc**, **Read Doc**,
 **Marked Doc** and **Starred Doc** (defaults `SEND_`, `READ_`, `MARKED_`,
 `STARRED_`) — are configurable under Settings → Files; change any of them, or

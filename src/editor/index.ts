@@ -412,6 +412,7 @@ import {
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import type { MultiPaneWindowInfo } from './host/electron-host.js';
 import { showAlsoInCompareNotice } from './compare-also-open-notice.js';
+import { showPresetSavedNotice } from './preset-saved-notice.js';
 import { showMovedDocNotice } from './moved-doc-notice.js';
 import { captureReloadPosition, restoreReloadPosition } from './reload-position.js';
 import {
@@ -9616,6 +9617,7 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
     });
     flashSaveSuccess();
     markNonPristineStarter();
+    showPresetSavedNotice(spec.label, result.name, result.handle, electron?.showItemInFolder?.bind(electron));
     return true;
   } catch (err) {
     console.error(`${spec.label} save failed:`, err);
@@ -9779,6 +9781,7 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
     });
     flashSaveSuccess();
     markNonPristineStarter();
+    showPresetSavedNotice('Marked doc', result.name, result.handle, electron?.showItemInFolder?.bind(electron));
     return true;
   } catch (err) {
     console.error('Marked cards save failed:', err);

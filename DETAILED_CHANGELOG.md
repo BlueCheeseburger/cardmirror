@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Notice when a silent preset save lands
+
+Request: a confirmation, like the "Sent to speech doc" one, saying where Save Send / Read / Marked / Starred Doc put the file, with a Show in folder button. `preset-saved-notice.ts`: `presetSavedMessage` builds "Send doc saved: SEND_1AC.docx in Round 3" (folder = the parent directory's name; left out when the host gave no path), and `showPresetSavedNotice` shows it as the bottom-centre action toast with **Show in folder** (`showItemInFolder`, 6 s) or, without a path or reveal function (the web edition), a plain toast. Called at the end of `runSilentExportFlow` (Send, Read, Starred) and `runSaveMarkedCardsFlow`, after `flashSaveSuccess`, so it also appears when the flow fell back to the OS Save dialog (the user picked the place; the notice is then redundant but harmless). The Save As dialog's own presets are not touched: that dialog is the confirmation. A save that is cancelled or fails shows nothing new (failures already alert). NOT verified in the running app; unit tests cover the message and the notice, not a real save.
+
 ### CI: macOS image pinned, room-client stream tests wait for events
 
 Two causes of the failure emails, both outside the app.
