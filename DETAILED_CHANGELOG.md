@@ -12,6 +12,13 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### CI: macOS image pinned, room-client stream tests wait for events
+
+Two causes of the failure emails, both outside the app.
+
+- **macOS job never got a runner.** Twice (PR #78) the `macos-latest` job showed no runner and no steps for 15 minutes, then was cancelled, which GitHub emails as a failure while Windows passed. `ci.yml` now sends the macOS leg to `macos-15` through a matrix `runner` key, and the job name still reads "Typecheck + tests (macos-latest)" because `os` is unchanged, so nothing keyed on that check name breaks. NOT proven to cure the queueing: pinning picks an image with steadier capacity but cannot create capacity; this PR's own macOS check is the first run on `macos-15`. If that label queues forever, revert the `runner` line. Release builds (`release.yml`) still use `macos-latest`.
+- **Fixed sleeps around a stream's handshake.** `tests/collab/room-client.test.ts` waited 50-60 ms for a hello or a watcher count, and one test probed 15 ms into a 30 ms retry window; a slow macOS runner overshot (one run read 63 ms against a 58 ms limit). The tests now wait for the event itself (`until(cond)`, 3 s cap), and the two 401 tests use a longer backoff (400 ms, 2000 ms) so the window that must stay empty is 105 ms and 570 ms wide instead of 15 ms and 30 ms. Ran the file 3 times, then 6 copies at once: 26/26 each time. The other collab tests with 20-60 ms sleeps were not touched, so another could still flake.
+
 ### "Also open in Compare" notice
 
 Request: tell the user when the Compare-open fix leaves the same file open in two windows. The hook is the claim: `host:open-path-register` now answers `compareWindowId` when the previous owner of the path was a different window with Compare documents up (`compareWindowToNotify` in `apps/desktop/src/compare-owner.ts`, pure, tested), and the shared `registerDocPath` shows `showAlsoInCompareNotice` (`compare-also-open-notice.ts`): "“name” is also open in Compare documents in another window." with a **Go to Compare** button (`focusWindow`; a closed window gets "That Compare window has closed."; a host that cannot focus gets a plain toast). Hooking the claim covers every way in (Open dialog, Finder/Dock open, Show in context, restore) with one rule, and a Reload From Disk (same window re-claiming) never triggers it. The notice shows in the window that took the file, not in Compare. The two windows are still two copies of the file; this only says so. NOT verified in the running app; covered by unit tests of the rule and the notice, not by an end-to-end open.

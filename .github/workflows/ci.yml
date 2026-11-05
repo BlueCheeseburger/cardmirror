@@ -20,9 +20,16 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
         include:
+          - os: macos-latest
+            # Pinned (2026-11-05). The floating `macos-latest` label sometimes
+            # got no runner at all: the job sat queued with no steps for 15
+            # minutes and was cancelled, which GitHub emails as a failure.
+            # `os` stays `macos-latest` so the check keeps its displayed name
+            # ("Typecheck + tests (macos-latest)"); only `runner` changes.
+            runner: macos-15
           - os: windows-latest
             test-scope: tests/desktop
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner || matrix.os }}
     timeout-minutes: 20
 
     steps:
