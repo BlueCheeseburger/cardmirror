@@ -10,6 +10,20 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Last workspace keeps windows closed by hand just before the session ends
+
+**Report.** Closing a few windows to install an update left one row in Last workspace, with no name.
+
+**Cause.** `installWindowCloseForget` deleted a window's live entry on any `pagehide` the main process did not call a quit. Closing windows one at a time is not a quit until the last one is gone (and on Windows the quit flag is set only after that window's `pagehide`), so every entry was deleted.
+
+**Change.** A window closing on its own now stamps `closedAt` on its entry instead of deleting it. A window closing during a quit stamps `pmd-live-quit-at`. At roll-over, open entries always count; closed entries count only if they closed within 3 minutes of the session's end, which is the quit stamp, or the last close when no window is left open. While other windows stay open with no quit recorded, closed ones stay out, so a window closed an hour ago does not come back. Paths held by an open window are stripped from closed entries (a reloaded window leaves its old entry). Save Workspace ignores closed entries. The entry keeps its name, so the name comes back too.
+
+**Rejected.** Keeping every closed window until roll-over: a window closed hours earlier would reappear every launch.
+
+**Not verified.** The reported missing *name* was not reproduced; the name is stored in the same entry, so keeping the entry should keep it, but I did not see the user's data. Not tested against a real Windows update install.
+
 ## 1.17.2-bcb.2 — 2026-11-05
 
 ### Plugin extraction carries underlined stretches (`plugin-extract.ts`, `plugin-api.ts`, `reference-docs/cardmirror-plugin-api.md`)
