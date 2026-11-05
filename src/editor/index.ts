@@ -2948,6 +2948,14 @@ export function runRibbon(id: AnyCommandId): void {
   recordCommandRun(id, getRibbonCommand(id, ribbonContext))(view.state, view.dispatch.bind(view), view);
 }
 
+/** Run a ribbon command against a different editor, then focus it: the macro
+ *  editor's toolbar uses this so a style or emphasis button does exactly what
+ *  its shortcut does in a document. */
+export function runRibbonOnView(target: EditorView, id: AnyCommandId): void {
+  getRibbonCommand(id, ribbonContext)(target.state, target.dispatch.bind(target), target);
+  target.focus();
+}
+
 /** Wrap a ribbon command so Word-style Repeat (repeat-last-action.ts)
  *  remembers it by id when it changed the document. Async commands that
  *  change the doc later (dialogs) are not recorded — the check runs when

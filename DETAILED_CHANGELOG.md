@@ -12,6 +12,20 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Formatted keyboard macros
+
+Request: macros that type formatted text with styles and emphasis types, and a mockup. Built on the existing keyboard macros (a key bound to text) instead of beside them.
+
+- **Data.** `KeyboardMacro.contentJson?` holds a ProseMirror slice as JSON, the same form Quick Cards store; `text` stays as the plain text (the list label and the fallback). Settings keeps `contentJson` only when it is a slice-shaped object under `MAX_MACRO_CONTENT_CHARS` (100,000); the structure is validated when the keymap is built (`macroSlice` → `checkedSliceFromJSON`), and damaged content falls back to `text`. Existing macros and settings files load unchanged.
+- **Typing it.** `buildMacroKeymap` inserts a formatted macro with `tr.replaceSelection(slice)`, so it arrives the way a paste does. Word-style Repeat gets it as `{ kind: 'paste', slice }` through the existing `cm-repeat-set` meta, so Repeat re-pastes the same formatted slice (a plain macro is still repeated as typing).
+- **Inline vs block.** A macro of one plain paragraph is saved as an inline slice (open 1/1; `macro-content.ts`), so it types into the line you are in. With styles (tag, cite line, analytic, headings) or several paragraphs it is saved as blocks and lands as a paste would; typed mid-paragraph, a block splits the paragraph, which is what a paste of a card does too.
+- **The editor** (`macro-editor-ui.ts`) is a real editor made with `buildEditorPlugins()`, the way the Quick Cards editor is, in a dialog. Its toolbar buttons run the actual ribbon commands against it through a new `runRibbonOnView` (Pocket / Hat / Block / Tag / Analytic / Undertag, Cite / Underline / Emphasis / Highlight / Bold / Italic / Clear), so a button does what its shortcut does, and the shortcuts work in it. Tooltips show each command's current key (`primaryKeyFor` with the user's overrides). Esc or Cancel discards; Save or Mod+Enter saves; saving an empty editor turns the macro back into an empty plain one.
+- **The list** (`keybindings-editor.ts`): each macro row gets **Format…** (**Edit formatting** when formatted); a formatted macro's field is a one-line styled preview (`macro-preview.ts`: the same serializer and classes as the document, structural lines bold, lines split by a return arrow, font sizes evened out) that opens the editor on click.
+
+Tried end to end in the app (served by the dev server, in Chromium): typed three lines in the editor, made line 1 a Tag, "Smith 24" a Cite, and underlined, emphasized and highlighted words with the buttons; saved; pressed the key in a new document; the card arrived with its tag (it appears in the outline), cite paragraph and marks. NOT verified in the packaged desktop app, on macOS (Cmd key chords), or with a macro whose key collides with a text-editing shortcut.
+
+Not done: making a macro from the current selection, a font or color for macro text beyond the marks and styles above, and macros that insert images or tables.
+
 ### Window title dropped to "CardMirror" while the window had its name
 
 Report (after the entry below was written): a window with a few documents, used all day, ended up titled just "CardMirror". Renaming showed the old name already filled in; pressing Save then changed the title. So the renderer's `currentWindowName` was intact and only the OS title was wrong; saving re-ran `updateWindowTitle()`, which re-set `document.title`. Only `updateWindowTitle()` assigns `document.title`, and its named branch comes first, so the title can only have been reset by something other than the renderer's own title code, or the renderer's later call never ran. **The cause was not found** (nothing in the in-session path does this); what changed is that a stale title can no longer persist:

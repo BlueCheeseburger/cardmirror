@@ -3965,6 +3965,31 @@ hold the real keys. It detects your system on its own.
   restore that command's defaults. **Restore all defaults** and the **Keyboard
   macros** are at the very bottom.
 
+### Keyboard macros
+
+A keyboard macro types something when you press its key. In **Settings →
+Keyboard → Keyboard macros**, press **+ Add macro**, type the text, and set its key
+with **+** on the row. A macro key beats any command on the same key.
+
+**(Fork)** A macro can type **formatted** text. Press **Format…** on its row and a small
+editor opens:
+
+1. Type what the macro should type, on one line or several.
+2. Style it with the buttons, or the same shortcuts you use in a document (F7
+   Tag, F8 Cite, F9 Underline, F10 Emphasis, F11 Highlight). The **Style** buttons
+   are Pocket, Hat, Block, Tag, Analytic and Undertag. The **Emphasis and marks**
+   buttons are Cite, Underline, Emphasis, Highlight, Bold, Italic and Clear.
+3. **Save macro** (or **Ctrl/⌘+Enter**). **Esc** or **Cancel** throws the changes away.
+
+Pressing the macro's key then types the text with all of that formatting. A single
+plain line is typed into the line you are on, so a macro of a few underlined and
+emphasized words works mid-sentence. With a Tag, a Cite or several lines it is
+inserted the way a paste of the same text would be, which makes a macro a whole card
+shell: a tag, a cite line and a body with its underlining. The macro's row shows a
+preview with the styling, and **Edit formatting** reopens the editor. Word-style
+Repeat repeats a formatted macro as a paste. A macro whose formatting can't be read
+types its plain text instead.
+
 ### Structure and formatting
 | Shortcut | Action |
 |----------|--------|

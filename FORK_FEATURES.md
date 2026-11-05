@@ -33,6 +33,7 @@ is in [DETAILED_CHANGELOG.md](./DETAILED_CHANGELOG.md). The complete manual is
 17. [Default text style and custom styles](#17-default-text-style-and-custom-styles)
 18. [The keyboard map](#18-the-keyboard-map)
 19. [Smaller things](#19-smaller-things)
+20. [Formatted keyboard macros](#20-formatted-keyboard-macros)
 
 ---
 
@@ -337,3 +338,24 @@ you'll see "Close this dialog first."
   every highlight command skip text that isn't underlined.
 - **Open Settings** with **Ctrl+,** or **⌘,**.
 - **Compact timer layout:** **Settings → Appearance → Timer display**.
+
+## 20. Formatted keyboard macros
+
+Keyboard macros used to type plain text. Now a macro can type formatted text: a
+whole card shell with its tag and cite line, or a few underlined, emphasized words.
+
+**How to use it**
+
+- **Make one:** **Settings → Keyboard → Keyboard macros → + Add macro**, then set its
+  key with **+**. Press **Format…** on the row to open the macro editor.
+- **In the editor** type the text, then use the buttons (or F7 Tag, F8 Cite, F9
+  Underline, F10 Emphasis, F11 Highlight) to style it. There are buttons for
+  Pocket, Hat, Block, Tag, Analytic, Undertag, Cite, Underline, Emphasis, Highlight,
+  Bold, Italic and Clear. **Save macro** keeps it.
+- **Press the key** and the text is typed with its styles and emphasis. One plain
+  line goes into the line you are on; anything with a style, or several lines, is
+  inserted like a paste.
+- **Edit it later** with **Edit formatting**; the row shows a preview of the styled
+  text. Plain-text macros keep working as before.
+
+**Settings:** **Settings → Keyboard → Keyboard macros** (there is no on/off switch).
