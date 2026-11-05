@@ -14,31 +14,31 @@
 >
 > 1. **Independent multi-window three-pane workspace** — You can now open
 >    multiple three-pane windows, where upstream was limited to one 
->    three-pane window. Also, Documents also move between panes by drag:
+>    three-pane window. Documents also move between panes by drag:
 >    grab a pane's title chip and drop it on the slot or window you want.
-> 3. **On-time / too-slow / too-fast pace indicator** — with the speech
+> 2. **On-time / too-slow / too-fast pace indicator** — with the speech
 >    clock running, the timer compares the time left on the clock with how
 >    long the rest of your doc takes to read aloud, and shows whether you're on
 >    time, too slow or too fast, plus the time left to read. A blue mark in the margin beside
 >    the doc glides down the page at that same pace, so you can see where
->    exactly you should be reading. This on by default, just start a timer to see.
-> 4. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
+>    exactly you should be reading. This is on by default, just start a timer to see.
+> 3. **Paced auto-scroll** — a hands-free teleprompter that scrolls the
 >    document at your actual reading pace, slowing for dense highlighted
 >    text and speeding through everything else. It works in read mode and
 >    Reading view and follows the lay-speaking toggle.
-> 5. **Compare and merge documents** — the home screen's top row has a
+> 4. **Compare and merge documents** — the home screen's top row has a
 >    "Compare documents" card: pick two `.cmir`/`.docx` files and see a
 >    side-by-side line diff of their text, with the changed words
 >    in an edited line struck through or underlined, and an outline on each
 >    side (green for added, red for removed, yellow for partly changed) to
 >    jump to a heading. From the same view you can merge the two into one
 >    new document, choosing a side for each conflicting line.
-> 6. **Autosave for `.docx` files**, not just `.cmir` — plus a ribbon button that
->    distinguishes shows when it's saving.
-> 7. **Index Logos for cards in Search Everything** — type `g ` to search
+> 5. **Autosave for `.docx` files**, not just `.cmir` — plus a ribbon button that
+>    shows when it's saving.
+> 6. **Index Logos for cards in Search Everything** — type `g ` to search
 >    Logos's index of open-source round-doc cards (from opencaselist)
 >    and insert a full, intact card.
-> 8. **Easier to use, especially for newcomers** — small changes that make
+> 7. **Easier to use, especially for newcomers** — small changes that make
 >    CardMirror discoverable without a manual:
 >    - a. **A visible Search button** (a magnifying glass at the bottom left)
 >      for Search Everything, plus a hint on how to use it.

@@ -129,6 +129,8 @@ export interface MultiPaneWindowInfo {
   id: number;
   label: string;
   speech?: boolean;
+  /** Filename of the speech doc when it is in this window. */
+  speechDoc?: string | null;
   minimized?: boolean;
   comparing?: boolean;
 }
@@ -141,6 +143,8 @@ export interface WindowListEntry {
   /** Filenames of the window's saved docs (untitled docs are omitted). */
   docNames: string[];
   isSpeech: boolean;
+  /** Filename of the speech doc when it is in this window. */
+  speechDoc?: string | null;
   /** The window asking — listed so the palette can mark or skip it. */
   isOwnWindow: boolean;
   isMinimized: boolean;
@@ -490,7 +494,7 @@ interface ElectronAPI {
   openPathRegister(
     path: string,
     opts?: { journaledBase?: DiskBase | null },
-  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null } | null>;
+  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null; compareWindowId?: number } | null>;
   openPathRelease(path: string): Promise<void>;
   cloudProvider(path: string): Promise<CloudProvider | null>;
   /** The path relative to its sync root, with a leading slash (null = not in
@@ -1450,7 +1454,7 @@ export class ElectronHost implements Host {
   async openPathRegister(
     path: string,
     opts?: { journaledBase?: DiskBase | null },
-  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null } | null> {
+  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null; compareWindowId?: number } | null> {
     const fn = api().openPathRegister;
     return (await fn(path, opts)) ?? null;
   }

@@ -346,9 +346,21 @@ export interface KeyboardMacro {
   /** ProseMirror-keymap key string, e.g. `Mod-Shift-q` (same format as
    *  `ribbonKeyOverrides`). Empty = not yet bound. */
   key: string;
-  /** Literal text inserted at the cursor when the key fires. */
+  /** Literal text inserted at the cursor when the key fires. For a formatted
+   *  macro (`contentJson`) this is its plain text: the label in Settings, and
+   *  what the macro types if its content cannot be read. */
   text: string;
+  /** A formatted macro's content: a ProseMirror slice as JSON (the form Quick
+   *  Cards store), typed with its styles and marks (tag / cite / underline /
+   *  emphasis / highlight / bold / italic …) instead of as plain text. Absent
+   *  = a plain-text macro. Validated when the keymap is built
+   *  (keyboard-macros.ts), so a damaged value falls back to `text`. */
+  contentJson?: unknown;
 }
+
+/** Largest formatted-macro content kept, as JSON characters. A macro is a
+ *  snippet; this stops a pasted document from bloating the settings file. */
+export const MAX_MACRO_CONTENT_CHARS = 100_000;
 
 /** A user-configured custom ribbon button: runs `command` when clicked and
  *  shows `icon`. Up to 10 sit to the right of the comments buttons; an empty
@@ -6269,6 +6281,18 @@ function sanitizeCitePromptState(
   };
 }
 
+/** A stored formatted-macro value worth keeping: a slice-shaped object of
+ *  sane size. The structure itself is checked when the macro is built. */
+function isMacroContent(v: unknown): boolean {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+  if (!Array.isArray((v as { content?: unknown }).content)) return false;
+  try {
+    return JSON.stringify(v).length <= MAX_MACRO_CONTENT_CHARS;
+  } catch {
+    return false;
+  }
+}
+
 function sanitizeKeyboardMacros(raw: unknown): KeyboardMacro[] {
   if (!Array.isArray(raw)) return [];
   const out: KeyboardMacro[] = [];
@@ -6276,11 +6300,13 @@ function sanitizeKeyboardMacros(raw: unknown): KeyboardMacro[] {
     if (!r || typeof r !== 'object') continue;
     const m = r as Partial<KeyboardMacro>;
     if (typeof m.id !== 'string') continue;
-    out.push({
+    const macro: KeyboardMacro = {
       id: m.id,
       key: typeof m.key === 'string' ? m.key : '',
       text: typeof m.text === 'string' ? m.text : '',
-    });
+    };
+    if (isMacroContent(m.contentJson)) macro.contentJson = m.contentJson;
+    out.push(macro);
   }
   return out;
 }

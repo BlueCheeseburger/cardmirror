@@ -41,6 +41,9 @@ import { pluginCommandIds } from './plugin-registry.js';
 import { RIBBON_GROUPS } from './ribbon-groups.js';
 import { isRibbonCommandAvailable } from './ribbon-availability.js';
 import { settings, type KeyboardMacro } from './settings.js';
+import { isFormattedMacro } from './keyboard-macros.js';
+import { openMacroEditor } from './macro-editor-ui.js';
+import { renderMacroPreview } from './macro-preview.js';
 import { ctrlOrCmdWord } from './platform.js';
 import { setIcon } from './icons';
 
@@ -513,7 +516,36 @@ export function buildKeybindingsEditor(): KeybindingsEditorHandle {
         text.blur();
       }
     });
-    row.appendChild(text);
+    // A formatted macro types styled text: its field is a preview with the
+    // styling drawn, and it is edited in the macro editor.
+    const formatted = isFormattedMacro(m);
+    if (formatted) {
+      const preview = renderMacroPreview(m);
+      preview.title = 'This macro types formatted text. Click to change it.';
+      preview.setAttribute('role', 'button');
+      preview.tabIndex = 0;
+      preview.addEventListener('click', () => void openMacroEditor(m.id));
+      preview.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          void openMacroEditor(m.id);
+        }
+      });
+      row.appendChild(preview);
+    } else {
+      row.appendChild(text);
+    }
+
+    const formatBtn = document.createElement('button');
+    formatBtn.type = 'button';
+    formatBtn.className = 'pmd-macro-format';
+    formatBtn.classList.toggle('pmd-macro-format-on', formatted);
+    formatBtn.textContent = formatted ? 'Edit formatting' : 'Format…';
+    formatBtn.title = formatted
+      ? 'Change the text and its styles, emphasis and highlighting'
+      : 'Type this macro with styles and emphasis: tag, cite, underline, emphasis, highlight…';
+    formatBtn.addEventListener('click', () => void openMacroEditor(m.id));
+    row.appendChild(formatBtn);
 
     const chips = document.createElement('span');
     chips.className = 'pmd-keybinding-chips';
@@ -589,7 +621,7 @@ export function buildKeybindingsEditor(): KeybindingsEditorHandle {
     const desc = document.createElement('span');
     desc.className = 'pmd-settings-row-desc';
     desc.textContent =
-      'Bind a shortcut to type a snippet of text at the cursor. A macro key takes precedence over any command on the same key.';
+      'Bind a shortcut to type a snippet of text at the cursor. Press Format… to type it with styles and emphasis (a tag, a cite, underline, emphasis, highlighting). A macro key takes precedence over any command on the same key.';
     headBlock.appendChild(desc);
     section.appendChild(headBlock);
 

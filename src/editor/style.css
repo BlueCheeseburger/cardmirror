@@ -782,6 +782,7 @@ button {
   --pmd-c-speech-bg: #fff3cd;
   --pmd-c-speech-border: #ffe69c;
   --pmd-c-speech-text: #5a3e00;
+  --pmd-c-speech-amber: #9a6700;      /* the speech doc's name in a list */
 
   /* Editor-specific decorations */
   --pmd-c-card-hover: #c0c0c0;         /* card left-border on hover */
@@ -1000,6 +1001,7 @@ button {
   --pmd-c-speech-bg: #3a3220;
   --pmd-c-speech-border: #6a5a30;
   --pmd-c-speech-text: #ffdd88;
+  --pmd-c-speech-amber: #f0b429;
 
   /* Editor decorations */
   --pmd-c-card-hover: #555;
@@ -8592,6 +8594,43 @@ body.pmd-steady-cursor .pmd-italic-caret,
   color: var(--pmd-c-error);
   border-color: var(--pmd-c-error);
 }
+.pmd-macro-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 4px;
+  background: var(--pmd-c-surface);
+  color: var(--pmd-c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.pmd-macro-preview:focus-visible { outline: 2px solid var(--pmd-c-accent); outline-offset: -1px; }
+.pmd-macro-preview-structural { font-weight: 700; }
+/* The preview stays one even line: marks keep their look, not the document's sizes. */
+.pmd-macro-preview span { font-size: inherit; }
+.pmd-macro-preview-break { color: var(--pmd-c-text-muted); }
+.pmd-macro-format {
+  flex: 0 0 auto;
+  padding: 0.2rem 0.55rem;
+  font: inherit;
+  font-size: 0.78rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 4px;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pmd-macro-format:hover { background: var(--pmd-c-info-bg); }
+.pmd-macro-format-on {
+  border-color: var(--pmd-c-accent);
+  color: var(--pmd-c-accent);
+}
 .pmd-macro-add {
   margin-top: 0.4rem;
   padding: 0.3rem 0.6rem;
@@ -8602,6 +8641,142 @@ body.pmd-steady-cursor .pmd-italic-caret,
   cursor: pointer;
 }
 .pmd-macro-add:hover { background: var(--pmd-c-info-bg); }
+
+/* Formatted-macro editor: a dialog with a real editor, a toolbar of styles and
+   emphasis types, and Save / Cancel. */
+.pmd-macro-ed-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--pmd-c-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.pmd-macro-ed-dialog {
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px var(--pmd-c-shadow-deep);
+  width: min(94vw, 680px);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--pmd-ui-font);
+  outline: none;
+}
+.pmd-macro-ed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--pmd-c-divider);
+}
+.pmd-macro-ed-header h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+.pmd-macro-ed-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--pmd-c-text-muted);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+}
+.pmd-macro-ed-close:hover { color: var(--pmd-c-text); background: var(--pmd-c-hover); }
+.pmd-macro-ed-intro {
+  margin: 0;
+  padding: 0.7rem 1rem 0.2rem;
+  font-size: 0.85rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-macro-ed-key {
+  font: 0.78rem ui-monospace, Menlo, Consolas, monospace;
+  color: var(--pmd-c-text);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  background: var(--pmd-c-surface);
+}
+.pmd-macro-ed-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.1rem;
+  padding: 0.55rem 1rem 0.6rem;
+}
+.pmd-macro-ed-group { display: flex; flex-direction: column; gap: 0.2rem; }
+.pmd-macro-ed-group-title {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-macro-ed-group-row { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.pmd-macro-ed-btn {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.22rem 0.6rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 4px;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  cursor: pointer;
+}
+.pmd-macro-ed-btn:hover { background: var(--pmd-c-hover); }
+.pmd-macro-ed-btn:active { background: var(--pmd-c-info-bg); }
+.pmd-macro-ed-btn:focus-visible { outline: 2px solid var(--pmd-c-accent); outline-offset: 1px; }
+/* Each emphasis button wears its own look, so the toolbar previews the result. */
+.pmd-macro-ed-btn-underline { text-decoration: underline; }
+.pmd-macro-ed-btn-emphasis { font-weight: 700; text-decoration: underline; box-shadow: inset 0 0 0 1px var(--pmd-c-text); }
+.pmd-macro-ed-btn-highlight { background: #ffff00; color: #000; border-color: #d9d900; }
+.pmd-macro-ed-btn-highlight:hover { background: #f2f200; }
+.pmd-macro-ed-btn-bold { font-weight: 700; }
+.pmd-macro-ed-btn-italic { font-style: italic; }
+.pmd-macro-ed-btn-cite { font-weight: 700; }
+.pmd-macro-ed-editor {
+  flex: 1 1 auto;
+  min-height: 11rem;
+  margin: 0 1rem;
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 4px;
+  background: var(--pmd-c-surface);
+  overflow-y: auto;
+}
+.pmd-macro-ed-editor .ProseMirror {
+  padding: 0.6rem 0.75rem;
+  min-height: 10rem;
+  outline: none;
+}
+.pmd-macro-ed-note {
+  margin: 0;
+  padding: 0.45rem 1rem 0;
+  font-size: 0.75rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-macro-ed-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem 0.85rem;
+}
+.pmd-macro-ed-cancel,
+.pmd-macro-ed-save {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--pmd-c-border);
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+}
+.pmd-macro-ed-cancel:hover { background: var(--pmd-c-hover); }
+.pmd-macro-ed-save {
+  background: var(--pmd-c-accent);
+  border-color: var(--pmd-c-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.pmd-macro-ed-save:hover { filter: brightness(1.08); }
 
 /* Select Similar Formatting (shadow selection)
    `.pmd-similar-scope` is the outer container the user picked for
@@ -12457,14 +12632,6 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
 .pmd-list-pick-row-muted .pmd-list-pick-row-name {
   color: var(--pmd-c-text-muted);
 }
-.pmd-select-speech-row-indicator {
-  flex: 0 0 1.25rem;
-  text-align: center;
-  font-size: 1rem;
-  line-height: 1;
-  /* The microphone outline paints in the row's text color. */
-  color: var(--pmd-c-text);
-}
 .pmd-select-speech-row-text,
 .pmd-list-pick-row-text {
   flex: 1 1 auto;
@@ -12493,18 +12660,10 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   max-width: 45%;
   justify-content: flex-end;
 }
-.pmd-select-speech-row-current {
-  background: var(--pmd-c-speech-bg);
-  border-color: var(--pmd-c-speech-border);
-  color: var(--pmd-c-speech-text);
-}
+/* The speech doc's row has no box: its name is amber with the mic (.pmd-speech-name),
+   the same as in every other list that names it. */
 .pmd-select-speech-row-current:hover {
-  background: var(--pmd-c-speech-bg);
-  filter: brightness(0.97);
-}
-.pmd-select-speech-row-current .pmd-select-speech-row-sub {
-  color: var(--pmd-c-speech-text);
-  opacity: 0.8;
+  background: var(--pmd-c-hover);
 }
 .pmd-select-speech-footer {
   padding: 0.5rem 1rem 0.85rem;
@@ -12891,6 +13050,17 @@ body.pmd-pane-dragging * {
   opacity: 0;
   transform: translate(-50%, 14px);
   transition: opacity 140ms ease, transform 160ms ease;
+}
+/* The speech doc's own name in a list: the mic, then the name, in amber. */
+.pmd-speech-name {
+  color: var(--pmd-c-speech-amber);
+}
+.pmd-speech-name-mic {
+  display: inline-block;
+  vertical-align: -0.1em;
+  margin-right: 0.25em;
+  line-height: 1;
+  font-size: 0.95em;
 }
 /* Window pills: This window / Speech doc / Minimized /
    Comparing documents, on every row that names a window. */

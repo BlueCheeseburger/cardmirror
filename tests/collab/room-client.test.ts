@@ -22,6 +22,14 @@ afterAll(async () => {
 const bytes = (s: string) => new TextEncoder().encode(s);
 const text = (b: Uint8Array) => new TextDecoder().decode(b);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Wait until `cond()` holds, up to `timeoutMs` (then resolve anyway so the
+ *  assertion that follows reports what was actually seen). Fixed sleeps around
+ *  a stream's handshake were the flaky part of these tests: a slow runner
+ *  overshot a 50-60 ms window. Waiting for the event itself has no such window. */
+async function until(cond: () => boolean, timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!cond() && Date.now() < deadline) await sleep(5);
+}
 
 describe('RoomsClient', () => {
   it('creates rooms, appends updates, pages them back', async () => {
@@ -177,7 +185,7 @@ describe('RoomStream', () => {
         },
       });
       editor.start();
-      await sleep(50);
+      await until(() => watchers.length >= 1);
       expect(watchers).toEqual([0]);
       const viewer = new RoomStream({
         baseUrl: () => mock.url,
@@ -188,14 +196,14 @@ describe('RoomStream', () => {
         callbacks: { onHello: () => {}, onUpdate: () => {}, onPresence: () => {}, onEnded: () => {}, onFull: () => {} },
       });
       viewer.start();
-      await sleep(60);
+      await until(() => watchers.length >= 2);
       expect(watchers).toEqual([0, 1]);
       expect(mock.viewerCount(made.roomId)).toBe(1);
       // The view pass cannot write.
       const viewerClient = new RoomsClient({ baseUrl: () => mock.url, token: () => 'VIEW-PASS' });
       await expect(viewerClient.postUpdate(made.roomId, bytes('nope'))).rejects.toMatchObject({ status: 403 });
       viewer.stop();
-      await sleep(60);
+      await until(() => watchers.length >= 3);
       expect(watchers).toEqual([0, 1, 0]);
       editor.stop();
 
@@ -218,7 +226,7 @@ describe('RoomStream', () => {
         callbacks: { onHello: () => {}, onUpdate: () => {}, onPresence: () => {}, onEnded: () => {}, onFull: (vp) => { fullWith = vp; } },
       });
       over.start();
-      await sleep(60);
+      await until(() => fullWith !== undefined);
       expect(fullWith).toBe('VIEW-PASS');
       for (const st of streams) st.stop();
       over.stop();
@@ -245,13 +253,13 @@ describe('RoomStream', () => {
       },
     });
     stream.start();
-    await sleep(50);
+    await until(() => hellos.length >= 1);
     expect(hellos.length).toBe(1);
     mock.pause();
     stream.restart(); // drop the live socket; retries now hit 503s
     await sleep(120);
     mock.resume();
-    await sleep(200);
+    await until(() => hellos.length >= 2);
     expect(hellos.length).toBeGreaterThanOrEqual(2);
     stream.stop();
   });
@@ -305,10 +313,10 @@ describe('RoomStream', () => {
       token: () => 'expired-guest-pass',
       roomId,
       // Jitter is 30-100% of the backoff, so the first retry lands no
-      // sooner than 30ms here — the 15ms probe below sees exactly one
-      // attempt.
-      minBackoffMs: 100,
-      maxBackoffMs: 200,
+      // sooner than 120ms here — the 15ms probe below sees exactly one
+      // attempt, with 105ms to spare for a slow runner (it was 15ms).
+      minBackoffMs: 400,
+      maxBackoffMs: 800,
       callbacks: {
         onHello: () => {},
         onUpdate: () => {},
@@ -324,7 +332,7 @@ describe('RoomStream', () => {
     stream.start();
     await sleep(15); // one attempt so far
     expect(authDead).toBe(0);
-    await sleep(250); // past the first backoff → second confirmed 401
+    await until(() => authDead >= 1); // past the first backoff → second confirmed 401
     expect(authDead).toBe(1);
     expect(stream.running).toBe(false);
   });
@@ -366,19 +374,20 @@ describe('RoomStream', () => {
   it('a hello resets the consecutive-401 count', async () => {
     const { roomId } = await client.createRoom();
     let authDead = 0;
+    let hellos = 0;
     let denyToken = false;
     const stream = new RoomStream({
       baseUrl: () => mock.url,
       token: () => (denyToken ? 'wrong' : mock.token),
       roomId,
-      // Retries land at 30-100% of the backoff: 200ms keeps every
-      // scripted 30ms window below to exactly one attempt.
-      minBackoffMs: 200,
-      maxBackoffMs: 400,
+      // Retries land at 30-100% of the backoff: 2s keeps every scripted
+      // 30ms window below to exactly one attempt, with ~570ms to spare.
+      minBackoffMs: 2000,
+      maxBackoffMs: 4000,
       restartDebounceMs: 0, // restart() here means "drop the connection now"
 
       callbacks: {
-        onHello: () => {},
+        onHello: () => hellos++,
         onUpdate: () => {},
         onPresence: () => {},
         onEnded: () => {},
@@ -387,13 +396,13 @@ describe('RoomStream', () => {
       },
     });
     stream.start();
-    await sleep(50); // helloed with the good token
+    await until(() => hellos >= 1); // helloed with the good token
     denyToken = true;
     stream.restart(); // drop → one 401
     await sleep(30);
     denyToken = false; // credential "renewed" before the second refusal
     stream.restart();
-    await sleep(60); // hello again — count must be back to zero
+    await until(() => hellos >= 2); // hello again — count must be back to zero
     denyToken = true;
     stream.restart();
     await sleep(30); // one 401 since the reset: still under threshold

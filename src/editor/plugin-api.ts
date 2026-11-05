@@ -24,6 +24,11 @@ export type ExtractedKind =
 export interface ExtractedItem {
   kind: ExtractedKind;
   text: string;
+  /** Underlined stretches of `text`, as `[start, end)` UTF-16 offsets into the
+   *  emitted `text` (after whitespace collapse and trim). Only on `tag`,
+   *  `analytic` and `undertag` items that have some underlined text; absent
+   *  otherwise. */
+  underline?: [number, number][];
   /** Opaque provenance token (see plugin-source-token.ts). */
   source: string;
 }

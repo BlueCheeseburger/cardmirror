@@ -10,6 +10,72 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.17.2-bcb.2 — 2026-11-05
+
+### Plugin extraction carries underlined stretches (`plugin-extract.ts`, `plugin-api.ts`, `reference-docs/cardmirror-plugin-api.md`)
+
+Requested by the policy-flow plugin session (on the user's behalf): underlined words in a tagline were lost on the way to the flow. `ExtractedItem` gains an optional `underline?: [number, number][]`, `[start, end)` UTF-16 offsets into the emitted `text`, set only for `tag`, `analytic` and `undertag` items that have `underline_mark` text. `underlineRanges` flags each character, collapses whitespace runs exactly as the `\s+` → ' ' replace does (a collapsed space counts as underlined only when the whole run was), trims, and returns null if the rebuilt text differs from the emitted text, so a plugin never gets offsets that don't fit. Left out when nothing is underlined, so older plugins and the source token are unaffected. Emphasis (the boxed style) is not included, only underline; headings and cites don't get the field (the plugin underlines headings itself). Tests in `plugin-extract.test.ts`. Not verified end to end against the flow.
+
+### Plugin jumps reveal a hidden or covered pane (`jump-reveal.ts`, `multi-pane-shell.ts`)
+
+`MultiPaneShell.findViewForDocId` already raised a stacked background record to its slot's visible position, but `showRecord` returns early for a record that is already visible, so it never called `focusSlot`. A doc that was the visible record of a pane hidden with Hide Slot, or of a pane under another pane's expansion (`slotShown` is false for every slot but the expanded one), took the jump inside an invisible pane. Now `jumpRevealNeeded(slot.paneHidden, otherPaneExpanded)` is read before `showRecord`: another pane expanded moves the expansion to the target (`setExpandedSlot`, the same as `focusSlotByIndex`), and a hidden pane is unhidden through `focusSlot`. Either case shows a toast (`jumpRevealToast`) naming the document. Moving the expansion rather than leaving expand mode keeps the one-pane view the user chose. Like the existing raise, it happens before the token resolves, so a jump that then fails not-found still leaves the pane revealed. Window raising and multi-window routing are unchanged. Tests cover the decision and the toast text only (`jump-reveal.test.ts`); NOT verified in the running app, because a jump needs a stamped docId and a plugin to send it.
+
+### Formatted keyboard macros
+
+Request: macros that type formatted text with styles and emphasis types, and a mockup. Built on the existing keyboard macros (a key bound to text) instead of beside them.
+
+- **Data.** `KeyboardMacro.contentJson?` holds a ProseMirror slice as JSON, the same form Quick Cards store; `text` stays as the plain text (the list label and the fallback). Settings keeps `contentJson` only when it is a slice-shaped object under `MAX_MACRO_CONTENT_CHARS` (100,000); the structure is validated when the keymap is built (`macroSlice` → `checkedSliceFromJSON`), and damaged content falls back to `text`. Existing macros and settings files load unchanged.
+- **Typing it.** `buildMacroKeymap` inserts a formatted macro with `tr.replaceSelection(slice)`, so it arrives the way a paste does. Word-style Repeat gets it as `{ kind: 'paste', slice }` through the existing `cm-repeat-set` meta, so Repeat re-pastes the same formatted slice (a plain macro is still repeated as typing).
+- **Inline vs block.** A macro of one plain paragraph is saved as an inline slice (open 1/1; `macro-content.ts`), so it types into the line you are in. With styles (tag, cite line, analytic, headings) or several paragraphs it is saved as blocks and lands as a paste would; typed mid-paragraph, a block splits the paragraph, which is what a paste of a card does too.
+- **The editor** (`macro-editor-ui.ts`) is a real editor made with `buildEditorPlugins()`, the way the Quick Cards editor is, in a dialog. Its toolbar buttons run the actual ribbon commands against it through a new `runRibbonOnView` (Pocket / Hat / Block / Tag / Analytic / Undertag, Cite / Underline / Emphasis / Highlight / Bold / Italic / Clear), so a button does what its shortcut does, and the shortcuts work in it. Tooltips show each command's current key (`primaryKeyFor` with the user's overrides). Esc or Cancel discards; Save or Mod+Enter saves; saving an empty editor turns the macro back into an empty plain one.
+- **The list** (`keybindings-editor.ts`): each macro row gets **Format…** (**Edit formatting** when formatted); a formatted macro's field is a one-line styled preview (`macro-preview.ts`: the same serializer and classes as the document, structural lines bold, lines split by a return arrow, font sizes evened out) that opens the editor on click.
+
+Tried end to end in the app (served by the dev server, in Chromium): typed three lines in the editor, made line 1 a Tag, "Smith 24" a Cite, and underlined, emphasized and highlighted words with the buttons; saved; pressed the key in a new document; the card arrived with its tag (it appears in the outline), cite paragraph and marks. NOT verified in the packaged desktop app, on macOS (Cmd key chords), or with a macro whose key collides with a text-editing shortcut.
+
+Not done: making a macro from the current selection, a font or color for macro text beyond the marks and styles above, and macros that insert images or tables.
+
+### Window title dropped to "CardMirror" while the window had its name
+
+Report (after the entry below was written): a window with a few documents, used all day, ended up titled just "CardMirror". Renaming showed the old name already filled in; pressing Save then changed the title. So the renderer's `currentWindowName` was intact and only the OS title was wrong; saving re-ran `updateWindowTitle()`, which re-set `document.title`. Only `updateWindowTitle()` assigns `document.title`, and its named branch comes first, so the title can only have been reset by something other than the renderer's own title code, or the renderer's later call never ran. **The cause was not found** (nothing in the in-session path does this); what changed is that a stale title can no longer persist:
+
+- **Main enforces the name** (`apps/desktop/src/main.ts`, `mustKeepWindowName`): a `page-title-updated` carrying any other title is cancelled and the native title set to the name, `host:window-name-set` sets the native title at once, and the name is re-applied on `focus`, `show`, `restore`, entering and leaving full screen, and `did-finish-load`. This also covers a window created with a name (its page starts as "CardMirror"). A window with no name follows its page as before.
+- **Renderer** (`index.ts`): `updateWindowTitle()` sets the title even if one of its side effects throws (they ran first and a throw skipped the title); the boot-time name fetch updates the title in a `finally`, so a failure in the workspace bookkeeping cannot leave the name known but the title stale; and a named window re-sets `document.title` on `focus` when it differs.
+
+NOT verified in the running app, and not reproduced: the claim is that a stale title now heals on the next focus or title event, not that the original trigger is gone. If it happens again, note whether the title came back by clicking into the window.
+
+
+### Window name lost on a single-document Last workspace restore
+
+Report: the window name "keeps forgetting what I named it after some time". Found by reading the name's whole path: it lives in main (`windowNames`, keyed by window id, set by `host:window-name-set`), survives a renderer reload (the renderer re-asks at boot), and goes with the window on close. The Last workspace record stores each window's name, but only the three-pane restore applied it: a window reopened in the single-document layout (`restoreDocsAsWindows`) never did, and a spawn payload's `windowName` was read only by the three-pane boot path (`routeInitialDocIntoWorkspace`), never by `mountFromSpawnPayload`. Fixed at the source: `createWindow` now sets the name in `windowNames` from the payload before the renderer starts (`normalizeWindowName`, `apps/desktop/src/window-name.ts`), so every layout finds it at boot, and `restoreDocsAsWindows` passes the saved name to the window it spawns and applies it to the one it reuses.
+
+**Not established:** whether this is the case the user hit. A name that vanishes while the app stays open was not reproduced and nothing in the in-session path clears it. The names are not saved anywhere that survives a quit except the Last workspace record, so after a quit, update restart or crash a named window comes back only by reopening it from Last workspace; there is no automatic restore of windows at launch. NOT verified in the running app; only the name-normalizing helper has a unit test.
+
+### Notice when a silent preset save lands
+
+Request: a confirmation, like the "Sent to speech doc" one, saying where Save Send / Read / Marked / Starred Doc put the file, with a Show in folder button. `preset-saved-notice.ts`: `presetSavedMessage` builds "Send doc saved: SEND_1AC.docx in Round 3" (folder = the parent directory's name; left out when the host gave no path), and `showPresetSavedNotice` shows it as the bottom-centre action toast with **Show in folder** (`showItemInFolder`, 6 s) or, without a path or reveal function (the web edition), a plain toast. Called at the end of `runSilentExportFlow` (Send, Read, Starred) and `runSaveMarkedCardsFlow`, after `flashSaveSuccess`, so it also appears when the flow fell back to the OS Save dialog (the user picked the place; the notice is then redundant but harmless). The Save As dialog's own presets are not touched: that dialog is the confirmation. A save that is cancelled or fails shows nothing new (failures already alert). NOT verified in the running app; unit tests cover the message and the notice, not a real save.
+
+### CI: macOS image pinned, room-client stream tests wait for events
+
+Two causes of the failure emails, both outside the app.
+
+- **macOS job never got a runner.** Twice (PR #78) the `macos-latest` job showed no runner and no steps for 15 minutes, then was cancelled, which GitHub emails as a failure while Windows passed. `ci.yml` now sends the macOS leg to `macos-15` through a matrix `runner` key, and the job name still reads "Typecheck + tests (macos-latest)" because `os` is unchanged, so nothing keyed on that check name breaks. NOT proven to cure the queueing: pinning picks an image with steadier capacity but cannot create capacity; this PR's own macOS check is the first run on `macos-15`. If that label queues forever, revert the `runner` line. Release builds (`release.yml`) still use `macos-latest`.
+- **Fixed sleeps around a stream's handshake.** `tests/collab/room-client.test.ts` waited 50-60 ms for a hello or a watcher count, and one test probed 15 ms into a 30 ms retry window; a slow macOS runner overshot (one run read 63 ms against a 58 ms limit). The tests now wait for the event itself (`until(cond)`, 3 s cap), and the two 401 tests use a longer backoff (400 ms, 2000 ms) so the window that must stay empty is 105 ms and 570 ms wide instead of 15 ms and 30 ms. Ran the file 3 times, then 6 copies at once: 26/26 each time. The other collab tests with 20-60 ms sleeps were not touched, so another could still flake.
+
+### "Also open in Compare" notice
+
+Request: tell the user when the Compare-open fix leaves the same file open in two windows. The hook is the claim: `host:open-path-register` now answers `compareWindowId` when the previous owner of the path was a different window with Compare documents up (`compareWindowToNotify` in `apps/desktop/src/compare-owner.ts`, pure, tested), and the shared `registerDocPath` shows `showAlsoInCompareNotice` (`compare-also-open-notice.ts`): "“name” is also open in Compare documents in another window." with a **Go to Compare** button (`focusWindow`; a closed window gets "That Compare window has closed."; a host that cannot focus gets a plain toast). Hooking the claim covers every way in (Open dialog, Finder/Dock open, Show in context, restore) with one rule, and a Reload From Disk (same window re-claiming) never triggers it. The notice shows in the window that took the file, not in Compare. The two windows are still two copies of the file; this only says so. NOT verified in the running app; covered by unit tests of the rule and the notice, not by an end-to-end open.
+
+### Speech doc marked on its own name in the tray, Select Speech Document, the palette and Switch Window
+
+Request: match these lists to the which-window chooser (amber text, mic first, no window pill). Shared helper in `window-pills.ts`: `renderSpeechName`, `renderDocNames(names, speechDoc)` (names joined by " · ", the first equal to the speech doc drawn by `renderSpeechName`, plus `marked`), `namesSpeechDoc`; new `--pmd-c-speech-amber` token (#9a6700 light, #f0b429 dark, the chooser's colors). Main now sends `speechDoc` (the speech doc's filename in that window, `Untitled` when it has none) on `host:list-multipane-windows` and `host:list-windows` (`speechDocNameIn`, also used by the chooser).
+
+- **Drag tray:** the tile's name line is built by `renderDocNames` from the label; a hover title carries the full label because the line truncates with an ellipsis (the speech name can be the part cut off on a long label).
+- **Switch Window (`w ` palette):** `searchWindowSource` marks the name when `docNames` has the speech doc; the row carries `nameDocs` for the renderer.
+- **Select Speech Document:** the row's name is the speech marker; the "Speech doc" pill, the separate mic column and the gold row box are gone.
+- In all three the "Speech doc" pill stays when the name cannot be found among the names shown (a window you named shows only its name, so the tray keeps the pill there; `Untitled` vs a window title can also differ), so the speech doc is never unmarked.
+
+Not verified in the running app (the tray was rendered in Chromium in both themes; the Switch Window palette and Select Speech Document were covered by unit tests only, not looked at).
+
 ## 1.17.2-bcb.1 — 2026-11-04
 
 ### Which-window chooser: speech doc marked on its own name

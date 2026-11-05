@@ -123,6 +123,7 @@ import {
   captureFocusForDialog,
 } from './text-prompt.js';
 import { showToast } from './toast.js';
+import { jumpRevealNeeded, jumpRevealToast } from './jump-reveal.js';
 import { recordRecent } from './recents-store.js';
 import { reportWindowWorkspace, type WorkspaceDoc } from './workspace-store.js';
 import { slotPlanForSpeech } from './arrange-plan.js';
@@ -3346,6 +3347,8 @@ class MultiPaneShell {
    *  select in an invisible editor and the user would see nothing.
    *  `showRecord` mounts synchronously (appendChild), so on return the
    *  view's DOM is attached and `scrollToHeadingId` has an element to hit.
+   *  A pane hidden with Hide Slot, or covered by another pane's expansion, is
+   *  brought back too (with a toast), so the jump lands where you can see it.
    *  Returns null when no open doc has that id. */
   findViewForDocId(docId: string): EditorView | null {
     for (const id of SLOT_IDS) {
@@ -3356,7 +3359,16 @@ class MultiPaneShell {
           // raised record stays visible anyway. Accepted - the doc was
           // explicitly requested, so surfacing it is reasonable regardless.
           // Revisit if failed jumps raising docs turns out to be noisy.
+          const reveal = jumpRevealNeeded(
+            slot.paneHidden,
+            this.expandedSlot !== null && this.expandedSlot !== slot,
+          );
           slot.showRecord(rec); // no-op when already visible
+          // A hidden pane, or one under another pane's expansion, would take the
+          // jump out of sight: bring it back, and say so.
+          if (reveal === 'show-over-expanded') this.setExpandedSlot(slot);
+          else if (reveal === 'unhide') this.focusSlot(slot); // focusSlot unhides
+          if (reveal !== 'none') showToast(jumpRevealToast(reveal, rec.filename));
           return rec.view;
         }
       }

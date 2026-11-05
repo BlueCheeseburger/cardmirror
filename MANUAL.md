@@ -1383,7 +1383,7 @@ workspace while another shows a single document.
   stacking**; the labels then say **Swap places** / **Swap**. A **move tray** at the bottom of the window has a tile for each
   slot, and on the desktop app also **New window** and a tile for every other
   open three-pane window: drop the chip on a tile to send the document there,
-  unsaved edits included. **Esc** cancels the drag. **(Fork)** Windows are listed most recently used first, and a tile carries pills: **Speech doc** and **Minimized**; a window busy with Compare documents is greyed with a
+  unsaved edits included. **Esc** cancels the drag. **(Fork)** Windows are listed most recently used first, and a tile carries a **Minimized** pill, and the speech doc's own name is amber with the speech mic; a window busy with Compare documents is greyed with a
   **Comparing documents** pill and can't be dropped on. When the document arrives, the other window shows **Moved … here from …** with a **Go back** button.
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
@@ -1860,13 +1860,14 @@ moves up). A minimized window is restored. It's the quick way between windows
 where the operating system's Alt+Tab mixes CardMirror in with every other app.
 Desktop only.
 
-**(Fork) Window pills.** Every list that names windows labels them the same way: **This window**, **Speech doc** and **Minimized**.
+**(Fork) Window pills.** Every list that names windows labels them the same way: **This window** and **Minimized** (and **Last viewed** in the chooser).
 You'll see them in the "which window?" chooser that opens when a file or a new document needs a home (a window busy with Compare
 documents is shown greyed, with a **Comparing documents** pill, and can't be picked), in the tray you drop a pane's title chip on,
 in **Select Speech Document**, and here. When you open a file from Finder or the Dock, the chooser also marks the window you were
 looking at with **Last viewed**. The chooser stays in alphabetical order with the same number keys; the pills only tell the windows apart.
-In the chooser the speech doc is marked on its own name rather than on the window: the document's name is in amber with the speech mic
-at its left, so you can see which document it is. A long name wraps onto the next line.
+The speech doc is marked on its own name rather than on the window, in every one of those lists: the document's name is in amber with the speech mic
+at its left, so you can see which document it is. A long name wraps onto the next line in the chooser. A window you named shows only its name in the tray, so it keeps a
+**Speech doc** pill there.
 
 In the three-pane workspace, Ctrl+Tab keeps its existing job there: it cycles
 the focused slot's documents (hold Ctrl, tap Tab, release to switch).
@@ -2926,7 +2927,9 @@ yours, or a file before and after cutting.
 and underlining isn't compared — and it's read-only: neither file is opened
 for editing or changed. While it is open the window is named **Compare
 documents** (not the blank document underneath), and files you open meanwhile
-open in a new window rather than into it. There is no size limit; two very long files that
+open in a new window rather than into it. If you open a file that Compare has up,
+it opens in an editor of its own and a notice says **“name” is also open in Compare
+documents in another window**, with a **Go to Compare** button. There is no size limit; two very long files that
 differ almost everywhere take a few seconds. On a
 narrow window the outlines hide and each changed line stacks its two
 versions.
@@ -3064,6 +3067,11 @@ as your new documents) — the Save As dialog keeps its own format choice.
 read-mode view of the document). It has no shortcut by default — run it
 from the command bar or bind a key — and has its own destination, folder,
 and format settings beside the Send Doc ones.
+
+**(Fork)** When Save Send Doc, Save Read Doc, Save Marked Cards or Save Starred Doc
+finishes, a notice at the bottom says where the copy went — for example **Send doc
+saved: SEND_1AC.docx in Round 3** — with a **Show in folder** button that opens the folder
+with the file selected.
 
 The filename prefixes for the preset saves — **Send Doc**, **Read Doc**,
 **Marked Doc** and **Starred Doc** (defaults `SEND_`, `READ_`, `MARKED_`,
@@ -3956,6 +3964,31 @@ hold the real keys. It detects your system on its own.
   **+** on a row to add a binding, **×** on a key to remove it, or **↺** to
   restore that command's defaults. **Restore all defaults** and the **Keyboard
   macros** are at the very bottom.
+
+### Keyboard macros
+
+A keyboard macro types something when you press its key. In **Settings →
+Keyboard → Keyboard macros**, press **+ Add macro**, type the text, and set its key
+with **+** on the row. A macro key beats any command on the same key.
+
+**(Fork)** A macro can type **formatted** text. Press **Format…** on its row and a small
+editor opens:
+
+1. Type what the macro should type, on one line or several.
+2. Style it with the buttons, or the same shortcuts you use in a document (F7
+   Tag, F8 Cite, F9 Underline, F10 Emphasis, F11 Highlight). The **Style** buttons
+   are Pocket, Hat, Block, Tag, Analytic and Undertag. The **Emphasis and marks**
+   buttons are Cite, Underline, Emphasis, Highlight, Bold, Italic and Clear.
+3. **Save macro** (or **Ctrl/⌘+Enter**). **Esc** or **Cancel** throws the changes away.
+
+Pressing the macro's key then types the text with all of that formatting. A single
+plain line is typed into the line you are on, so a macro of a few underlined and
+emphasized words works mid-sentence. With a Tag, a Cite or several lines it is
+inserted the way a paste of the same text would be, which makes a macro a whole card
+shell: a tag, a cite line and a body with its underlining. The macro's row shows a
+preview with the styling, and **Edit formatting** reopens the editor. Word-style
+Repeat repeats a formatted macro as a paste. A macro whose formatting can't be read
+types its plain text instead.
 
 ### Structure and formatting
 | Shortcut | Action |

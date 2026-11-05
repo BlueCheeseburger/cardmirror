@@ -43,6 +43,8 @@ import {
   windowPillKinds,
 } from './multipane-chooser.js';
 import { showChooserWindow } from './multipane-chooser-ui.js';
+import { compareWindowToNotify } from './compare-owner.js';
+import { mustKeepWindowName, normalizeWindowName } from './window-name.js';
 import {
   validateRenameTarget,
   isSamePathIgnoringCase,
@@ -378,6 +380,13 @@ function labelForChooser(win: BrowserWindow): string {
 
 /** How a window that just gave up a document is named in the destination's
  *  "Moved here from…" notice. */
+/** The speech doc's filename when it is in window `windowId` (`Untitled` when it
+ *  has no file yet), else null. Lists that name windows draw it on the name. */
+function speechDocNameIn(windowId: number): string | null {
+  if (!speechRegistration || speechRegistration.windowId !== windowId) return null;
+  return docInfo.get(speechRegistration.uid)?.filename ?? 'Untitled';
+}
+
 function describeSourceWindow(windowId: number, movedFilename: string): string {
   const name = windowNames.get(windowId);
   if (name) return name;
@@ -452,12 +461,7 @@ async function pickMultiPaneTarget(
   );
   // The speech doc's own name gets the speech marker, in whichever window holds
   // it (see chooserHtml); its window shows no Speech doc pill when that lands.
-  const speechFilename = speechRegistration
-    ? (docInfo.get(speechRegistration.uid)?.filename ?? 'Untitled')
-    : null;
-  const speechDocs = sorted.map((e) =>
-    speechRegistration?.windowId === e.id ? speechFilename : null,
-  );
+  const speechDocs = sorted.map((e) => speechDocNameIn(e.id));
   const pills = sorted.map((e) =>
     windowPillKinds({
       thisWindow: e.id === opts.asker,
@@ -776,10 +780,39 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
       });
   });
 
+  // A named window keeps its name as the OS title. The renderer sets
+  // `document.title` to it, but a window left open all day lost it (the
+  // rename box still held the name; the title read "CardMirror" until the
+  // name was saved again), so the name is also enforced here: a page title
+  // that differs is overridden, and the name is re-applied whenever the window
+  // comes back to the front or changes size class, which is when a stale native
+  // title would show.
+  win.webContents.on('page-title-updated', (event, title) => {
+    const name = windowNames.get(win.id);
+    if (mustKeepWindowName(name, title)) {
+      event.preventDefault();
+      if (!win.isDestroyed() && win.getTitle() !== name) win.setTitle(name!);
+    }
+  });
+  const reassertWindowName = (): void => {
+    const name = windowNames.get(win.id);
+    if (name && !win.isDestroyed() && win.getTitle() !== name) win.setTitle(name);
+  };
+  for (const ev of ['focus', 'show', 'restore', 'enter-full-screen', 'leave-full-screen'] as const) {
+    win.on(ev as 'focus', reassertWindowName);
+  }
+  win.webContents.on('did-finish-load', reassertWindowName);
+
   // Stash the initial doc (if any) BEFORE loading the renderer so
   // the renderer's `host:get-initial-doc` call at boot finds it.
   if (initialDoc) {
     pendingInitialDocs.set(win.id, initialDoc);
+    // A window created with a name has it from the start, so the renderer's
+    // boot-time `host:window-name-get` finds it in any layout. (Only the
+    // three-pane renderer used to apply `windowName` from the payload, so a
+    // single-document window reopened from the Last workspace lost its name.)
+    const initialName = normalizeWindowName(initialDoc.windowName);
+    if (initialName) windowNames.set(win.id, initialName);
   }
 
   // First window of the app session is the only one allowed to
@@ -2478,6 +2511,7 @@ ipcMain.handle(
       id: number;
       label: string;
       speech: boolean;
+      speechDoc: string | null;
       minimized: boolean;
       comparing: boolean;
     }>
@@ -2492,6 +2526,7 @@ ipcMain.handle(
       id: w.id,
       label: labelForChooser(w),
       speech: speechRegistration?.windowId === w.id,
+      speechDoc: speechDocNameIn(w.id),
       minimized: w.isMinimized(),
       comparing: takenOverWindows.has(w.id),
     }));
@@ -2892,6 +2927,7 @@ ipcMain.handle('host:list-windows', async (event) => {
       .map((uid) => docInfo.get(uid)?.filename ?? null)
       .filter((n): n is string => !!n),
     isSpeech: speechRegistration?.windowId === w.id,
+    speechDoc: speechDocNameIn(w.id),
     isOwnWindow: w.id === senderId,
     isMinimized: w.isMinimized(),
   }));
@@ -3145,18 +3181,21 @@ const diskWatch = createDiskWatch({
 // owns the path we overwrite (the caller's pre-load check should have
 // caught the conflict; best-effort for Save-As / recovery paths).
 // Resolves with how the baseline was obtained + the cloud provider, for
-// the renderer's badge.
+// the renderer's badge, and `compareWindowId` when the previous owner was a
+// window with Compare documents up (focusExistingOwner lets a file open
+// beside it), so the renderer can say the file is also open there.
 ipcMain.handle(
   'host:open-path-register',
   async (
     event,
     p: string,
     opts?: { journaledBase?: DiskState | null },
-  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null } | null> => {
+  ): Promise<{ claim: ClaimResult; provider: CloudProvider | null; compareWindowId?: number } | null> => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || typeof p !== 'string' || !p) return null;
     const norm = canonicalOpenPath(p);
     const prevOwner = openPathOwners.get(norm);
+    const compareWindowId = compareWindowToNotify(prevOwner, win.id, takenOverWindows);
     if (prevOwner !== win.id) {
       if (prevOwner !== undefined) {
         windowOpenPaths.get(prevOwner)?.delete(norm);
@@ -3172,7 +3211,7 @@ ipcMain.handle(
     const claim = await claimBaseline(norm, win.id, opts?.journaledBase ?? null);
     const provider = await cloudProviderFor(norm);
     if (provider) diskWatch.start();
-    return { claim, provider };
+    return compareWindowId === undefined ? { claim, provider } : { claim, provider, compareWindowId };
   },
 );
 
@@ -3312,9 +3351,13 @@ ipcMain.handle('host:speech-get', async () => {
 ipcMain.handle('host:window-name-set', async (event, name: string | null) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return;
-  const trimmed = typeof name === 'string' ? name.trim() : '';
-  if (trimmed) windowNames.set(win.id, trimmed);
-  else windowNames.delete(win.id);
+  const trimmed = normalizeWindowName(name);
+  if (trimmed) {
+    windowNames.set(win.id, trimmed);
+    win.setTitle(trimmed); // the OS title now; the renderer's document.title agrees
+  } else {
+    windowNames.delete(win.id);
+  }
 });
 
 ipcMain.handle('host:window-name-get', async (event) => {

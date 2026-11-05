@@ -4,7 +4,11 @@
  * which keeps a copy of this vocabulary in multipane-chooser.ts, plus a
  * "Last viewed" pill that only the chooser has; a test holds the shared
  * words in step), the pane-drag tray, Select Speech Document and the
- * Switch Window palette. "Last viewed" is not here: in these dialogs the
+ * Switch Window palette. The speech doc itself is not a pill any more: its own
+ * name is drawn in amber with the speech mic at its left (`renderDocNames`),
+ * the same way the "which window?" chooser draws it. A window whose speech doc
+ * name cannot be found among the names it shows keeps the "Speech doc" pill, so
+ * it is never left unmarked. "Last viewed" is not here: in these dialogs the
  * window you are in is the one you viewed last, so no other window can be.
  *
  *   This window          the window you asked from
@@ -14,6 +18,8 @@
  *   Comparing documents  the window is busy with Compare documents and
  *                        cannot take a document
  */
+
+import { setIcon } from './icons';
 
 export type WindowPillKind = 'thisWindow' | 'speech' | 'minimized' | 'comparing';
 
@@ -61,4 +67,45 @@ export function renderWindowPills(kinds: readonly WindowPillKind[]): HTMLSpanEle
     wrap.appendChild(pill);
   }
   return wrap;
+}
+
+/** A document name drawn as the speech doc: the speech mic, then the name, in
+ *  the speech amber. The same look as the "which window?" chooser. */
+export function renderSpeechName(name: string): HTMLSpanElement {
+  const el = document.createElement('span');
+  el.className = 'pmd-speech-name';
+  el.title = 'This is the speech doc';
+  const mic = document.createElement('span');
+  mic.className = 'pmd-speech-name-mic';
+  mic.setAttribute('aria-hidden', 'true');
+  setIcon(mic, 'mic');
+  el.append(mic, name);
+  return el;
+}
+
+/** Names joined by " · " as one run of text, with the speech doc's own name
+ *  (the first one equal to `speechDoc`) drawn by `renderSpeechName`. `marked`
+ *  says whether a name was found, so the caller can leave the window's
+ *  "Speech doc" pill off exactly when the name carries the marker. */
+export function renderDocNames(
+  names: readonly string[],
+  speechDoc: string | null | undefined,
+): { el: HTMLSpanElement; marked: boolean } {
+  const el = document.createElement('span');
+  let marked = false;
+  names.forEach((n, i) => {
+    if (i > 0) el.append(' · ');
+    if (!marked && speechDoc != null && n === speechDoc) {
+      marked = true;
+      el.append(renderSpeechName(n));
+    } else {
+      el.append(n);
+    }
+  });
+  return { el, marked };
+}
+
+/** Whether `speechDoc` is one of `names` (the test `renderDocNames` applies). */
+export function namesSpeechDoc(names: readonly string[], speechDoc: string | null | undefined): boolean {
+  return speechDoc != null && names.includes(speechDoc);
 }

@@ -411,6 +411,8 @@ import {
 } from './live-read-time.js';
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import type { MultiPaneWindowInfo } from './host/electron-host.js';
+import { showAlsoInCompareNotice } from './compare-also-open-notice.js';
+import { showPresetSavedNotice } from './preset-saved-notice.js';
 import { showMovedDocNotice } from './moved-doc-notice.js';
 import { captureReloadPosition, restoreReloadPosition } from './reload-position.js';
 import {
@@ -676,9 +678,21 @@ if (getHost().kind === 'electron') {
     ?.windowNameGet()
     .then((r) => {
       currentWindowName = r.name;
-      setWindowWorkspaceName(r.name);
-      updateWindowTitle();
-    });
+      try {
+        setWindowWorkspaceName(r.name);
+      } finally {
+        // The name is known now: the title must say so even if the workspace
+        // bookkeeping above failed, or the window reads "CardMirror" until the
+        // name is saved again.
+        updateWindowTitle();
+      }
+    })
+    .catch((err) => console.warn('windowNameGet failed:', err));
+  // A named window re-asserts its title when it comes back to the front, so a
+  // title that was reset behind the renderer's back heals without a re-save.
+  window.addEventListener('focus', () => {
+    if (currentWindowName && document.title !== currentWindowName) document.title = currentWindowName;
+  });
 }
 
 /** Set (or clear, with `null`) the custom window-name override and
@@ -2932,6 +2946,14 @@ settingsBtn.addEventListener('click', () => {
 export function runRibbon(id: AnyCommandId): void {
   if (!view) return;
   recordCommandRun(id, getRibbonCommand(id, ribbonContext))(view.state, view.dispatch.bind(view), view);
+}
+
+/** Run a ribbon command against a different editor, then focus it: the macro
+ *  editor's toolbar uses this so a style or emphasis button does exactly what
+ *  its shortcut does in a document. */
+export function runRibbonOnView(target: EditorView, id: AnyCommandId): void {
+  getRibbonCommand(id, ribbonContext)(target.state, target.dispatch.bind(target), target);
+  target.focus();
 }
 
 /** Wrap a ribbon command so Word-style Repeat (repeat-last-action.ts)
@@ -6998,6 +7020,11 @@ export async function registerDocPath(handle: string): Promise<void> {
   try {
     const res = await electron.openPathRegister(handle, { journaledBase: takeJournaledBase(handle) });
     if (res) noteDocRegistered(handle, res.claim, res.provider);
+    // The file was open under Compare documents in another window, and the
+    // window you are in now has taken the claim: say so, with a way there.
+    if (res?.compareWindowId !== undefined) {
+      showAlsoInCompareNotice(handle, res.compareWindowId, electron.focusWindow?.bind(electron), showToast);
+    }
   } catch (err) {
     console.warn('Path registration failed:', err);
   }
@@ -8547,7 +8574,7 @@ async function restoreWorkspaceWindow(win: WorkspaceWindow): Promise<number> {
   }
   if (win.docs.length === 0) return 0;
   homeScreen.hide();
-  if (!multiDocActive) return restoreDocsAsWindows(electron, win.docs);
+  if (!multiDocActive) return restoreDocsAsWindows(electron, win.docs, win.name);
 
   const shellModule = await import('./multi-pane-shell.js');
   // Slot assignments only mean something for a window saved in three-pane
@@ -8594,6 +8621,7 @@ async function restoreWorkspaceWindow(win: WorkspaceWindow): Promise<number> {
 async function restoreDocsAsWindows(
   electron: NonNullable<ReturnType<typeof getElectronHost>>,
   wanted: WorkspaceDoc[],
+  windowName: string | null = null,
 ): Promise<number> {
   let opened = 0;
   let missing = 0;
@@ -8623,6 +8651,8 @@ async function restoreDocsAsWindows(
           handle: file.handle,
           format: file.format,
         });
+        // The window keeps the name it had, unless it already has one.
+        if (windowName && !currentWindowName) await setWindowName(windowName);
       } else if (electron.canSpawnWindow) {
         await electron.spawnWindow({
           filename: file.name,
@@ -8630,6 +8660,7 @@ async function restoreDocsAsWindows(
           handle: file.handle,
           format: file.format,
           uid: null,
+          windowName,
         });
       } else {
         break; // nowhere left to put the rest
@@ -9019,9 +9050,15 @@ function syncRepresentedFile(handle: unknown): void {
  *  summary. */
 function updateWindowTitle(): void {
   const focused = activeFile();
-  pushSingleDocInfo();
-  reportSingleDocWorkspace();
-  syncRepresentedFile(focused.handle);
+  // The side effects below must never keep the title from being set: a throw in
+  // one of them used to leave the OS title stale.
+  try {
+    pushSingleDocInfo();
+    reportSingleDocWorkspace();
+    syncRepresentedFile(focused.handle);
+  } catch (err) {
+    console.warn('updateWindowTitle side effect failed:', err);
+  }
   if (currentWindowName) {
     document.title = currentWindowName;
     if (multiDocActive && multiDocGetAllFilenames) {
@@ -9610,6 +9647,7 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
     });
     flashSaveSuccess();
     markNonPristineStarter();
+    showPresetSavedNotice(spec.label, result.name, result.handle, electron?.showItemInFolder?.bind(electron));
     return true;
   } catch (err) {
     console.error(`${spec.label} save failed:`, err);
@@ -9773,6 +9811,7 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
     });
     flashSaveSuccess();
     markNonPristineStarter();
+    showPresetSavedNotice('Marked doc', result.name, result.handle, electron?.showItemInFolder?.bind(electron));
     return true;
   } catch (err) {
     console.error('Marked cards save failed:', err);
