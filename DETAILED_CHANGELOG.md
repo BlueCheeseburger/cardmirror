@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.17.2-bcb.2 — 2026-11-05
 
 ### Plugin extraction carries underlined stretches (`plugin-extract.ts`, `plugin-api.ts`, `reference-docs/cardmirror-plugin-api.md`)
 
