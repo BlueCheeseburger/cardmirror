@@ -8554,7 +8554,7 @@ async function restoreWorkspaceWindow(win: WorkspaceWindow): Promise<number> {
   }
   if (win.docs.length === 0) return 0;
   homeScreen.hide();
-  if (!multiDocActive) return restoreDocsAsWindows(electron, win.docs);
+  if (!multiDocActive) return restoreDocsAsWindows(electron, win.docs, win.name);
 
   const shellModule = await import('./multi-pane-shell.js');
   // Slot assignments only mean something for a window saved in three-pane
@@ -8601,6 +8601,7 @@ async function restoreWorkspaceWindow(win: WorkspaceWindow): Promise<number> {
 async function restoreDocsAsWindows(
   electron: NonNullable<ReturnType<typeof getElectronHost>>,
   wanted: WorkspaceDoc[],
+  windowName: string | null = null,
 ): Promise<number> {
   let opened = 0;
   let missing = 0;
@@ -8630,6 +8631,8 @@ async function restoreDocsAsWindows(
           handle: file.handle,
           format: file.format,
         });
+        // The window keeps the name it had, unless it already has one.
+        if (windowName && !currentWindowName) await setWindowName(windowName);
       } else if (electron.canSpawnWindow) {
         await electron.spawnWindow({
           filename: file.name,
@@ -8637,6 +8640,7 @@ async function restoreDocsAsWindows(
           handle: file.handle,
           format: file.format,
           uid: null,
+          windowName,
         });
       } else {
         break; // nowhere left to put the rest

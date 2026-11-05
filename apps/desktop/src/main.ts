@@ -44,6 +44,7 @@ import {
 } from './multipane-chooser.js';
 import { showChooserWindow } from './multipane-chooser-ui.js';
 import { compareWindowToNotify } from './compare-owner.js';
+import { normalizeWindowName } from './window-name.js';
 import {
   validateRenameTarget,
   isSamePathIgnoringCase,
@@ -783,6 +784,12 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
   // the renderer's `host:get-initial-doc` call at boot finds it.
   if (initialDoc) {
     pendingInitialDocs.set(win.id, initialDoc);
+    // A window created with a name has it from the start, so the renderer's
+    // boot-time `host:window-name-get` finds it in any layout. (Only the
+    // three-pane renderer used to apply `windowName` from the payload, so a
+    // single-document window reopened from the Last workspace lost its name.)
+    const initialName = normalizeWindowName(initialDoc.windowName);
+    if (initialName) windowNames.set(win.id, initialName);
   }
 
   // First window of the app session is the only one allowed to
@@ -3321,7 +3328,7 @@ ipcMain.handle('host:speech-get', async () => {
 ipcMain.handle('host:window-name-set', async (event, name: string | null) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return;
-  const trimmed = typeof name === 'string' ? name.trim() : '';
+  const trimmed = normalizeWindowName(name);
   if (trimmed) windowNames.set(win.id, trimmed);
   else windowNames.delete(win.id);
 });
