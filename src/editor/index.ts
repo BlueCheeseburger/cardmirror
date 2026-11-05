@@ -678,9 +678,21 @@ if (getHost().kind === 'electron') {
     ?.windowNameGet()
     .then((r) => {
       currentWindowName = r.name;
-      setWindowWorkspaceName(r.name);
-      updateWindowTitle();
-    });
+      try {
+        setWindowWorkspaceName(r.name);
+      } finally {
+        // The name is known now: the title must say so even if the workspace
+        // bookkeeping above failed, or the window reads "CardMirror" until the
+        // name is saved again.
+        updateWindowTitle();
+      }
+    })
+    .catch((err) => console.warn('windowNameGet failed:', err));
+  // A named window re-asserts its title when it comes back to the front, so a
+  // title that was reset behind the renderer's back heals without a re-save.
+  window.addEventListener('focus', () => {
+    if (currentWindowName && document.title !== currentWindowName) document.title = currentWindowName;
+  });
 }
 
 /** Set (or clear, with `null`) the custom window-name override and
@@ -9030,9 +9042,15 @@ function syncRepresentedFile(handle: unknown): void {
  *  summary. */
 function updateWindowTitle(): void {
   const focused = activeFile();
-  pushSingleDocInfo();
-  reportSingleDocWorkspace();
-  syncRepresentedFile(focused.handle);
+  // The side effects below must never keep the title from being set: a throw in
+  // one of them used to leave the OS title stale.
+  try {
+    pushSingleDocInfo();
+    reportSingleDocWorkspace();
+    syncRepresentedFile(focused.handle);
+  } catch (err) {
+    console.warn('updateWindowTitle side effect failed:', err);
+  }
   if (currentWindowName) {
     document.title = currentWindowName;
     if (multiDocActive && multiDocGetAllFilenames) {

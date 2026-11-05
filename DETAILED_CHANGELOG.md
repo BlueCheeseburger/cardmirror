@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Window title dropped to "CardMirror" while the window had its name
+
+Report (after the entry below was written): a window with a few documents, used all day, ended up titled just "CardMirror". Renaming showed the old name already filled in; pressing Save then changed the title. So the renderer's `currentWindowName` was intact and only the OS title was wrong; saving re-ran `updateWindowTitle()`, which re-set `document.title`. Only `updateWindowTitle()` assigns `document.title`, and its named branch comes first, so the title can only have been reset by something other than the renderer's own title code, or the renderer's later call never ran. **The cause was not found** (nothing in the in-session path does this); what changed is that a stale title can no longer persist:
+
+- **Main enforces the name** (`apps/desktop/src/main.ts`, `mustKeepWindowName`): a `page-title-updated` carrying any other title is cancelled and the native title set to the name, `host:window-name-set` sets the native title at once, and the name is re-applied on `focus`, `show`, `restore`, entering and leaving full screen, and `did-finish-load`. This also covers a window created with a name (its page starts as "CardMirror"). A window with no name follows its page as before.
+- **Renderer** (`index.ts`): `updateWindowTitle()` sets the title even if one of its side effects throws (they ran first and a throw skipped the title); the boot-time name fetch updates the title in a `finally`, so a failure in the workspace bookkeeping cannot leave the name known but the title stale; and a named window re-sets `document.title` on `focus` when it differs.
+
+NOT verified in the running app, and not reproduced: the claim is that a stale title now heals on the next focus or title event, not that the original trigger is gone. If it happens again, note whether the title came back by clicking into the window.
+
+
 ### Window name lost on a single-document Last workspace restore
 
 Report: the window name "keeps forgetting what I named it after some time". Found by reading the name's whole path: it lives in main (`windowNames`, keyed by window id, set by `host:window-name-set`), survives a renderer reload (the renderer re-asks at boot), and goes with the window on close. The Last workspace record stores each window's name, but only the three-pane restore applied it: a window reopened in the single-document layout (`restoreDocsAsWindows`) never did, and a spawn payload's `windowName` was read only by the three-pane boot path (`routeInitialDocIntoWorkspace`), never by `mountFromSpawnPayload`. Fixed at the source: `createWindow` now sets the name in `windowNames` from the payload before the renderer starts (`normalizeWindowName`, `apps/desktop/src/window-name.ts`), so every layout finds it at boot, and `restoreDocsAsWindows` passes the saved name to the window it spawns and applies it to the one it reuses.

@@ -44,7 +44,7 @@ import {
 } from './multipane-chooser.js';
 import { showChooserWindow } from './multipane-chooser-ui.js';
 import { compareWindowToNotify } from './compare-owner.js';
-import { normalizeWindowName } from './window-name.js';
+import { mustKeepWindowName, normalizeWindowName } from './window-name.js';
 import {
   validateRenameTarget,
   isSamePathIgnoringCase,
@@ -779,6 +779,29 @@ function createWindow(initialDoc?: InitialDocPayload): BrowserWindow {
         hangDialogOpen = false;
       });
   });
+
+  // A named window keeps its name as the OS title. The renderer sets
+  // `document.title` to it, but a window left open all day lost it (the
+  // rename box still held the name; the title read "CardMirror" until the
+  // name was saved again), so the name is also enforced here: a page title
+  // that differs is overridden, and the name is re-applied whenever the window
+  // comes back to the front or changes size class, which is when a stale native
+  // title would show.
+  win.webContents.on('page-title-updated', (event, title) => {
+    const name = windowNames.get(win.id);
+    if (mustKeepWindowName(name, title)) {
+      event.preventDefault();
+      if (!win.isDestroyed() && win.getTitle() !== name) win.setTitle(name!);
+    }
+  });
+  const reassertWindowName = (): void => {
+    const name = windowNames.get(win.id);
+    if (name && !win.isDestroyed() && win.getTitle() !== name) win.setTitle(name);
+  };
+  for (const ev of ['focus', 'show', 'restore', 'enter-full-screen', 'leave-full-screen'] as const) {
+    win.on(ev as 'focus', reassertWindowName);
+  }
+  win.webContents.on('did-finish-load', reassertWindowName);
 
   // Stash the initial doc (if any) BEFORE loading the renderer so
   // the renderer's `host:get-initial-doc` call at boot finds it.
@@ -3329,8 +3352,12 @@ ipcMain.handle('host:window-name-set', async (event, name: string | null) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return;
   const trimmed = normalizeWindowName(name);
-  if (trimmed) windowNames.set(win.id, trimmed);
-  else windowNames.delete(win.id);
+  if (trimmed) {
+    windowNames.set(win.id, trimmed);
+    win.setTitle(trimmed); // the OS title now; the renderer's document.title agrees
+  } else {
+    windowNames.delete(win.id);
+  }
 });
 
 ipcMain.handle('host:window-name-get', async (event) => {

@@ -21,6 +21,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Fixed
 
+- **A window you named no longer drops back to "CardMirror" in its title.** After a long session the window's title could read just "CardMirror" even though it still had its name (the rename box still showed it, and saving the name again fixed the title). The name is now enforced for the window's title: it is re-applied whenever the title changes behind its back and whenever the window comes back to the front.
 - **A window you named keeps its name when you reopen it from Last workspace.** If the window was in the single-document layout, reopening it brought the document back but dropped the name you had given the window, so the name was "forgotten". It now comes back with the window.
 
 

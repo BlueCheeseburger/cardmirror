@@ -13,3 +13,10 @@ export function normalizeWindowName(name: unknown): string | null {
   const trimmed = name.trim();
   return trimmed || null;
 }
+
+/** Whether the page's new title must be overridden with the window's name: a
+ *  named window keeps its name as the OS title whatever the page sets (a reload
+ *  starts the page as "CardMirror", for one). Unnamed windows follow the page. */
+export function mustKeepWindowName(name: string | null | undefined, pageTitle: string): boolean {
+  return !!name && pageTitle !== name;
+}
