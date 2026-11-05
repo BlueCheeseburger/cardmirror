@@ -1860,13 +1860,14 @@ moves up). A minimized window is restored. It's the quick way between windows
 where the operating system's Alt+Tab mixes CardMirror in with every other app.
 Desktop only.
 
-**(Fork) Window pills.** Every list that names windows labels them the same way: **This window**, **Speech doc** and **Minimized**.
+**(Fork) Window pills.** Every list that names windows labels them the same way: **This window** and **Minimized** (and **Last viewed** in the chooser).
 You'll see them in the "which window?" chooser that opens when a file or a new document needs a home (a window busy with Compare
 documents is shown greyed, with a **Comparing documents** pill, and can't be picked), in the tray you drop a pane's title chip on,
 in **Select Speech Document**, and here. When you open a file from Finder or the Dock, the chooser also marks the window you were
 looking at with **Last viewed**. The chooser stays in alphabetical order with the same number keys; the pills only tell the windows apart.
-In the chooser the speech doc is marked on its own name rather than on the window: the document's name is in amber with the speech mic
-at its left, so you can see which document it is. A long name wraps onto the next line.
+The speech doc is marked on its own name rather than on the window, in every one of those lists: the document's name is in amber with the speech mic
+at its left, so you can see which document it is. A long name wraps onto the next line in the chooser. A window you named shows only its name in the tray, so it keeps a
+**Speech doc** pill there.
 
 In the three-pane workspace, Ctrl+Tab keeps its existing job there: it cycles
 the focused slot's documents (hold Ctrl, tap Tab, release to switch).

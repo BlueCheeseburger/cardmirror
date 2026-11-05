@@ -378,6 +378,13 @@ function labelForChooser(win: BrowserWindow): string {
 
 /** How a window that just gave up a document is named in the destination's
  *  "Moved here from…" notice. */
+/** The speech doc's filename when it is in window `windowId` (`Untitled` when it
+ *  has no file yet), else null. Lists that name windows draw it on the name. */
+function speechDocNameIn(windowId: number): string | null {
+  if (!speechRegistration || speechRegistration.windowId !== windowId) return null;
+  return docInfo.get(speechRegistration.uid)?.filename ?? 'Untitled';
+}
+
 function describeSourceWindow(windowId: number, movedFilename: string): string {
   const name = windowNames.get(windowId);
   if (name) return name;
@@ -452,12 +459,7 @@ async function pickMultiPaneTarget(
   );
   // The speech doc's own name gets the speech marker, in whichever window holds
   // it (see chooserHtml); its window shows no Speech doc pill when that lands.
-  const speechFilename = speechRegistration
-    ? (docInfo.get(speechRegistration.uid)?.filename ?? 'Untitled')
-    : null;
-  const speechDocs = sorted.map((e) =>
-    speechRegistration?.windowId === e.id ? speechFilename : null,
-  );
+  const speechDocs = sorted.map((e) => speechDocNameIn(e.id));
   const pills = sorted.map((e) =>
     windowPillKinds({
       thisWindow: e.id === opts.asker,
@@ -2478,6 +2480,7 @@ ipcMain.handle(
       id: number;
       label: string;
       speech: boolean;
+      speechDoc: string | null;
       minimized: boolean;
       comparing: boolean;
     }>
@@ -2492,6 +2495,7 @@ ipcMain.handle(
       id: w.id,
       label: labelForChooser(w),
       speech: speechRegistration?.windowId === w.id,
+      speechDoc: speechDocNameIn(w.id),
       minimized: w.isMinimized(),
       comparing: takenOverWindows.has(w.id),
     }));
@@ -2892,6 +2896,7 @@ ipcMain.handle('host:list-windows', async (event) => {
       .map((uid) => docInfo.get(uid)?.filename ?? null)
       .filter((n): n is string => !!n),
     isSpeech: speechRegistration?.windowId === w.id,
+    speechDoc: speechDocNameIn(w.id),
     isOwnWindow: w.id === senderId,
     isMinimized: w.isMinimized(),
   }));

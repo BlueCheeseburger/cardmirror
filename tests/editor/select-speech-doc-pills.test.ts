@@ -2,7 +2,8 @@
 
 /**
  * Select Speech Document: each row names its window, and the window's pills
- * (This window, Minimized, Speech doc) sit at the right.
+ * (This window, Minimized) sit at the right. The speech doc itself is marked on
+ * its own name (amber, mic first), not by a pill.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -59,7 +60,7 @@ describe('windowCaption', () => {
 });
 
 describe('Select Speech Document pills', () => {
-  it('marks this window, a minimized one and the speech doc', async () => {
+  it('marks this window and a minimized one with pills, and the speech doc on its name', async () => {
     hostState.rows = [
       row('Own', { windowId: 1, isOwnWindow: true }),
       row('Hidden', { windowId: 3, isMinimized: true }),
@@ -69,8 +70,16 @@ describe('Select Speech Document pills', () => {
     await openSelectSpeechDocModal();
     expect(pillsIn(rowFor('Own.cmir'))).toEqual(['This window']);
     expect(pillsIn(rowFor('Hidden.cmir'))).toEqual(['Minimized']);
-    expect(pillsIn(rowFor('Speech.cmir'))).toEqual(['Speech doc']);
+    // No Speech doc pill: the name carries the marker.
+    expect(pillsIn(rowFor('Speech.cmir'))).toEqual([]);
     expect(pillsIn(rowFor('Plain.cmir'))).toEqual([]);
+    const speechRow = [...document.querySelectorAll('.pmd-select-speech-row')].find((r) =>
+      r.textContent?.includes('Speech.cmir'),
+    )!;
+    expect(speechRow.querySelector('.pmd-select-speech-row-name .pmd-speech-name')?.textContent).toBe('Speech.cmir');
+    expect(speechRow.querySelector('.pmd-speech-name-mic')).not.toBeNull();
+    // Only the speech doc has the marker.
+    expect(document.querySelectorAll('.pmd-speech-name')).toHaveLength(1);
   });
   it('leaves out a caption that only repeats the document name', async () => {
     hostState.rows = [row('Solo', { windowTitle: 'Solo.cmir — CardMirror' })];

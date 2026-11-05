@@ -13,7 +13,7 @@
  * Compare documents is greyed and has no token, so nothing can be dropped on it.
  */
 
-import { renderWindowPills, windowPillKinds } from './window-pills.js';
+import { renderDocNames, renderWindowPills, windowPillKinds } from './window-pills.js';
 
 export interface MoveTraySlot {
   id: string;
@@ -32,6 +32,9 @@ export interface MoveTrayWindow {
   id: number;
   label: string;
   speech?: boolean;
+  /** Filename of the speech doc when it is in this window. Its name is drawn in
+   *  amber with the mic when the label names it (no Speech doc pill then). */
+  speechDoc?: string | null;
   minimized?: boolean;
   /** Busy with Compare documents: drawn greyed, and not a drop target. */
   comparing?: boolean;
@@ -119,13 +122,20 @@ export function showMoveTray(
     verb: string,
     plus: boolean,
     pills?: HTMLElement | null,
+    nameEl?: HTMLElement | null,
   ): HTMLElement => {
     const tile = el('div', 'pmd-move-tile pmd-move-tile-window');
     if (target) tile.dataset['moveTarget'] = target;
     else tile.classList.add('pmd-move-tile-off');
     tile.appendChild(el('span', 'pmd-move-tile-num', plus ? '+' : '⧉'));
     const text = el('span', 'pmd-move-tile-text');
-    text.appendChild(el('span', 'pmd-move-tile-name', name));
+    const nameSpan = el('span', 'pmd-move-tile-name', nameEl ? undefined : name);
+    if (nameEl) {
+      nameSpan.appendChild(nameEl);
+      // The name line is cut with an ellipsis; the full label is one hover away.
+      nameSpan.title = name;
+    }
+    text.appendChild(nameSpan);
     // The pills take the verb's line, so a tile stays two lines tall.
     if (pills) {
       pills.classList.add('pmd-move-tile-pills');
@@ -144,11 +154,16 @@ export function showMoveTray(
     }
     windowRow.replaceChildren(tileFor(NEW_WINDOW, 'New window', 'Open there', true));
     for (const w of windows) {
-      const pills = renderWindowPills(windowPillKinds(w));
+      // The speech doc is marked on its own name when the label names it; a
+      // window whose label does not (a named window shows only its name) keeps
+      // the Speech doc pill.
+      const docs = renderDocNames(w.label.split(' · ').map((p) => p.trim()).filter(Boolean), w.speechDoc);
+      const pills = renderWindowPills(windowPillKinds({ ...w, speech: w.speech && !docs.marked }));
+      const nameEl = docs.marked ? docs.el : null;
       windowRow.appendChild(
         w.comparing
-          ? tileFor(null, w.label, 'Not available', false, pills)
-          : tileFor(windowTarget(w.id), w.label, 'Send there', false, pills),
+          ? tileFor(null, w.label, 'Not available', false, pills, nameEl)
+          : tileFor(windowTarget(w.id), w.label, 'Send there', false, pills, nameEl),
       );
     }
   };

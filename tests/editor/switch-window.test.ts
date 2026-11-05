@@ -137,6 +137,26 @@ describe('searchWindowSource', () => {
     expect(rows.find((r) => r.windowId === 3)!.meta).toBe('Speech doc');
     expect(rows.find((r) => r.windowId === 4)!.meta).toBe('Minimized');
   });
+  it('marks the speech doc on its own name, with no Speech doc pill, when the row lists it', () => {
+    const rows = searchWindowSource(
+      [
+        win(2, { title: 'A — CardMirror', docNames: ['Case.cmir', 'Politics DA.cmir'], isSpeech: true, speechDoc: 'Politics DA.cmir' }),
+      ],
+      '',
+    );
+    expect(rows[0]!.name).toBe('Case.cmir · Politics DA.cmir');
+    expect(rows[0]!.nameDocs).toEqual({ names: ['Case.cmir', 'Politics DA.cmir'], speechDoc: 'Politics DA.cmir' });
+    expect(rows[0]!.pills).toEqual([]);
+    expect(rows[0]!.meta).toBe('');
+  });
+  it('keeps the Speech doc pill when the speech doc is not among the names shown', () => {
+    const rows = searchWindowSource(
+      [win(2, { docNames: ['Case.cmir'], isSpeech: true, speechDoc: 'Untitled' })],
+      '',
+    );
+    expect(rows[0]!.pills).toEqual(['speech']);
+    expect(rows[0]!.nameDocs).toBeUndefined();
+  });
   it('gives each row pills: Speech doc, Minimized (never Last viewed: you are in the last viewed one)', () => {
     const rows = searchWindowSource(hostState.windows, '');
     expect(rows.find((r) => r.windowId === 2)!.pills).toEqual([]);

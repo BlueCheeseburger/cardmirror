@@ -488,6 +488,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       id: number;
       label: string;
       speech: boolean;
+      speechDoc: string | null;
       minimized: boolean;
       comparing: boolean;
     }>
@@ -903,6 +904,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         title: string;
         docNames: string[];
         isSpeech: boolean;
+        speechDoc: string | null;
         isOwnWindow: boolean;
         isMinimized: boolean;
       }>

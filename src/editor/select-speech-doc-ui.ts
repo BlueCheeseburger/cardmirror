@@ -19,7 +19,7 @@ import { showToast } from './toast.js';
 import { setIcon } from './icons';
 import { pushOverlay, popOverlay } from './overlay-stack.js';
 import { isBackdropClick } from './backdrop-click.js';
-import { renderWindowPills, windowPillKinds } from './window-pills.js';
+import { renderSpeechName, renderWindowPills, windowPillKinds } from './window-pills.js';
 
 let openOverlay: HTMLDivElement | null = null;
 let overlayToken: symbol | null = null;
@@ -80,17 +80,15 @@ function renderRow(host: NonNullable<ReturnType<typeof getElectronHost>>, row: D
   btn.className = 'pmd-select-speech-row';
   if (row.isSpeech) btn.classList.add('pmd-select-speech-row-current');
 
-  const indicator = document.createElement('span');
-  indicator.className = 'pmd-select-speech-row-indicator';
-  indicator.setAttribute('aria-hidden', 'true');
-  if (row.isSpeech) setIcon(indicator, 'mic');
-  btn.appendChild(indicator);
 
   const text = document.createElement('span');
   text.className = 'pmd-select-speech-row-text';
   const name = document.createElement('span');
   name.className = 'pmd-select-speech-row-name';
-  name.textContent = row.filename ?? 'Untitled';
+  // The speech doc's own name: amber, with the mic at its left (the same look
+  // the "which window?" chooser gives it); no pill, no mic column on the others.
+  if (row.isSpeech) name.appendChild(renderSpeechName(row.filename ?? 'Untitled'));
+  else name.textContent = row.filename ?? 'Untitled';
   text.appendChild(name);
 
   // The window's name under the document: left out when it only repeats the
@@ -109,7 +107,6 @@ function renderRow(host: NonNullable<ReturnType<typeof getElectronHost>>, row: D
     windowPillKinds({
       thisWindow: row.isOwnWindow,
       minimized: row.isMinimized === true,
-      speech: row.isSpeech,
     }),
   );
   if (pills) {

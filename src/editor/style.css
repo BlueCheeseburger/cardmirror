@@ -782,6 +782,7 @@ button {
   --pmd-c-speech-bg: #fff3cd;
   --pmd-c-speech-border: #ffe69c;
   --pmd-c-speech-text: #5a3e00;
+  --pmd-c-speech-amber: #9a6700;      /* the speech doc's name in a list */
 
   /* Editor-specific decorations */
   --pmd-c-card-hover: #c0c0c0;         /* card left-border on hover */
@@ -1000,6 +1001,7 @@ button {
   --pmd-c-speech-bg: #3a3220;
   --pmd-c-speech-border: #6a5a30;
   --pmd-c-speech-text: #ffdd88;
+  --pmd-c-speech-amber: #f0b429;
 
   /* Editor decorations */
   --pmd-c-card-hover: #555;
@@ -12457,14 +12459,6 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
 .pmd-list-pick-row-muted .pmd-list-pick-row-name {
   color: var(--pmd-c-text-muted);
 }
-.pmd-select-speech-row-indicator {
-  flex: 0 0 1.25rem;
-  text-align: center;
-  font-size: 1rem;
-  line-height: 1;
-  /* The microphone outline paints in the row's text color. */
-  color: var(--pmd-c-text);
-}
 .pmd-select-speech-row-text,
 .pmd-list-pick-row-text {
   flex: 1 1 auto;
@@ -12493,18 +12487,10 @@ body.pmd-multi-nav-empty.pmd-multi-doc #status-bar {
   max-width: 45%;
   justify-content: flex-end;
 }
-.pmd-select-speech-row-current {
-  background: var(--pmd-c-speech-bg);
-  border-color: var(--pmd-c-speech-border);
-  color: var(--pmd-c-speech-text);
-}
+/* The speech doc's row has no box: its name is amber with the mic (.pmd-speech-name),
+   the same as in every other list that names it. */
 .pmd-select-speech-row-current:hover {
-  background: var(--pmd-c-speech-bg);
-  filter: brightness(0.97);
-}
-.pmd-select-speech-row-current .pmd-select-speech-row-sub {
-  color: var(--pmd-c-speech-text);
-  opacity: 0.8;
+  background: var(--pmd-c-hover);
 }
 .pmd-select-speech-footer {
   padding: 0.5rem 1rem 0.85rem;
@@ -12891,6 +12877,17 @@ body.pmd-pane-dragging * {
   opacity: 0;
   transform: translate(-50%, 14px);
   transition: opacity 140ms ease, transform 160ms ease;
+}
+/* The speech doc's own name in a list: the mic, then the name, in amber. */
+.pmd-speech-name {
+  color: var(--pmd-c-speech-amber);
+}
+.pmd-speech-name-mic {
+  display: inline-block;
+  vertical-align: -0.1em;
+  margin-right: 0.25em;
+  line-height: 1;
+  font-size: 0.95em;
 }
 /* Window pills: This window / Speech doc / Minimized /
    Comparing documents, on every row that names a window. */

@@ -69,7 +69,7 @@ import { CATEGORY_TABS, visibleCategoryTabs, type SettingsTarget } from './setti
 import { appVersion } from './install-info.js';
 import { getHost, getElectronHost, isWindowsHost } from './host/index.js';
 import type { WindowListEntry } from './host/electron-host.js';
-import { renderWindowPills, windowPillKinds, type WindowPillKind } from './window-pills.js';
+import { namesSpeechDoc, renderDocNames, renderWindowPills, windowPillKinds, type WindowPillKind } from './window-pills.js';
 import { showToast } from './toast.js';
 import { confirmDialog } from './text-prompt.js';
 import { showConfirm } from './confirm-dialog.js';
@@ -545,6 +545,9 @@ interface PaletteResult {
   windowId?: number;
   /** Pills drawn in place of `meta` (window source: Speech doc, Minimized). */
   pills?: WindowPillKind[];
+  /** A window row's document names and its speech doc: the name is drawn from
+   *  these, with the speech doc in amber and the mic at its left. */
+  nameDocs?: { names: string[]; speechDoc: string | null };
   /** Outline depth (1-4) for indentation in the nav-pane-style browse. */
   indentLevel?: number;
   /** Index into `inFile.outline` (outline browse rows only) — the key
@@ -824,20 +827,27 @@ export function searchWindowSource(windows: WindowListEntry[], query: string): P
       const hay = `${windowLabel(w)} ${w.title}`.toLowerCase();
       return tokens.every((t) => hay.includes(t));
     })
-    .map((w) => ({
-      source: 'window' as const,
-      name: windowLabel(w),
-      meta: [w.isSpeech ? 'Speech doc' : '', w.isMinimized ? 'Minimized' : '']
-        .filter(Boolean)
-        .join(' · '),
-      matchedName: true,
-      snippet: null,
-      windowId: w.windowId,
-      pills: windowPillKinds({
-        speech: w.isSpeech,
-        minimized: w.isMinimized,
-      }),
-    }));
+    .map((w) => {
+      // The speech doc is marked on its own name (amber, mic first) when the row
+      // lists it; the Speech doc pill stays only for a window that does not.
+      const marked = namesSpeechDoc(w.docNames, w.speechDoc);
+      const pillSpeech = w.isSpeech && !marked;
+      return {
+        source: 'window' as const,
+        name: windowLabel(w),
+        meta: [pillSpeech ? 'Speech doc' : '', w.isMinimized ? 'Minimized' : '']
+          .filter(Boolean)
+          .join(' · '),
+        matchedName: true,
+        snippet: null,
+        windowId: w.windowId,
+        pills: windowPillKinds({
+          speech: pillSpeech,
+          minimized: w.isMinimized,
+        }),
+        ...(marked ? { nameDocs: { names: w.docNames, speechDoc: w.speechDoc ?? null } } : {}),
+      };
+    });
 }
 
 /** Settings source — top-level tabs AND individual settings, matched on
@@ -3035,7 +3045,8 @@ class QuickCardSearchUI {
       top.appendChild(badge);
       const name = document.createElement('span');
       name.className = 'pmd-qcs-row-name';
-      name.textContent = r.name;
+      if (r.nameDocs) name.appendChild(renderDocNames(r.nameDocs.names, r.nameDocs.speechDoc).el);
+      else name.textContent = r.name;
       top.appendChild(name);
       let meta: HTMLSpanElement | null = null;
       const pills = r.pills ? renderWindowPills(r.pills) : null;

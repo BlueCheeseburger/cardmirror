@@ -315,11 +315,12 @@ you'll see "Close this dialog first."
   no setting for it.
 - **Window pills.** Lists that name windows (the "which window?" chooser, the tray
   you drop a pane's title chip on, **Select Speech Document**, **Switch Window**)
-  label them with **This window**, **Speech doc**, **Minimized** and, when you open a
+  label them with **This window**, **Minimized** and, when you open a
   file from Finder or the Dock, **Last viewed**. A window busy with Compare documents
-  is greyed with a **Comparing documents** pill and can't be picked. In the chooser
-  the speech doc is marked on its own name, not on the window: that document's name
-  is in amber with the speech mic at its left, and a long name wraps onto the next line.
+  is greyed with a **Comparing documents** pill and can't be picked. The speech doc
+  is marked on its own name, not on the window, in all of those lists: that document's
+  name is in amber with the speech mic at its left (a long name wraps onto the next line
+  in the chooser; a window you named keeps a **Speech doc** pill in the tray).
 - **Go back after a move.** A document dragged to another window shows **Moved "name"
   here from …** there, with a **Go back** button.
 - **The speech doc in a pane's stack list** has the speech mic beside it.

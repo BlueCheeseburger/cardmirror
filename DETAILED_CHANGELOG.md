@@ -10,6 +10,19 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Speech doc marked on its own name in the tray, Select Speech Document, the palette and Switch Window
+
+Request: match these lists to the which-window chooser (amber text, mic first, no window pill). Shared helper in `window-pills.ts`: `renderSpeechName`, `renderDocNames(names, speechDoc)` (names joined by " · ", the first equal to the speech doc drawn by `renderSpeechName`, plus `marked`), `namesSpeechDoc`; new `--pmd-c-speech-amber` token (#9a6700 light, #f0b429 dark, the chooser's colors). Main now sends `speechDoc` (the speech doc's filename in that window, `Untitled` when it has none) on `host:list-multipane-windows` and `host:list-windows` (`speechDocNameIn`, also used by the chooser).
+
+- **Drag tray:** the tile's name line is built by `renderDocNames` from the label; a hover title carries the full label because the line truncates with an ellipsis (the speech name can be the part cut off on a long label).
+- **Switch Window (`w ` palette):** `searchWindowSource` marks the name when `docNames` has the speech doc; the row carries `nameDocs` for the renderer.
+- **Select Speech Document:** the row's name is the speech marker; the "Speech doc" pill, the separate mic column and the gold row box are gone.
+- In all three the "Speech doc" pill stays when the name cannot be found among the names shown (a window you named shows only its name, so the tray keeps the pill there; `Untitled` vs a window title can also differ), so the speech doc is never unmarked.
+
+Not verified in the running app (the tray was rendered in Chromium in both themes; the Switch Window palette and Select Speech Document were covered by unit tests only, not looked at).
+
 ## 1.17.2-bcb.1 — 2026-11-04
 
 ### Which-window chooser: speech doc marked on its own name
