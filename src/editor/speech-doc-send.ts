@@ -15,7 +15,7 @@
 import type { EditorView } from 'prosemirror-view';
 import { TextSelection, NodeSelection, type EditorState, type Transaction } from 'prosemirror-state';
 import { Fragment, Slice, type Node as PMNode, type ResolvedPos } from 'prosemirror-model';
-import { closeHistory } from 'prosemirror-history';
+import { closeHistory, undoDepth, undo as historyUndo } from 'prosemirror-history';
 import { schema, newHeadingId } from '../schema/index.js';
 import { rewriteHeadingIds } from './drag-controller.js';
 import { insertAtCursorPos } from './insert-position.js';
@@ -27,6 +27,7 @@ import { getSpeechDocResolver } from './speech-doc-registry.js';
 import { getElectronHost } from './host/index.js';
 import { alertDialog } from './text-prompt.js';
 import { showToast } from './toast.js';
+import { showSentNotice, type SentUndoResult } from './sent-notice.js';
 import { sectionEndFromHeading } from './headings.js';
 import { checkedSliceFromJSON } from '../schema/slice-check.js';
 
@@ -48,17 +49,56 @@ interface SpeechAckMsg {
   kind: 'ack';
   nonce: string;
 }
-type SpeechChannelMsg = SpeechSliceMsg | SpeechAckMsg;
+/** Take back an earlier slice. `nonce` is the slice message's own nonce. */
+interface SpeechUndoMsg {
+  kind: 'undo';
+  nonce: string;
+}
+interface SpeechUndoAckMsg {
+  kind: 'undo-ack';
+  nonce: string;
+  result: SentUndoResult;
+}
+type SpeechChannelMsg = SpeechSliceMsg | SpeechAckMsg | SpeechUndoMsg | SpeechUndoAckMsg;
+
+/** A fresh id for one send, shared by the sender and whichever renderer inserts
+ *  the slice, so an Undo can find the insert it belongs to. */
+function newSendId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 const speechChannel: BroadcastChannel | null =
   typeof BroadcastChannel !== 'undefined'
     ? new BroadcastChannel('pmd-speech-slice')
     : null;
 
+/** Takes one insert back out of the speech doc. */
+export interface SpeechInsertUndo {
+  /** Undo the insert, if nothing else has been done in that doc since: the
+   *  insert must still be the newest step in its undo history, so Undo can
+   *  never remove something the user typed afterwards. */
+  undo(): SentUndoResult;
+}
+
+/** `at.depth` is how deep the doc's undo history was once the insert (and any
+ *  follow-up edits that merged into its step) was done. */
+function makeInsertUndo(view: EditorView, at: { depth: number }): SpeechInsertUndo {
+  return {
+    undo(): SentUndoResult {
+      // The speech doc can be closed after the send.
+      if ((view as unknown as { docView: unknown }).docView == null) return 'gone';
+      if (undoDepth(view.state) !== at.depth) return 'refused';
+      return historyUndo(view.state, view.dispatch.bind(view)) ? 'undone' : 'refused';
+    },
+  };
+}
+
 /** Optional hook fired after a successful local insert. Multi-pane
  *  uses it to focus the destination slot and cancel its debounced
- *  heavy-update timer; single-doc has nothing to do here. */
-export type AfterInsertHook = (speechView: EditorView) => void;
+ *  heavy-update timer; single-doc has nothing to do here. `undo` takes the
+ *  insert back out; null when that doc keeps no undo history of its own (a live
+ *  co-editing session owns its undo). */
+export type AfterInsertHook = (speechView: EditorView, undo: SpeechInsertUndo | null) => void;
 
 /** Document range `[from, to)` that "send"-style commands act on. */
 export interface SendRange {
@@ -340,11 +380,20 @@ export function takeSendPieces(view: EditorView): Slice[] | null {
  *  keymap chain breaks Ctrl-Z (best guess: PM's history treats the
  *  cross-view dispatch as an appended/non-event because of the
  *  surrounding keydown context). */
+export interface InsertSpeechOptions {
+  /** Give `afterInsert` an undo handle for this insert, and keep typing that
+   *  follows out of the insert's undo step. For sends, whose notice offers Undo.
+   *  Other callers (the palette's card picks, the Logos import) insert as before:
+   *  their follow-up edits belong to the same undo step as the insert. */
+  undoable?: boolean;
+}
+
 export function insertSpeechSlice(
   speechView: EditorView,
   slice: Slice,
   atEnd: boolean,
   afterInsert?: AfterInsertHook,
+  opts: InsertSpeechOptions = {},
 ): void {
   // No mid-text prompt: a block-level slice dropped at a raw caret inside a
   // card would split it (spawning a phantom blank-tag card). A non-blank caret
@@ -442,6 +491,12 @@ export function insertSpeechSlice(
 
       speechView.dispatch(tr.scrollIntoView());
       speechView.focus();
+      // For a send: the insert is now the newest step of the speech doc's undo
+      // history, and the notice's Undo only works while that stays true. A doc
+      // with no history plugin (a live co-editing session owns its undo)
+      // reports depth 0 and gets no Undo.
+      const at = { depth: opts.undoable ? undoDepth(speechView.state) : 0 };
+      const undoHandle = at.depth > 0 ? makeInsertUndo(speechView, at) : null;
       // Fire destination-side hook (e.g., nav-panel collapse refresh)
       // BEFORE the sender's afterInsert so the dest's nav is in its
       // final state when the sender (in same-window cases) does any
@@ -449,7 +504,13 @@ export function insertSpeechSlice(
       const resolver = getSpeechDocResolver();
       const destUid = resolver.uidForView(speechView);
       if (destUid) resolver.notifySliceLanded(destUid);
-      afterInsert?.(speechView);
+      afterInsert?.(speechView, undoHandle);
+      if (opts.undoable) {
+        // Close the history group behind the insert so typing that starts right
+        // away can't merge into it (and be taken out with it by Undo).
+        at.depth = undoDepth(speechView.state);
+        speechView.dispatch(closeHistory(speechView.state.tr));
+      }
     } catch (err) {
       // The insert runs in a 0 ms defer — no caller try/catch can reach a
       // throw here, and on a cross-window send the sender was already told
@@ -483,15 +544,11 @@ export function describeSentSlice(slice: Slice, max = 48): string | null {
 
 /** Tell the sender the card landed. The send itself shows nothing, and the
  *  speech doc is often off screen (another pane or another window), so without
- *  this there is no sign it worked. Always on: it is not a setting. */
-function toastSent(slice: Slice, atEnd: boolean): void {
-  const what = describeSentSlice(slice);
-  showToast('Sent to speech doc', {
-    icon: 'mic',
-    ...(what ? { detail: `“${what}”` } : {}),
-    pill: atEnd ? 'at end' : 'at cursor',
-    durationMs: 2200,
-  });
+ *  this there is no sign it worked. It sits at the bottom of the window with an
+ *  Undo button where the send can be taken back (`undo`; null = it can't).
+ *  Always on: it is not a setting. */
+function notifySent(slice: Slice, atEnd: boolean, undo: (() => Promise<SentUndoResult>) | null): void {
+  showSentNotice(describeSentSlice(slice), atEnd, undo);
 }
 
 /** Main entry point. Reads the speech-doc resolver, computes the
@@ -540,24 +597,40 @@ export function sendToSpeech(
       showToast('This is already the speech doc — nothing to send.');
       return;
     }
-    insertSpeechSlice(localView, slice, atEnd, (v) => {
-      toastSent(slice, atEnd);
-      afterInsert?.(v);
-    });
+    insertSpeechSlice(
+      localView,
+      slice,
+      atEnd,
+      (v, handle) => {
+        notifySent(slice, atEnd, handle ? async () => handle.undo() : null);
+        afterInsert?.(v, handle);
+      },
+      { undoable: true },
+    );
     return;
   }
 
   // Speech doc lives in another window / tab.
   const electron = getElectronHost();
+  const sendId = newSendId();
   if (!electron) {
     // Web multi-tab: broadcast the slice to whichever tab owns the speech doc.
-    sendSpeechSliceCrossTab(speechUid, slice.toJSON(), atEnd, sourceView, () => toastSent(slice, atEnd));
+    sendSpeechSliceCrossTab(speechUid, slice.toJSON(), atEnd, sendId, () =>
+      notifySent(slice, atEnd, () => undoCrossTab(sendId)),
+    );
     return;
   }
   const sliceJson = slice.toJSON();
-  void electron.speechSendSlice({ sliceJson, atEnd }).then((result) => {
+  void electron.speechSendSlice({ sliceJson, atEnd, sendId }).then((result) => {
     if (result.delivered) {
-      toastSent(slice, atEnd);
+      // Undo is asked of the window that took the slice, even if the speech doc
+      // has been re-designated since.
+      notifySent(slice, atEnd, async () =>
+        (await electron.speechUndoSlice({
+          sendId,
+          ...(result.windowId !== undefined ? { windowId: result.windowId } : {}),
+        })).result,
+      );
       return;
     }
     if (result.reason === 'speech-window-gone') {
@@ -585,14 +658,13 @@ function sendSpeechSliceCrossTab(
   uid: string,
   sliceJson: unknown,
   atEnd: boolean,
-  sourceView: EditorView,
+  nonce: string,
   onDelivered?: () => void,
 ): void {
   if (!speechChannel) {
     void alertDialog("This browser can't reach the speech document in another tab.");
     return;
   }
-  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   let timer: ReturnType<typeof setTimeout>;
   const onAck = (e: MessageEvent<SpeechChannelMsg>): void => {
     if (e.data?.kind === 'ack' && e.data.nonce === nonce) {
@@ -616,11 +688,58 @@ function sendSpeechSliceCrossTab(
   }, 600);
 }
 
+/** Web: ask the tab that took the slice `sendId` to take it back out. Only that
+ *  tab answers; silence means the speech doc's tab has gone. */
+function undoCrossTab(sendId: string): Promise<SentUndoResult> {
+  const channel = speechChannel;
+  if (!channel) return Promise.resolve('gone');
+  return new Promise((resolve) => {
+    const onAck = (e: MessageEvent<SpeechChannelMsg>): void => {
+      if (e.data?.kind === 'undo-ack' && e.data.nonce === sendId) {
+        channel.removeEventListener('message', onAck);
+        clearTimeout(timer);
+        resolve(e.data.result);
+      }
+    };
+    const timer = setTimeout(() => {
+      channel.removeEventListener('message', onAck);
+      resolve('gone');
+    }, 600);
+    channel.addEventListener('message', onAck);
+    channel.postMessage({ kind: 'undo', nonce: sendId } as SpeechUndoMsg);
+  });
+}
+
+// ── Taking an incoming send back ──────────────────────────────────────────
+// The receiving renderer remembers the last few slices it inserted, by send id,
+// so an Undo from the sender (another window or tab) finds the right insert.
+// A slice it inserted into a doc that keeps no undo history is remembered as
+// null, so the answer is "can't", not silence.
+const RECEIVED_INSERTS_KEPT = 8;
+const receivedInserts = new Map<string, SpeechInsertUndo | null>();
+
+function rememberReceived(sendId: string, handle: SpeechInsertUndo | null): void {
+  receivedInserts.set(sendId, handle);
+  while (receivedInserts.size > RECEIVED_INSERTS_KEPT) {
+    const oldest = receivedInserts.keys().next().value;
+    if (oldest === undefined) break;
+    receivedInserts.delete(oldest);
+  }
+}
+
+/** Undo the incoming send `sendId`, or null when this renderer never inserted it. */
+function undoReceived(sendId: string): SentUndoResult | null {
+  if (!receivedInserts.has(sendId)) return null;
+  const handle = receivedInserts.get(sendId) ?? null;
+  receivedInserts.delete(sendId);
+  return handle ? handle.undo() : 'refused';
+}
+
 /** Deserialize + insert an incoming slice into the local view for `uid`, via the
  *  same `insertSpeechSlice` path as an in-window send. Returns true iff a local
  *  view for `uid` existed (so the web transport acks only when THIS tab owns the
  *  target doc). */
-function applyIncomingSlice(uid: string, sliceJson: unknown, atEnd: boolean): boolean {
+function applyIncomingSlice(uid: string, sliceJson: unknown, atEnd: boolean, sendId?: string): boolean {
   const view = getSpeechDocResolver().viewForUid(uid);
   if (!view) return false;
   let slice: Slice;
@@ -630,7 +749,15 @@ function applyIncomingSlice(uid: string, sliceJson: unknown, atEnd: boolean): bo
     console.error('Failed to deserialize incoming speech slice:', err);
     return false;
   }
-  insertSpeechSlice(view, slice, atEnd);
+  insertSpeechSlice(
+    view,
+    slice,
+    atEnd,
+    (_v, handle) => {
+      if (sendId) rememberReceived(sendId, handle);
+    },
+    { undoable: true },
+  );
   return true;
 }
 
@@ -643,10 +770,15 @@ function applyIncomingSlice(uid: string, sliceJson: unknown, atEnd: boolean): bo
 export function installIncomingSpeechSliceHandler(): void {
   const electron = getElectronHost();
   if (electron) {
-    electron.onIncomingSpeechSlice(({ uid, sliceJson, atEnd }) => {
-      if (!applyIncomingSlice(uid, sliceJson, atEnd)) {
+    electron.onIncomingSpeechSlice(({ uid, sliceJson, atEnd, sendId }) => {
+      if (!applyIncomingSlice(uid, sliceJson, atEnd, sendId)) {
         console.warn('Incoming speech slice for unregistered uid', uid);
       }
+    });
+    // The sender's Undo, routed here by main. Always answered, so the sender
+    // never waits on a send this window has no record of.
+    electron.onIncomingSpeechUndo(({ requestId, sendId }) => {
+      electron.speechUndoResult({ requestId, result: undoReceived(sendId) ?? 'refused' });
     });
     return;
   }
@@ -654,9 +786,17 @@ export function installIncomingSpeechSliceHandler(): void {
   // the target doc; otherwise ignore (a different tab will handle it).
   speechChannel?.addEventListener('message', (e: MessageEvent<SpeechChannelMsg>) => {
     const msg = e.data;
-    if (!msg || msg.kind !== 'slice') return;
-    if (applyIncomingSlice(msg.uid, msg.sliceJson, msg.atEnd)) {
-      speechChannel?.postMessage({ kind: 'ack', nonce: msg.nonce } as SpeechAckMsg);
+    if (!msg) return;
+    if (msg.kind === 'slice') {
+      if (applyIncomingSlice(msg.uid, msg.sliceJson, msg.atEnd, msg.nonce)) {
+        speechChannel?.postMessage({ kind: 'ack', nonce: msg.nonce } as SpeechAckMsg);
+      }
+    } else if (msg.kind === 'undo') {
+      // Only the tab that inserted this send answers.
+      const result = undoReceived(msg.nonce);
+      if (result !== null) {
+        speechChannel?.postMessage({ kind: 'undo-ack', nonce: msg.nonce, result } as SpeechUndoAckMsg);
+      }
     }
   });
 }

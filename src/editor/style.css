@@ -7696,6 +7696,22 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
+/* The bottom toast carrying an icon / detail / pill (the "Sent to speech doc"
+   notice): the pointer toast's row, then the button. Wider than the pointer
+   toast so the quoted tag has room. */
+.pmd-toast.pmd-toast-action.pmd-toast-rich {
+  gap: 0.45rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.55rem;
+  max-width: min(34rem, calc(100vw - 1.5rem));
+}
+.pmd-toast.pmd-toast-action.pmd-toast-rich .pmd-toast-action-btn {
+  margin-left: 0.35rem;
+}
+/* A bottom toast with no button ignores the pointer, like the toast at the cursor. */
+.pmd-toast.pmd-toast-action.pmd-toast-passive {
+  pointer-events: none;
+  padding: 0.35rem 0.55rem;
+}
 
 /* Ribbon tooltip — custom-rendered (see ribbon-tooltips.ts). We don't use the
    native `title` attribute; Electron/Chromium on macOS renders it erratically.

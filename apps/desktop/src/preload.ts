@@ -923,23 +923,42 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** Send a serialized PM slice to whatever window owns the speech
    *  doc. Returns whether the slice was delivered (`delivered:
    *  true`) or why not (`delivered: false, reason: ...`). */
-  speechSendSlice: (payload: { sliceJson: unknown; atEnd: boolean }) =>
+  speechSendSlice: (payload: { sliceJson: unknown; atEnd: boolean; sendId?: string }) =>
     ipcRenderer.invoke('host:speech-send-slice', payload),
 
   /** Subscribe to incoming speech-doc slices. The handler receives
-   *  `{ uid, sliceJson, atEnd }` and is responsible for applying
+   *  `{ uid, sliceJson, atEnd, sendId }` and is responsible for applying
    *  the slice to its local view that matches uid. */
   onIncomingSpeechSlice(
-    handler: (payload: { uid: string; sliceJson: unknown; atEnd: boolean }) => void,
+    handler: (payload: { uid: string; sliceJson: unknown; atEnd: boolean; sendId?: string }) => void,
   ): () => void {
     const listener = (
       _evt: unknown,
-      payload: { uid: string; sliceJson: unknown; atEnd: boolean },
+      payload: { uid: string; sliceJson: unknown; atEnd: boolean; sendId?: string },
     ): void => handler(payload);
     ipcRenderer.on('speech:incoming-slice', listener);
     return () =>
       ipcRenderer.removeListener('speech:incoming-slice', listener);
   },
+
+  /** Ask the window that took send `sendId` to take it back out. Resolves
+   *  with how that went (`undone`, `refused`, or `gone` when nobody answered). */
+  speechUndoSlice: (payload: { sendId: string; windowId?: number }) =>
+    ipcRenderer.invoke('host:speech-undo-slice', payload),
+
+  /** Subscribe to another window's request to undo a send made into this one. */
+  onIncomingSpeechUndo(
+    handler: (payload: { requestId: string; sendId: string }) => void,
+  ): () => void {
+    const listener = (_evt: unknown, payload: { requestId: string; sendId: string }): void =>
+      handler(payload);
+    ipcRenderer.on('speech:undo-slice', listener);
+    return () => ipcRenderer.removeListener('speech:undo-slice', listener);
+  },
+
+  /** Answer such a request. */
+  speechUndoResult: (payload: { requestId: string; result: 'undone' | 'refused' | 'gone' }) =>
+    ipcRenderer.send('host:speech-undo-slice-result', payload),
 
   /** Push the renderer's current keybinding map to main so the
    *  application menu's accelerator labels track user rebinds.
