@@ -1383,7 +1383,7 @@ workspace while another shows a single document.
   stacking**; the labels then say **Swap places** / **Swap**. A **move tray** at the bottom of the window has a tile for each
   slot, and on the desktop app also **New window** and a tile for every other
   open three-pane window: drop the chip on a tile to send the document there,
-  unsaved edits included. **Esc** cancels the drag. **(Fork)** Windows are listed most recently used first, and a tile carries a **Minimized** pill, and the speech doc's own name is amber with the speech mic; a window busy with Compare documents is greyed with a
+  unsaved edits included. **Esc** cancels the drag. The drag works while a pane is expanded too: the other panes are out of sight, so drop on a tray tile, and the expanded view follows the document to the slot you drop it on. **(Fork)** Windows are listed most recently used first, and a tile carries a **Minimized** pill, and the speech doc's own name is amber with the speech mic; a window busy with Compare documents is greyed with a
   **Comparing documents** pill and can't be dropped on. When the document arrives, the other window shows **Moved … here from …** with a **Go back** button.
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech

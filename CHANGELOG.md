@@ -12,6 +12,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Fixed
 
+- **You can drag a document's title bar while a pane is expanded.** Dragging did nothing when a pane filled the workspace, so you couldn't send that document to another slot, a new window or another window. The move tray now appears there too; drop on a slot tile and the expanded view follows the document to its new slot. Also, while dragging, pointing at the document's own pane no longer says it will add the document to its own stack.
 - **Closing your windows one by one before an update no longer leaves only one in Last workspace.** A window you closed by hand used to be dropped from the list right away, so closing several windows and then quitting kept just the last survivor. Windows closed in the few minutes before the app ended are now offered too, each with the name you gave it. A window you closed long before quitting, while others stayed open, is still left out.
 
 ## 1.17.2-bcb.2 — 2026-11-05

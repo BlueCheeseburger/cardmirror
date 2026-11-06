@@ -12,6 +12,20 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### The title chip can be dragged while a pane is expanded
+
+**Report.** "i cant move a doc by dragging the ribbon if a document is fullscreened." (The ribbon here is the pane's title chip; fullscreened is expand mode.)
+
+**Cause.** The chip's `canDrag` refused whenever a pane was expanded, on the reasoning that expand mode shows one pane so there is nowhere to drop. The move tray (a tile per slot, New window, every other window) does not depend on the panes, so there was somewhere.
+
+**Change.** The drag now starts in expand mode. The in-pane drop zones are skipped there (an empty slot revealed as a zone would squeeze the pane the user chose to see big, and the occupied panes cannot be revealed without breaking expand mode); the tray carries the drag. After a drop on a slot the expansion moves to that slot, so the document the user dragged stays on screen; it also survives the source slot emptying, which used to end expand mode. A drop on a window tile goes through the same path as before.
+
+**Also fixed on the way.** The slot a document is leaving was never excluded from the hover label: pointing at the document's own pane or its own **Here** tile armed the label with "Add to stack with" the document's own name, and in expand mode that pane is the whole screen. The source is now not a target (the label keeps naming the document, letting go does nothing).
+
+**Rejected.** Leaving the expansion where it was after a slot drop. The document would vanish behind the expanded pane, which is what the keyboard send-to-slot commands already do; a pointer drop onto a named tile reads as "show me it there".
+
+**Not verified.** Driven in Chromium against the web build with real mouse events: a lone document, a stack of two, a drop on an empty slot and on an occupied one, and the normal (not expanded) drag unchanged. Not run in the Electron app, so the New window and other-window tiles were not exercised in this layout (same drop path as before). Swap-on-drop in expand mode was not exercised.
+
 ### Last workspace keeps windows closed by hand just before the session ends
 
 **Report.** Closing a few windows to install an update left one row in Last workspace, with no name.

@@ -903,9 +903,10 @@ class Slot {
     // strip the user already reads as "this document".
     this.chipEl = chip;
     installPaneChipDrag(chip, {
-      // Expand mode shows exactly one pane, so there is nowhere
-      // visible to drop; the keyboard commands still work there.
-      canDrag: () => this.visible !== null && !this.shell.isExpanded(),
+      // Allowed in expand mode too: the other panes are out of sight there,
+      // but the move tray still offers every slot, a new window and the other
+      // windows, which is where a fullscreened document usually wants to go.
+      canDrag: () => this.visible !== null,
       label: () => (this.visible ? docDisplayName(this.visible.filename) : ''),
       slotAtPoint: (x, y) => this.shell.slotIdAtPoint(x, y),
       armedLabel: (target) => this.shell.describeDropTarget(target),
@@ -2796,16 +2797,20 @@ class MultiPaneShell {
     targetSlot.visible?.view.focus();
   }
 
-  /** Is a slot currently expanded (one-pane mode)? */
-  isExpanded(): boolean {
-    return this.expandedSlot !== null;
-  }
-
   /** The drop target under this viewport point, or null: a tray tile
    *  (`win:new`, `win:<id>`, or a slot tile) first, then the pane under the
    *  pointer. `elementFromPoint` rather than per-pane rects so a pane scrolled
    *  out of the wide-scroll row, or covered by a dropdown, answers honestly. */
   slotIdAtPoint(x: number, y: number): string | null {
+    const found = this.rawTargetAtPoint(x, y);
+    // The slot the document is leaving is never a target: over its own pane
+    // (which, in expand mode, is the whole workspace) or its own "Here" tile the
+    // drag is simply not over anything, so the label keeps naming the document
+    // and letting go does nothing.
+    return found !== null && found === this.chipDragSource?.id ? null : found;
+  }
+
+  private rawTargetAtPoint(x: number, y: number): string | null {
     const el = document.elementFromPoint(x, y);
     if (!(el instanceof Element)) return null;
     const tile = el.closest('[data-move-target]');
@@ -2818,6 +2823,9 @@ class MultiPaneShell {
     const id = pane.dataset['slot'];
     return SLOT_IDS.find((s) => s === id) ?? null;
   }
+
+  /** The slot whose title chip is being dragged, while a drag is live. */
+  private chipDragSource: Slot | null = null;
 
   private moveTray: MoveTray | null = null;
   private moveTraySlots: MoveTraySlot[] = [];
@@ -2834,6 +2842,7 @@ class MultiPaneShell {
    *  occupied panes get an add-to-stack (or swap) overlay, and the move tray offers every slot
    *  plus another or a new window. */
   beginChipDrag(source: Slot): void {
+    this.chipDragSource = source;
     this.rowEl.classList.add('pmd-multi-row-dragging');
     const swapOnPaneDrop = settings.get('swapOnPaneDrop');
     this.moveTraySlots = SLOT_IDS.map((id, i) => {
@@ -2846,11 +2855,16 @@ class MultiPaneShell {
         swap: swapOnPaneDrop,
       };
     });
-    for (const id of SLOT_IDS) {
-      const slot = this.slots[id];
-      if (slot === source) continue;
-      if (slot.stack.length > 0) slot.showAsOccupiedTarget(swapOnPaneDrop);
-      else slot.showAsDropZone();
+    // In expand mode the other panes stay out of sight: revealing an empty one
+    // as a drop zone would squeeze the expanded pane for a target the occupied
+    // slots can't match. The tray lists every slot, so it carries the drag.
+    if (this.expandedSlot === null) {
+      for (const id of SLOT_IDS) {
+        const slot = this.slots[id];
+        if (slot === source) continue;
+        if (slot.stack.length > 0) slot.showAsOccupiedTarget(swapOnPaneDrop);
+        else slot.showAsDropZone();
+      }
     }
     this.moveTrayWindows = [];
     const tray = showMoveTray(this.moveTraySlots, this.moveTrayWindows, getElectronHost() !== null);
@@ -2865,6 +2879,7 @@ class MultiPaneShell {
   /** The drag ended (dropped, cancelled, or abandoned): undo
    *  everything `beginChipDrag` and `highlightDropSlot` changed. */
   endChipDrag(): void {
+    this.chipDragSource = null;
     this.rowEl.classList.remove('pmd-multi-row-dragging');
     for (const id of SLOT_IDS) this.slots[id].clearDropZone();
     this.moveTray?.destroy();
@@ -2909,6 +2924,10 @@ class MultiPaneShell {
     if (!target) return;
     const targetSlot = this.slots[target];
     if (targetSlot === source) return;
+    // Dragged out of an expanded pane: the document should stay on screen. The
+    // expansion follows it to its new slot (and survives the source emptying,
+    // which would otherwise end expand mode).
+    const wasExpanded = this.expandedSlot !== null;
     this.arranging = true;
     try {
       const incoming = source.releaseVisible();
@@ -2925,6 +2944,7 @@ class MultiPaneShell {
     } finally {
       this.arranging = false;
     }
+    if (wasExpanded) this.setExpandedSlot(targetSlot);
     targetSlot.visible?.view.focus();
   }
 
