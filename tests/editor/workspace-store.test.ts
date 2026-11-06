@@ -65,6 +65,13 @@ function seedLive(
   localStorage.setItem(LIVE_KEY, JSON.stringify(live));
 }
 
+/** Mark a seeded LIVE entry as closed on its own at `closedAt`. */
+function seedClosed(id: string, closedAt: number): void {
+  const live = JSON.parse(localStorage.getItem(LIVE_KEY) ?? '{}');
+  live[id].closedAt = closedAt;
+  localStorage.setItem(LIVE_KEY, JSON.stringify(live));
+}
+
 describe('workspace store', () => {
   it('folds the live map into a snapshot and empties it', () => {
     report(['/w/a.cmir', '/w/b.cmir']);
@@ -263,20 +270,68 @@ describe('workspace store', () => {
     expect(rolloverLastWorkspace()?.docs.map((d) => d.path)).toEqual(['/w/other.cmir']);
   });
 
-  it('a window closing on its own forgets its entry; a quitting app keeps it', () => {
+  it('a window closing on its own is marked closed; a quitting app stamps the quit', () => {
     report(['/w/a.cmir']);
     let quitting = false;
     const uninstall = installWindowCloseForget(() => quitting);
     try {
       quitting = true;
       window.dispatchEvent(new Event('pagehide'));
-      expect(Object.keys(JSON.parse(localStorage.getItem(LIVE_KEY)!))).toHaveLength(1);
+      const afterQuit = JSON.parse(localStorage.getItem(LIVE_KEY)!);
+      expect(Object.values(afterQuit)).toHaveLength(1);
+      expect((Object.values(afterQuit)[0] as { closedAt?: number }).closedAt).toBeUndefined();
+      expect(typeof JSON.parse(localStorage.getItem('pmd-live-quit-at')!)).toBe('number');
       quitting = false;
       window.dispatchEvent(new Event('pagehide'));
-      expect(JSON.parse(localStorage.getItem(LIVE_KEY)!)).toEqual({});
+      const afterClose = JSON.parse(localStorage.getItem(LIVE_KEY)!);
+      expect(typeof (Object.values(afterClose)[0] as { closedAt?: number }).closedAt).toBe('number');
     } finally {
       uninstall();
     }
+  });
+
+  it('closing every window by hand still offers all of them, names included', () => {
+    const now = Date.now();
+    seedLive('a', now - 50_000, ['/w/a.cmir'], 'windows', { name: 'Round 1', openedAt: now - 90_000 });
+    seedLive('b', now - 40_000, ['/w/b.cmir'], 'windows', { name: 'Round 2', openedAt: now - 80_000 });
+    seedClosed('a', now - 20_000);
+    seedClosed('b', now - 10_000);
+    const snap = rolloverLastWorkspace()!;
+    expect(snap.windows.map((w) => w.name)).toEqual(['Round 1', 'Round 2']);
+  });
+
+  it('a window closed long before the session ended stays out while others stay open', () => {
+    const now = Date.now();
+    seedLive('gone', now - 3_600_000, ['/w/gone.cmir'], 'windows', { openedAt: now - 7_000_000 });
+    seedClosed('gone', now - 3_000_000);
+    seedLive('kept', now - 1_000, ['/w/kept.cmir']);
+    expect(rolloverLastWorkspace()?.docs.map((d) => d.path)).toEqual(['/w/kept.cmir']);
+  });
+
+  it('windows closed by hand just before a quit join the windows still open at it', () => {
+    const now = Date.now();
+    seedLive('closed', now - 60_000, ['/w/closed.cmir'], 'windows', { openedAt: now - 120_000 });
+    seedClosed('closed', now - 30_000);
+    seedLive('open', now - 5_000, ['/w/open.cmir']);
+    localStorage.setItem('pmd-live-quit-at', String(now - 1_000));
+    expect(rolloverLastWorkspace()?.docs.map((d) => d.path)).toEqual(['/w/closed.cmir', '/w/open.cmir']);
+  });
+
+  it('a closed window whose document an open window now holds is not listed twice', () => {
+    const now = Date.now();
+    seedLive('old', now - 60_000, ['/w/a.cmir'], 'windows', { openedAt: now - 120_000 });
+    seedClosed('old', now - 30_000);
+    seedLive('new', now - 5_000, ['/w/a.cmir']);
+    localStorage.setItem('pmd-live-quit-at', String(now));
+    expect(rolloverLastWorkspace()?.windows).toHaveLength(1);
+  });
+
+  it('Save Workspace never includes a window that was closed', () => {
+    const now = Date.now();
+    seedLive('closed', now - 60_000, ['/w/closed.cmir']);
+    seedClosed('closed', now - 30_000);
+    seedLive('open', now - 5_000, ['/w/open.cmir']);
+    expect(saveWorkspaceNow()?.docs.map((d) => d.path)).toEqual(['/w/open.cmir']);
   });
 
   it('keeps the entry when the quit question cannot be answered', () => {

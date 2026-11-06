@@ -30,6 +30,12 @@ describe('describeMoveTarget', () => {
     expect(describeMoveTarget(windowTarget(7), slots, windows)).toBe('Send to Window 7');
     expect(describeMoveTarget('nope', slots, windows)).toBe('');
   });
+  it('says nothing about the slot the document is leaving', () => {
+    // slot2 is the source: dropping there changes nothing, so the label that
+    // follows the pointer keeps naming the document instead.
+    expect(describeMoveTarget('slot2', slots, windows)).toBe('');
+    expect(describeMoveTarget('slot2', slots.map((x) => ({ ...x, swap: true })), windows)).toBe('');
+  });
 });
 
 describe('swap mode (the swap-on-drop setting)', () => {

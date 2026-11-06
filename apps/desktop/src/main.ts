@@ -3374,7 +3374,7 @@ ipcMain.handle(
   'host:speech-send-slice',
   async (
     event,
-    payload: { sliceJson: unknown; atEnd: boolean },
+    payload: { sliceJson: unknown; atEnd: boolean; sendId?: string },
   ) => {
     const sender = BrowserWindow.fromWebContents(event.sender);
     if (!speechRegistration) return { delivered: false, reason: 'no-speech-doc' };
@@ -3394,10 +3394,54 @@ ipcMain.handle(
       uid: speechRegistration.uid,
       sliceJson: payload.sliceJson,
       atEnd: payload.atEnd,
+      ...(typeof payload.sendId === 'string' ? { sendId: payload.sendId } : {}),
     });
-    return { delivered: true };
+    // Which window took it, so the sender's Undo can go back to that one even
+    // if the speech doc is re-designated before it is pressed.
+    return { delivered: true, windowId: targetWin.id };
   },
 );
+
+/** The sender's Undo for a send into another window: ask the window that took
+ *  it (the one `host:speech-send-slice` reported, else the current speech
+ *  window) to take it back out, and relay the answer. Never leaves the sender
+ *  waiting: a window that is gone or silent answers `gone` after a moment. */
+type SpeechUndoResult = 'undone' | 'refused' | 'gone';
+const SPEECH_UNDO_TIMEOUT_MS = 2000;
+const pendingSpeechUndos = new Map<string, (result: SpeechUndoResult) => void>();
+let nextSpeechUndoRequest = 1;
+
+ipcMain.handle(
+  'host:speech-undo-slice',
+  async (_event, payload: { sendId?: unknown; windowId?: unknown }): Promise<{ result: SpeechUndoResult }> => {
+    const sendId = typeof payload?.sendId === 'string' && payload.sendId.length <= 128 ? payload.sendId : null;
+    if (!sendId) return { result: 'refused' };
+    const windowId =
+      typeof payload.windowId === 'number' ? payload.windowId : (speechRegistration?.windowId ?? null);
+    const targetWin = windowId === null ? null : BrowserWindow.fromId(windowId);
+    if (!targetWin || targetWin.isDestroyed()) return { result: 'gone' };
+    const requestId = `speech-undo-${nextSpeechUndoRequest++}`;
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        pendingSpeechUndos.delete(requestId);
+        resolve({ result: 'gone' });
+      }, SPEECH_UNDO_TIMEOUT_MS);
+      pendingSpeechUndos.set(requestId, (result) => {
+        clearTimeout(timer);
+        pendingSpeechUndos.delete(requestId);
+        resolve({ result });
+      });
+      targetWin.webContents.send('speech:undo-slice', { requestId, sendId });
+    });
+  },
+);
+
+ipcMain.on('host:speech-undo-slice-result', (_event, payload: { requestId?: unknown; result?: unknown }) => {
+  if (typeof payload?.requestId !== 'string') return;
+  const result: SpeechUndoResult =
+    payload.result === 'undone' || payload.result === 'refused' ? payload.result : 'gone';
+  pendingSpeechUndos.get(payload.requestId)?.(result);
+});
 
 // Clean up registrations when windows die without unregistering
 // (force-close, crash, etc.).

@@ -65,6 +65,9 @@ export function describeMoveTarget(
   }
   const slot = slots.find((s) => s.id === target);
   if (!slot) return '';
+  // The slot the document is leaving: dropping there changes nothing, so there
+  // is nothing to announce.
+  if (slot.source) return '';
   if (!slot.name) return `Move to slot ${slot.num}`;
   return slot.swap ? `Swap with ${slot.name}` : `Add to stack with ${slot.name}`;
 }

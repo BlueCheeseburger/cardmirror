@@ -10,6 +10,50 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### The "Sent to speech doc" notice sits at the bottom and has Undo
+
+**Request.** "make the toast that says 'x sent to x doc' be fixed at a location at the bottom, and add an undo button."
+
+**Position.** The notice was a `showToast` at the pointer (2.2 s). It is now a bottom-centre toast, the spot `showActionToast` already used for Go back / Show in folder / Go to Compare. `toast.ts` gained `showBottomToast` (icon, detail and pill like `showToast`, an optional button, a no-button form that ignores the pointer, and a close function that can skip the fade); `showActionToast` is now a thin wrapper with the same markup as before. The button no longer takes keyboard focus on mousedown, and a second press while the toast fades does nothing. `sent-notice.ts` owns the notice: one slot, so a newer send closes the older notice at once and Undo always means the latest send; 6 s with Undo, 3.5 s without; the result ("Removed “tag” from the speech doc.", "Can't undo this send from here. Use Undo in the speech doc.", "The speech doc isn't open any more.") shows in the same spot.
+
+**What Undo does.** `insertSpeechSlice` already isolates the insert as its own history step (`closeHistory` before it). For sends it now takes a new `undoable` option; with it, the `afterInsert` hook gets a second argument, an undo handle that runs `prosemirror-history`'s `undo` only while `undoDepth` still equals the depth recorded after the insert and the hook. Also with it, an empty `closeHistory` transaction closes the history group behind the insert, so typing that starts within the 500 ms group delay cannot merge into the send's step (a test that removes that line fails). The palette's card picks and the Logos import don't pass `undoable` and behave exactly as before: the Logos import's follow-up formatting commands run in the hook and share the insert's undo step, so closing the group before the hook (my first version did) would have made it two undos; a test now pins that. So Undo can never take out something typed afterwards; a caret move or a save does not count as an edit; the user's own Ctrl-Z first makes Undo refuse. The caret goes back to where it was before the send, as with Ctrl-Z.
+
+**Other windows and tabs.** The sender gives each send an id. Electron: `host:speech-send-slice` passes it to the speech window and returns that window's id; Undo is a new `host:speech-undo-slice` invoke that main relays to that window (`speech:undo-slice`, answered over `host:speech-undo-slice-result`, 2 s timeout answering `gone`). The id is kept even if another document is made the speech doc before Undo is pressed. Web tabs: the slice message's nonce is the send id; `undo` / `undo-ack` messages on the same BroadcastChannel, answered only by the tab that inserted it (600 ms, then `gone`). The receiving renderer remembers its last 8 inserts by id.
+
+**No Undo in a live co-editing session.** There the document has no `prosemirror-history` plugin (the session's CRDT undo manager owns undo), so `undoDepth` is always 0: the notice shows at the bottom without a button, and a remote Undo request is answered "refused". Making Undo work there means going through the session's undo guard; not done.
+
+**Rejected.** Deleting the inserted range by position (goes wrong after any edit nearby); comparing the whole document (a plugin's later transaction would block a legitimate Undo); stacking one notice per send (the buttons would all sit in the same spot, and which one undoes what would be a guess); pausing the timer while the pointer is over the notice (would change the other bottom notices too).
+
+**Checked.** Unit tests for the toast, the notice, same-window Undo (undone, refused after typing, refused after the user's own Ctrl-Z, still fine after a caret move, doc closed, no history, a newer send replacing the notice), the Electron path with a mocked host (the id and window id passed through, undone / refused / gone relayed), and the web path against a second BroadcastChannel in both directions. Driven in Chromium on the web build with two panes: the notice sits centred 24 px above the bottom, in light and dark, and Undo empties the speech doc again. **Not verified:** a real second Electron window (the main-process relay has no test of its own; `tsc` only), and a co-editing session.
+
+### The title chip can be dragged while a pane is expanded
+
+**Report.** "i cant move a doc by dragging the ribbon if a document is fullscreened." (The ribbon here is the pane's title chip; fullscreened is expand mode.)
+
+**Cause.** The chip's `canDrag` refused whenever a pane was expanded, on the reasoning that expand mode shows one pane so there is nowhere to drop. The move tray (a tile per slot, New window, every other window) does not depend on the panes, so there was somewhere.
+
+**Change.** The drag now starts in expand mode. The in-pane drop zones are skipped there (an empty slot revealed as a zone would squeeze the pane the user chose to see big, and the occupied panes cannot be revealed without breaking expand mode); the tray carries the drag. After a drop on a slot the expansion moves to that slot, so the document the user dragged stays on screen; it also survives the source slot emptying, which used to end expand mode. A drop on a window tile goes through the same path as before.
+
+**Also fixed on the way.** The slot a document is leaving was never excluded from the hover label: pointing at the document's own pane or its own **Here** tile armed the label with "Add to stack with" the document's own name, and in expand mode that pane is the whole screen. The source is now not a target (the label keeps naming the document, letting go does nothing).
+
+**Rejected.** Leaving the expansion where it was after a slot drop. The document would vanish behind the expanded pane, which is what the keyboard send-to-slot commands already do; a pointer drop onto a named tile reads as "show me it there".
+
+**Not verified.** Driven in Chromium against the web build with real mouse events: a lone document, a stack of two, a drop on an empty slot and on an occupied one, and the normal (not expanded) drag unchanged. Not run in the Electron app, so the New window and other-window tiles were not exercised in this layout (same drop path as before). Swap-on-drop in expand mode was not exercised.
+
+### Last workspace keeps windows closed by hand just before the session ends
+
+**Report.** Closing a few windows to install an update left one row in Last workspace, with no name.
+
+**Cause.** `installWindowCloseForget` deleted a window's live entry on any `pagehide` the main process did not call a quit. Closing windows one at a time is not a quit until the last one is gone (and on Windows the quit flag is set only after that window's `pagehide`), so every entry was deleted.
+
+**Change.** A window closing on its own now stamps `closedAt` on its entry instead of deleting it. A window closing during a quit stamps `pmd-live-quit-at`. At roll-over, open entries always count; closed entries count only if they closed within 3 minutes of the session's end, which is the quit stamp, or the last close when no window is left open. While other windows stay open with no quit recorded, closed ones stay out, so a window closed an hour ago does not come back. Paths held by an open window are stripped from closed entries (a reloaded window leaves its old entry). Save Workspace ignores closed entries. The entry keeps its name, so the name comes back too.
+
+**Rejected.** Keeping every closed window until roll-over: a window closed hours earlier would reappear every launch.
+
+**Not verified.** The reported missing *name* was not reproduced; the name is stored in the same entry, so keeping the entry should keep it, but I did not see the user's data. Not tested against a real Windows update install.
+
 ## 1.17.2-bcb.2 — 2026-11-05
 
 ### Plugin extraction carries underlined stretches (`plugin-extract.ts`, `plugin-api.ts`, `reference-docs/cardmirror-plugin-api.md`)

@@ -8,6 +8,17 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **The “Sent to speech doc” notice now sits at the bottom of the window and has an Undo button.** It used to appear next to the pointer for about two seconds. Now it stays at the bottom centre for six seconds, and **Undo** takes the card back out of the speech doc, even when that doc is in another window or tab, as long as you haven't done anything else in the speech doc since. A speech doc in a live co-editing session gets no button.
+
+### Fixed
+
+- **You can drag a document's title bar while a pane is expanded.** Dragging did nothing when a pane filled the workspace, so you couldn't send that document to another slot, a new window or another window. The move tray now appears there too; drop on a slot tile and the expanded view follows the document to its new slot. Also, while dragging, pointing at the document's own pane no longer says it will add the document to its own stack.
+- **Closing your windows one by one before an update no longer leaves only one in Last workspace.** A window you closed by hand used to be dropped from the list right away, so closing several windows and then quitting kept just the last survivor. Windows closed in the few minutes before the app ended are now offered too, each with the name you gave it. A window you closed long before quitting, while others stayed open, is still left out.
+
 ## 1.17.2-bcb.2 — 2026-11-05
 
 ### Added
