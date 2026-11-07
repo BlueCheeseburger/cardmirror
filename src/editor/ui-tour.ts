@@ -153,7 +153,8 @@ function buildSteps(opts: { includeCreateDoc: boolean }): TourStep[] {
       title: 'Speech docs',
       body:
         'Build the doc you’ll actually read: start a speech, then send cards into it ' +
-        'from your prep as you go.',
+        'from your prep as you go. The speech doc is marked on its own name, in amber with ' +
+        'a mic, in every window list.',
       absentBody:
         'One more thing lives here when the three-pane workspace is on: the Speech ' +
         'cluster — start a speech doc and send cards into it from your prep as you go. ' +
@@ -182,7 +183,9 @@ function buildSteps(opts: { includeCreateDoc: boolean }): TourStep[] {
       title: 'Timer',
       body:
         'Speech and prep timers, with presets. It pops out into its own always-on-top ' +
-        'window too, for reading off one screen while timing on another.',
+        'window too, for reading off one screen while timing on another. A pace guide ' +
+        '(turn on “Live read time for what is left”) says whether you’re on time, and a ' +
+        'blue bar beside the document shows where you should be reading.',
       target: el('timer-toggle-btn'),
     },
     {
@@ -225,7 +228,8 @@ function buildSteps(opts: { includeCreateDoc: boolean }): TourStep[] {
         (settings.get('showOnboardingStarter')
           ? 'The welcome document below walks you through the basics of editing. '
           : '') +
-        'Rerun this tour any time from the command bar: "Take the UI Tour". Welcome aboard!',
+        'Rerun this tour any time from the command bar: "Take the UI Tour". This fork’s ' +
+        'extras are listed in Help → What This Fork Adds (or ⚙ → General). Welcome aboard!',
     },
   );
   return steps;

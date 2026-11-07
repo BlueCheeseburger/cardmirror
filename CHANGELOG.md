@@ -8,6 +8,14 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **The manual links now open this fork's manual, and there's a link to what this fork adds.** **Help → User Manual** and the link in **Settings → General** went to the original CardMirror's manual, which has none of this fork's features. They now open this fork's manual, with a new **What This Fork Adds** link beside it.
+- **The welcome document ends with a Beyond the basics section, and the tour mentions this fork's features.** The new section lists more of what CardMirror can do (the original's features and this fork's), says plainly that this copy is a fork of the original, and links to **FORK_FEATURES.md** on the fork's GitHub page, the manual and the README. The **Done with the tour?** section is gone. In the tour, the Speech docs, Timer and last steps mention the speech-doc marking, the pace guide with its blue bar, and the new link.
+- **Hovering a hyperlink shows a small open-link icon.** It appears just above the top-right corner of the link's last word, and clicking it opens the link. A plain click on the link text still only places the caret; Mod+click still opens it too.
+
 ## 1.17.2-bcb.2 — 2026-11-05
 
 ### Added

@@ -19349,3 +19349,23 @@ body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
   border: 2px solid var(--pmd-pace-mark, #1d6fe8);
 }
 :root[data-theme="dark"] .pmd-pace-mark { --pmd-pace-mark: #5aa2ff; }
+
+/* The small "open link" icon shown over a hovered hyperlink (link-hover-icon.ts). */
+.pmd-link-open-btn {
+  position: fixed;
+  z-index: 250;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid var(--pmd-c-border-soft, rgba(0, 0, 0, 0.2));
+  background: var(--pmd-c-surface, #fff);
+  color: var(--pmd-c-accent, #1d6fe8);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+.pmd-link-open-btn[hidden] { display: none; }
+.pmd-link-open-btn:hover { background: var(--pmd-c-surface-alt, #eee); }

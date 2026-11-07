@@ -2252,7 +2252,9 @@ function buildCrashDumpsSection(): HTMLElement | null {
 /** GitHub-hosted copies of the user-facing docs — opened from Settings → General
  *  (and, on macOS, the Help menu). Pinned in Settings so they stay reachable on
  *  Windows/Linux, which carry no native menu bar. */
-const MANUAL_URL = 'https://github.com/ant981228/cardmirror/blob/main/MANUAL.md';
+const MANUAL_URL = 'https://github.com/BlueCheeseburger/cardmirror/blob/main/MANUAL.md';
+/** This fork's own guide to what it adds over upstream. */
+const FORK_FEATURES_URL = 'https://github.com/BlueCheeseburger/cardmirror/blob/main/FORK_FEATURES.md';
 const PRIVACY_URL = 'https://github.com/ant981228/cardmirror/blob/main/PRIVACY.md';
 const TERMS_URL = 'https://github.com/ant981228/cardmirror/blob/main/TERMS.md';
 /** Linked from the readers editor (Settings → wpm) so a user unsure of
@@ -2281,13 +2283,14 @@ function buildDocLink(label: string, url: string): HTMLAnchorElement {
   return link;
 }
 
-/** "User Manual", "Privacy Policy", and "Terms of Use" links pinned at the
+/** "User Manual", "What This Fork Adds", "Privacy Policy", and "Terms of Use" links pinned at the
  *  bottom of Settings → General, separated by middots. */
 function buildDocLinksSection(): HTMLElement {
   const section = document.createElement('section');
   section.className = 'pmd-settings-manual';
   const docs: Array<[string, string]> = [
     ['User Manual ↗', MANUAL_URL],
+    ['What This Fork Adds ↗', FORK_FEATURES_URL],
     ['Privacy Policy ↗', PRIVACY_URL],
     ['Terms of Use ↗', TERMS_URL],
   ];

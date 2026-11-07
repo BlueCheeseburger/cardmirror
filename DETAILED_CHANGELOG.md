@@ -10,6 +10,16 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Hovering a link shows an open-link icon (`link-hover-icon.ts`, `link-context-menu-plugin.ts`, `index.ts`, `style.css`)
+
+Requested by the user. `linkHoverIconPlugin` (in `buildEditorPlugins`, beside `linkModClickPlugin`) listens for `mouseover` on `a[href]`, finds the link's run with `findLinkAt` (now exported), backs the end off trailing whitespace, and places one shared `position: fixed` button in `document.body` with its bottom edge 2px above the top of the last word and its centre on the word's right edge (`coordsAtPos(end, -1)`, clamped to the window). Clicking calls `openLinkExternally`, the same path as Mod+click and the right-click Open. It hides 300 ms after the pointer leaves link and icon, and at once on scroll, a key press, a mousedown in the editor or a document change. The icon covers a little of the line above while shown. Tests mock the coordinate lookups, since jsdom has no layout; checked by eye in the dev window on the welcome doc's links, not in the packaged app, not with a link that wraps across lines, and not in read mode.
+
+### Welcome doc, tour and manual links point at the fork (`index.ts`, `ui-tour.ts`, `settings-ui.ts`, `apps/desktop/src/main.ts`)
+
+`MANUAL_URL` in `settings-ui.ts` and `main.ts` pointed at `ant981228/cardmirror`'s `MANUAL.md`, so fork users who clicked **User Manual** read a manual without any fork feature. Both now point at `BlueCheeseburger/cardmirror`, and a `FORK_FEATURES_URL` link was added to Settings → General's link row and to the Help menu ("What This Fork Adds"). The welcome doc gets `beyondTheBasicsSection()`, a separate function at the end of the doc (so upstream syncs of the rest of it don't conflict), replacing the old "Done with the tour?" hat and paragraph and the "8. Make it yours" section (both removed at the user's request; this also drops the pointer to the "Onboarding doc for new documents" setting; the setting's own description still says it). It lists five features that the sections above don't already cover (two from the original: command bar and Recover Previous Version; three from the fork: pace guide with the blue bar, paced auto-scroll, Compare and merge; flashcards, co-editing and the three-pane workspace were dropped as repeats of sections 5 to 7), states that the app is a fork of `ant981228/cardmirror`, and links `FORK_FEATURES.md` (with the fork's GitHub path written out), `MANUAL.md` and `README.md` using the `link` mark. The tour gets no new steps (it is about 16 already); the Speech docs, Timer and finish steps gain a sentence each. Deliberately left alone: `PRIVACY_URL`, `TERMS_URL` and `RELEASES_URL`, which still name upstream (the releases link is shown in update dialogs and probably should name the fork; not changed because it wasn't asked). Not verified: the links in the packaged app, and the welcome doc in a fresh profile.
+
 ## 1.17.2-bcb.2 — 2026-11-05
 
 ### Plugin extraction carries underlined stretches (`plugin-extract.ts`, `plugin-api.ts`, `reference-docs/cardmirror-plugin-api.md`)
