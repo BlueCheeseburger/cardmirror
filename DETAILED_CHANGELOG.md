@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Card menu: Cross-Ex Practice and Card Credibility for just these cards
+
+**Request.** A Card-menu button for AI cross-ex practice or card credibility on that one card; and from the outline's right-click Card submenu on a heading, the same for all cards under it.
+
+**What it does.** `card-menu-sections.ts` (shared by the toolbar Card dropdown and the outline submenu) gained an optional **AI** section (first, since sections are alphabetical), shown only when the host passes `ai` and `aiEnabled()` is true. Both hosts pass `openAiForRanges`, which turns the menu's ranges into cards (`cardsInRanges`: tag position inside a range), builds a scope of `cardScopeKey`s (heading id, else tag text, so edits that move cards don't break it) and opens the panel. No cards (cursor in an analytic or a heading with none) gives a toast. The ribbon buttons still open the whole document and clear any scope.
+
+**Scoped runs.** Cross-ex input (`buildCrossExInput(doc, trim, only)`) contains only those cards, with no headings, analytics or loose text from elsewhere. Credibility scores only those cards. A scope bar at the top names it and has a **Whole document** button. Questions, traps and scores for a scope are stored under the document key plus a hash of the scope, so they never overwrite the whole-document ones; Deeper-analysis chats stay keyed by document and tag, as before. Re-opening the same scope toggles the panel closed, like the ribbon buttons.
+
+**Rejected.** New ribbon command ids for the scoped rows: the panels act on a card set, not a selection, and an id would show the whole-document shortcut on a scoped row.
+
+**Verified.** Unit tests for the card selection, scoped input and the menu rows; typecheck; in Chromium, right-click an outline entry → Card → AI row opened the panel with the scope bar. **Not verified:** a real model call on a scoped run; a heading with many cards in a browser (covered by the unit test only).
+
 ### The "Sent to speech doc" notice sits at the bottom and has Undo
 
 **Request.** "make the toast that says 'x sent to x doc' be fixed at a location at the bottom, and add an undo button."

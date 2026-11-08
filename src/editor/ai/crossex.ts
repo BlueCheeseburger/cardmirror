@@ -130,8 +130,13 @@ const wc = (s: string): number => (s.trim() === '' ? 0 : s.trim().split(/\s+/u).
  *  block headings, analytics, loose text, and every card's tag and full cite
  *  with its highlighted text when it has any. Unhighlighted card text is
  *  never sent. `trim` cuts the whole thing to the cap. */
-export function buildCrossExInput(doc: PMNode, trim: boolean): CrossExInput {
-  const items = collectCrossExItems(doc);
+export function buildCrossExInput(
+  doc: PMNode,
+  trim: boolean,
+  /** Scope keys (`cardScopeKey`) of the only cards to include, or all. */
+  only?: ReadonlySet<string>,
+): CrossExInput {
+  const items = collectCrossExItems(doc, only);
   const lines: string[] = [];
   const kept: CardInfo[] = [];
   let totalWords = 0;
@@ -164,9 +169,12 @@ export function buildCrossExInput(doc: PMNode, trim: boolean): CrossExInput {
 }
 
 /** The amber notice for a doc too short to give good questions, or null. */
-export function shortDocNotice(input: CrossExInput): string | null {
+export function shortDocNotice(input: CrossExInput, scoped = false): string | null {
   if (input.totalWords < SHORT_DOC_WORDS) {
     const pages = Math.max(1, Math.round(input.totalWords / 500));
+    if (scoped) {
+      return `This selection is short (about ${input.totalWords} words): expect few or shallow questions.`;
+    }
     return `This document is short (about ${input.totalWords} words, roughly ${pages} page${pages === 1 ? '' : 's'}): expect few or shallow questions.`;
   }
   return null;

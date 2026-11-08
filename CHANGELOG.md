@@ -10,6 +10,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **The Card menu can run Cross-Ex Practice or Card Credibility on just the cards you pick.** With AI on, the toolbar's **Card** menu has a new **AI** section: put the cursor in a card and choose **Cross-Ex Practice (AI)** or **Card Credibility (AI)** to work on that card alone. Right-click a pocket, hat or block in the outline, go to **Card**, and the same rows cover every card under that heading. The panel says which cards it is about and has a **Whole document** button to go back. Results for a pick are kept separately, so they never replace the whole-document questions or scores.
+
 ### Changed
 
 - **The “Sent to speech doc” notice now sits at the bottom of the window and has an Undo button.** It used to appear next to the pointer for about two seconds. Now it stays at the bottom centre for six seconds, and **Undo** takes the card back out of the speech doc, even when that doc is in another window or tab, as long as you haven't done anything else in the speech doc since. A speech doc in a live co-editing session gets no button.

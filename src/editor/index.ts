@@ -208,7 +208,7 @@ import { runReformatAllCites } from './ai/reformat-all-cites.js';
 import { runTranslate } from './translate.js';
 import { runRepairText } from './ai/repair-text.js';
 import { runRepairFormatting } from './ai/repair-formatting.js';
-import { initAiPanels, openCrossEx, openCredibility } from './ai/ai-panel-ui.js';
+import { initAiPanels, openCrossEx, openCredibility, openAiForRanges } from './ai/ai-panel-ui.js';
 import { runSendToFlow, runPullFromFlow, runCreateFlow, runStartFlowHost } from './flow-port.js';
 import {
   readModePlugin,
@@ -3109,6 +3109,8 @@ if (cardMenuBtn) {
         state: () => view?.state ?? null,
         ranges: (st) => cardRangesForSelection(st),
         run: (id) => runRibbon(id),
+        ai: (kind, ranges) => openAiForRanges(kind, ranges),
+        aiEnabled: () => settings.get('aiFeaturesEnabled'),
       }),
     );
   });

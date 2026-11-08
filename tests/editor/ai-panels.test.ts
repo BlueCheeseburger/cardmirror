@@ -3,6 +3,8 @@ import { schema, newHeadingId } from '../../src/schema/index.js';
 import {
   collectCardInfo,
   cardFingerprint,
+  cardScopeKey,
+  cardsInRanges,
   type CardInfo,
 } from '../../src/editor/ai/card-analysis.js';
 import {
@@ -242,3 +244,46 @@ describe('parseJsonList', () => {
   });
 });
 
+
+describe('scoped AI runs (one card, or the cards under a heading)', () => {
+  const pocket = (t: string) => schema.nodes['pocket']!.create({ id: newHeadingId() }, schema.text(t));
+  const d = doc(
+    pocket('Econ'),
+    card('Tag A', 'Smith 24', [hl('alpha one')]),
+    card('Tag B', 'Jones 23', [hl('beta two')]),
+    pocket('Politics'),
+    card('Tag C', 'Lee 22', [hl('gamma three')]),
+  );
+  const all = collectCardInfo(d);
+
+  it('cardsInRanges picks the cards whose tag is inside a range', () => {
+    const [a, b, c] = all;
+    expect(cardsInRanges(d, [{ from: a!.pos - 1, to: b!.pos - 1 }]).map((x) => x.tag)).toEqual(['Tag A']);
+    expect(cardsInRanges(d, [{ from: 0, to: d.content.size }]).map((x) => x.tag)).toEqual([
+      'Tag A',
+      'Tag B',
+      'Tag C',
+    ]);
+    expect(cardsInRanges(d, [{ from: c!.pos - 1, to: d.content.size }]).map((x) => x.tag)).toEqual(['Tag C']);
+    expect(cardsInRanges(d, [])).toEqual([]);
+  });
+
+  it('cross-ex input holds only the scoped cards, with no headings from elsewhere', () => {
+    const only = new Set([cardScopeKey(all[1]!)]);
+    const input = buildCrossExInput(d, true, only);
+    expect(input.cards.map((x) => x.tag)).toEqual(['Tag B']);
+    expect(input.text).toContain('TAG: Tag B');
+    expect(input.text).not.toContain('Tag A');
+    expect(input.text).not.toContain('POCKET');
+  });
+
+  it('without a scope the whole document is still used', () => {
+    expect(buildCrossExInput(d, true).cards).toHaveLength(3);
+  });
+
+  it('a scoped short-input notice says selection, not document', () => {
+    const input = buildCrossExInput(d, true, new Set([cardScopeKey(all[0]!)]));
+    expect(shortDocNotice(input, true)).toMatch(/selection/);
+    expect(shortDocNotice(input)).toMatch(/document/);
+  });
+});
