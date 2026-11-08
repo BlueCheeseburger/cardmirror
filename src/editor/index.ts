@@ -298,6 +298,7 @@ import { isTransclusionNode, fragmentHasZone, flattenZonesInSlice } from './tran
 import { showConfirm } from './confirm-dialog.js';
 import { linkContextMenuPlugin } from './link-context-menu-plugin.js';
 import { autolinkPlugin, autolinkEnterPlugin, linkModClickPlugin } from './autolink.js';
+import { linkHoverIconPlugin } from './link-hover-icon.js';
 import { isRightClickContextMenu } from './context-menu-gate.js';
 import { textContextMenuPlugin } from './text-context-menu-plugin.js';
 import { wordSelectionPlugin } from './word-selection-plugin.js';
@@ -5987,6 +5988,48 @@ export function getNavPanel(): NavigationPanel {
   return navPanel;
 }
 
+/** The welcome doc's "Beyond the basics" section: more of what CardMirror can do
+ *  (the original's features and this fork's), a plain note that this app is a
+ *  fork, and where to read more. Its own function so upstream syncs of the rest
+ *  of the welcome doc stay easy. */
+function beyondTheBasicsSection(): PMNode[] {
+  const n = schema.nodes;
+  const paraText = (text: string) => n['paragraph']!.create(null, schema.text(text));
+  const blank = () => n['paragraph']!.create(null);
+  const link = (label: string, href: string) =>
+    schema.text(label, [schema.marks['link']!.create({ href })]);
+  const fork = 'https://github.com/BlueCheeseburger/cardmirror/blob/main/';
+  const original = 'https://github.com/ant981228/cardmirror';
+  return [
+    n['hat']!.create({ id: newHeadingId() }, schema.text('Beyond the basics')),
+    paraText('When you are comfortable with editing, there is a lot more to try:'),
+    blank(),
+    paraText(
+      '• The command bar (Mod-Shift-Space) searches commands, settings, files and your Quick Cards from one box.',
+    ),
+    paraText('• Recover Previous Version: get back an earlier save of a document.'),
+    paraText(
+      '• A pace guide under the timer (On time, Too slow, Too fast) and a blue bar beside the document that shows where you should be reading by the clock.',
+    ),
+    paraText('• Paced auto-scroll, a hands-free teleprompter at your reading speed.'),
+    paraText('• Compare and merge two documents, from the Home screen.'),
+    blank(),
+    n['paragraph']!.create(null, [
+      schema.text('This copy of CardMirror is a fork of the original, '),
+      link('ant981228/cardmirror', original),
+      schema.text(
+        '. The last three items above, and more (like independent windows), were added by the fork, BlueCheeseburger/cardmirror. Everything the fork adds, and how to turn it on or off, is in ',
+      ),
+      link('FORK_FEATURES.md', `${fork}FORK_FEATURES.md`),
+      schema.text(' on the fork\'s GitHub page (github.com/BlueCheeseburger/cardmirror). The full guide is '),
+      link('the manual', `${fork}MANUAL.md`),
+      schema.text(', and the '),
+      link('README', `${fork}README.md`),
+      schema.text(' is the short version.'),
+    ]),
+  ];
+}
+
 function makeStarterDoc(): PMNode {
   const n = schema.nodes;
   const m = schema.marks;
@@ -6152,20 +6195,8 @@ function makeStarterDoc(): PMNode {
     ),
     blank(),
 
-    // Section 8: Settings
-    n['hat']!.create({ id: newHeadingId() }, schema.text('8. Make it yours')),
-    paraText(
-      'Click ⚙ for Settings and 📖 for the full keyboard reference any time.',
-    ),
-    blank(),
-
-    // Outro — its own hat: field reports say the tour-off toggle was
-    // undiscoverable buried as a trailing paragraph, so it gets a
-    // heading the nav pane surfaces.
-    n['hat']!.create({ id: newHeadingId() }, schema.text('Done with the tour?')),
-    paraText(
-      'Turn off ⚙ → Files → "Onboarding doc for new documents" and new documents will open blank. When you\'re ready, open a .docx with 📂 — or just start editing this one. Welcome aboard!',
-    ),
+    // Beyond the basics: a few more features, and where to read more.
+    ...beyondTheBasicsSection(),
   ]);
 }
 
@@ -6459,6 +6490,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
     imageDropPlugin,
     linkContextMenuPlugin,
     linkModClickPlugin,
+    linkHoverIconPlugin,
     // Word-style mouse-selection state machine: owns single-,
     // double-, and triple-click + drag + shift+click. Lets PM
     // place the caret on single-click (preventDefault on the

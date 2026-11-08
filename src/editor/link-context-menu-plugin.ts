@@ -48,7 +48,7 @@ export const linkContextMenuPlugin: Plugin = new Plugin({
   },
 });
 
-interface LinkHit {
+export interface LinkHit {
   href: string;
   /** Start position of the contiguous run carrying THIS link mark. */
   from: number;
@@ -120,7 +120,7 @@ function findLinkRunAtPos(doc: PMNode, pos: number): LinkHit | null {
 /** Locate the link mark at a viewport (x, y) coordinate — the
  *  right-click target. `posAtCoords` returns the DOM-level inside
  *  position; `findLinkRunAtPos` does the rest. */
-function findLinkAt(view: EditorView, x: number, y: number): LinkHit | null {
+export function findLinkAt(view: EditorView, x: number, y: number): LinkHit | null {
   const coords = view.posAtCoords({ left: x, top: y });
   if (!coords) return null;
   return findLinkRunAtPos(view.state.doc, coords.pos);

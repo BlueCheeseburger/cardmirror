@@ -3752,6 +3752,12 @@ function buildMenu(): Menu {
         },
       },
       {
+        label: 'What This Fork Adds',
+        click: () => {
+          void shell.openExternal(FORK_FEATURES_URL);
+        },
+      },
+      {
         label: 'Privacy Policy',
         click: () => {
           void shell.openExternal(PRIVACY_URL);
@@ -3907,8 +3913,12 @@ ipcMain.handle(
 const RELEASES_URL = 'https://github.com/ant981228/cardmirror/releases';
 
 /** The user manual (MANUAL.md), rendered on GitHub. Linked from the Help
- *  menu so the full guide is one click away. */
-const MANUAL_URL = 'https://github.com/ant981228/cardmirror/blob/main/MANUAL.md';
+ *  menu so the full guide is one click away. This fork's copy, not upstream's:
+ *  upstream's manual has none of the fork's features. */
+const MANUAL_URL = 'https://github.com/BlueCheeseburger/cardmirror/blob/main/MANUAL.md';
+
+/** What this fork adds (FORK_FEATURES.md), rendered on GitHub. */
+const FORK_FEATURES_URL = 'https://github.com/BlueCheeseburger/cardmirror/blob/main/FORK_FEATURES.md';
 
 /** The privacy policy (PRIVACY.md), rendered on GitHub. Linked from the Help
  *  menu alongside the manual (and from Settings → General). */
