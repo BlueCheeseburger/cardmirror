@@ -1383,7 +1383,7 @@ workspace while another shows a single document.
   stacking**; the labels then say **Swap places** / **Swap**. A **move tray** at the bottom of the window has a tile for each
   slot, and on the desktop app also **New window** and a tile for every other
   open three-pane window: drop the chip on a tile to send the document there,
-  unsaved edits included. **Esc** cancels the drag. **(Fork)** Windows are listed most recently used first, and a tile carries a **Minimized** pill, and the speech doc's own name is amber with the speech mic; a window busy with Compare documents is greyed with a
+  unsaved edits included. **Esc** cancels the drag. The drag works while a pane is expanded too: the other panes are out of sight, so drop on a tray tile, and the expanded view follows the document to the slot you drop it on. **(Fork)** Windows are listed most recently used first, and a tile carries a **Minimized** pill, and the speech doc's own name is amber with the speech mic; a window busy with Compare documents is greyed with a
   **Comparing documents** pill and can't be dropped on. When the document arrives, the other window shows **Moved … here from …** with a **Go back** button.
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
@@ -1881,10 +1881,14 @@ Assemble a speech document by sending cards into it:
 2. **Send cards.** From a source file, press **`` ` ``** (backtick) to
    send the current card or selection to the speech doc at your cursor,
    or **Alt-`` ` ``** to append it at the end. You can also drag a card or
-   heading across panes. **(Fork)** A small notice near the pointer confirms
-   it: the speech mic, **Sent to speech doc**, the tag that was sent, and a pill
-   saying **at cursor** or **at end**. It shows whether the speech doc is in
-   another pane or another window.
+   heading across panes. **(Fork)** A small notice at the bottom of the window
+   confirms it: the speech mic, **Sent to speech doc**, the tag that was sent,
+   and a pill saying **at cursor** or **at end**. It shows whether the speech
+   doc is in another pane, window or tab. Its **Undo** button takes the card
+   back out of the speech doc, as long as you haven't done anything else there
+   since (it says so if you have; the speech doc's own Undo still works). A
+   newer send replaces the notice, and a speech doc in a live co-editing
+   session has no button.
 3. **Read.** Switch the speech doc to read mode; everything that isn't
    read aloud (loose paragraphs, undertags, un-highlighted text) drops
    away, leaving what you'll deliver.
@@ -2503,6 +2507,8 @@ as a preset named "My prompt".
 ### Cross-Ex Practice and Card Credibility
 
 Two side panels sit with the comments buttons once AI is on (the target and shield buttons; also in Search Everything as **Cross-Ex Practice (AI)** and **Card Credibility (AI)**, unbound by default). Opening one closes the other. Replies stream in as the AI writes them (comment replies, Cross-Ex, Credibility and Deeper analysis), so you can start reading before it finishes; Cross-Ex and Credibility text can use **bold** and *italic*. If a reply is cut off by the output limit, CardMirror retries once with a bigger budget, and keeps every complete item it already received; raise **Max output tokens** in Settings → Comments & AI if it keeps happening.
+
+**(Fork) Just some cards.** Both panels can work on part of the document. In the toolbar's **Card** menu, the **AI** section runs **Cross-Ex Practice (AI)** or **Card Credibility (AI)** on the card at your cursor (or every card your selection touches). Right-click a pocket, hat or block in the outline, go to **Card**, and the same rows cover every card under that heading. The panel then says which cards it is about, reads only those, and has a **Whole document** button to go back. Results for a pick are saved separately from the whole-document results.
 
 **Cross-Ex Practice** writes 3 to 6 questions an opponent would ask about your cards. It reads the whole document in order: your headings (pocket, hat, block), **analytics** and other written text, and each card's tag and full cite plus its **highlighted** text (the text you read aloud). Unhighlighted card text is never sent. A file of analytics and headings with no highlighted cards works too. If the file is clearly Aff and Neg, questions sit under blue Aff and red Neg headers; a thin side gets fewer questions.
 

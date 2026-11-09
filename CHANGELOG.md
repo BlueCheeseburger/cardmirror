@@ -8,17 +8,24 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.17.2-bcb.3 — 2026-11-09
 
 ### Added
 
+- **The Card menu can run Cross-Ex Practice or Card Credibility on just the cards you pick.** With AI on, the toolbar's **Card** menu has a new **AI** section: put the cursor in a card and choose **Cross-Ex Practice (AI)** or **Card Credibility (AI)** to work on that card alone. Right-click a pocket, hat or block in the outline, go to **Card**, and the same rows cover every card under that heading. The panel says which cards it is about and has a **Whole document** button to go back. Results for a pick are kept separately, so they never replace the whole-document questions or scores.
 - **Plugins can read and run the timer.** A plugin can see every clock (speech, aff prep, neg prep), hear when one changes, and press the timer's own buttons: start, pause, reset, switch clock, load a preset, or set a time. The Policy Flow plugin uses it to show and control your CardMirror timer inside the flow.
 
 ### Changed
 
+- **The “Sent to speech doc” notice now sits at the bottom of the window and has an Undo button.** It used to appear next to the pointer for about two seconds. Now it stays at the bottom centre for six seconds, and **Undo** takes the card back out of the speech doc, even when that doc is in another window or tab, as long as you haven't done anything else in the speech doc since. A speech doc in a live co-editing session gets no button.
 - **The manual links now open this fork's manual, and there's a link to what this fork adds.** **Help → User Manual** and the link in **Settings → General** went to the original CardMirror's manual, which has none of this fork's features. They now open this fork's manual, with a new **What This Fork Adds** link beside it.
 - **The welcome document ends with a Beyond the basics section, and the tour mentions this fork's features.** The new section lists more of what CardMirror can do (the original's features and this fork's), says plainly that this copy is a fork of the original, and links to **FORK_FEATURES.md** on the fork's GitHub page, the manual and the README. The **Done with the tour?** section is gone. In the tour, the Speech docs, Timer and last steps mention the speech-doc marking, the pace guide with its blue bar, and the new link.
 - **Hovering a hyperlink shows a small open-link icon.** It appears just above the top-right corner of the link's last word, and clicking it opens the link. A plain click on the link text still only places the caret; Mod+click still opens it too.
+
+### Fixed
+
+- **You can drag a document's title bar while a pane is expanded.** Dragging did nothing when a pane filled the workspace, so you couldn't send that document to another slot, a new window or another window. The move tray now appears there too; drop on a slot tile and the expanded view follows the document to its new slot. Also, while dragging, pointing at the document's own pane no longer says it will add the document to its own stack.
+- **Closing your windows one by one before an update no longer leaves only one in Last workspace.** A window you closed by hand used to be dropped from the list right away, so closing several windows and then quitting kept just the last survivor. Windows closed in the few minutes before the app ended are now offered too, each with the name you gave it. A window you closed long before quitting, while others stayed open, is still left out.
 
 ## 1.17.2-bcb.2 — 2026-11-05
 

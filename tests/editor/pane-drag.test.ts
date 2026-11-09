@@ -209,3 +209,20 @@ describe('pane chip drag', () => {
     document.dispatchEvent(pointer('pointerup', 60, 60));
   });
 });
+
+describe('chip drag wiring in the shell', () => {
+  // The shell can't be instantiated in jsdom (see multi-doc-hooks-wired.test.ts),
+  // so this reads the source. The gate that once refused every drag while a pane
+  // was expanded must not come back: the move tray works in expand mode, and a
+  // fullscreened document is the one a user most wants to send elsewhere.
+  it('does not refuse a drag because a pane is expanded', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const src = readFileSync(resolve(process.cwd(), 'src/editor/multi-pane-shell.ts'), 'utf8');
+    const start = src.indexOf('installPaneChipDrag(chip, {');
+    expect(start).toBeGreaterThan(-1);
+    const canDrag = /canDrag:[^\n]*/.exec(src.slice(start));
+    expect(canDrag).not.toBeNull();
+    expect(canDrag![0]).not.toMatch(/xpand/);
+  });
+});

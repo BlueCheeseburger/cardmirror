@@ -97,6 +97,19 @@ export function collectCardInfo(doc: PMNode): CardInfo[] {
   return out;
 }
 
+/** How a card is named in an AI scope: its heading id, else its tag text. */
+export function cardScopeKey(c: Pick<CardInfo, 'id' | 'tag'>): string {
+  return c.id ?? `tag:${c.tag}`;
+}
+
+/** The cards whose tag sits inside any of the given document ranges. */
+export function cardsInRanges(
+  doc: PMNode,
+  ranges: readonly { from: number; to: number }[],
+): CardInfo[] {
+  return collectCardInfo(doc).filter((c) => ranges.some((r) => c.pos >= r.from && c.pos < r.to));
+}
+
 /** Cheap stable fingerprint of the card tags + count (djb2). */
 export function cardFingerprint(cards: readonly CardInfo[]): string {
   let h = 5381;
@@ -146,7 +159,7 @@ const HEADING_LABELS = { pocket: 'POCKET', hat: 'HAT', block: 'BLOCK' } as const
 
 /** Everything a question could be about, in document order: pocket / hat /
  *  block headings, analytics (with their text), loose paragraphs, and cards. */
-export function collectCrossExItems(doc: PMNode): CrossExItem[] {
+export function collectCrossExItems(doc: PMNode, only?: ReadonlySet<string>): CrossExItem[] {
   const cards = collectCardInfo(doc);
   let ci = 0;
   const out: CrossExItem[] = [];
@@ -155,9 +168,12 @@ export function collectCrossExItems(doc: PMNode): CrossExItem[] {
     if (t === 'self_ref' || t === 'table') return false;
     if (t === 'card') {
       const c = cards[ci++];
-      if (c) out.push({ kind: 'card', card: c });
+      if (c && (!only || only.has(cardScopeKey(c)))) out.push({ kind: 'card', card: c });
       return false;
     }
+    // A scoped run (one card, or the cards under a heading) is about those
+    // cards alone: no headings, analytics or loose text from elsewhere.
+    if (only) return true;
     if (t === 'pocket' || t === 'hat' || t === 'block') {
       const text = node.textContent.trim();
       if (text) out.push({ kind: 'heading', label: HEADING_LABELS[t], text });

@@ -523,10 +523,25 @@ interface ElectronAPI {
   speechSendSlice(payload: {
     sliceJson: unknown;
     atEnd: boolean;
-  }): Promise<{ delivered: boolean; reason?: string }>;
+    /** Names this send, so an Undo can find the insert it made. */
+    sendId?: string;
+  }): Promise<{ delivered: boolean; reason?: string; windowId?: number }>;
   onIncomingSpeechSlice(
-    handler: (payload: { uid: string; sliceJson: unknown; atEnd: boolean }) => void,
+    handler: (payload: { uid: string; sliceJson: unknown; atEnd: boolean; sendId?: string }) => void,
   ): () => void;
+  /** Ask the window that took send `sendId` to take it back out. `windowId` is
+   *  the window `speechSendSlice` reported; without it main asks the current
+   *  speech window. */
+  speechUndoSlice(payload: {
+    sendId: string;
+    windowId?: number;
+  }): Promise<{ result: 'undone' | 'refused' | 'gone' }>;
+  /** The speech window is asked to undo a send (see `speechUndoSlice`). */
+  onIncomingSpeechUndo(
+    handler: (payload: { requestId: string; sendId: string }) => void,
+  ): () => void;
+  /** The speech window's answer to a `speechUndoSlice` request. */
+  speechUndoResult(payload: { requestId: string; result: 'undone' | 'refused' | 'gone' }): void;
   /** Subscribe to menu-driven commands from the native menu bar.
    *  Returns an unsubscribe handle. */
   onMenuCommand(handler: (command: string) => void): () => void;
@@ -1534,15 +1549,34 @@ export class ElectronHost implements Host {
   async speechSendSlice(payload: {
     sliceJson: unknown;
     atEnd: boolean;
-  }): Promise<{ delivered: boolean; reason?: string }> {
+    sendId?: string;
+  }): Promise<{ delivered: boolean; reason?: string; windowId?: number }> {
     return api().speechSendSlice(payload);
   }
 
   /** Subscribe to incoming speech-doc slices from other windows. */
   onIncomingSpeechSlice(
-    handler: (payload: { uid: string; sliceJson: unknown; atEnd: boolean }) => void,
+    handler: (payload: { uid: string; sliceJson: unknown; atEnd: boolean; sendId?: string }) => void,
   ): () => void {
     return api().onIncomingSpeechSlice(handler);
+  }
+
+  /** Ask the window that took a send to take it back out. */
+  async speechUndoSlice(payload: {
+    sendId: string;
+    windowId?: number;
+  }): Promise<{ result: 'undone' | 'refused' | 'gone' }> {
+    return api().speechUndoSlice(payload);
+  }
+
+  /** Subscribe to another window's request to undo a send made into this one. */
+  onIncomingSpeechUndo(handler: (payload: { requestId: string; sendId: string }) => void): () => void {
+    return api().onIncomingSpeechUndo(handler);
+  }
+
+  /** Answer such a request. */
+  speechUndoResult(payload: { requestId: string; result: 'undone' | 'refused' | 'gone' }): void {
+    api().speechUndoResult(payload);
   }
 
   /** Subscribe to menu-driven commands from the native menu bar.

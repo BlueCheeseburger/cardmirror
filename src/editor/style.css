@@ -7696,6 +7696,22 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
+/* The bottom toast carrying an icon / detail / pill (the "Sent to speech doc"
+   notice): the pointer toast's row, then the button. Wider than the pointer
+   toast so the quoted tag has room. */
+.pmd-toast.pmd-toast-action.pmd-toast-rich {
+  gap: 0.45rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.55rem;
+  max-width: min(34rem, calc(100vw - 1.5rem));
+}
+.pmd-toast.pmd-toast-action.pmd-toast-rich .pmd-toast-action-btn {
+  margin-left: 0.35rem;
+}
+/* A bottom toast with no button ignores the pointer, like the toast at the cursor. */
+.pmd-toast.pmd-toast-action.pmd-toast-passive {
+  pointer-events: none;
+  padding: 0.35rem 0.55rem;
+}
 
 /* Ribbon tooltip — custom-rendered (see ribbon-tooltips.ts). We don't use the
    native `title` attribute; Electron/Chromium on macOS renders it erratically.
@@ -19045,6 +19061,7 @@ body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
 .pmd-aip-btn-small { padding: 0.2rem 0.55rem; font-size: 0.85em; }
 .pmd-aip-link { border: 0; background: none; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
 .pmd-aip-notice { background: #fff3cd; color: #5c4400; border: 1px solid #f0d27a; border-radius: 5px; padding: 0.4rem 0.6rem; font-size: 0.85em; }
+.pmd-aip-notice.pmd-aip-scope { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; background: rgba(29, 95, 209, 0.1); color: inherit; border-color: rgba(29, 95, 209, 0.35); }
 .pmd-aip-empty { margin: 0; font-size: 0.85em; color: var(--pmd-c-text-muted, #666); }
 .pmd-aip-side { font-weight: 700; font-size: 0.8em; letter-spacing: 0.05em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 4px; color: #fff; align-self: flex-start; }
 .pmd-aip-side-aff { background: #1d5fd1; }

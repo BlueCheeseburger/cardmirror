@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
+import { history, undoDepth } from 'prosemirror-history';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema } from '../../src/schema/index.js';
 import { takeSendSlice, insertSpeechSlice } from '../../src/editor/speech-doc-send.js';
@@ -244,5 +245,60 @@ describe('insertSpeechSlice placement', () => {
     dest.destroy(); // closed within the 0 ms defer window
     await settle();
     expect(document.querySelector('.pmd-route-dialog')).toBeNull();
+  });
+});
+
+describe('undo grouping of an insert', () => {
+  function mkViewWithHistory(): EditorView {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    return new EditorView(host, {
+      state: EditorState.create({ doc: schema.nodes['doc']!.create(null, [para()]), schema, plugins: [history()] }),
+    });
+  }
+  const typeAtCaret = (v: EditorView): void =>
+    v.dispatch(v.state.tr.insertText('typed', v.state.selection.from));
+
+  it('keeps an after-insert hook\'s edits in the insert\'s own undo step (the Logos import and the palette rely on it)', async () => {
+    const v = mkViewWithHistory();
+    insertSpeechSlice(v, takeSingleCardSlice()!, true, (view) => typeAtCaret(view));
+    await settle();
+    expect(v.state.doc.textContent).toContain('typed');
+    expect(undoDepth(v.state)).toBe(1);
+  });
+
+  it('with `undoable`, the hook\'s edits still share the insert\'s step', async () => {
+    const v = mkViewWithHistory();
+    insertSpeechSlice(v, takeSingleCardSlice()!, true, (view) => typeAtCaret(view), { undoable: true });
+    await settle();
+    expect(undoDepth(v.state)).toBe(1);
+  });
+
+  it('with `undoable`, typing straight afterwards starts a step of its own', async () => {
+    const v = mkViewWithHistory();
+    insertSpeechSlice(v, takeSingleCardSlice()!, true, undefined, { undoable: true });
+    await settle();
+    typeAtCaret(v);
+    expect(undoDepth(v.state)).toBe(2);
+  });
+
+  it('without `undoable`, typing straight afterwards merges into the insert, as it always did', async () => {
+    const v = mkViewWithHistory();
+    insertSpeechSlice(v, takeSingleCardSlice()!, true);
+    await settle();
+    typeAtCaret(v);
+    expect(undoDepth(v.state)).toBe(1);
+  });
+
+  it('hands the hook an undo handle only for an `undoable` insert into a doc that keeps history', async () => {
+    const got: Array<boolean> = [];
+    const plain = mkViewWithHistory();
+    insertSpeechSlice(plain, takeSingleCardSlice()!, true, (_v, undo) => got.push(undo !== null));
+    const undoable = mkViewWithHistory();
+    insertSpeechSlice(undoable, takeSingleCardSlice()!, true, (_v, undo) => got.push(undo !== null), { undoable: true });
+    const noHistory = mkView(schema.nodes['doc']!.create(null, [para()]));
+    insertSpeechSlice(noHistory, takeSingleCardSlice()!, true, (_v, undo) => got.push(undo !== null), { undoable: true });
+    await settle();
+    expect(got).toEqual([false, true, false]);
   });
 });

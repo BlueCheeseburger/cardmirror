@@ -18,6 +18,10 @@ export interface CardMenuHost {
   ranges(state: EditorState): DocRange[];
   /** Run a Card-menu command over those ranges. */
   run(id: RibbonCommandId): void;
+  /** Open an AI panel for just the cards in those ranges. Absent (or
+   *  `aiEnabled` false) leaves the AI section out. */
+  ai?(kind: 'crossex' | 'cred', ranges: DocRange[]): void;
+  aiEnabled?(): boolean;
 }
 
 export function buildCardMenuSections(host: CardMenuHost): DocMenuSection[] {
@@ -29,8 +33,21 @@ export function buildCardMenuSections(host: CardMenuHost): DocMenuSection[] {
     commandId,
     run: () => host.run(commandId),
   });
+  const aiSection: DocMenuSection[] =
+    host.ai && host.aiEnabled?.()
+      ? [
+          {
+            title: 'AI',
+            items: [
+              { label: 'Cross-Ex Practice (AI)', run: () => host.ai?.('crossex', ranges) },
+              { label: 'Card Credibility (AI)', run: () => host.ai?.('cred', ranges) },
+            ],
+          },
+        ]
+      : [];
   // Sections are kept alphabetical by title.
   return [
+    ...aiSection,
     {
       title: 'Condense',
       items: [

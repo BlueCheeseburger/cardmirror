@@ -10,10 +10,12 @@
  *    window currently has open. Every window rewrites its OWN entry
  *    whenever its open set changes (single-doc: on handle change;
  *    three-pane: on every slot composition change). A window that
- *    closes on its own drops its entry (`installWindowCloseForget`),
- *    so what the next session is offered is what was open at the
- *    QUIT; a quit — or a killed app — leaves entries exactly as they
- *    were, which is the point.
+ *    closes on its own is MARKED closed (`installWindowCloseForget`),
+ *    not dropped: what the next session is offered is what was open at
+ *    the QUIT plus any window closed by hand in the last few minutes
+ *    before it (closing windows one by one is a way of quitting). A
+ *    window closed long before the quit stays out. A quit — or a killed
+ *    app — leaves entries exactly as they were, which is the point.
  *
  *  - LAST (`pmd-last-workspace`): the snapshot offered to the user.
  *    The first window of an app session calls `rolloverLastWorkspace()`
@@ -44,6 +46,16 @@ import { settings } from './settings.js';
 
 const LIVE_KEY = 'pmd-live-workspace';
 const LAST_KEY = 'pmd-last-workspace';
+/** When the app last began to quit (ms since epoch), stamped by a window
+ *  closing during the quit. Lets the next roll-over tell "windows closed
+ *  a moment before the quit" from "a window closed an hour ago". */
+const QUIT_KEY = 'pmd-live-quit-at';
+
+/** Windows the user closed by hand in the last stretch before the app
+ *  ended still count as part of the workspace. Closing the windows one by
+ *  one (to install an update, say) is how many people quit, and offering
+ *  only the last survivor lost the rest. */
+const CLOSE_GRACE_MS = 3 * 60 * 1000;
 
 /** Cap on a snapshot's size — a workspace bigger than this is
  *  almost certainly stale entries from windows that never got
@@ -99,6 +111,8 @@ interface LiveEntry {
   mode: 'panes' | 'windows';
   name: string | null;
   docs: WorkspaceDoc[];
+  /** Set when the window closed on its own (not as part of a quit). */
+  closedAt?: number;
 }
 
 /** Identity for THIS window inside the LIVE map, minted per load.
@@ -173,6 +187,7 @@ function readLive(): Record<string, LiveEntry> {
       mode: e.mode === 'panes' ? 'panes' : 'windows',
       name: normalizeName(e.name),
       docs: e.docs.filter(isDoc).map(normalizeDoc),
+      ...(typeof e.closedAt === 'number' ? { closedAt: e.closedAt } : {}),
     };
   }
   return out;
@@ -201,12 +216,42 @@ function buildSnapshot(windows: WorkspaceWindow[], savedAt: number, pinned: bool
   return { savedAt, windows: kept, docs, pinned };
 }
 
+/** Which live entries belong in a snapshot. Open windows always do. A
+ *  window that closed on its own does only when `includeClosed` is set
+ *  (the end-of-session fold, never an explicit Save Workspace) AND it
+ *  closed within the grace period before the session ended. The session
+ *  ended when the app began to quit; when it never did (every window
+ *  closed by hand, which just exits), when the last window closed. While
+ *  other windows stay open with no quit recorded, nothing is "the end",
+ *  so closed windows stay out. Paths an open window holds are stripped
+ *  from the closed ones (a reloaded window leaves its old entry behind). */
+function entriesForSnapshot(live: Record<string, LiveEntry>, includeClosed: boolean): LiveEntry[] {
+  const all = Object.values(live).filter((e) => e.docs.length > 0);
+  const open = all.filter((e) => e.closedAt === undefined);
+  if (!includeClosed) return open;
+  const closed = all.filter((e) => e.closedAt !== undefined);
+  if (closed.length === 0) return open;
+  const quitAt = readQuitAt();
+  const lastClose = Math.max(...closed.map((e) => e.closedAt as number));
+  const endedAt = quitAt ?? (open.length === 0 ? lastClose : null);
+  if (endedAt === null) return open;
+  const held = new Set(open.flatMap((e) => e.docs.map((d) => d.path)));
+  const recent = closed
+    .filter((e) => (e.closedAt as number) >= endedAt - CLOSE_GRACE_MS)
+    .map((e) => ({ ...e, docs: e.docs.filter((d) => !held.has(d.path)) }))
+    .filter((e) => e.docs.length > 0);
+  return [...open, ...recent];
+}
+
+function readQuitAt(): number | null {
+  const v = readJson(QUIT_KEY);
+  return typeof v === 'number' ? v : null;
+}
+
 /** Fold the LIVE map into one snapshot: one window per entry, the
  *  oldest first (so the set reads in the order the user built it). */
-function foldLive(live: Record<string, LiveEntry>): WorkspaceSnapshot | null {
-  const entries = Object.values(live)
-    .filter((e) => e.docs.length > 0)
-    .sort((a, b) => a.openedAt - b.openedAt);
+function foldLive(live: Record<string, LiveEntry>, includeClosed: boolean): WorkspaceSnapshot | null {
+  const entries = entriesForSnapshot(live, includeClosed).sort((a, b) => a.openedAt - b.openedAt);
   return buildSnapshot(
     entries.map((e) => ({ name: e.name, mode: e.mode, docs: e.docs })),
     Date.now(),
@@ -232,6 +277,7 @@ export function reportWindowWorkspace(
   if (kept.length === 0) delete live[WINDOW_ID];
   else {
     const now = Date.now();
+    // (Reporting again clears any closed mark: a window that reports is open.)
     live[WINDOW_ID] = {
       openedAt: live[WINDOW_ID]?.openedAt ?? now,
       updatedAt: now,
@@ -259,8 +305,7 @@ export function setWindowWorkspaceName(name: string | null): void {
   writeJson(LIVE_KEY, live);
 }
 
-/** Drop THIS window's live entry: it closed on its own, so it is not
- *  part of what the next session should be offered. */
+/** Drop THIS window's live entry outright. */
 export function forgetWindowWorkspace(): void {
   const live = readLive();
   if (!(WINDOW_ID in live)) return;
@@ -268,11 +313,29 @@ export function forgetWindowWorkspace(): void {
   writeJson(LIVE_KEY, live);
 }
 
-/** Forget this window's entry when the window goes away WITHOUT the
- *  app quitting — an ordinary close, a reload, a mode-switch close.
+/** THIS window closed on its own. Keep its entry, stamped, so the
+ *  end-of-session fold can still offer it when the session ended soon
+ *  after (see `entriesForSnapshot`). */
+export function markWindowClosed(): void {
+  const live = readLive();
+  const mine = live[WINDOW_ID];
+  if (!mine) return;
+  live[WINDOW_ID] = { ...mine, closedAt: Date.now() };
+  writeJson(LIVE_KEY, live);
+}
+
+/** The app is quitting: stamp when, so windows closed by hand just
+ *  before it are told apart from ones closed long ago. */
+export function markAppQuitting(): void {
+  writeJson(QUIT_KEY, Date.now());
+}
+
+/** Mark this window's entry closed when the window goes away WITHOUT
+ *  the app quitting — an ordinary close, a reload, a mode-switch close.
  *  `isAppQuitting` is asked synchronously from `pagehide`, where
  *  nothing can be awaited; when it says the app is quitting (or it
- *  cannot tell), the entry stays, which is the whole feature. */
+ *  cannot tell), the entry stays as it is and the quit is stamped,
+ *  which is the whole feature. */
 export function installWindowCloseForget(isAppQuitting: () => boolean): () => void {
   const onHide = (): void => {
     let quitting = true;
@@ -281,7 +344,8 @@ export function installWindowCloseForget(isAppQuitting: () => boolean): () => vo
     } catch {
       quitting = true;
     }
-    if (!quitting) forgetWindowWorkspace();
+    if (quitting) markAppQuitting();
+    else markWindowClosed();
   };
   window.addEventListener('pagehide', onHide);
   return () => window.removeEventListener('pagehide', onHide);
@@ -336,8 +400,9 @@ function publish(snapshot: WorkspaceSnapshot | null): void {
  *  Returns the resulting snapshot. */
 export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
   if (!settings.get('lastWorkspaceEnabled')) return null; // off: leave storage alone
-  const folded = foldLive(readLive());
+  const folded = foldLive(readLive(), true);
   writeJson(LIVE_KEY, {});
+  writeJson(QUIT_KEY, null);
   let snapshot: WorkspaceSnapshot | null;
   if (folded) {
     writeJson(LAST_KEY, folded);
@@ -356,7 +421,7 @@ export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
  *  saved snapshot, or null when nothing reopenable is open. */
 export function saveWorkspaceNow(): WorkspaceSnapshot | null {
   if (!settings.get('lastWorkspaceEnabled')) return null;
-  const folded = foldLive(readLive());
+  const folded = foldLive(readLive(), false);
   if (!folded) return null;
   const pinned: WorkspaceSnapshot = { ...folded, pinned: true };
   writeJson(LAST_KEY, pinned);

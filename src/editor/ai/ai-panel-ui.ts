@@ -13,6 +13,8 @@ import { setIcon } from '../icons.js';
 import {
   collectCardInfo,
   cardFingerprint,
+  cardScopeKey,
+  cardsInRanges,
   type CardInfo,
 } from './card-analysis.js';
 import {
@@ -70,32 +72,98 @@ export function closeAiPanel(): void {
   drawer?.remove();
   drawer = body = titleEl = actionsEl = null;
   mode = null;
+  scope = null;
 }
 
 export function isAiPanelOpen(): boolean {
   return drawer !== null;
 }
 
+/** What a panel is about when it is not the whole document: one card, or the
+ *  cards under a heading. `keys` are `cardScopeKey`s, so the scope survives
+ *  edits that move the cards. */
+export interface AiScope {
+  keys: string[];
+  label: string;
+}
+
+let scope: AiScope | null = null;
+
 export function openCrossEx(): void {
   if (!aiGateToast()) return;
-  openDrawer('crossex');
+  openDrawer('crossex', null);
 }
 
 export function openCredibility(): void {
   if (!aiGateToast()) return;
-  openDrawer('cred');
+  openDrawer('cred', null);
 }
 
-function openDrawer(next: Mode): void {
+/** Open a panel for just the cards inside `ranges` (the Card menu's rows).
+ *  Says so when there are none, e.g. the cursor is in an analytic. */
+export function openAiForRanges(
+  kind: Mode,
+  ranges: readonly { from: number; to: number }[],
+): void {
+  const view = host?.getView();
+  if (!view || !aiGateToast()) return;
+  const cards = cardsInRanges(view.state.doc, ranges);
+  if (cards.length === 0) {
+    showToast('No cards here. Put the cursor in a card, or pick a heading that has cards under it.');
+    return;
+  }
+  const tag = cards[0]!.tag.trim();
+  const label =
+    cards.length === 1
+      ? `“${tag.length > 70 ? `${tag.slice(0, 69)}…` : tag}”`
+      : `${cards.length} cards`;
+  openDrawer(kind, { keys: cards.map(cardScopeKey), label });
+}
+
+function sameScope(a: AiScope | null, b: AiScope | null): boolean {
+  if (!a || !b) return a === b;
+  return a.keys.length === b.keys.length && a.keys.every((k, i) => k === b.keys[i]);
+}
+
+function openDrawer(next: Mode, nextScope: AiScope | null): void {
   if (!host) return;
-  if (mode === next && drawer) {
+  if (mode === next && drawer && sameScope(scope, nextScope)) {
     closeAiPanel();
     return;
   }
   if (!drawer) buildDrawer();
   mode = next;
+  scope = nextScope;
   render();
 }
+
+/** The storage key for the open panel: the document's, plus the scope's, so a
+ *  one-card run never replaces the whole-document questions or scores. */
+function scopedKey(): string {
+  const base = host?.getDocKey() ?? '';
+  if (!scope) return base;
+  let h = 5381;
+  for (const k of scope.keys) {
+    for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0;
+    h = ((h << 5) + h + 1) | 0;
+  }
+  return `${base}#${scope.keys.length}.${(h >>> 0).toString(36)}`;
+}
+
+/** A line under the title naming the scope, with a way back to the whole doc. */
+function scopeBar(): HTMLElement | null {
+  if (!scope) return null;
+  const bar = el('div', 'pmd-aip-notice pmd-aip-scope');
+  bar.appendChild(el('span', undefined, `Just ${scope.label}. `));
+  const all = button('Whole document', 'pmd-aip-btn pmd-aip-btn-small', () => {
+    scope = null;
+    render();
+  });
+  bar.appendChild(all);
+  return bar;
+}
+
+const scopeSet = (): ReadonlySet<string> | undefined => (scope ? new Set(scope.keys) : undefined);
 
 function buildDrawer(): void {
   const d = document.createElement('aside');
@@ -226,7 +294,7 @@ let busyNote = '';
 let pendingQs: { after: string | null; qs: CrossExQuestion[] } | null = null;
 
 function currentCx(): CrossExState | null {
-  const key = host?.getDocKey() ?? '';
+  const key = scopedKey();
   if (key !== cxKey) {
     cxKey = key;
     cxState = loadCrossEx(key);
@@ -253,12 +321,15 @@ function renderCrossEx(): void {
 
   const input = crossExInputFor(view);
 
+  const sb = scopeBar();
+  if (sb) body.appendChild(sb);
+
   if (drill && state?.traps) {
     renderDrill(state);
     return;
   }
 
-  const note = shortDocNotice(input);
+  const note = shortDocNotice(input, scope !== null);
   if (note) body.appendChild(notice(note));
 
   const bar = el('div', 'pmd-aip-bar');
@@ -281,7 +352,13 @@ function renderCrossEx(): void {
   body.appendChild(bar);
 
   if (input.text.trim() === '') {
-    body.appendChild(notice('Nothing to ask about yet. Add some headings, analytics or cards.'));
+    body.appendChild(
+      notice(
+        scope
+          ? 'Those cards are no longer in the document.'
+          : 'Nothing to ask about yet. Add some headings, analytics or cards.',
+      ),
+    );
   }
 
   if (busy && pendingQs && pendingQs.after === null) {
@@ -295,7 +372,9 @@ function renderCrossEx(): void {
         el(
           'p',
           'pmd-aip-empty',
-          'Generates 3 to 6 questions an opponent would ask about the headings, analytics, tags and highlighted text in this document, with the answer they would likely give and how to press next.',
+          scope
+            ? 'Generates 3 to 6 questions an opponent would ask about these cards, using their tags, cites and highlighted text, with the answer they would likely give and how to press next.'
+            : 'Generates 3 to 6 questions an opponent would ask about the headings, analytics, tags and highlighted text in this document, with the answer they would likely give and how to press next.',
         ),
       );
     }
@@ -367,7 +446,7 @@ function questionCard(q: CrossExQuestion, state: CrossExState): HTMLElement {
 /** The cross-ex prompt input for the doc in `view`: headings, analytics,
  *  loose text, and each card's tag, cite and highlighted text. */
 function crossExInputFor(view: EditorView): ReturnType<typeof buildCrossExInput> {
-  return buildCrossExInput(view.state.doc, true);
+  return buildCrossExInput(view.state.doc, true, scopeSet());
 }
 
 async function confirmTrim(input: ReturnType<typeof buildCrossExInput>): Promise<boolean> {
@@ -558,9 +637,13 @@ function renderCred(): void {
     body.appendChild(notice('Open a document to score its cards.'));
     return;
   }
-  const key = host.getDocKey();
-  const cards = collectCardInfo(view.state.doc);
+  const baseKey = host.getDocKey();
+  const key = scopedKey();
+  const only = scopeSet();
+  const cards = collectCardInfo(view.state.doc).filter((c) => !only || only.has(cardScopeKey(c)));
   const scorable = scorableCards(cards);
+  const sb = scopeBar();
+  if (sb) body.appendChild(sb);
   if (scorable.length === 0) {
     body.appendChild(notice('No cards found. Credibility scoring reads each card’s tag and cite.'));
     return;
@@ -582,7 +665,7 @@ function renderCred(): void {
     b.disabled = true;
     bar.appendChild(b);
     body.appendChild(bar);
-    for (const s of partialScores) body.appendChild(credRow(s, undefined, key));
+    for (const s of partialScores) body.appendChild(credRow(s, undefined, baseKey));
     return;
   }
 
@@ -624,7 +707,7 @@ function renderCred(): void {
     );
   }
 
-  for (const s of fresh.scores) body.appendChild(credRow(s, fresh.batches, key));
+  for (const s of fresh.scores) body.appendChild(credRow(s, fresh.batches, baseKey));
 }
 
 /** Colour band for a 0-10 score: Strong is blue, Solid green, Shaky amber,
