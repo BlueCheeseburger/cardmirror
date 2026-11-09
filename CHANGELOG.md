@@ -8,11 +8,12 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
+## 1.17.2-bcb.3 — 2026-11-09
 
 ### Added
 
 - **The Card menu can run Cross-Ex Practice or Card Credibility on just the cards you pick.** With AI on, the toolbar's **Card** menu has a new **AI** section: put the cursor in a card and choose **Cross-Ex Practice (AI)** or **Card Credibility (AI)** to work on that card alone. Right-click a pocket, hat or block in the outline, go to **Card**, and the same rows cover every card under that heading. The panel says which cards it is about and has a **Whole document** button to go back. Results for a pick are kept separately, so they never replace the whole-document questions or scores.
+- **Plugins can read and run the timer.** A plugin can see every clock (speech, aff prep, neg prep), hear when one changes, and press the timer's own buttons: start, pause, reset, switch clock, load a preset, or set a time. The Policy Flow plugin uses it to show and control your CardMirror timer inside the flow.
 
 ### Changed
 

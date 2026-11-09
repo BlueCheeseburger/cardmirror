@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.17.2-bcb.3 — 2026-11-09
 
 ### Card menu: Cross-Ex Practice and Card Credibility for just these cards
 
@@ -65,6 +65,10 @@ Upstream release details are in the sections below under
 **Rejected.** Keeping every closed window until roll-over: a window closed hours earlier would reappear every launch.
 
 **Not verified.** The reported missing *name* was not reproduced; the name is stored in the same entry, so keeping the entry should keep it, but I did not see the user's data. Not tested against a real Windows update install.
+
+### Plugin API gets the timer (`plugin-api.ts`, `reference-docs/cardmirror-plugin-api.md`)
+
+Requested by the user, so Policy Flow can mirror and drive the CardMirror timer. `api.timer` is a thin wrapper over `timer-state.ts`: `get()` returns a `PluginTimerSnapshot` with every clock's visible ms as of `at` (the speech clock's stopped value when a prep clock is showing, its elapsed time while counting up), plus the preset buttons as the panel shows them (three, or four under `timerShowFourthPreset`). `onChanged` subscribes to both the timer state and settings, so a preset or prep-total edit reaches the plugin; it can fire with an unchanged snapshot when an unrelated setting changes, and plugins should de-duplicate. The actions call the same functions as the panel's buttons, with the same guards; bad input (an unknown mode, a non-positive or absurd preset, a negative time) is dropped. Reset refills prep from `timerPrepMinutes`, as the ↻ button does. Not checked: a timer driven from a plugin while the pop-out window is open, though both read the same shared state. `tests/editor/plugin-api.test.ts` fails here before and after this change (no `localStorage` in its jsdom run); the new `plugin-api-timer.test.ts` passes.
 
 ### Hovering a link shows an open-link icon (`link-hover-icon.ts`, `link-context-menu-plugin.ts`, `index.ts`, `style.css`)
 
