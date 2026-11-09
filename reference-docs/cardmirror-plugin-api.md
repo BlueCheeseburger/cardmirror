@@ -389,6 +389,35 @@ export interface PluginSettingsApi {
   onChanged(cb: (key: string, value: boolean | string | number) => void): () => void;
 }
 
+/** The built-in timer as a plugin sees it: each clock's value as of `at`. */
+export interface PluginTimerSnapshot {
+  mode: 'speech' | 'affPrep' | 'negPrep';
+  running: boolean;
+  /** The speech clock: time left, or time elapsed while `stopwatch`. */
+  speechMs: number;
+  affPrepMs: number;
+  negPrepMs: number;
+  stopwatch: boolean;
+  expiredMode: 'speech' | 'affPrep' | 'negPrep' | null;
+  speechTotalMs: number;
+  prepTotalMs: number;
+  /** Speech preset buttons, in minutes, as the timer panel shows them. */
+  presets: number[];
+  /** `Date.now()` when this snapshot was taken. */
+  at: number;
+}
+
+export interface PluginTimerApi {
+  get(): PluginTimerSnapshot;
+  onChanged(cb: (s: PluginTimerSnapshot) => void): () => void;
+  start(): void;
+  pause(): void;
+  reset(): void;
+  selectMode(mode: 'speech' | 'affPrep' | 'negPrep'): void;
+  loadPreset(minutes: number): void;
+  setActiveMs(ms: number): void;
+}
+
 export interface CardMirrorPluginApi {
   readonly appVersion: string;
   extractSelection(): ExtractResult | ExtractError;
@@ -399,6 +428,7 @@ export interface CardMirrorPluginApi {
   showToast(message: string): void;
   storage: PluginStorage;
   settings: PluginSettingsApi;
+  timer: PluginTimerApi;
 }
 ```
 
@@ -440,6 +470,17 @@ export interface CardMirrorPluginApi {
   keys. `onChanged(cb)` fires when the user changes a value in the
   settings modal and returns an unsubscribe function — most plugins
   can skip it and read lazily in each command's `run`.
+- `timer` (this fork, unreleased; absent on earlier builds, so check
+  for it) - the built-in timer. `get()` snapshots every clock as of
+  its `at` (a running clock keeps moving from there: count the active
+  one down, or up while `stopwatch`). `onChanged(cb)` fires on every
+  change in any window, including a preset or prep setting edited,
+  and returns an unsubscribe function. It can fire with an unchanged
+  snapshot when an unrelated setting changes. The actions are the
+  timer panel's own buttons: `start`, `pause`, `reset` (refill both
+  prep clocks), `selectMode`, `loadPreset(minutes)` and
+  `setActiveMs(ms)` (typing a time into the display; ignored while
+  running). Bad input is ignored.
 
 ### Extraction rules
 

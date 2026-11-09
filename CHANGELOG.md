@@ -10,6 +10,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **Plugins can read and run the timer.** A plugin can see every clock (speech, aff prep, neg prep), hear when one changes, and press the timer's own buttons: start, pause, reset, switch clock, load a preset, or set a time. The Policy Flow plugin uses it to show and control your CardMirror timer inside the flow.
+
 ### Changed
 
 - **The manual links now open this fork's manual, and there's a link to what this fork adds.** **Help → User Manual** and the link in **Settings → General** went to the original CardMirror's manual, which has none of this fork's features. They now open this fork's manual, with a new **What This Fork Adds** link beside it.

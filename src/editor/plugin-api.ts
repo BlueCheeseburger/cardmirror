@@ -11,6 +11,12 @@ import { extractSelection } from './plugin-extract.js';
 import { jumpToTokenInView } from './plugin-jump.js';
 import { getPluginSettingValue, subscribePluginSettings } from './plugin-settings.js';
 import { parseSourceToken } from './plugin-source-token.js';
+import { settings } from './settings.js';
+import {
+  getPrepRemainingMs, getTimerState, getVisibleRemainingMs, isStopwatch, loadSpeechPreset,
+  pauseTimer, resetTimer, selectMode, setActiveRemainingMs, startTimer, subscribeTimer,
+  type TimerMode,
+} from './timer-state.js';
 
 export type ExtractedKind =
   | 'pocket'
@@ -89,6 +95,42 @@ export interface PluginSettingsApi {
   onChanged(cb: (key: string, value: boolean | string | number) => void): () => void;
 }
 
+/** The built-in timer as a plugin sees it: each clock's value as of `at`. */
+export interface PluginTimerSnapshot {
+  mode: TimerMode;
+  running: boolean;
+  /** The speech clock: time left, or time elapsed while `stopwatch`. */
+  speechMs: number;
+  affPrepMs: number;
+  negPrepMs: number;
+  /** The speech clock is counting up. */
+  stopwatch: boolean;
+  /** The clock that ran out, until it's re-armed. */
+  expiredMode: TimerMode | null;
+  /** The length the speech clock was last armed with; 0 when unknown. */
+  speechTotalMs: number;
+  prepTotalMs: number;
+  /** Speech preset buttons, in minutes, as the timer panel shows them. */
+  presets: number[];
+  /** `Date.now()` when this snapshot was taken. A running clock moves on from here. */
+  at: number;
+}
+
+export interface PluginTimerApi {
+  get(): PluginTimerSnapshot;
+  /** Fires on every change (start, pause, preset, mode, edit, reset, a
+   *  preset or prep setting edited), in any window. Returns an unsubscribe. */
+  onChanged(cb: (s: PluginTimerSnapshot) => void): () => void;
+  start(): void;
+  pause(): void;
+  /** Refill both prep clocks and clear the speech clock, like the ↻ button. */
+  reset(): void;
+  selectMode(mode: TimerMode): void;
+  loadPreset(minutes: number): void;
+  /** Set the active clock (what typing in the display does). */
+  setActiveMs(ms: number): void;
+}
+
 export interface CardMirrorPluginApi {
   readonly appVersion: string;
   extractSelection(): ExtractResult | ExtractError;
@@ -99,7 +141,52 @@ export interface CardMirrorPluginApi {
   showToast(message: string): void;
   storage: PluginStorage;
   settings: PluginSettingsApi;
+  /** The built-in timer (this fork, unreleased). Absent on older builds. */
+  timer: PluginTimerApi;
 }
+
+function timerSnapshot(): PluginTimerSnapshot {
+  const s = getTimerState();
+  const now = Date.now();
+  const presets = settings.get('timerSpeechPresets');
+  return {
+    mode: s.mode,
+    running: s.running,
+    speechMs: s.mode === 'speech' ? getVisibleRemainingMs(s, now) : s.stopwatch ? s.speechStopwatchBaseMs : s.speechBaseRemainingMs,
+    affPrepMs: getPrepRemainingMs(s, 'aff', now),
+    negPrepMs: getPrepRemainingMs(s, 'neg', now),
+    stopwatch: s.stopwatch,
+    expiredMode: s.expiredMode,
+    speechTotalMs: s.speechTotalMs,
+    prepTotalMs: s.prepTotalMs,
+    presets: presets.slice(0, settings.get('timerShowFourthPreset') ? 4 : 3),
+    at: now,
+  };
+}
+
+const TIMER_MODES: readonly TimerMode[] = ['speech', 'affPrep', 'negPrep'];
+
+const pluginTimer: PluginTimerApi = {
+  get: timerSnapshot,
+  onChanged(cb) {
+    const fire = () => { try { cb(timerSnapshot()); } catch { /* a plugin's own bug */ } };
+    const offTimer = subscribeTimer(fire);
+    const offSettings = settings.subscribe(fire);
+    return () => { offTimer(); offSettings(); };
+  },
+  start: () => startTimer(),
+  pause: () => pauseTimer(),
+  reset: () => resetTimer(settings.get('timerPrepMinutes') * 60 * 1000),
+  selectMode(mode) { if (TIMER_MODES.includes(mode)) selectMode(mode); },
+  loadPreset(minutes) {
+    const m = Number(minutes);
+    if (Number.isFinite(m) && m > 0 && m <= 600) loadSpeechPreset(m);
+  },
+  setActiveMs(ms) {
+    const v = Number(ms);
+    if (Number.isFinite(v) && v >= 0 && v <= 600 * 60_000) setActiveRemainingMs(v);
+  },
+};
 
 export interface PluginApiDeps {
   appVersion: string;
@@ -212,5 +299,6 @@ export function createPluginApi(pluginId: string, deps: PluginApiDeps): CardMirr
         return subscribePluginSettings(pluginId, cb);
       },
     },
+    timer: pluginTimer,
   };
 }
