@@ -366,7 +366,10 @@ mirrors Word's Navigation Pane, but does more:
   toolbar's Card menu has — Condense, Excerpt, Highlighting and Shrink —
   acting on the card under the right-clicked heading, or on every card under a
   Pocket, Hat or Block. It is the same list as the toolbar menu, built from one
-  definition. (**Mark Card** isn't in either menu; mark with **Mod-Alt-D** or
+  definition. **(Fork)** Every row in the toolbar's Doc and Card menus, and in
+  these side menus, shows its keyboard shortcut at the right in small text when
+  it has one (it follows your changes in Settings → Keyboard shortcuts, and a
+  row with no shortcut shows nothing). (**Mark Card** isn't in either menu; mark with **Mod-Alt-D** or
   Search Everything.) Unhighlight turns into
   **Rehighlight** (and back) as in the toolbar. On a **Pocket, Hat or Block**
   there is also a **Doc ▸** row with the toolbar's Doc menu — Cleanup

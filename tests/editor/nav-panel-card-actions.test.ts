@@ -68,15 +68,18 @@ const menuRows = (): string[] =>
   [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-item')]
     .filter((el) => !el.closest('.pmd-nav-context-submenu'))
     .map((el) => el.firstChild?.textContent ?? '');
+/** A row's label, without the shortcut hint at its right. */
+const rowLabel = (el: HTMLElement): string =>
+  el.querySelector('.pmd-menu-row-label')?.textContent ?? el.textContent ?? '';
 const submenuRows = (): string[] =>
-  [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-submenu .pmd-nav-context-item')].map((el) => el.textContent ?? '');
+  [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-submenu .pmd-nav-context-item')].map(rowLabel);
 /** One submenu's rows, by the label of the row that opens it ("Doc" / "Card"). */
 const rowsOfSubmenu = (label: string): string[] => {
   const host = [...document.querySelectorAll<HTMLElement>('.pmd-nav-context-submenu-host')].find(
     (h) => h.firstElementChild?.firstChild?.textContent === label,
   );
   return [...(host?.querySelectorAll<HTMLElement>('.pmd-nav-context-submenu .pmd-nav-context-item') ?? [])].map(
-    (el) => el.textContent ?? '',
+    rowLabel,
   );
 };
 

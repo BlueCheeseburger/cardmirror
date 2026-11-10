@@ -10,6 +10,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **The Doc and Card menus show each action's keyboard shortcut.** The shortcut sits at the right of the row in small text, like the F-key hints on the style buttons, and stays visible whatever your tooltip setting is. It follows any shortcut you set in **Settings → Keyboard shortcuts**, and a row with no shortcut shows nothing. The Card and Doc submenus of the outline's right-click menu show them too.
+
 ### Fixed
 
 - **The list of documents in a stack no longer runs off the edge of the window.** When a pane near the right edge held several documents, opening its list pushed the rows, and each row's close button, past the screen so you could not close a document from it. The list now stays inside the window, and a long folder path is shortened first so the name and the close button always show.

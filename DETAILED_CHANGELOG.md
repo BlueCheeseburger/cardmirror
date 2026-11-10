@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Always-on shortcut hints in the Doc and Card menus (`menu-shortcut-hint.ts`, `doc-menu-ui.ts`, `nav-panel.ts`, `style.css`)
+
+**Request.** Right-aligned hints, about as small as the style buttons' key badges, on the actions in the Doc and Card menus.
+
+**What it does.** `fillMenuRow` renders a row as a label span plus, when the row's command has a key, a small `.pmd-menu-row-key` span pushed to the right edge (0.6rem, 70% opacity; the style buttons' badge is 0.5rem on a 1.45rem button, which would be hard to read in a 0.85rem row). The key comes from `primaryKeyFor(command, ribbonKeyOverrides)` through `formatKeyForDisplay`, so rebinds show up, and an unbound command shows nothing. The toolbar dropdowns (`openDocMenu`) and the outline's Card and Doc submenus (`buildSubmenuRow`) both use it. The rows no longer register a hover tooltip: that tooltip only ever showed the shortcut (and only in two of the four tooltip modes), so the always-on hint replaces it. Rows without a command (the scoped AI rows) have no hint.
+
+**Not changed.** Most Doc and Card commands have no default key (only Condense, its Alt, Ctrl+Alt and Ctrl+Alt+Shift variants, and Shrink do), so most rows show no hint until bound in **Settings → Keyboard shortcuts**. I did not invent default keys.
+
+**Verified.** Unit tests (hint for a bound command, none for unbound or no command, follows a rebind, present with tooltips off) and Chromium screenshots of the real Card menu. The nav-panel test now reads a row's label span. **Not verified:** macOS glyphs on a Mac, and the Doc menu and outline submenus visually (the same code path, only the toolbar Card menu was captured).
+
 ### Stack dropdown stays inside the window (`multi-pane-shell.ts`, `style.css`)
 
 **Report.** With several documents in a stack, the close button was cut off by the right edge of the screen.

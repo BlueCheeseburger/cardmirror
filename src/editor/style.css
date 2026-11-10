@@ -7896,6 +7896,29 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   background: var(--pmd-c-button-hover);
 }
 
+/* Always-on shortcut hint at the right of a Doc / Card menu row (toolbar
+   dropdowns and the outline's submenus): small like the style buttons' key
+   badges, aligned in one column by pushing it to the row's right edge. */
+.pmd-doc-menu-item.pmd-has-key,
+.pmd-nav-context-item.pmd-has-key {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+.pmd-menu-row-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pmd-menu-row-key {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 0.6rem;
+  line-height: 1;
+  opacity: 0.7;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .pmd-doc-menu-separator {
   height: 1px;
   background: var(--pmd-c-divider);
