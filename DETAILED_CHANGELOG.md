@@ -10,6 +10,18 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.17.2-bcb.3.1 — 2026-11-10
+
+### Closing a window lists its documents in Recent (`recents-store.ts`, `index.ts`)
+
+**Report.** After closing several windows, the home screen's Recent showed only one grouped "2 docs … closed 7m ago" entry; the other closed windows' documents were not there.
+
+**Cause.** `recordRecentWorkspace` runs only for a multi-pane window with 2 or more saved docs. A window with one doc made no entry, and the plain Recent list is fed by opening and saving files, not by closing, so a document that came back through a restore or had been open for a while was not moved up.
+
+**Fix.** `recordClosedDocs` puts a closing window's saved docs at the top of Recent, first doc newest, skipping unsaved ones. The multi-pane close path calls it with the same snapshot it gives the workspace entry; the single-doc path calls it (`rememberClosingDoc`) just before each `closeSelf` that completes a close (clean, session kept, Save, Save As; not Cancel and not Discard, which still closes but does not keep the unsaved state). The grouped workspace entry is unchanged.
+
+**Not verified.** In the installed app; the report did not say which windows were closed or whether they held one doc each, so this is the likeliest cause, not a confirmed one. A window closed by the OS during a system shutdown or crash does not run this code. The home screen showed no **Last workspace** section in the report; that section appears only after a relaunch from the previous session's windows, and I did not find out whether **Settings → Files → Last workspace** was on.
+
 ## 1.17.2-bcb.3 — 2026-11-09
 
 ### Card menu: Cross-Ex Practice and Card Credibility for just these cards

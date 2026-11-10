@@ -92,3 +92,30 @@ describe('recents store', () => {
     unsubscribe();
   });
 });
+
+describe('recordClosedDocs', () => {
+  it('puts a closing window\'s saved docs first, in the window\'s order, skipping unsaved ones', async () => {
+    const { recordClosedDocs, recordRecent, listRecents, clearRecents } = await import(
+      '../../src/editor/recents-store.js'
+    );
+    clearRecents();
+    recordRecent({ handle: '/old.docx', filename: 'old', format: 'docx' });
+    recordClosedDocs([
+      { handle: '/a.docx', filename: 'a', format: 'docx' },
+      { handle: null, filename: 'Untitled', format: null },
+      { handle: '/b.cmir', filename: 'b', format: 'cmir' },
+    ]);
+    expect(listRecents().map((r) => r.filename)).toEqual(['a', 'b', 'old']);
+  });
+
+  it('moves an already-listed doc to the top', async () => {
+    const { recordClosedDocs, recordRecent, listRecents, clearRecents } = await import(
+      '../../src/editor/recents-store.js'
+    );
+    clearRecents();
+    recordRecent({ handle: '/x.docx', filename: 'x', format: 'docx' });
+    recordRecent({ handle: '/y.docx', filename: 'y', format: 'docx' });
+    recordClosedDocs([{ handle: '/x.docx', filename: 'x', format: 'docx' }]);
+    expect(listRecents().map((r) => r.filename)).toEqual(['x', 'y']);
+  });
+});
