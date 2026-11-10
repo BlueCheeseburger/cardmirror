@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.17.2-bcb.3.1 — 2026-11-10
 
 ### Closing a window lists its documents in Recent (`recents-store.ts`, `index.ts`)
 
