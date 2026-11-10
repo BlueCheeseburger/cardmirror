@@ -13460,10 +13460,21 @@ body.pmd-pane-dragging * {
   border-radius: 4px;
   box-shadow: 0 4px 12px var(--pmd-c-shadow);
   min-width: 180px;
+  /* Never wider than the window, so a long folder path can't push the
+     rows' close buttons off the screen. */
+  max-width: calc(100vw - 8px);
+  box-sizing: border-box;
   z-index: 600;
   padding: 0.2rem 0;
 }
+/* In the list the folder path gives way before the name and the close
+   button do. */
+.pmd-pane-chip-dropdown-row .pmd-pane-chip-path {
+  flex: 0 1 14rem;
+  max-width: none;
+}
 .pmd-pane-chip-dropdown-row {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.4rem;

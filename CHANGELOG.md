@@ -8,6 +8,12 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Fixed
+
+- **The list of documents in a stack no longer runs off the edge of the window.** When a pane near the right edge held several documents, opening its list pushed the rows, and each row's close button, past the screen so you could not close a document from it. The list now stays inside the window, and a long folder path is shortened first so the name and the close button always show.
+
 ## 1.17.2-bcb.3.1 — 2026-11-10
 
 ### Fixed

@@ -26,6 +26,7 @@
  * declares its view, the controller treats it as cross-view.
  */
 
+import { positionFloatingMenu } from './context-menu-position.js';
 import { EditorState, Selection, TextSelection } from 'prosemirror-state';
 import { isFileChangedOnDiskError } from './error-surface.js';
 import {
@@ -1845,9 +1846,10 @@ class Slot {
     }
     document.body.appendChild(dropdown);
     const rect = this.chipStackBtn.getBoundingClientRect();
-    dropdown.style.position = 'absolute';
-    dropdown.style.top = `${rect.bottom + window.scrollY + 2}px`;
-    dropdown.style.left = `${rect.left + window.scrollX}px`;
+    // Fixed and clamped to the window: a pane at the right edge used to push
+    // the list, and every row's close button, off the screen.
+    dropdown.style.position = 'fixed';
+    positionFloatingMenu(dropdown, rect.left, rect.bottom + 2);
     openStackDropdownEl = dropdown;
     const onDoc = (e: PointerEvent) => {
       const t = e.target as Node | null;

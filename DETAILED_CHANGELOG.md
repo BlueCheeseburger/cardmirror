@@ -10,6 +10,18 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Stack dropdown stays inside the window (`multi-pane-shell.ts`, `style.css`)
+
+**Report.** With several documents in a stack, the close button was cut off by the right edge of the screen.
+
+**Cause.** `openStackDropdown` placed the list at the chip's left edge with absolute coordinates and no clamp, and the list had no maximum width. A row's folder path (shown when two stacked files share a name) made the list wider than the space to the right of a pane near the screen edge, so the close buttons ended up off screen.
+
+**Fix.** The list is `position: fixed` and placed with `positionFloatingMenu`, the clamp the app's other floating menus use (it also flips above when there is no room below). It has `max-width: calc(100vw - 8px)`, and inside the list the folder path (`flex: 0 1 14rem`, no percentage cap) shrinks before the name and the close button.
+
+**Verified.** In Chromium at 700px wide, asked to open at x=560 with a very long path, the list slid left to 223 to 696 and both close buttons ended at 687; a source-level test pins the fixed placement and the CSS. **Not verified:** a real stack with two same-named files in the desktop app, and a window narrower than the list's minimum width.
+
 ## 1.17.2-bcb.3.1 — 2026-11-10
 
 ### Closing a window lists its documents in Recent (`recents-store.ts`, `index.ts`)
