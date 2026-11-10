@@ -96,6 +96,19 @@ export function recordRecent(file: {
   write(next);
 }
 
+/** Put the docs of a window that is closing at the top of the list, so
+ *  closing a window never loses its documents from Recent. `docs` is in the
+ *  window's own order; the first ends up newest. Unsaved docs (no path) are
+ *  skipped: there is nothing to reopen. */
+export function recordClosedDocs(
+  docs: readonly { handle: unknown; filename: string | null; format: 'cmir' | 'docx' | null }[],
+): void {
+  for (const d of [...docs].reverse()) {
+    if (typeof d.handle !== 'string' || !d.handle) continue;
+    recordRecent({ handle: d.handle, filename: d.filename, format: d.format });
+  }
+}
+
 /** Drop a recent entry by handle (used to prune a stale entry the
  *  home screen failed to reopen). */
 export function removeRecent(handle: string | null): void {

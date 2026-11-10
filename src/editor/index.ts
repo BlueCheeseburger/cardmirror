@@ -151,7 +151,7 @@ import { openClean, runCleanSingleFileWeb } from './clean-ui.js';
 import { openDocDiff } from './doc-diff-ui.js';
 import { homeScreen, type HomeScreenCallbacks } from './home-screen.js';
 import { currentTakeoverTitle, isTakenOver, onTakeoverChange } from './window-takeover.js';
-import { recordRecent, removeRecent, listRecents, clearRecents, subscribeRecents, type RecentFile } from './recents-store.js';
+import { recordRecent, recordClosedDocs, removeRecent, listRecents, clearRecents, subscribeRecents, type RecentFile } from './recents-store.js';
 import { recordRecentWorkspace, type RecentWorkspace } from './recent-workspaces-store.js';
 import { buildMenuRecents } from './menu-recents.js';
 import {
@@ -11103,7 +11103,11 @@ async function handleUserCloseRequestInner(
       // and recordRecentWorkspace itself no-ops below 2 docs.
       if (multiDocGetWorkspaceSnapshot) {
         try {
-          recordRecentWorkspace(multiDocGetWorkspaceSnapshot());
+          const closing = multiDocGetWorkspaceSnapshot();
+          // Every doc goes to the top of Recent, so a window holding a
+          // single doc (which makes no workspace entry) is still listed.
+          recordClosedDocs(closing);
+          recordRecentWorkspace(closing);
         } catch (err) {
           console.warn('Recording recent workspace failed:', err);
         }
@@ -11135,12 +11139,14 @@ async function handleUserCloseRequestInner(
     }
     if (co === 'keep') {
       // Closing the doc (session kept resumable) completes a pending quit.
+      rememberClosingDoc();
       await electronHost.closeSelf();
       return;
     }
     // 'run-normal' → fall through to the dirty/save flow below.
   }
   if (!currentDocDirty) {
+    rememberClosingDoc();
     await electronHost.closeSelf();
     return;
   }
@@ -11150,7 +11156,10 @@ async function handleUserCloseRequestInner(
   switch (choice) {
     case 'save': {
       const ok = await runSaveFlow();
-      if (ok) await electronHost.closeSelf();
+      if (ok) {
+        rememberClosingDoc();
+        await electronHost.closeSelf();
+      }
       // Save failed — the window stays open, so a quit that was
       // waiting on this confirmation is off. Let main know.
       else await electronHost.cancelClose?.();
@@ -11158,7 +11167,10 @@ async function handleUserCloseRequestInner(
     }
     case 'saveAs': {
       const ok = await runSaveAsFlow();
-      if (ok) await electronHost.closeSelf();
+      if (ok) {
+        rememberClosingDoc();
+        await electronHost.closeSelf();
+      }
       else await electronHost.cancelClose?.();
       return;
     }
@@ -11178,6 +11190,14 @@ async function handleUserCloseRequestInner(
       await electronHost.cancelClose?.();
       return;
   }
+}
+
+/** A single-doc window is closing with a saved file: list it first in
+ *  Recent, so closing the window never loses it from the home screen. */
+function rememberClosingDoc(): void {
+  recordClosedDocs([
+    { handle: currentDocHandle, filename: currentDocFilename, format: currentDocFormat },
+  ]);
 }
 
 /** Stats `handle` (an Electron absolute-path string; anything else — a web

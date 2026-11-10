@@ -2774,7 +2774,10 @@ Open a working file with **File → Open**, or from the Home screen's recents.
 **(fork)** If a recent file has moved or been deleted, CardMirror offers
 **Locate…** to find it or **Remove from Recents**, instead of dropping it.
 A recently closed three-pane workspace also appears in the Recent list (see
-[Multiple workspaces](#multiple-workspaces)). On
+[Multiple workspaces](#multiple-workspaces)). **(fork)** Closing a window
+also puts each of its saved documents at the top of the Recent list, so a
+window that held a single document is not lost; only a window with two or
+more documents gets the grouped workspace entry. On
 desktop you can also **drag a `.docx`, `.cmir`, or `.cmir-journal`** from your
 file manager onto any CardMirror window — the editor, the navigation pane, or the
 home screen — to open it, exactly like File → Open (including the unsaved-changes

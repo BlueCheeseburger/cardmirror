@@ -8,6 +8,12 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Fixed
+
+- **Documents from a window you closed now show at the top of Recent.** Only a window holding two or more saved documents left anything on the home screen (the grouped "2 docs" entry), so closing windows that each held one document made them vanish from Recent. Closing any window now puts its saved documents first in the list. Documents that were never saved are still not listed.
+
 ## 1.17.2-bcb.3 — 2026-11-09
 
 ### Added
