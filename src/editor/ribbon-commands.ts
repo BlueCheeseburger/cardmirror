@@ -1924,6 +1924,17 @@ const UNDERLINE_FILTER_EXEMPT = new Set(['pocket', 'hat', 'block', 'tag', 'cite_
  *  emphasis (underline + bold). Cite is bold-only, so it doesn't count. */
 const UNDERLINED_MARKS = new Set(['underline_mark', 'underline_direct', 'emphasis_mark']);
 
+/** A "word" for the underlined-only paint filter: what a double-click selects
+ *  (letters, digits, apostrophes) plus the symbols that ride on a number or a
+ *  word: `%` and `‰`, `°`, and currency signs. Without them the `%` of
+ *  "40%" and the `$` of "$180" were never paintable, and F11 on the symbol
+ *  alone did nothing while F11 on the whole figure took the highlight off its
+ *  digits. */
+const NUMBER_SYMBOL_RE = /^[%‰°\p{Sc}]$/u;
+function isPaintWordChar(ch: string): boolean {
+  return isWordChar(ch) || NUMBER_SYMBOL_RE.test(ch);
+}
+
 /**
  * "Highlight underlined text only" (Settings → Editing): narrow the ranges a
  * highlight / shading paint touches to the text that is underlined or
@@ -2005,9 +2016,9 @@ export function restrictToUnderlinedText(
       const kept = new Array<boolean>(size).fill(false);
       let i = 0;
       while (i < size) {
-        if (!isWordChar(ch[i]!)) { i++; continue; }
+        if (!isPaintWordChar(ch[i]!)) { i++; continue; }
         let j = i;
-        while (j < size && isWordChar(ch[j]!)) j++;
+        while (j < size && isPaintWordChar(ch[j]!)) j++;
         // Word is [i, j).
         // The word decides by the part of it the selection covers: if the
         // selection holds some of its emphasis, only the emphasized part is
@@ -2030,11 +2041,11 @@ export function restrictToUnderlinedText(
       // is left to the bridger, like the space itself.
       i = 0;
       while (i < size) {
-        if (isWordChar(ch[i]!)) { i++; continue; }
+        if (isPaintWordChar(ch[i]!)) { i++; continue; }
         let j = i;
         let hasSpace = false;
         let allUnderlined = true;
-        while (j < size && !isWordChar(ch[j]!)) {
+        while (j < size && !isPaintWordChar(ch[j]!)) {
           if (/\s/.test(ch[j]!) || ch[j] === '\0') hasSpace = true;
           if (!underlined[j]) allUnderlined = false;
           j++;

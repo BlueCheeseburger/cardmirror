@@ -762,8 +762,9 @@ emphasis and plain underline, only the emphasized part is painted when your
 selection includes some of the emphasis; select just the underlined rest
 (the `ceutical` of an emphasized `Biopharmaceutical`) and that is painted. A
 "word" here is the same thing a double-click selects — letters, digits
-and apostrophes — so an em dash, hyphen or comma splits words rather than
-joining them: in `nuclear—armed` with only `nuclear` emphasized, `armed`
+and apostrophes — plus `%`, `°` and currency signs, so the `%` of `40%` and
+the `$` of `$180` paint with their figure; an em dash, hyphen or comma splits
+words rather than joining them: in `nuclear—armed` with only `nuclear` emphasized, `armed`
 keeps its own underline paint. A dash that joins two painted words with
 no space is painted with them; punctuation beside a space, and the space
 itself, fill in when "Bridge formatting across gaps automatically" is

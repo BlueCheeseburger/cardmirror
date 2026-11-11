@@ -440,3 +440,37 @@ describe('F11 on the underlined rest of an emphasized word (field report)', () =
     expect(mask(again.doc, 'highlight').slice(9, 28)).toBe(' '.repeat(19));
   });
 });
+
+
+describe('F11 on a symbol that rides on a figure (field report: the % of "40%")', () => {
+  beforeEach(() => { settings.set('highlightUnderlinedOnly', true); });
+  afterEach(() => { settings.set('highlightUnderlinedOnly', false); });
+
+  const SH = () => schema.marks['shading']!.create({ color: 'D2D2D2' });
+  // "40" emphasized + highlighted, "%" emphasized on a grey background, then a
+  // space and more highlighted text.
+  const doc = () =>
+    docOf(['that are '], ['40', [E(), HL('cyan')]], ['%', [E(), SH()]], [' lower', [E(), HL('cyan')]], [' in the VA']);
+  const cyan = () => 'cyan';
+
+  it('selecting just "%" highlights it', () => {
+    const out = run(doc(), '%', applyHighlight(cyan));
+    expect(mask(out.doc, 'highlight').slice(9, 12)).toBe('___');
+  });
+
+  it('selecting "40%" paints the % instead of taking the highlight off the 40', () => {
+    const out = run(doc(), '40%', applyHighlight(cyan));
+    expect(mask(out.doc, 'highlight').slice(9, 12)).toBe('___');
+    // a second press is the toggle: the whole figure comes off
+    const again = apply(select(out, '40%'), applyHighlight(cyan));
+    expect(mask(again.doc, 'highlight').slice(9, 12)).toBe('   ');
+  });
+
+  it('currency and degree signs count too, other punctuation still does not', () => {
+    const money = docOf(['costs '], ['$', [E()]], ['180', [E()]], [' now']);
+    expect(restrictToUnderlinedText(money, [{ from: 1, to: 15 }])).toEqual([{ from: 7, to: 11 }]);
+    const comma = docOf(['one', [U()]], [',', [U()]], [' two', [U()]]);
+    // the comma beside a space is still left to the gap bridger
+    expect(restrictToUnderlinedText(comma, [{ from: 1, to: 9 }])).toEqual([{ from: 1, to: 4 }, { from: 6, to: 9 }]);
+  });
+});

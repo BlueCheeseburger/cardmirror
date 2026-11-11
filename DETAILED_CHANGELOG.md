@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Highlight underlined text only: `%`, `°` and currency signs paint with their figure (`restrictToUnderlinedText`)
+
+**Report.** Unable to highlight the `%` of `40%` (grey background shading on it, `40` already highlighted).
+
+**Cause.** Reproduced with the setting on and not with it off (default). The filter's "word" is what a double-click selects, which excludes `%`; a non-word character is kept only when it has no space beside it and sits between two kept characters. The `%` in `40% lower` has a space after it, so it was never kept: F11 on `%` found nothing to paint (and, with no highlight in the selection, returned without doing anything), and F11 on `40%` saw the only paintable text (`40`) already highlighted and toggled the whole selection off. The grey shading is not involved: highlight is drawn over shading, and the test with and without shading gave the same result.
+
+**Fix.** The filter uses its own word test, `isPaintWordChar`: the double-click word plus `%`, `‰`, `°` and the currency sign class (`\p{Sc}`). Every other punctuation (commas, periods, dashes, brackets) is unchanged and still left to the gap bridger. The double-click spec in `word-break.ts` is not touched (it drives selection, find and the formatting toggles). With `%` a word character, the earlier fix for judging a word by the part inside the selection makes selecting only the `%` paint it whether it is emphasized or only underlined.
+
+**Not verified.** In the app by hand; only unit tests on the same shape of text (they fail without the change). Symbols not in the list (`&`, `#`, `+`, `=`) still behave like punctuation; add them if the same thing is hit.
+
 ### Highlight underlined text only: select the underlined rest of an emphasized word (`restrictToUnderlinedText`)
 
 **Report.** With `Biopharma` emphasized and `ceutical innovation` underlined, F11 could not highlight `ceutical`: on `ceutical innovation` it took the highlight off everything selected, and pressing it again put back only `Biopharma ... innovation`; on `ceutical` alone it did nothing.
