@@ -1594,6 +1594,13 @@ class Slot {
     this.chipSpeech.setState(isSpeech);
   }
 
+  /** Tint the stack button amber while the speech doc is somewhere in this
+   *  stack (visible or not), so a pane whose speech doc is hidden behind
+   *  another tab still says it holds it. */
+  setStackHasSpeech(has: boolean): void {
+    this.chipStackBtn.classList.toggle('pmd-has-speech', has);
+  }
+
   /** Show (or clear) the same-name path hint. Driven by the shell, which
    *  sees every open doc. */
   setChipPath(path: string | null): void {
@@ -4740,6 +4747,7 @@ class MultiPaneShell {
       const isSpeech = !!speechView && slot.visible?.view === speechView;
       slot.paneEl.classList.toggle('pmd-pane-speech', isSpeech);
       slot.setSpeechState(isSpeech);
+      slot.setStackHasSpeech(slot.stack.some((r) => getSpeechDocResolver().isSpeechByUid(r.uid)));
     }
   }
 }

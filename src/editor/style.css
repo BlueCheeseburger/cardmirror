@@ -13362,6 +13362,19 @@ body.pmd-pane-dragging * {
 }
 
 .pmd-pane-chip-stack[hidden] { display: none; }
+/* The speech doc is somewhere in this stack: the stack button wears the
+   speech amber, whichever doc is showing. Specific enough to beat the
+   focused-pane (on-accent) colors below, which assume a blue chip. */
+.pmd-pane .pmd-pane-chip-stack.pmd-has-speech,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-stack.pmd-has-speech {
+  background: var(--pmd-c-speech-bg);
+  border-color: var(--pmd-c-speech-amber);
+  color: var(--pmd-c-speech-text);
+}
+.pmd-pane .pmd-pane-chip-stack.pmd-has-speech:hover,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-stack.pmd-has-speech:hover {
+  background: var(--pmd-c-speech-border);
+}
 .pmd-pane-chip-expand {
   flex: 0 0 auto;
   width: 18px;

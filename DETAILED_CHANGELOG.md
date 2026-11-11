@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Stack button amber when the stack holds the speech doc (`multi-pane-shell.ts`, `style.css`)
+
+**Request.** "make the dropdown have the amber color as a backdrop ... if there is a speech doc marked as active speech doc in that dropdown" (the **v N** button on a pane's title bar, shown with 2+ docs).
+
+**What it does.** `refreshSpeechChips` (already run on every speech change, move, close and open) now also sets `pmd-has-speech` on each slot's stack button when any record in that slot's stack is the speech doc. The class uses the `--pmd-c-speech-bg` fill, `--pmd-c-speech-amber` border and `--pmd-c-speech-text` text, so it follows light and dark. The focused-pane rules that recolor the button for a blue chip are `:not(.pmd-pane-speech)`-scoped, so the new rule matches that specificity to win there. When the speech doc is the one showing, the whole chip is already amber, and the button keeps an amber outline so it still reads as a button.
+
+**Interpretation.** "The dropdown" is read as the button (the thing in the screenshot), not the opened list; the list already marks the speech doc's row with the mic and amber name.
+
+**Verified.** Real app in Chromium (three-pane, two docs in a stack, speech doc marked, other doc brought to the front), light and dark: none, hidden, visible and list-open states; class toggles in each. A source-level test pins the wiring and the CSS. **Not verified:** the desktop app, and a window or stack where the speech doc lives in another window (this tint reflects only this window's stack).
+
 ### Highlight underlined text only: `%`, `°` and currency signs paint with their figure (`restrictToUnderlinedText`)
 
 **Report.** Unable to highlight the `%` of `40%` (grey background shading on it, `40` already highlighted).
