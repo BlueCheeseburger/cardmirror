@@ -18,6 +18,6 @@ describe('stack button amber when the stack holds the speech doc', () => {
 
   it('uses the speech tokens and beats the focused-pane colors', () => {
     expect(css).toMatch(/\.pmd-pane-focused:not\(\.pmd-pane-speech\) \.pmd-pane-chip-stack\.pmd-has-speech \{[^}]*var\(--pmd-c-speech-bg\)/s);
-    expect(css).toMatch(/\.pmd-pane \.pmd-pane-chip-stack\.pmd-has-speech \{/);
+    expect(css).toMatch(/\.pmd-pane \.pmd-pane-chip-stack\.pmd-has-speech,/);
   });
 });
