@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Outline stars are saved in the .docx metadata (`schema/starred.ts`, `ooxml/docx.ts`, `export/index.ts`, `import/index.ts`)
+
+**Request.** "go back to saving which cards are starred in the .docx metadata and .cmir metadata."
+
+**What was true.** There was nothing to go back to for the .docx: the `starred` attr was always a node attribute, written into a `.cmir` with the rest of the doc and never into a `.docx` (the schema comment and the Starred Doc entry in this changelog both said so). The .cmir already kept it (re-checked with a serialize / parse test). The only change that was needed is the .docx.
+
+**What it does.** `toDocx` collects the ids of every starred heading (`collectStarredIds`) and writes them as custom document properties in `docProps/custom.xml`, `cmirStarred`, `cmirStarred2`, ..., each chunk at most 240 characters (an id is never split; Word's Properties dialog caps a text value at 255). Nothing is written when none are starred. Both importers (`fromDocx`, `fromDocxFull`) read the chunks back and `applyStarredIds` sets `starred` on the headings whose ids match; ids that match nothing are ignored. This works because the exporter already writes each heading id as a `pmd-heading-<uuid>` bookmark and the importer already reads it, so the id is the stable key, the same way the document id uses a custom property. Word keeps both across its own save (the document id property was verified that way earlier).
+
+**Rejected.** A hidden marker inside the paragraph (a bookmark or run property per starred heading): it would add to every starred paragraph and show up in tools that read the body. A single long property: risks Word's 255-character text limit. Writing a separate `starred` list into the .cmir envelope: the attr already travels with the nodes and a second copy could disagree.
+
+**Not verified.** Opening a starred .docx saved here in real Word, saving it there and reopening in CardMirror (the properties are standard custom properties and the docId one is known to survive, but the stars were not put through Word). A copy of a starred card pasted in Word keeps its duplicate id only until the importer's duplicate-id pass, which keeps the first one, so a star can land on the original and not the copy. Stars already lost from a .docx are not recoverable.
+
 ### Always-on shortcut hints in the Doc and Card menus (`menu-shortcut-hint.ts`, `doc-menu-ui.ts`, `nav-panel.ts`, `style.css`)
 
 **Request.** Right-aligned hints, about as small as the style buttons' key badges, on the actions in the Doc and Card menus.

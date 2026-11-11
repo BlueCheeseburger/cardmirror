@@ -12,6 +12,8 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **Which cards you starred are now saved in the file.** A star in the outline was only kept in a `.cmir` file; a `.docx` lost it the moment you closed the document. Now a `.docx` carries its stars in its hidden document properties, which Word keeps and otherwise ignores, so a starred card is still starred when you reopen the file. A `.cmir` still keeps them as before. Stars in a `.docx` made before this update were never saved, so they have to be set again once.
+
 - **The Doc and Card menus show each action's keyboard shortcut.** The shortcut sits at the right of the row in small text, like the F-key hints on the style buttons, and stays visible whatever your tooltip setting is. It follows any shortcut you set in **Settings → Keyboard shortcuts**, and a row with no shortcut shows nothing. The Card and Doc submenus of the outline's right-click menu show them too.
 
 ### Fixed

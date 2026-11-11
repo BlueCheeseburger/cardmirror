@@ -3045,7 +3045,10 @@ bottom of the dialog.
     block headings it sits under, so the copy keeps its place in the outline;
     the other blocks and hats under those headings, and their titles, are left
     out. It takes the `STARRED_` filename prefix like the other presets (see
-    [Saving a starred doc](#saving-a-starred-doc)).
+    [Saving a starred doc](#saving-a-starred-doc)). **(Fork)** Which headings
+    are starred is saved in the file itself: in a `.cmir`, and in a `.docx`
+    as a hidden document property (it survives Word, and is ignored by Word and
+    Verbatim), so the stars are still there when you reopen the file.
   - **Custom Save** — shows checkboxes under it so you choose exactly what
     to include: comments, analytics, undertags, **Freeze card numbers as
     text** or **Remove card numbers** (one or the other; neither keeps live

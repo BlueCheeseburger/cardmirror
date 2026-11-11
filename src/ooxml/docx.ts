@@ -20,6 +20,7 @@
 import { unzipSync, zipSync, zip as zipWorker } from 'fflate';
 import { canonicalStylesXml } from './styles.js';
 import { XML_PROLOG, escText } from './xml.js';
+import { chunkStarredIds, parseStarredChunks, starredPropName } from '../schema/starred.js';
 
 const utf8Decoder = new TextDecoder('utf-8');
 const utf8Encoder = new TextEncoder();
@@ -204,6 +205,27 @@ export class Docx {
         ),
       );
     }
+  }
+
+  /** Write the starred heading ids (see `schema/starred.ts`) as custom
+   *  properties, `cmirStarred`, `cmirStarred2`, ... Writes nothing when none
+   *  are starred. */
+  async writeStarred(ids: readonly string[]): Promise<void> {
+    const chunks = chunkStarredIds(ids);
+    for (let i = 0; i < chunks.length; i++) {
+      await this.writeCustomProperty(starredPropName(i), chunks[i]!);
+    }
+  }
+
+  /** The starred heading ids written by `writeStarred`, or []. */
+  async readStarred(): Promise<string[]> {
+    const chunks: (string | null)[] = [];
+    for (let i = 0; ; i++) {
+      const v = await this.readCustomProperty(starredPropName(i));
+      if (v === null) break;
+      chunks.push(v);
+    }
+    return parseStarredChunks(chunks);
   }
 
   /** Read the CardMirror `docId` custom property, or null if absent. */
