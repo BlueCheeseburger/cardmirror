@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Highlight over shading counts as read (`word-count.ts`)
+
+**Report.** The speaking time seemed to count grey-background words; asked about it, the user said text that has shading and then gets a highlight over it should count.
+
+**What was true.** `readAloudBucket` counted body and cite text only when it had a non-blank highlight AND no shading mark. Shading alone was already silent (checked), so the grey words in the report were most likely highlight-plus-shading ones, or a grey highlight. The "and no shading" half is wrong for the workflow Lock Highlighting exists for: it removes the highlight and adds the protected grey shading so the card can be re-highlighted in one pass, and what the user then highlights has both marks. Read mode already shows such text (it keeps text with a read-aloud mark regardless of shading), so the clock and the screen disagreed.
+
+**Change.** A non-blank highlight alone decides, in the body branch and in the cite branch. Shading with no highlight, or with a blank (white / none) highlight, is still not read. Fixtures in `word-count.test.ts` and `live-read-time.test.ts` that used highlight-plus-shading as their "silent" case now use shading alone; new cases pin the three combinations. Every counter (status bar, outline times, pace bar, remaining time) goes through the same function, so they all follow.
+
+**Not changed / open.** A grey highlight (Gray 25% / 50%) is still read; whether it should not be is an open question to the user. Send Doc's handling of reference excerpts is untouched.
+
+**Not verified.** In the app by hand; unit tests only.
+
 ### Notice when an edit is refused in read mode (`read-mode-plugin.ts`)
 
 **Request.** "add a toast whenever the user tries to edit something in a document but read mode is active."
