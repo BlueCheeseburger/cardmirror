@@ -1755,7 +1755,7 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   that finishes the whole document exactly when the speech time runs out (whatever
   the document's length or your wpm), so you can see how far ahead or behind you
   are without looking at the timer. It follows read mode and the flow / lay toggle. It stays hidden when the
-  document is more than a minute longer than the speech, which is probably a
+  document is more than three minutes longer than the speech, which is probably a
   masterfile. The bar glides down smoothly rather than line by line; unhighlighted
   text takes no reading time, so it rushes through that text instead of jumping.
   While **Auto-Scroll** runs, a second, outlined bar marks

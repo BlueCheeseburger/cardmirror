@@ -44,10 +44,11 @@ describe('expectedReadSec', () => {
     expect(expectedReadSec({ clockSec: 240, totalSec: 500, speechTotalSec: 480 })).toBe(250);
   });
 
-  it('hides for a doc more than a minute over the speech (a masterfile)', () => {
+  it('hides for a doc more than three minutes over the speech (a masterfile)', () => {
     expect(expectedReadSec({ clockSec: 300, totalSec: 480 + MASTERFILE_OVER_SEC + 1, speechTotalSec: 480 })).toBeNull();
     expect(expectedReadSec({ clockSec: 300, totalSec: 12000, speechTotalSec: 480 })).toBeNull();
-    // Exactly a minute over still shows.
+    // Exactly three minutes over still shows, and so does a doc 1:28 over (9:28 in an 8:00 speech).
+    expect(expectedReadSec({ clockSec: 300, totalSec: 568, speechTotalSec: 480 })).not.toBeNull();
     expect(expectedReadSec({ clockSec: 300, totalSec: 480 + MASTERFILE_OVER_SEC, speechTotalSec: 480 })).not.toBeNull();
   });
 
