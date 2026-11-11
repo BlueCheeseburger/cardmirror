@@ -98,6 +98,7 @@ describe('receiving a send from another tab, and its Undo', () => {
 
     other.postMessage({ kind: 'slice', nonce: 'send-1', uid: 'speech-uid', sliceJson: slice.toJSON(), atEnd: true });
     await until(() => heard.some((m) => m.kind === 'ack' && m.nonce === 'send-1'));
+    await until(() => cards(speech.state.doc) === 1); // the ack goes out as the insert is scheduled
     expect(cards(speech.state.doc)).toBe(1);
 
     other.postMessage({ kind: 'undo', nonce: 'send-1' });
