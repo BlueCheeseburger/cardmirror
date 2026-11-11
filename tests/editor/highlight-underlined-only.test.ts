@@ -75,10 +75,19 @@ describe('restrictToUnderlinedText', () => {
     ]);
   });
 
-  it('the whole word decides, even the part outside the selection', () => {
-    // "nuc" emphasized; select only "lear" (underlined) → nothing qualifies.
+  it('selecting only the underlined rest of an emphasized word paints it', () => {
+    // "nuc" emphasized, "lear" underlined; select only "lear": it is what was
+    // picked, so it is painted (it used to leave nothing to paint, and F11
+    // either did nothing or stripped the highlight beside it).
     const doc = docOf(['nuc', [E()]], ['lear', [U()]]);
-    expect(restrictToUnderlinedText(doc, [{ from: 4, to: 8 }])).toEqual([]);
+    expect(restrictToUnderlinedText(doc, [{ from: 4, to: 8 }])).toEqual([{ from: 4, to: 8 }]);
+  });
+
+  it('selecting the whole word still paints only the emphasized part', () => {
+    const doc = docOf(['nuc', [E()]], ['lear', [U()]]);
+    expect(restrictToUnderlinedText(doc, [{ from: 1, to: 8 }])).toEqual([{ from: 1, to: 4 }]);
+    // A selection that reaches into the emphasis, even by one letter, too.
+    expect(restrictToUnderlinedText(doc, [{ from: 3, to: 8 }])).toEqual([{ from: 3, to: 4 }]);
   });
 
   // Words follow the double-click spec (word-break.ts): letters, digits,
@@ -404,5 +413,30 @@ describe('Highlight underlined text only — commands', () => {
     const doc = docOf(['aa', [U(), HL()]], [' ', [U()]], ['bb', [U()]], [' cc']);
     const next = run(doc, 'bb', applyHighlight(yellow));
     expect(mask(next.doc, 'highlight')).toBe('_____   ');
+  });
+});
+
+
+describe('F11 on the underlined rest of an emphasized word (field report)', () => {
+  beforeEach(() => { settings.set('highlightUnderlinedOnly', true); });
+  afterEach(() => { settings.set('highlightUnderlinedOnly', false); });
+
+  // "Biopharma" emphasized + highlighted, "ceutical" underlined, " innovation"
+  // underlined + highlighted.
+  const doc = () =>
+    docOf(['Biopharma', [E(), HL()]], ['ceutical', [U()]], [' innovation', [U(), HL()]], [' sits at', [U()]]);
+
+  it('selecting just "ceutical" highlights it', () => {
+    const out = run(doc(), 'ceutical', applyHighlight(yellow));
+    const m = mask(out.doc, 'highlight');
+    expect(m.slice(9, 17)).toBe('________');
+  });
+
+  it('selecting "ceutical innovation" paints the whole thing, not a strip of what was there', () => {
+    const out = run(doc(), 'ceutical innovation', applyHighlight(yellow));
+    expect(mask(out.doc, 'highlight').slice(0, 28)).toBe('_'.repeat(28));
+    // and a second press removes the selection's highlight (a real toggle)
+    const again = apply(select(out, 'ceutical innovation'), applyHighlight(yellow));
+    expect(mask(again.doc, 'highlight').slice(9, 28)).toBe(' '.repeat(19));
   });
 });

@@ -2009,7 +2009,14 @@ export function restrictToUnderlinedText(
         let j = i;
         while (j < size && isWordChar(ch[j]!)) j++;
         // Word is [i, j).
-        const useEmphasis = emphasized.slice(i, j).some(Boolean);
+        // The word decides by the part of it the selection covers: if the
+        // selection holds some of its emphasis, only the emphasized part is
+        // painted; if it holds only the underlined rest ("ceutical" in an
+        // emphasized "Biopharma|ceutical"), that is what the user picked, so
+        // the underline counts. A word outside the range keeps the whole-word
+        // rule, since its verdict feeds the dash-joining pass below.
+        const inRange = j > lo && i < hi;
+        const useEmphasis = (inRange ? emphasized.slice(Math.max(i, lo), Math.min(j, hi)) : emphasized.slice(i, j)).some(Boolean);
         const keep = useEmphasis ? emphasized : underlined;
         for (let k = i; k < j; k++) if (keep[k]) kept[k] = true;
         i = j;

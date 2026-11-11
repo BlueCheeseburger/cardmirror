@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Highlight underlined text only: select the underlined rest of an emphasized word (`restrictToUnderlinedText`)
+
+**Report.** With `Biopharma` emphasized and `ceutical innovation` underlined, F11 could not highlight `ceutical`: on `ceutical innovation` it took the highlight off everything selected, and pressing it again put back only `Biopharma ... innovation`; on `ceutical` alone it did nothing.
+
+**Cause.** Reproduced with the setting on and not with it off (default). The setting's rule is that a word mixing emphasis and plain underline paints only its emphasized part, and the word was judged whole, even when the selection held none of its emphasis. So `ceutical` was never paintable. Selecting `ceutical innovation`, the only paintable text was `innovation`, which was already highlighted, so F11 read it as "already highlighted, toggle off" and stripped the whole selection (`removeMark` over the operating range), and the next press repainted just `innovation`. Selecting `ceutical` alone left nothing to paint and, with no highlight in the selection, F11 returned without doing anything.
+
+**Fix.** A word that overlaps the selection is judged by the part of it inside the selection: emphasis in the selection means only the emphasized part is painted (unchanged, e.g. selecting the whole word); a selection that holds only the underlined rest paints that rest. A word outside the selection keeps the whole-word verdict, because the dash-joining pass reads its neighbors' verdicts. The old test that pinned "select only `lear` of an emphasized `nuc|lear` → nothing qualifies" is replaced by two that pin the new rule; new tests drive F11 on the reported text (toggles on, and off on a second press).
+
+**Not changed.** The Mod-F11 eraser, the gap bridging and the removal-is-never-blocked rule.
+
+**Not verified.** In the app by hand; only unit tests on the same text (which fail without the change).
+
 ### Outline stars are saved in the .docx metadata (`schema/starred.ts`, `ooxml/docx.ts`, `export/index.ts`, `import/index.ts`)
 
 **Request.** "go back to saving which cards are starred in the .docx metadata and .cmir metadata."

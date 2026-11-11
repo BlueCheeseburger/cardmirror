@@ -758,7 +758,9 @@ by default) makes every highlight and background-color paint — F11,
 Mod-F11, the paintbrush, and the color pickers — land only on text that
 is underlined or emphasized, so you can sweep across a whole paragraph
 and have just the underlined parts light up. In a word that mixes
-emphasis and plain underline, only the emphasized part is painted. A
+emphasis and plain underline, only the emphasized part is painted when your
+selection includes some of the emphasis; select just the underlined rest
+(the `ceutical` of an emphasized `Biopharmaceutical`) and that is painted. A
 "word" here is the same thing a double-click selects — letters, digits
 and apostrophes — so an em dash, hyphen or comma splits words rather than
 joining them: in `nuclear—armed` with only `nuclear` emphasized, `armed`
