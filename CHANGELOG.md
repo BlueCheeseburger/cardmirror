@@ -18,6 +18,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 - **The Doc and Card menus show each action's keyboard shortcut.** The shortcut sits at the right of the row in small text, like the F-key hints on the style buttons, and stays visible whatever your tooltip setting is. It follows any shortcut you set in **Settings → Keyboard shortcuts**, and a row with no shortcut shows nothing. The Card and Doc submenus of the outline's right-click menu show them too.
 
+### Changed
+
+- **The blue pace bar now shows for a document up to three minutes longer than the speech.** It used to hide when the document was more than one minute over, so a 9:28 document in an 8:00 speech never got a bar even with **Show pace guides** on. Past three minutes (probably a masterfile) it still stays hidden.
+
 ### Fixed
 
 - **Words you highlight over a grey background now count in the read time.** After Lock Highlighting, Highlight to Background or Create Reference turns a card grey, highlighting what you will read on top of the grey did not add to the speaking time, so a card you had re-highlighted showed too little time. A real highlight now counts whether or not the text also has grey behind it. Grey text with no highlight over it is still not counted.

@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Pace bar hides only past three minutes over (`timer-pace.ts`)
+
+**Report.** The thick blue bar never showed with **Show pace guides** on; the document read 9:28 against an 8:00 speech.
+
+**Cause.** `expectedReadSec` returns null (no bar) when the document's read time exceeds the speech length by more than `MASTERFILE_OVER_SEC`, 60 s, a guard against a masterfile sending the bar racing down the page. 1:28 over tripped it. The bar's position (the whole document at one steady pace across the whole speech) was never the problem.
+
+**Change.** `MASTERFILE_OVER_SEC` is 180. The Show pace guides description, the manual, FORK_FEATURES.md and the marker's comments say three minutes; the test pins 3:00 over (still shows), a 9:28 doc in an 8:00 speech (shows) and past it (hidden).
+
+**Not changed.** The pace-row verdict dot; the bar for a doc more than three minutes over (still hidden, not configurable).
+
+**Not verified.** In the app by hand.
+
 ### Highlight over shading counts as read (`word-count.ts`)
 
 **Report.** The speaking time seemed to count grey-background words; asked about it, the user said text that has shading and then gets a highlight over it should count.
