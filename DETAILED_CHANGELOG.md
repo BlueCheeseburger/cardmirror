@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Notice when an edit is refused in read mode (`read-mode-plugin.ts`)
+
+**Request.** "add a toast whenever the user tries to edit something in a document but read mode is active."
+
+**What it does.** The read-mode plugin already refuses edits two ways: `handleKeyDown` swallows bare typing keys (letters, Enter, Backspace, Delete) and `filterTransaction` rejects any document change except sync-origin and normalizer transactions, reading-marker edits, the bounded marker undo/redo, drag-move and comment-mark-only changes. Both now call `noteReadModeEditRefused`, which shows a pointer toast, `READ_MODE_EDIT_MESSAGE`, at most once per 1.5 s so a held key, or a paste that makes several transactions, cannot stack them. Anything the lock allows, selection-only transactions and chords (copy, navigation, F-keys) stay silent. A refused change from outside the keyboard, such as a ribbon or outline command, shows it too, which says why that command did nothing.
+
+**Not changed.** What read mode allows or blocks. `Space` and `Enter` still drop a reading marker first (they never reach the refusal path unless the marker command declines).
+
+**Verified.** jsdom tests on a real view: a letter, a refused insert, a burst (one notice), the gap passing (a second notice), nothing for read mode off, selection moves, a marker edit or a chord. Not run in the app by hand.
+
 ### Stack button amber when the stack holds the speech doc (`multi-pane-shell.ts`, `style.css`)
 
 **Request.** "make the dropdown have the amber color as a backdrop ... if there is a speech doc marked as active speech doc in that dropdown" (the **v N** button on a pane's title bar, shown with 2+ docs).

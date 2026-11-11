@@ -1513,6 +1513,11 @@ entire cite* is on. Undo restores the cards.
   left out of the clipboard, so copying and pasting from read mode gives
   you exactly what was on screen.
 
+**(Fork)** Typing, pasting or running any other edit while read mode is on
+shows a notice at the pointer, "Read mode is on, so this document can't be
+edited. Turn read mode off to edit.", at most once every second and a half, so
+a held key doesn't stack them.
+
 Only a few editing actions are allowed in read mode. First, you can drop a
 **reading-position marker** — red text like "Marked 7:32" at your cursor
 (Verbatim's red-text convention), for when you stop mid-card. In read mode

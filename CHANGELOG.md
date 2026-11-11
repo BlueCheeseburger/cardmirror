@@ -12,6 +12,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **A notice appears when you try to edit while read mode is on.** Typing, pasting or running an editing command in read mode used to do nothing at all, with no hint why. Now it says **Read mode is on, so this document can't be edited. Turn read mode off to edit.** (at most once every second and a half, so holding a key doesn't stack notices). Dropping a reading marker, moving the cursor, copying and adding comments work as before and show nothing.
 - **A pane's document-list button turns amber when the speech doc is in that stack.** The small **v 2** button on a pane's title bar now has the amber speech colors whenever one of the documents it lists is the speech doc, even if another document is showing, so you can tell which pane holds it without opening the list.
 - **Which cards you starred are now saved in the file.** A star in the outline was only kept in a `.cmir` file; a `.docx` lost it the moment you closed the document. Now a `.docx` carries its stars in its hidden document properties, which Word keeps and otherwise ignores, so a starred card is still starred when you reopen the file. A `.cmir` still keeps them as before. Stars in a `.docx` made before this update were never saved, so they have to be set again once.
 
