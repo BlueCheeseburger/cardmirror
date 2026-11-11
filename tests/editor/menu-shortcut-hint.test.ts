@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { fillMenuRow, shortcutHintFor } from '../../src/editor/menu-shortcut-hint.js';
+import { fillMenuRow, shortcutHintFor, setShortcutHintResolver } from '../../src/editor/menu-shortcut-hint.js';
+import { primaryKeyFor, formatKeyForDisplay } from '../../src/editor/ribbon-commands.js';
 import { settings } from '../../src/editor/settings.js';
 import { openDocMenu } from '../../src/editor/doc-menu-ui.js';
 
@@ -9,6 +10,18 @@ describe('Doc / Card menu shortcut hints', () => {
   beforeEach(() => {
     document.body.replaceChildren();
     settings.set('ribbonKeyOverrides', {});
+    // The same lookup the app registers at startup.
+    setShortcutHintResolver((id) => {
+      const key = primaryKeyFor(id, settings.get('ribbonKeyOverrides'));
+      return key ? formatKeyForDisplay(key) || null : null;
+    });
+  });
+
+  it('shows nothing until the app registers a key lookup', () => {
+    setShortcutHintResolver(null);
+    const btn = document.createElement('button');
+    fillMenuRow(btn, 'Condense', 'condenseDefault');
+    expect(btn.textContent).toBe('Condense');
   });
 
   it('shows the default key, right-aligned in its own span, for a bound command', () => {

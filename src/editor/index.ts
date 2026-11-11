@@ -25,6 +25,7 @@ import { nativeBytesToDocx } from './native-to-docx.js';
 import type { Thread, Comment } from './comments-plugin.js';
 import type { LocalComment } from './learn-store.js';
 import { NavigationPanel, setNavCommandRunner } from './nav-panel.js';
+import { setShortcutHintResolver } from './menu-shortcut-hint.js';
 import { initUpdateChip } from './update-chip.js';
 import { mountTimerUI } from './timer-ui.js';
 import { mountTimerPace, refreshTimerPace } from './timer-pace.js';
@@ -5221,6 +5222,11 @@ function ribbonCommandTransaction(id: AnyCommandId, state: EditorState): Transac
   return out;
 }
 setNavCommandRunner(ribbonCommandTransaction, (id) => runRibbon(id));
+// Doc / Card menu rows show their current key (follows rebinds in Settings).
+setShortcutHintResolver((id) => {
+  const key = primaryKeyFor(id, settings.get('ribbonKeyOverrides'));
+  return key ? formatKeyForDisplay(key) || null : null;
+});
 
 function runRibbonCommandById(id: AnyCommandId): void {
   if (VIEWLESS_RIBBON_COMMANDS.has(id)) {

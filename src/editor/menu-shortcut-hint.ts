@@ -4,15 +4,24 @@
  * current key, so it follows rebinds, and it is small and right-aligned like
  * the F-key badges on the style buttons. Rows with no key get no hint. The
  * hover tooltip setting does not apply: the hint is always on.
+ *
+ * The key lookup is registered by the app at startup (`setShortcutHintResolver`)
+ * rather than imported here: the command table reads the host as it loads, and
+ * the outline panel, which uses this file, must stay loadable without it.
  */
-import { settings } from './settings.js';
-import { primaryKeyFor, formatKeyForDisplay } from './ribbon-commands.js';
 import type { RibbonCommandId } from './ribbon-commands.js';
+
+type HintResolver = (commandId: RibbonCommandId) => string | null;
+let resolver: HintResolver | null = null;
+
+/** Register how a command's current key is looked up and formatted. */
+export function setShortcutHintResolver(fn: HintResolver | null): void {
+  resolver = fn;
+}
 
 /** The key to show for a command, e.g. "Ctrl+Shift+C", or null if unbound. */
 export function shortcutHintFor(commandId: RibbonCommandId): string | null {
-  const key = primaryKeyFor(commandId, settings.get('ribbonKeyOverrides'));
-  return key ? formatKeyForDisplay(key) || null : null;
+  return resolver ? resolver(commandId) : null;
 }
 
 /** Fill a menu-row button: the label, then (when bound) the hint at the right. */
