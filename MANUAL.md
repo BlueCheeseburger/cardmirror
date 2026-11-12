@@ -1176,7 +1176,7 @@ you *browse* that whole source.
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
-| **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
+| **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor; the bar stays open for the next one |
 | **`w`** | Your other open **CardMirror windows**, most recently used first *(desktop only)* | Brings that window to the front |
 
 Searching **version** (or "about this install") shows the running app
@@ -1235,7 +1235,7 @@ disclose. Results appear shortly after you stop typing, since every search
 is a request to Logos' server. Each row shows the tag, the cite, and the
 division, year, school and side. **Enter** (or **Alt-Enter** for the end of
 the document) downloads the full card and inserts it with its cite,
-underlining, emphasis and highlighting. **Right-click** a result to preview
+underlining, emphasis and highlighting, and **the bar stays open** with your search and results, so you can press **Enter** on the next card (**Esc** closes it). **Right-click** a result to preview
 the full card first, without inserting it. The preview has **Copy to
 clipboard** and **Close**, and closing it (or pressing Esc) returns you to
 your results. To condense or shrink it

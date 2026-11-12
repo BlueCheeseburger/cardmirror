@@ -10,6 +10,20 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: the palette stays open after a Logos insert (`quick-card-search-ui.ts`, `insertLogosCard`)
+
+**Report.** Searching Logos (`g `) and inserting a card closed the search-everything bar, so a second card meant reopening it and retyping the query.
+
+**Change.** `insertLogosCard` no longer closes the palette when there is a document to insert into. The query, result rows and selection are untouched; the card is fetched and inserted as before (the import condense/shrink commands still run), then a toast says `Inserted "<tag>".` and focus goes back to the bar (the deferred insert ends by focusing the editor, so it is claimed both right after the call and in the after-insert hook). Both Enter and the right-click preview's Insert go through it. A later insert lands below the previous one because the caret ends below the inserted card. Esc and an outside click close the palette as before.
+
+**Kept.** With no editable document (home screen, a screen over the editor) the card opens as a new document and the palette closes first, since that takes the screen. If the palette is closed, or closed and reopened, while the card loads, the card still lands but there is no toast and no refocus (an `asyncToken` check).
+
+**Why not a setting.** The only way to want the old behavior is to want the bar gone after one card, which Esc does in one key; the within-file source already keeps the palette open the same way (`keepOpen`), so this makes Logos match it. If someone wants the old behavior back, add a toggle then.
+
+**Not verified.** In the running app against the live Logos site (tests mock the network and drive the real palette in jsdom); the other card sources (`q` my cards, quick cards, drop zones) still close after an insert and were not asked about.
+
 ## 1.17.2-bcb.4 — 2026-11-12
 
 ### Release-notes card on the update chip (`update-notes-card.ts`, `update-chip.ts`, `whats-new.ts`, `style.css`)

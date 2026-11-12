@@ -1784,11 +1784,17 @@ class QuickCardSearchUI {
     }, LOGOS_DEBOUNCE_MS);
   }
 
-  /** Enter on a Logos row: fetch the full card, then insert it. The
-   *  palette closes first; the insert lands in the view it was opened
-   *  over, if that view is still editable when the card arrives. */
+  /** Enter on a Logos row: fetch the full card, then insert it. The insert
+   *  lands in the view the palette was opened over, if that view is still
+   *  editable when the card arrives. With a document to land in, the palette
+   *  STAYS OPEN (query, results and selection untouched, focus back on the
+   *  bar) so more cards can be grabbed from the same search; Esc closes it.
+   *  With none, the card opens as a new document, which takes the screen, so
+   *  the palette closes first. */
   private async insertLogosCard(result: PaletteResult, view: EditorView | null, atEnd: boolean): Promise<void> {
-    this.close();
+    const keepOpen = !!view;
+    if (!keepOpen) this.close();
+    const token = this.asyncToken; // taken after the close: a later close or reopen changes it
     let slice: Slice;
     try {
       const card = await fetchLogosCard(result.logosId!);
@@ -1808,7 +1814,18 @@ class QuickCardSearchUI {
       showToast('The document closed before the card arrived.');
       return;
     }
-    insertSpeechSlice(view, slice, atEnd, (v) => this.runLogosImportCommands(v));
+    // Still open when the card lands (it may have been closed while the card
+    // loaded): say what happened and hand focus back to the bar. The insert
+    // ends by focusing the editor, hence the focus calls here and after it.
+    const name = result.name;
+    insertSpeechSlice(view, slice, atEnd, (v) => {
+      this.runLogosImportCommands(v);
+      if (this.root && token === this.asyncToken) {
+        showToast(`Inserted "${name}".`);
+        this.input.focus();
+      }
+    });
+    if (this.root && token === this.asyncToken) this.input.focus();
   }
 
   /** No visible document to insert into (home screen, or a screen over the

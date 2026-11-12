@@ -8,6 +8,12 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **The search bar stays open after you insert a card from Logos.** Pressing Enter on a Logos result (or **Insert** in its preview) used to close the bar, so getting a second card meant opening it and typing the search again. Now the card goes in, a small **Inserted "…"** notice appears, and the bar keeps your search and its results with the cursor back in it, so you can press Enter on the next card. Esc closes it. With no document open to insert into, the card still opens as a new document and the bar closes.
+
 ## 1.17.2-bcb.4 — 2026-11-12
 
 ### Added
