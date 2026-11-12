@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Release-notes card on the update chip (`update-notes-card.ts`, `update-chip.ts`, `whats-new.ts`, `style.css`)
+
+**Request.** "in the update [pill] in the bottom ribbon, how could we add the ability to view the release notes of the update that's ready, so the user can decide whether they want the release or not"; of four mockups, the hover card was chosen.
+
+**What it does.** `attachUpdateNotesCard` watches the chip (hover after 350 ms, or keyboard focus; hides 250 ms after the pointer leaves unless it is on the card, on Escape, or on press). For a `ready` or `available` update it fetches that version's notes with the What's new popup's `fetchReleaseNotes` (download guide stripped; fetched once per version, a failure is not remembered) and shows `summarizeReleaseNotes`: the `###` sections with one line per bullet (the bold lead sentence, else the first sentence, shortened), at most 3 per section and 6 overall, the rest counted as "+ N more in the full notes". The footer has **Read the full notes…** (opens the existing What's new dialog with the notes) and what a click does ("Click the chip to install" / "download"). While fetching it says so; on failure it says the notes couldn't be loaded and links to the release page (`releasePageUrl`). Nothing shows for a download in progress or a plugin update. `initUpdateChip` takes an optional `openExternal` from the host (the Electron host already has one), so the status-bar and home-screen chips both get it.
+
+**Chip tooltip.** The ready / available chip no longer sets a `title`: the custom tooltip appeared over the card's footer (seen in a real-app screenshot), and the card already says what a click does. The text moved to an `aria-label`, cleared again for the other states.
+
+**Rejected.** A menu on click or a dialog on click (two of the four mockups): the user chose the hover card, which leaves a click as the one-step install it was.
+
+**Not verified.** In the desktop app (the web build has no update chip, so it was driven in Chromium with the real modules, a fake host and a mocked GitHub reply); hover does not exist on touch (focus does); a very large notes body only shows its headlines.
+
 ### Pace bar hides only past three minutes over (`timer-pace.ts`)
 
 **Report.** The thick blue bar never showed with **Show pace guides** on; the document read 9:28 against an 8:00 speech.

@@ -3196,7 +3196,10 @@ Automatic updates never interrupt you: when a new version has been
 downloaded in the background, a small **chip appears in the status bar**
 ("Update x.y.z ready — restart to install"). **(fork)** While the update
 downloads, the chip fills in from left to right and shows the percentage
-done. Nothing installs until you
+done. **(fork)** Hover the chip (or focus it with the keyboard) to see what's in
+the update before you decide: a small card above it lists the headlines of that
+version's release notes, with **Read the full notes…** to open them in full and
+**View on GitHub** if the notes can't be loaded. Nothing installs until you
 click it — on Windows, quitting the app normally also applies
 a downloaded update on the way out. On macOS the update is staged the
 same way and clicking the chip restarts straight into the new version;

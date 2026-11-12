@@ -2402,6 +2402,54 @@ body:not(.pmd-multi-doc) #app {
   font-variant-numeric: tabular-nums;
 }
 
+/* Release-notes card above the update chip (hover / focus). */
+.pmd-update-notes {
+  position: fixed;
+  z-index: 1000;
+  width: 380px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  padding: 0.6rem 0.75rem;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px var(--pmd-c-shadow);
+  font-family: var(--pmd-ui-font);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+.pmd-update-notes-title { font-weight: 600; font-size: 0.85rem; margin-bottom: 0.25rem; }
+.pmd-update-notes-body { max-height: 20rem; overflow-y: auto; }
+.pmd-update-notes-section {
+  margin: 0.45rem 0 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-update-notes ul { margin: 0.1rem 0 0.2rem; padding-left: 1.1rem; }
+.pmd-update-notes li { margin: 0.2rem 0; }
+.pmd-update-notes-more { margin-top: 0.3rem; color: var(--pmd-c-text-muted); }
+.pmd-update-notes-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+}
+.pmd-update-notes-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--pmd-c-accent);
+  cursor: pointer;
+}
+.pmd-update-notes-link:hover { text-decoration: underline; }
+.pmd-update-notes-hint { color: var(--pmd-c-text-secondary); }
+
 /* Status-bar Search Everything button: a magnifier in a neutral outlined
    pill that fills on hover, opening the quick-card search palette. */
 #status-search-btn {
