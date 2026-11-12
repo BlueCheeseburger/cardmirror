@@ -466,6 +466,29 @@ describe('F11 on a symbol that rides on a figure (field report: the % of "40%")'
     expect(mask(again.doc, 'highlight').slice(9, 12)).toBe('   ');
   });
 
+  // The field file: "73" cyan, the "%" emphasized with a WHITE (erased)
+  // highlight, then underlined text. White counts as no highlight, so the
+  // "%" is unhighlighted and F11 has to paint it, not strip the white.
+  it('a % carrying a white (erased) highlight is painted, alone or with its figure', () => {
+    const field = () =>
+      docOf(['accounted for '], ['73', [E(), HL('cyan')]], ['%', [E(), HL('white')]], [' ', [U(), HL('white')]]);
+    const alone = run(field(), '%', applyHighlight(cyan));
+    expect(mask(alone.doc, 'highlight').slice(14, 17)).toBe('___');
+    expect(alone.doc.textContent).toBe('accounted for 73% ');
+    let pctColor = '';
+    alone.doc.descendants((n) => {
+      if (n.isText && n.text === '%' || (n.isText && n.text === '73%')) {
+        pctColor = String(n.marks.find((m) => m.type.name === 'highlight')?.attrs['color']);
+      }
+      return true;
+    });
+    expect(pctColor).toBe('cyan');
+    const both = run(field(), '73%', applyHighlight(cyan));
+    expect(mask(both.doc, 'highlight').slice(14, 17)).toBe('___');
+    const again = apply(select(both, '73%'), applyHighlight(cyan));
+    expect(mask(again.doc, 'highlight').slice(14, 17)).toBe('   ');
+  });
+
   it('currency and degree signs count too, other punctuation still does not', () => {
     const money = docOf(['costs '], ['$', [E()]], ['180', [E()]], [' now']);
     expect(restrictToUnderlinedText(money, [{ from: 1, to: 15 }])).toEqual([{ from: 7, to: 11 }]);

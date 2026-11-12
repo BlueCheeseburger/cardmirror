@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.17.2-bcb.4 — 2026-11-12
 
 ### Release-notes card on the update chip (`update-notes-card.ts`, `update-chip.ts`, `whats-new.ts`, `style.css`)
 
@@ -76,7 +76,9 @@ Upstream release details are in the sections below under
 
 **Fix.** The filter uses its own word test, `isPaintWordChar`: the double-click word plus `%`, `‰`, `°` and the currency sign class (`\p{Sc}`). Every other punctuation (commas, periods, dashes, brackets) is unchanged and still left to the gap bridger. The double-click spec in `word-break.ts` is not touched (it drives selection, find and the formatting toggles). With `%` a word character, the earlier fix for judging a word by the part inside the selection makes selecting only the `%` paint it whether it is emphasized or only underlined.
 
-**Not verified.** In the app by hand; only unit tests on the same shape of text (they fail without the change). Symbols not in the list (`&`, `#`, `+`, `=`) still behave like punctuation; add them if the same thing is hit.
+**Verified on the field file (2026-11-12).** Opened the user's `.docx` in the running app (dev server, headless Chromium) with the setting on. In that file `73` is emphasized and highlighted cyan and the `%` is emphasized with a *white* highlight (an erased one: white counts as no highlight), followed by a white-highlighted underlined space. Before the change, F11 on the `%` removed its white highlight and painted nothing, and F11 on `73%` painted only the `73`. After it, F11 on the `%` paints it, F11 on `73%` paints both, and a second press takes both off. A test with that exact shape was added (it fails without the change). The earlier note that shading is not involved still holds: the field file has no shading at all.
+
+**Not verified.** Symbols not in the list (`&`, `#`, `+`, `=`) still behave like punctuation; add them if the same thing is hit.
 
 ### Highlight underlined text only: select the underlined rest of an emphasized word (`restrictToUnderlinedText`)
 
