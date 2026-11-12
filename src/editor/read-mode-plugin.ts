@@ -44,6 +44,7 @@ import { changedRange, expandToTopLevel } from './decoration-range.js';
 import { isSyncOrigin } from './sync-origin.js';
 import { NORMALIZER_META } from './normalizer-guard.js';
 import { settings } from './settings.js';
+import { showToast } from './toast.js';
 import { isBlankHighlightColor } from '../schema/marks.js';
 import { readKeptMarks } from './read-mode-rules.js';
 import {
@@ -61,6 +62,23 @@ import {
  *  multi-doc, so the global setting can stay `false` while an
  *  individual pane is on. */
 export const PMD_READ_MODE_TOGGLE = 'pmdReadModeToggle';
+
+/** Said when an edit is refused because read mode is on. */
+export const READ_MODE_EDIT_MESSAGE = 'Read mode is on, so this document can\u2019t be edited. Turn read mode off to edit.';
+const READ_MODE_NOTICE_GAP_MS = 1500;
+let lastReadModeNoticeAt = 0;
+/** Tell the user why nothing happened, at most once per burst: a held key or a
+ *  paste that makes several transactions must not stack toasts. */
+function noteReadModeEditRefused(): void {
+  const now = Date.now();
+  if (now - lastReadModeNoticeAt < READ_MODE_NOTICE_GAP_MS) return;
+  lastReadModeNoticeAt = now;
+  showToast(READ_MODE_EDIT_MESSAGE);
+}
+/** For tests: forget the last notice so the next refusal shows one. */
+export function resetReadModeNoticeForTests(): void {
+  lastReadModeNoticeAt = 0;
+}
 
 interface ReadModeState {
   on: boolean;
@@ -165,13 +183,14 @@ export const readModePlugin: Plugin<ReadModeState> = new Plugin<ReadModeState>({
     handleKeyDown(view, event) {
       if (!readModePlugin.getState(view.state)?.on) return false;
       const noChord = !event.ctrlKey && !event.metaKey && !event.altKey;
-      return (
+      const swallowed =
         noChord &&
         (event.key.length === 1 ||
           event.key === 'Enter' ||
           event.key === 'Backspace' ||
-          event.key === 'Delete')
-      );
+          event.key === 'Delete');
+      if (swallowed) noteReadModeEditRefused();
+      return swallowed;
     },
   },
   // Read mode's lock: while on, reject any document change except the
@@ -195,14 +214,15 @@ export const readModePlugin: Plugin<ReadModeState> = new Plugin<ReadModeState>({
   filterTransaction(tr, state) {
     if (!readModePlugin.getState(state)?.on) return true;
     if (!tr.docChanged) return true;
-    return (
+    const allowed =
       isSyncOrigin(tr) ||
       tr.getMeta(NORMALIZER_META) === true ||
       tr.getMeta(READING_MARKER_META) === true ||
       tr.getMeta(READ_MODE_UNDO_META) === true ||
       tr.getMeta(READ_MODE_DRAG_META) === true ||
-      isCommentMarkOnly(tr)
-    );
+      isCommentMarkOnly(tr);
+    if (!allowed) noteReadModeEditRefused();
+    return allowed;
   },
 });
 

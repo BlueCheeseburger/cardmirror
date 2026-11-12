@@ -54,6 +54,11 @@ export function releaseApiUrl(version: string): string {
   return `https://api.github.com/repos/BlueCheeseburger/cardmirror/releases/tags/v${encodeURIComponent(version)}`;
 }
 
+/** The GitHub page of one release, by version. */
+export function releasePageUrl(version: string): string {
+  return `${REPO_URL}/releases/tag/v${version}`;
+}
+
 /** The release body starts with a "which file do I download?" block for new
  *  users (release.yml writes it between these markers). Someone seeing the
  *  What's new popup already has the app, so it is dropped here. */
@@ -273,7 +278,7 @@ export function showWhatsNewDialog(opts: WhatsNewDialogOptions): Promise<void> {
     });
 
     pageBtn.addEventListener('click', () =>
-      opts.openExternal(`${REPO_URL}/releases/tag/v${opts.version}`),
+      opts.openExternal(releasePageUrl(opts.version)),
     );
     okBtn.addEventListener('click', close);
     backdrop.addEventListener('mousedown', (e) => {

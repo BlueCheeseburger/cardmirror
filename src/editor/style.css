@@ -2402,6 +2402,54 @@ body:not(.pmd-multi-doc) #app {
   font-variant-numeric: tabular-nums;
 }
 
+/* Release-notes card above the update chip (hover / focus). */
+.pmd-update-notes {
+  position: fixed;
+  z-index: 1000;
+  width: 380px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  padding: 0.6rem 0.75rem;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px var(--pmd-c-shadow);
+  font-family: var(--pmd-ui-font);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+.pmd-update-notes-title { font-weight: 600; font-size: 0.85rem; margin-bottom: 0.25rem; }
+.pmd-update-notes-body { max-height: 20rem; overflow-y: auto; }
+.pmd-update-notes-section {
+  margin: 0.45rem 0 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-update-notes ul { margin: 0.1rem 0 0.2rem; padding-left: 1.1rem; }
+.pmd-update-notes li { margin: 0.2rem 0; }
+.pmd-update-notes-more { margin-top: 0.3rem; color: var(--pmd-c-text-muted); }
+.pmd-update-notes-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+}
+.pmd-update-notes-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--pmd-c-accent);
+  cursor: pointer;
+}
+.pmd-update-notes-link:hover { text-decoration: underline; }
+.pmd-update-notes-hint { color: var(--pmd-c-text-secondary); }
+
 /* Status-bar Search Everything button: a magnifier in a neutral outlined
    pill that fills on hover, opening the quick-card search palette. */
 #status-search-btn {
@@ -7896,6 +7944,29 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   background: var(--pmd-c-button-hover);
 }
 
+/* Always-on shortcut hint at the right of a Doc / Card menu row (toolbar
+   dropdowns and the outline's submenus): small like the style buttons' key
+   badges, aligned in one column by pushing it to the row's right edge. */
+.pmd-doc-menu-item.pmd-has-key,
+.pmd-nav-context-item.pmd-has-key {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+.pmd-menu-row-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pmd-menu-row-key {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 0.6rem;
+  line-height: 1;
+  opacity: 0.7;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .pmd-doc-menu-separator {
   height: 1px;
   background: var(--pmd-c-divider);
@@ -13339,6 +13410,19 @@ body.pmd-pane-dragging * {
 }
 
 .pmd-pane-chip-stack[hidden] { display: none; }
+/* The speech doc is somewhere in this stack: the stack button wears the
+   speech amber, whichever doc is showing. Specific enough to beat the
+   focused-pane (on-accent) colors below, which assume a blue chip. */
+.pmd-pane .pmd-pane-chip-stack.pmd-has-speech,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-stack.pmd-has-speech {
+  background: var(--pmd-c-speech-bg);
+  border-color: var(--pmd-c-speech-amber);
+  color: var(--pmd-c-speech-text);
+}
+.pmd-pane .pmd-pane-chip-stack.pmd-has-speech:hover,
+.pmd-pane-focused:not(.pmd-pane-speech) .pmd-pane-chip-stack.pmd-has-speech:hover {
+  background: var(--pmd-c-speech-border);
+}
 .pmd-pane-chip-expand {
   flex: 0 0 auto;
   width: 18px;
@@ -13460,10 +13544,21 @@ body.pmd-pane-dragging * {
   border-radius: 4px;
   box-shadow: 0 4px 12px var(--pmd-c-shadow);
   min-width: 180px;
+  /* Never wider than the window, so a long folder path can't push the
+     rows' close buttons off the screen. */
+  max-width: calc(100vw - 8px);
+  box-sizing: border-box;
   z-index: 600;
   padding: 0.2rem 0;
 }
+/* In the list the folder path gives way before the name and the close
+   button do. */
+.pmd-pane-chip-dropdown-row .pmd-pane-chip-path {
+  flex: 0 1 14rem;
+  max-width: none;
+}
 .pmd-pane-chip-dropdown-row {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.4rem;

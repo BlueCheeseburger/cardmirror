@@ -1,0 +1,24 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+// A pane at the right edge used to open its stack list off the screen, so
+// the rows' close buttons could not be reached. The list must be fixed and
+// clamped to the window, and its folder paths must be allowed to shrink.
+describe('pane stack dropdown stays on screen', () => {
+  const shell = readFileSync(resolve(process.cwd(), 'src/editor/multi-pane-shell.ts'), 'utf8');
+  const css = readFileSync(resolve(process.cwd(), 'src/editor/style.css'), 'utf8');
+
+  it('is positioned with the shared viewport clamp, not at the raw chip edge', () => {
+    const body = shell.slice(shell.indexOf('private openStackDropdown'));
+    const fn = body.slice(0, body.indexOf('Close a specific record'));
+    expect(fn).toContain("dropdown.style.position = 'fixed'");
+    expect(fn).toContain('positionFloatingMenu(dropdown');
+    expect(fn).not.toContain('window.scrollX');
+  });
+
+  it('has a window-width cap and a shrinking path', () => {
+    expect(css).toMatch(/\.pmd-pane-chip-dropdown \{[^}]*max-width: calc\(100vw - 8px\)/s);
+    expect(css).toMatch(/\.pmd-pane-chip-dropdown-row \.pmd-pane-chip-path \{[^}]*flex: 0 1 14rem/s);
+  });
+});

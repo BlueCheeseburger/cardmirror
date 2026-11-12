@@ -7,10 +7,7 @@
  */
 
 import type { EditorView } from 'prosemirror-view';
-import {
-  registerRibbonTooltip,
-  unregisterRibbonTooltip,
-} from './ribbon-tooltips.js';
+import { fillMenuRow } from './menu-shortcut-hint.js';
 import type { RibbonCommandId } from './ribbon-commands.js';
 import { isAnyOverlayOpen } from './overlay-stack.js';
 
@@ -36,12 +33,6 @@ let onDocKey: ((e: KeyboardEvent) => void) | null = null;
 
 function closeMenu(): void {
   if (!openMenuEl) return;
-  // Drop tooltip refs to the menu's buttons before detaching, so
-  // the controller's targets array doesn't accumulate stale
-  // entries across many open / close cycles.
-  for (const btn of openMenuEl.querySelectorAll<HTMLElement>('.pmd-doc-menu-item')) {
-    unregisterRibbonTooltip(btn);
-  }
   openMenuEl.remove();
   openMenuEl = null;
   if (onDocPointerDown) document.removeEventListener('pointerdown', onDocPointerDown);
@@ -73,16 +64,13 @@ export function openDocMenu(
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'pmd-doc-menu-item';
-      btn.textContent = item.label;
+      fillMenuRow(btn, item.label, item.commandId);
       btn.addEventListener('mousedown', (e) => e.preventDefault());
       btn.addEventListener('click', () => {
         if (view) item.run(view);
         closeMenu();
         view?.focus();
       });
-      if (item.commandId) {
-        registerRibbonTooltip({ el: btn, commandId: item.commandId, kind: 'menuItem' });
-      }
       menu.appendChild(btn);
     }
     if (i < sections.length - 1) {

@@ -26,6 +26,7 @@
  * declares its view, the controller treats it as cross-view.
  */
 
+import { positionFloatingMenu } from './context-menu-position.js';
 import { EditorState, Selection, TextSelection } from 'prosemirror-state';
 import { isFileChangedOnDiskError } from './error-surface.js';
 import {
@@ -1593,6 +1594,13 @@ class Slot {
     this.chipSpeech.setState(isSpeech);
   }
 
+  /** Tint the stack button amber while the speech doc is somewhere in this
+   *  stack (visible or not), so a pane whose speech doc is hidden behind
+   *  another tab still says it holds it. */
+  setStackHasSpeech(has: boolean): void {
+    this.chipStackBtn.classList.toggle('pmd-has-speech', has);
+  }
+
   /** Show (or clear) the same-name path hint. Driven by the shell, which
    *  sees every open doc. */
   setChipPath(path: string | null): void {
@@ -1845,9 +1853,10 @@ class Slot {
     }
     document.body.appendChild(dropdown);
     const rect = this.chipStackBtn.getBoundingClientRect();
-    dropdown.style.position = 'absolute';
-    dropdown.style.top = `${rect.bottom + window.scrollY + 2}px`;
-    dropdown.style.left = `${rect.left + window.scrollX}px`;
+    // Fixed and clamped to the window: a pane at the right edge used to push
+    // the list, and every row's close button, off the screen.
+    dropdown.style.position = 'fixed';
+    positionFloatingMenu(dropdown, rect.left, rect.bottom + 2);
     openStackDropdownEl = dropdown;
     const onDoc = (e: PointerEvent) => {
       const t = e.target as Node | null;
@@ -4738,6 +4747,7 @@ class MultiPaneShell {
       const isSpeech = !!speechView && slot.visible?.view === speechView;
       slot.paneEl.classList.toggle('pmd-pane-speech', isSpeech);
       slot.setSpeechState(isSpeech);
+      slot.setStackHasSpeech(slot.stack.some((r) => getSpeechDocResolver().isSpeechByUid(r.uid)));
     }
   }
 }

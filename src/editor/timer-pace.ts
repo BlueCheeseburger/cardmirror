@@ -107,9 +107,9 @@ export function speechClockStarted(s: TimerState): boolean {
   return s.speechTotalMs > 0 && getVisibleRemainingMs(s) < s.speechTotalMs;
 }
 
-/** A doc that reads this much longer than the speech is almost certainly a
+/** A doc that reads this much longer (three minutes) than the speech is almost certainly a
  *  masterfile, not a speech, so the reading-position marker stays hidden. */
-export const MASTERFILE_OVER_SEC = 60;
+export const MASTERFILE_OVER_SEC = 180;
 
 /** How many seconds of the doc (at the reader's own rate), read from the top,
  *  the speaker should have got through by now if they read the whole doc at a

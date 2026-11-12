@@ -24,6 +24,7 @@ import { showToast } from './toast.js';
 import { countReadAloudSplit, formatReadTimeFor, type ReadAloudCounts } from './word-count.js';
 import { computeMarkInfo, READING_MARKER_META } from './reading-marker.js';
 import { buildCardMenuSections } from './card-menu-sections.js';
+import { fillMenuRow } from './menu-shortcut-hint.js';
 import { openAiForRanges } from './ai/ai-panel-ui.js';
 import { buildDocMenuSections } from './doc-menu-sections.js';
 import type { DocMenuSection } from './doc-menu-ui.js';
@@ -3196,7 +3197,7 @@ export class NavigationPanel {
         const rb = document.createElement('button');
         rb.type = 'button';
         rb.className = 'pmd-nav-context-item';
-        rb.textContent = row.label;
+        fillMenuRow(rb, row.label, row.commandId);
         rb.addEventListener('click', () => {
           closeAnyOpenContextMenu();
           row.run(this.view as never);

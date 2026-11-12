@@ -10,6 +10,120 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.17.2-bcb.4 — 2026-11-12
+
+### Release-notes card on the update chip (`update-notes-card.ts`, `update-chip.ts`, `whats-new.ts`, `style.css`)
+
+**Request.** "in the update [pill] in the bottom ribbon, how could we add the ability to view the release notes of the update that's ready, so the user can decide whether they want the release or not"; of four mockups, the hover card was chosen.
+
+**What it does.** `attachUpdateNotesCard` watches the chip (hover after 350 ms, or keyboard focus; hides 250 ms after the pointer leaves unless it is on the card, on Escape, or on press). For a `ready` or `available` update it fetches that version's notes with the What's new popup's `fetchReleaseNotes` (download guide stripped; fetched once per version, a failure is not remembered) and shows `summarizeReleaseNotes`: the `###` sections with one line per bullet (the bold lead sentence, else the first sentence, shortened), at most 3 per section and 6 overall, the rest counted as "+ N more in the full notes". The footer has **Read the full notes…** (opens the existing What's new dialog with the notes) and what a click does ("Click the chip to install" / "download"). While fetching it says so; on failure it says the notes couldn't be loaded and links to the release page (`releasePageUrl`). Nothing shows for a download in progress or a plugin update. `initUpdateChip` takes an optional `openExternal` from the host (the Electron host already has one), so the status-bar and home-screen chips both get it.
+
+**Chip tooltip.** The ready / available chip no longer sets a `title`: the custom tooltip appeared over the card's footer (seen in a real-app screenshot), and the card already says what a click does. The text moved to an `aria-label`, cleared again for the other states.
+
+**Rejected.** A menu on click or a dialog on click (two of the four mockups): the user chose the hover card, which leaves a click as the one-step install it was.
+
+**Not verified.** In the desktop app (the web build has no update chip, so it was driven in Chromium with the real modules, a fake host and a mocked GitHub reply); hover does not exist on touch (focus does); a very large notes body only shows its headlines.
+
+### Pace bar hides only past three minutes over (`timer-pace.ts`)
+
+**Report.** The thick blue bar never showed with **Show pace guides** on; the document read 9:28 against an 8:00 speech.
+
+**Cause.** `expectedReadSec` returns null (no bar) when the document's read time exceeds the speech length by more than `MASTERFILE_OVER_SEC`, 60 s, a guard against a masterfile sending the bar racing down the page. 1:28 over tripped it. The bar's position (the whole document at one steady pace across the whole speech) was never the problem.
+
+**Change.** `MASTERFILE_OVER_SEC` is 180. The Show pace guides description, the manual, FORK_FEATURES.md and the marker's comments say three minutes; the test pins 3:00 over (still shows), a 9:28 doc in an 8:00 speech (shows) and past it (hidden).
+
+**Not changed.** The pace-row verdict dot; the bar for a doc more than three minutes over (still hidden, not configurable).
+
+**Not verified.** In the app by hand.
+
+### Highlight over shading counts as read (`word-count.ts`)
+
+**Report.** The speaking time seemed to count grey-background words; asked about it, the user said text that has shading and then gets a highlight over it should count.
+
+**What was true.** `readAloudBucket` counted body and cite text only when it had a non-blank highlight AND no shading mark. Shading alone was already silent (checked), so the grey words in the report were most likely highlight-plus-shading ones, or a grey highlight. The "and no shading" half is wrong for the workflow Lock Highlighting exists for: it removes the highlight and adds the protected grey shading so the card can be re-highlighted in one pass, and what the user then highlights has both marks. Read mode already shows such text (it keeps text with a read-aloud mark regardless of shading), so the clock and the screen disagreed.
+
+**Change.** A non-blank highlight alone decides, in the body branch and in the cite branch. Shading with no highlight, or with a blank (white / none) highlight, is still not read. Fixtures in `word-count.test.ts` and `live-read-time.test.ts` that used highlight-plus-shading as their "silent" case now use shading alone; new cases pin the three combinations. Every counter (status bar, outline times, pace bar, remaining time) goes through the same function, so they all follow.
+
+**Not changed / open.** A grey highlight (Gray 25% / 50%) is still read; whether it should not be is an open question to the user. Send Doc's handling of reference excerpts is untouched.
+
+**Not verified.** In the app by hand; unit tests only.
+
+### Notice when an edit is refused in read mode (`read-mode-plugin.ts`)
+
+**Request.** "add a toast whenever the user tries to edit something in a document but read mode is active."
+
+**What it does.** The read-mode plugin already refuses edits two ways: `handleKeyDown` swallows bare typing keys (letters, Enter, Backspace, Delete) and `filterTransaction` rejects any document change except sync-origin and normalizer transactions, reading-marker edits, the bounded marker undo/redo, drag-move and comment-mark-only changes. Both now call `noteReadModeEditRefused`, which shows a pointer toast, `READ_MODE_EDIT_MESSAGE`, at most once per 1.5 s so a held key, or a paste that makes several transactions, cannot stack them. Anything the lock allows, selection-only transactions and chords (copy, navigation, F-keys) stay silent. A refused change from outside the keyboard, such as a ribbon or outline command, shows it too, which says why that command did nothing.
+
+**Not changed.** What read mode allows or blocks. `Space` and `Enter` still drop a reading marker first (they never reach the refusal path unless the marker command declines).
+
+**Verified.** jsdom tests on a real view: a letter, a refused insert, a burst (one notice), the gap passing (a second notice), nothing for read mode off, selection moves, a marker edit or a chord. Not run in the app by hand.
+
+### Stack button amber when the stack holds the speech doc (`multi-pane-shell.ts`, `style.css`)
+
+**Request.** "make the dropdown have the amber color as a backdrop ... if there is a speech doc marked as active speech doc in that dropdown" (the **v N** button on a pane's title bar, shown with 2+ docs).
+
+**What it does.** `refreshSpeechChips` (already run on every speech change, move, close and open) now also sets `pmd-has-speech` on each slot's stack button when any record in that slot's stack is the speech doc. The class uses the `--pmd-c-speech-bg` fill, `--pmd-c-speech-amber` border and `--pmd-c-speech-text` text, so it follows light and dark. The focused-pane rules that recolor the button for a blue chip are `:not(.pmd-pane-speech)`-scoped, so the new rule matches that specificity to win there. When the speech doc is the one showing, the whole chip is already amber, and the button keeps an amber outline so it still reads as a button.
+
+**Interpretation.** "The dropdown" is read as the button (the thing in the screenshot), not the opened list; the list already marks the speech doc's row with the mic and amber name.
+
+**Verified.** Real app in Chromium (three-pane, two docs in a stack, speech doc marked, other doc brought to the front), light and dark: none, hidden, visible and list-open states; class toggles in each. A source-level test pins the wiring and the CSS. **Not verified:** the desktop app, and a window or stack where the speech doc lives in another window (this tint reflects only this window's stack).
+
+### Highlight underlined text only: `%`, `°` and currency signs paint with their figure (`restrictToUnderlinedText`)
+
+**Report.** Unable to highlight the `%` of `40%` (grey background shading on it, `40` already highlighted).
+
+**Cause.** Reproduced with the setting on and not with it off (default). The filter's "word" is what a double-click selects, which excludes `%`; a non-word character is kept only when it has no space beside it and sits between two kept characters. The `%` in `40% lower` has a space after it, so it was never kept: F11 on `%` found nothing to paint (and, with no highlight in the selection, returned without doing anything), and F11 on `40%` saw the only paintable text (`40`) already highlighted and toggled the whole selection off. The grey shading is not involved: highlight is drawn over shading, and the test with and without shading gave the same result.
+
+**Fix.** The filter uses its own word test, `isPaintWordChar`: the double-click word plus `%`, `‰`, `°` and the currency sign class (`\p{Sc}`). Every other punctuation (commas, periods, dashes, brackets) is unchanged and still left to the gap bridger. The double-click spec in `word-break.ts` is not touched (it drives selection, find and the formatting toggles). With `%` a word character, the earlier fix for judging a word by the part inside the selection makes selecting only the `%` paint it whether it is emphasized or only underlined.
+
+**Verified on the field file (2026-11-12).** Opened the user's `.docx` in the running app (dev server, headless Chromium) with the setting on. In that file `73` is emphasized and highlighted cyan and the `%` is emphasized with a *white* highlight (an erased one: white counts as no highlight), followed by a white-highlighted underlined space. Before the change, F11 on the `%` removed its white highlight and painted nothing, and F11 on `73%` painted only the `73`. After it, F11 on the `%` paints it, F11 on `73%` paints both, and a second press takes both off. A test with that exact shape was added (it fails without the change). The earlier note that shading is not involved still holds: the field file has no shading at all.
+
+**Not verified.** Symbols not in the list (`&`, `#`, `+`, `=`) still behave like punctuation; add them if the same thing is hit.
+
+### Highlight underlined text only: select the underlined rest of an emphasized word (`restrictToUnderlinedText`)
+
+**Report.** With `Biopharma` emphasized and `ceutical innovation` underlined, F11 could not highlight `ceutical`: on `ceutical innovation` it took the highlight off everything selected, and pressing it again put back only `Biopharma ... innovation`; on `ceutical` alone it did nothing.
+
+**Cause.** Reproduced with the setting on and not with it off (default). The setting's rule is that a word mixing emphasis and plain underline paints only its emphasized part, and the word was judged whole, even when the selection held none of its emphasis. So `ceutical` was never paintable. Selecting `ceutical innovation`, the only paintable text was `innovation`, which was already highlighted, so F11 read it as "already highlighted, toggle off" and stripped the whole selection (`removeMark` over the operating range), and the next press repainted just `innovation`. Selecting `ceutical` alone left nothing to paint and, with no highlight in the selection, F11 returned without doing anything.
+
+**Fix.** A word that overlaps the selection is judged by the part of it inside the selection: emphasis in the selection means only the emphasized part is painted (unchanged, e.g. selecting the whole word); a selection that holds only the underlined rest paints that rest. A word outside the selection keeps the whole-word verdict, because the dash-joining pass reads its neighbors' verdicts. The old test that pinned "select only `lear` of an emphasized `nuc|lear` → nothing qualifies" is replaced by two that pin the new rule; new tests drive F11 on the reported text (toggles on, and off on a second press).
+
+**Not changed.** The Mod-F11 eraser, the gap bridging and the removal-is-never-blocked rule.
+
+**Not verified.** In the app by hand; only unit tests on the same text (which fail without the change).
+
+### Outline stars are saved in the .docx metadata (`schema/starred.ts`, `ooxml/docx.ts`, `export/index.ts`, `import/index.ts`)
+
+**Request.** "go back to saving which cards are starred in the .docx metadata and .cmir metadata."
+
+**What was true.** There was nothing to go back to for the .docx: the `starred` attr was always a node attribute, written into a `.cmir` with the rest of the doc and never into a `.docx` (the schema comment and the Starred Doc entry in this changelog both said so). The .cmir already kept it (re-checked with a serialize / parse test). The only change that was needed is the .docx.
+
+**What it does.** `toDocx` collects the ids of every starred heading (`collectStarredIds`) and writes them as custom document properties in `docProps/custom.xml`, `cmirStarred`, `cmirStarred2`, ..., each chunk at most 240 characters (an id is never split; Word's Properties dialog caps a text value at 255). Nothing is written when none are starred. Both importers (`fromDocx`, `fromDocxFull`) read the chunks back and `applyStarredIds` sets `starred` on the headings whose ids match; ids that match nothing are ignored. This works because the exporter already writes each heading id as a `pmd-heading-<uuid>` bookmark and the importer already reads it, so the id is the stable key, the same way the document id uses a custom property. Word keeps both across its own save (the document id property was verified that way earlier).
+
+**Rejected.** A hidden marker inside the paragraph (a bookmark or run property per starred heading): it would add to every starred paragraph and show up in tools that read the body. A single long property: risks Word's 255-character text limit. Writing a separate `starred` list into the .cmir envelope: the attr already travels with the nodes and a second copy could disagree.
+
+**Not verified.** Opening a starred .docx saved here in real Word, saving it there and reopening in CardMirror (the properties are standard custom properties and the docId one is known to survive, but the stars were not put through Word). A copy of a starred card pasted in Word keeps its duplicate id only until the importer's duplicate-id pass, which keeps the first one, so a star can land on the original and not the copy. Stars already lost from a .docx are not recoverable.
+
+### Always-on shortcut hints in the Doc and Card menus (`menu-shortcut-hint.ts`, `doc-menu-ui.ts`, `nav-panel.ts`, `style.css`)
+
+**Request.** Right-aligned hints, about as small as the style buttons' key badges, on the actions in the Doc and Card menus.
+
+**What it does.** `fillMenuRow` renders a row as a label span plus, when the row's command has a key, a small `.pmd-menu-row-key` span pushed to the right edge (0.6rem, 70% opacity; the style buttons' badge is 0.5rem on a 1.45rem button, which would be hard to read in a 0.85rem row). The key comes from `primaryKeyFor(command, ribbonKeyOverrides)` through `formatKeyForDisplay`, so rebinds show up, and an unbound command shows nothing. The toolbar dropdowns (`openDocMenu`) and the outline's Card and Doc submenus (`buildSubmenuRow`) both use it. The rows no longer register a hover tooltip: that tooltip only ever showed the shortcut (and only in two of the four tooltip modes), so the always-on hint replaces it. Rows without a command (the scoped AI rows) have no hint. The key lookup is registered by `index.ts` at startup (`setShortcutHintResolver`) instead of being imported by `menu-shortcut-hint.ts`: the command table reads the host as it loads, and the first version, which imported it directly, broke two tests that mock the host module (`doc-diff-ui`, `version-history-snapshot`) once the outline panel pulled it in.
+
+**Not changed.** Most Doc and Card commands have no default key (only Condense, its Alt, Ctrl+Alt and Ctrl+Alt+Shift variants, and Shrink do), so most rows show no hint until bound in **Settings → Keyboard shortcuts**. I did not invent default keys.
+
+**Verified.** Unit tests (hint for a bound command, none for unbound or no command, follows a rebind, present with tooltips off) and Chromium screenshots of the real Card menu. The nav-panel test now reads a row's label span. **Not verified:** macOS glyphs on a Mac, and the Doc menu and outline submenus visually (the same code path, only the toolbar Card menu was captured).
+
+### Stack dropdown stays inside the window (`multi-pane-shell.ts`, `style.css`)
+
+**Report.** With several documents in a stack, the close button was cut off by the right edge of the screen.
+
+**Cause.** `openStackDropdown` placed the list at the chip's left edge with absolute coordinates and no clamp, and the list had no maximum width. A row's folder path (shown when two stacked files share a name) made the list wider than the space to the right of a pane near the screen edge, so the close buttons ended up off screen.
+
+**Fix.** The list is `position: fixed` and placed with `positionFloatingMenu`, the clamp the app's other floating menus use (it also flips above when there is no room below). It has `max-width: calc(100vw - 8px)`, and inside the list the folder path (`flex: 0 1 14rem`, no percentage cap) shrinks before the name and the close button.
+
+**Verified.** In Chromium at 700px wide, asked to open at x=560 with a very long path, the list slid left to 223 to 696 and both close buttons ended at 687; a source-level test pins the fixed placement and the CSS. **Not verified:** a real stack with two same-named files in the desktop app, and a window narrower than the list's minimum width.
+
 ## 1.17.2-bcb.3.1 — 2026-11-10
 
 ### Closing a window lists its documents in Recent (`recents-store.ts`, `index.ts`)

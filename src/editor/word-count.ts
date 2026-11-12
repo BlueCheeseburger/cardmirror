@@ -10,15 +10,17 @@
  *         speaker says the titles; added 2026-10-19)
  *       · Text carrying the `cite_mark` mark (typically inside
  *         `cite_paragraph`)
- *       (Highlighted non-shaded text inside a cite counts as `body`,
+ *       (Highlighted text inside a cite counts as `body`,
  *        not `other` — see readAloudBucket.)
  *   - `body` — the highlighted read:
  *       · Text in body-level paragraphs (`card_body` / `paragraph` /
- *         `undertag`) iff carrying the `highlight` mark AND NOT the
- *         `shading` mark
+ *         `undertag`) iff carrying the `highlight` mark (shading or not)
  *
- * Shading (the D2D2D2 protected-highlight via `HighlightToBackgroundColor`)
- * is excluded — that text is reference-style and not read aloud.
+ * Shading (the D2D2D2 / C0C0C0 grey "protected highlight" from Lock
+ * Highlighting, Highlight to Background and Create Reference) is a
+ * background only: grey text with NO highlight over it is not read. A real
+ * highlight over shaded text DOES count (lock a card to grey, then highlight
+ * what you will read), so the highlight alone decides.
  *
  * Readers (settings `ReaderConfig`) carry a required `wpm` and an
  * optional `tagWpm`: with `tagWpm` set, `body` words read at `wpm` and
@@ -31,7 +33,7 @@ import { isBlankHighlightColor } from '../schema/marks.js';
 
 /** Read-aloud words split by which speed they're read at. */
 export interface ReadAloudCounts {
-  /** Highlighted (non-shaded) body-paragraph words — read at `wpm`. */
+  /** Highlighted body-paragraph words — read at `wpm`. */
   body: number;
   /** Tag + analytic + cite words — read at `tagWpm` when set. */
   other: number;
@@ -138,7 +140,7 @@ function readAloudBucket(node: PMNode, parent: PMNode): 'body' | 'other' | null 
     return 'other';
   }
   if (parentType === 'cite_paragraph') {
-    // Highlighted (non-shaded) text in a cite reads at BODY speed —
+    // Highlighted text in a cite reads at BODY speed —
     // it's evidence the reader delivers in full, and read mode shows
     // it (underline/emphasis exclude cite_mark in the schema, so such
     // runs can never carry the cite style). Cite-styled runs stay at
@@ -146,8 +148,7 @@ function readAloudBucket(node: PMNode, parent: PMNode): 'body' | 'other' | null 
     const hasHighlight = node.marks.some(
       (m) => m.type.name === 'highlight' && !isBlankHighlightColor(m.attrs['color']),
     );
-    const hasShading = node.marks.some((m) => m.type.name === 'shading');
-    if (hasHighlight && !hasShading) return 'body';
+    if (hasHighlight) return 'body';
     return node.marks.some((m) => m.type.name === 'cite_mark') ? 'other' : null;
   }
   if (node.marks.some((m) => m.type.name === 'cite_mark')) return 'other';
@@ -155,8 +156,7 @@ function readAloudBucket(node: PMNode, parent: PMNode): 'body' | 'other' | null 
     const hasHighlight = node.marks.some(
       (m) => m.type.name === 'highlight' && !isBlankHighlightColor(m.attrs['color']),
     );
-    const hasShading = node.marks.some((m) => m.type.name === 'shading');
-    return hasHighlight && !hasShading ? 'body' : null;
+    return hasHighlight ? 'body' : null;
   }
   return null;
 }

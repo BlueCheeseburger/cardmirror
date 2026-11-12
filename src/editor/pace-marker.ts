@@ -12,7 +12,7 @@
  *     are read. Unhighlighted text takes no reading time, so the target jumps
  *     across it; the bar follows the target at a capped speed, so it visibly
  *     rushes through that text instead of jumping. Hidden for a doc more than
- *     a minute longer than the speech (a masterfile).
+ *     three minutes longer than the speech (a masterfile).
  *   - TELEPROMPTER bar (outlined): while paced Auto-Scroll runs, the line it
  *     takes to be the one being read (a third of the way down,
  *     `reading-line.ts`).

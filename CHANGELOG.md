@@ -8,6 +8,28 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.17.2-bcb.4 — 2026-11-12
+
+### Added
+
+- **Hover the update chip to see what's in the update before you install it.** A small card appears above the **Update x.y.z ready** chip with the headlines of that version's release notes, grouped as Added, Changed and Fixed, and **Read the full notes…** opens them in full. If the notes can't be loaded it says so and offers **View on GitHub**. It also shows when you tab to the chip. Clicking the chip still installs, and the chip no longer shows a second tooltip over the card.
+- **A notice appears when you try to edit while read mode is on.** Typing, pasting or running an editing command in read mode used to do nothing at all, with no hint why. Now it says **Read mode is on, so this document can't be edited. Turn read mode off to edit.** (at most once every second and a half, so holding a key doesn't stack notices). Dropping a reading marker, moving the cursor, copying and adding comments work as before and show nothing.
+- **A pane's document-list button turns amber when the speech doc is in that stack.** The small **v 2** button on a pane's title bar now has the amber speech colors whenever one of the documents it lists is the speech doc, even if another document is showing, so you can tell which pane holds it without opening the list.
+- **Which cards you starred are now saved in the file.** A star in the outline was only kept in a `.cmir` file; a `.docx` lost it the moment you closed the document. Now a `.docx` carries its stars in its hidden document properties, which Word keeps and otherwise ignores, so a starred card is still starred when you reopen the file. A `.cmir` still keeps them as before. Stars in a `.docx` made before this update were never saved, so they have to be set again once.
+
+- **The Doc and Card menus show each action's keyboard shortcut.** The shortcut sits at the right of the row in small text, like the F-key hints on the style buttons, and stays visible whatever your tooltip setting is. It follows any shortcut you set in **Settings → Keyboard shortcuts**, and a row with no shortcut shows nothing. The Card and Doc submenus of the outline's right-click menu show them too.
+
+### Changed
+
+- **The blue pace bar now shows for a document up to three minutes longer than the speech.** It used to hide when the document was more than one minute over, so a 9:28 document in an 8:00 speech never got a bar even with **Show pace guides** on. Past three minutes (probably a masterfile) it still stays hidden.
+
+### Fixed
+
+- **Words you highlight over a grey background now count in the read time.** After Lock Highlighting, Highlight to Background or Create Reference turns a card grey, highlighting what you will read on top of the grey did not add to the speaking time, so a card you had re-highlighted showed too little time. A real highlight now counts whether or not the text also has grey behind it. Grey text with no highlight over it is still not counted.
+- **F11 can highlight a `%`, `$` or `°` next to a number.** With **Highlight underlined text only** on, the `%` of `40%` was never paintable: F11 on just the `%` did nothing, and F11 on `40%` took the highlight off the `40`. These symbols now count as part of their figure, so they paint with it, including a `%` that carries a white (erased) highlight, as in a file where `73` is highlighted and its `%` is not. Commas, periods and dashes behave as before.
+- **F11 can highlight the underlined rest of a word that starts with emphasis.** With **Highlight underlined text only** on, a word like **Biopharma**ceutical (the first part emphasized, the rest underlined) only ever had its emphasized part painted, so selecting just `ceutical` and pressing F11 did nothing, and selecting `ceutical innovation` took the highlight off `innovation` instead. Now whatever underlined text you select is painted. Selecting the whole word still paints only its emphasized part.
+- **The list of documents in a stack no longer runs off the edge of the window.** When a pane near the right edge held several documents, opening its list pushed the rows, and each row's close button, past the screen so you could not close a document from it. The list now stays inside the window, and a long folder path is shortened first so the name and the close button always show.
+
 ## 1.17.2-bcb.3.1 — 2026-11-10
 
 ### Fixed

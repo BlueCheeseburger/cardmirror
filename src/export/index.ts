@@ -5,6 +5,7 @@
 import type { Node as PMNode } from 'prosemirror-model';
 import { Docx } from '../ooxml/docx.js';
 import { exportDoc, type ExportOptions } from './exporter.js';
+import { collectStarredIds } from '../schema/starred.js';
 
 export { exportDoc } from './exporter.js';
 export type { ExportResult, ExportOptions } from './exporter.js';
@@ -91,6 +92,10 @@ export async function toDocx(doc: PMNode, opts: ExportOptions = {}): Promise<Uin
   if (opts.docId) {
     await docx.writeDocId(opts.docId);
   }
+  // Which headings are starred in the outline, as heading ids in custom
+  // document properties (the headings themselves keep their bookmarks, so the
+  // ids resolve on the way back in). Nothing is written when none are starred.
+  await docx.writeStarred(collectStarredIds(doc));
   // Invisible provenance: app.xml Application/AppVersion + the
   // cmirGenerator custom property. Caller-supplied so core stays free of
   // the app's version and the round-trip tests are byte-stable.

@@ -75,10 +75,19 @@ describe('restrictToUnderlinedText', () => {
     ]);
   });
 
-  it('the whole word decides, even the part outside the selection', () => {
-    // "nuc" emphasized; select only "lear" (underlined) → nothing qualifies.
+  it('selecting only the underlined rest of an emphasized word paints it', () => {
+    // "nuc" emphasized, "lear" underlined; select only "lear": it is what was
+    // picked, so it is painted (it used to leave nothing to paint, and F11
+    // either did nothing or stripped the highlight beside it).
     const doc = docOf(['nuc', [E()]], ['lear', [U()]]);
-    expect(restrictToUnderlinedText(doc, [{ from: 4, to: 8 }])).toEqual([]);
+    expect(restrictToUnderlinedText(doc, [{ from: 4, to: 8 }])).toEqual([{ from: 4, to: 8 }]);
+  });
+
+  it('selecting the whole word still paints only the emphasized part', () => {
+    const doc = docOf(['nuc', [E()]], ['lear', [U()]]);
+    expect(restrictToUnderlinedText(doc, [{ from: 1, to: 8 }])).toEqual([{ from: 1, to: 4 }]);
+    // A selection that reaches into the emphasis, even by one letter, too.
+    expect(restrictToUnderlinedText(doc, [{ from: 3, to: 8 }])).toEqual([{ from: 3, to: 4 }]);
   });
 
   // Words follow the double-click spec (word-break.ts): letters, digits,
@@ -404,5 +413,87 @@ describe('Highlight underlined text only — commands', () => {
     const doc = docOf(['aa', [U(), HL()]], [' ', [U()]], ['bb', [U()]], [' cc']);
     const next = run(doc, 'bb', applyHighlight(yellow));
     expect(mask(next.doc, 'highlight')).toBe('_____   ');
+  });
+});
+
+
+describe('F11 on the underlined rest of an emphasized word (field report)', () => {
+  beforeEach(() => { settings.set('highlightUnderlinedOnly', true); });
+  afterEach(() => { settings.set('highlightUnderlinedOnly', false); });
+
+  // "Biopharma" emphasized + highlighted, "ceutical" underlined, " innovation"
+  // underlined + highlighted.
+  const doc = () =>
+    docOf(['Biopharma', [E(), HL()]], ['ceutical', [U()]], [' innovation', [U(), HL()]], [' sits at', [U()]]);
+
+  it('selecting just "ceutical" highlights it', () => {
+    const out = run(doc(), 'ceutical', applyHighlight(yellow));
+    const m = mask(out.doc, 'highlight');
+    expect(m.slice(9, 17)).toBe('________');
+  });
+
+  it('selecting "ceutical innovation" paints the whole thing, not a strip of what was there', () => {
+    const out = run(doc(), 'ceutical innovation', applyHighlight(yellow));
+    expect(mask(out.doc, 'highlight').slice(0, 28)).toBe('_'.repeat(28));
+    // and a second press removes the selection's highlight (a real toggle)
+    const again = apply(select(out, 'ceutical innovation'), applyHighlight(yellow));
+    expect(mask(again.doc, 'highlight').slice(9, 28)).toBe(' '.repeat(19));
+  });
+});
+
+
+describe('F11 on a symbol that rides on a figure (field report: the % of "40%")', () => {
+  beforeEach(() => { settings.set('highlightUnderlinedOnly', true); });
+  afterEach(() => { settings.set('highlightUnderlinedOnly', false); });
+
+  const SH = () => schema.marks['shading']!.create({ color: 'D2D2D2' });
+  // "40" emphasized + highlighted, "%" emphasized on a grey background, then a
+  // space and more highlighted text.
+  const doc = () =>
+    docOf(['that are '], ['40', [E(), HL('cyan')]], ['%', [E(), SH()]], [' lower', [E(), HL('cyan')]], [' in the VA']);
+  const cyan = () => 'cyan';
+
+  it('selecting just "%" highlights it', () => {
+    const out = run(doc(), '%', applyHighlight(cyan));
+    expect(mask(out.doc, 'highlight').slice(9, 12)).toBe('___');
+  });
+
+  it('selecting "40%" paints the % instead of taking the highlight off the 40', () => {
+    const out = run(doc(), '40%', applyHighlight(cyan));
+    expect(mask(out.doc, 'highlight').slice(9, 12)).toBe('___');
+    // a second press is the toggle: the whole figure comes off
+    const again = apply(select(out, '40%'), applyHighlight(cyan));
+    expect(mask(again.doc, 'highlight').slice(9, 12)).toBe('   ');
+  });
+
+  // The field file: "73" cyan, the "%" emphasized with a WHITE (erased)
+  // highlight, then underlined text. White counts as no highlight, so the
+  // "%" is unhighlighted and F11 has to paint it, not strip the white.
+  it('a % carrying a white (erased) highlight is painted, alone or with its figure', () => {
+    const field = () =>
+      docOf(['accounted for '], ['73', [E(), HL('cyan')]], ['%', [E(), HL('white')]], [' ', [U(), HL('white')]]);
+    const alone = run(field(), '%', applyHighlight(cyan));
+    expect(mask(alone.doc, 'highlight').slice(14, 17)).toBe('___');
+    expect(alone.doc.textContent).toBe('accounted for 73% ');
+    let pctColor = '';
+    alone.doc.descendants((n) => {
+      if (n.isText && n.text === '%' || (n.isText && n.text === '73%')) {
+        pctColor = String(n.marks.find((m) => m.type.name === 'highlight')?.attrs['color']);
+      }
+      return true;
+    });
+    expect(pctColor).toBe('cyan');
+    const both = run(field(), '73%', applyHighlight(cyan));
+    expect(mask(both.doc, 'highlight').slice(14, 17)).toBe('___');
+    const again = apply(select(both, '73%'), applyHighlight(cyan));
+    expect(mask(again.doc, 'highlight').slice(14, 17)).toBe('   ');
+  });
+
+  it('currency and degree signs count too, other punctuation still does not', () => {
+    const money = docOf(['costs '], ['$', [E()]], ['180', [E()]], [' now']);
+    expect(restrictToUnderlinedText(money, [{ from: 1, to: 15 }])).toEqual([{ from: 7, to: 11 }]);
+    const comma = docOf(['one', [U()]], [',', [U()]], [' two', [U()]]);
+    // the comma beside a space is still left to the gap bridger
+    expect(restrictToUnderlinedText(comma, [{ from: 1, to: 9 }])).toEqual([{ from: 1, to: 4 }, { from: 6, to: 9 }]);
   });
 });

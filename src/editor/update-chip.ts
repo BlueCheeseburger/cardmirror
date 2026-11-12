@@ -21,6 +21,7 @@
  */
 
 import { showToast } from './toast.js';
+import { attachUpdateNotesCard } from './update-notes-card.js';
 
 export type UpdateChipState =
   | { state: 'downloading'; version: string; pct: number }
@@ -65,6 +66,8 @@ export interface UpdateChipHost {
   /** Main asking every window to un-hide the chip (a manual check from the
    *  Help menu). Optional: an older preload doesn't have it. */
   onUpdateChipReveal?(handler: () => void): () => void;
+  /** Open a link in the OS browser (the release-notes card's links). */
+  openExternal?(url: string): void | Promise<void>;
 }
 
 /** Render one chip state into the button. Exported for tests. */
@@ -89,6 +92,7 @@ function renderChip(el: HTMLButtonElement, s: UpdateChipState | null): void {
     return;
   }
   el.hidden = false;
+  el.removeAttribute('aria-label'); // set again below for ready / available
   if (s.state === 'downloading') {
     const pct = Math.max(0, Math.min(100, Math.round(s.pct)));
     el.setAttribute('data-state', 'downloading');
@@ -125,12 +129,16 @@ function renderChip(el: HTMLButtonElement, s: UpdateChipState | null): void {
     el.title = 'Restart CardMirror to load the updated plugins';
     return;
   }
+  // No tooltip on these two: hovering shows the release-notes card instead
+  // (update-notes-card.ts), which says what a click does and would be covered
+  // by a tooltip. The accessible name carries it for screen readers.
+  el.removeAttribute('title');
   if (s.state === 'ready') {
     el.textContent = `Update ${s.version} ready — restart to install`;
-    el.title = 'Restart CardMirror now to finish installing the update';
+    el.setAttribute('aria-label', 'Restart CardMirror now to finish installing the update');
   } else {
     el.textContent = `Update ${s.version} available`;
-    el.title = 'Open the release page to download the update';
+    el.setAttribute('aria-label', 'Open the release page to download the update');
   }
 }
 
@@ -154,6 +162,16 @@ export function initUpdateChip(el: HTMLButtonElement, host: UpdateChipHost): () 
     current = s;
     renderUpdateChip(el, s);
   };
+  // Hover (or focus) the chip for a ready / available update: the release
+  // notes' headlines, so the user can decide before installing.
+  const detachNotes = attachUpdateNotesCard(el, {
+    getVersion: () =>
+      current && (current.state === 'ready' || current.state === 'available') && !dismissed.has(stateKey(current))
+        ? current.version
+        : null,
+    getAction: () => (current?.state === 'ready' ? 'install' : 'download'),
+    openExternal: host.openExternal ? (url) => host.openExternal?.(url) : undefined,
+  });
   const unsubscribe = host.onUpdateChip(show);
   const repaint = (): void => renderUpdateChip(el, current);
   revealListeners.add(repaint);
@@ -163,6 +181,7 @@ export function initUpdateChip(el: HTMLButtonElement, host: UpdateChipHost): () 
     .then(show)
     .catch(() => {});
   return () => {
+    detachNotes();
     unsubscribe();
     unsubscribeReveal?.();
     revealListeners.delete(repaint);

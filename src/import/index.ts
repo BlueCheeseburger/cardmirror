@@ -6,6 +6,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { Docx } from '../ooxml/docx.js';
 import { repairDoc } from '../doc-repair.js';
 import { dedupeHeadingIds } from '../schema/ids.js';
+import { applyStarredIds } from '../schema/starred.js';
 import { importDoc, type MediaPart, type MediaPartsMap } from './importer.js';
 import { importComments } from './comments.js';
 import { importNotes } from './footnotes.js';
@@ -78,7 +79,7 @@ export async function fromDocx(
   // duplicate bookmarked paragraphs; Word doesn't) must not become
   // duplicate heading ids — first occurrence wins, matching every
   // id-keyed lookup's first-match resolution.
-  return normalizeReadingMarkers(dedupeHeadingIds(checkImportedDoc(
+  const imported = normalizeReadingMarkers(dedupeHeadingIds(checkImportedDoc(
     repairDoc(
       importDoc(
         documentXml,
@@ -93,6 +94,8 @@ export async function fromDocx(
       ),
     ),
   )));
+  // Stars saved in the file's metadata (matched by heading id).
+  return applyStarredIds(imported, await docx.readStarred());
 }
 
 /** Enforcement net behind the docx pipeline (audit tier 4): the
@@ -158,5 +161,5 @@ export async function fromDocxFull(
   const commentsExtendedXml = await docx.readText('word/commentsExtended.xml');
   const threads = importComments(commentsXml, commentsExtendedXml);
   const docId = await docx.readDocId();
-  return { doc, threads, docId };
+  return { doc: applyStarredIds(doc, await docx.readStarred()), threads, docId };
 }

@@ -41,22 +41,49 @@ function fixtureDoc(): PMNode {
           m['underline_mark']!.create(),
           m['highlight']!.create(),
         ]),
-        // Shading still silences, cites included.
-        schema.text(' shaded cite skip', [m['highlight']!.create(), m['shading']!.create()]),
+        // Shading alone (grey, no highlight) is silent, cites included.
+        schema.text(' shaded cite skip', [m['shading']!.create()]),
       ]),
       n['card_body']!.create(null, [
         // 4 highlighted words at the body rate.
         schema.text('read these four words', [m['highlight']!.create()]),
         // Unhighlighted body text is not read.
         schema.text(' and lots of unread argument text here'),
-        // Shaded highlight = reference-style, not read.
-        schema.text(' shaded skip', [m['highlight']!.create(), m['shading']!.create()]),
+        // Grey background with no highlight over it = reference-style, not read.
+        schema.text(' shaded skip', [m['shading']!.create()]),
       ]),
     ]),
     // 5 words at the tags/cites rate.
     n['analytic']!.create({ id: 'A' }, schema.text('extend this analytic every time')),
   ]);
 }
+
+describe('highlight over shading', () => {
+  const m = schema.marks;
+  const body = (marks: ReturnType<typeof m['highlight']['create']>[]) =>
+    schema.nodes['doc']!.createChecked(null, [
+      schema.nodes['card']!.createChecked(null, [
+        schema.nodes['tag']!.create({ id: 'T' }, schema.text('Tag')),
+        schema.nodes['card_body']!.create(null, schema.text('one two three', marks)),
+      ]),
+    ]);
+
+  it('words with grey shading and NO highlight are not read', () => {
+    expect(countReadAloudSplit(body([m['shading']!.create({ color: 'C0C0C0' })]))).toEqual({ body: 0, other: 1 });
+  });
+
+  it('a highlight over shaded text counts as read (lock to grey, then highlight what you read)', () => {
+    expect(
+      countReadAloudSplit(body([m['shading']!.create({ color: 'C0C0C0' }), m['highlight']!.create({ color: 'cyan' })])),
+    ).toEqual({ body: 3, other: 1 });
+  });
+
+  it('a blank (white) highlight over shading still reads as nothing', () => {
+    expect(
+      countReadAloudSplit(body([m['shading']!.create({ color: 'C0C0C0' }), m['highlight']!.create({ color: 'white' })])),
+    ).toEqual({ body: 0, other: 1 });
+  });
+});
 
 describe('countReadAloudSplit', () => {
   it('buckets tags, analytics, and cites as `other`; highlighted text as `body`', () => {

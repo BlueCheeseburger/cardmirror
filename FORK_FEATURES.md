@@ -78,7 +78,7 @@ your document, so you don't have to do the math on the timer.
 - **A blue line beside the document.** A thick blue line in the margin between the
   outline and your document starts at the top and glides down at that same pace, so
   you can see where you *should* be reading. It stays when you pause and goes away
-  when you reset the clock. If your document is more than a minute longer than the
+  when you reset the clock. If your document is more than three minutes longer than the
   speech (probably a masterfile) it stays hidden.
 
 It works in read mode and Reading view, follows the lay-speaking toggle, and counts from the line

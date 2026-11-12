@@ -366,7 +366,10 @@ mirrors Word's Navigation Pane, but does more:
   toolbar's Card menu has — Condense, Excerpt, Highlighting and Shrink —
   acting on the card under the right-clicked heading, or on every card under a
   Pocket, Hat or Block. It is the same list as the toolbar menu, built from one
-  definition. (**Mark Card** isn't in either menu; mark with **Mod-Alt-D** or
+  definition. **(Fork)** Every row in the toolbar's Doc and Card menus, and in
+  these side menus, shows its keyboard shortcut at the right in small text when
+  it has one (it follows your changes in Settings → Keyboard shortcuts, and a
+  row with no shortcut shows nothing). (**Mark Card** isn't in either menu; mark with **Mod-Alt-D** or
   Search Everything.) Unhighlight turns into
   **Rehighlight** (and back) as in the toolbar. On a **Pocket, Hat or Block**
   there is also a **Doc ▸** row with the toolbar's Doc menu — Cleanup
@@ -755,10 +758,13 @@ by default) makes every highlight and background-color paint — F11,
 Mod-F11, the paintbrush, and the color pickers — land only on text that
 is underlined or emphasized, so you can sweep across a whole paragraph
 and have just the underlined parts light up. In a word that mixes
-emphasis and plain underline, only the emphasized part is painted. A
+emphasis and plain underline, only the emphasized part is painted when your
+selection includes some of the emphasis; select just the underlined rest
+(the `ceutical` of an emphasized `Biopharmaceutical`) and that is painted. A
 "word" here is the same thing a double-click selects — letters, digits
-and apostrophes — so an em dash, hyphen or comma splits words rather than
-joining them: in `nuclear—armed` with only `nuclear` emphasized, `armed`
+and apostrophes — plus `%`, `°` and currency signs, so the `%` of `40%` and
+the `$` of `$180` paint with their figure; an em dash, hyphen or comma splits
+words rather than joining them: in `nuclear—armed` with only `nuclear` emphasized, `armed`
 keeps its own underline paint. A dash that joins two painted words with
 no space is painted with them; punctuation beside a space, and the space
 itself, fill in when "Bridge formatting across gaps automatically" is
@@ -1387,7 +1393,9 @@ workspace while another shows a single document.
   **Comparing documents** pill and can't be dropped on. When the document arrives, the other window shows **Moved … here from …** with a **Go back** button.
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
-  document's row has the speech mic icon at its left.
+  document's row has the speech mic icon at its left, and the ▾ button itself
+  turns amber whenever the speech document is somewhere in that stack, even
+  with another document showing.
 - **(fork)** **Hover a title chip** and a greyed microphone appears at its left;
   click it to make that document the active speech doc (click again to clear).
   A single window has the same blue bar above its one document, with the same
@@ -1504,6 +1512,11 @@ entire cite* is on. Undo restores the cards.
 - **(fork)** **Copying copies what you see.** Text that read mode hides is
   left out of the clipboard, so copying and pasting from read mode gives
   you exactly what was on screen.
+
+**(Fork)** Typing, pasting or running any other edit while read mode is on
+shows a notice at the pointer, "Read mode is on, so this document can't be
+edited. Turn read mode off to edit.", at most once every second and a half, so
+a held key doesn't stack them.
 
 Only a few editing actions are allowed in read mode. First, you can drop a
 **reading-position marker** — red text like "Marked 7:32" at your cursor
@@ -1742,7 +1755,7 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   that finishes the whole document exactly when the speech time runs out (whatever
   the document's length or your wpm), so you can see how far ahead or behind you
   are without looking at the timer. It follows read mode and the flow / lay toggle. It stays hidden when the
-  document is more than a minute longer than the speech, which is probably a
+  document is more than three minutes longer than the speech, which is probably a
   masterfile. The bar glides down smoothly rather than line by line; unhighlighted
   text takes no reading time, so it rushes through that text instead of jumping.
   While **Auto-Scroll** runs, a second, outlined bar marks
@@ -3042,7 +3055,10 @@ bottom of the dialog.
     block headings it sits under, so the copy keeps its place in the outline;
     the other blocks and hats under those headings, and their titles, are left
     out. It takes the `STARRED_` filename prefix like the other presets (see
-    [Saving a starred doc](#saving-a-starred-doc)).
+    [Saving a starred doc](#saving-a-starred-doc)). **(Fork)** Which headings
+    are starred is saved in the file itself: in a `.cmir`, and in a `.docx`
+    as a hidden document property (it survives Word, and is ignored by Word and
+    Verbatim), so the stars are still there when you reopen the file.
   - **Custom Save** — shows checkboxes under it so you choose exactly what
     to include: comments, analytics, undertags, **Freeze card numbers as
     text** or **Remove card numbers** (one or the other; neither keeps live
@@ -3180,7 +3196,10 @@ Automatic updates never interrupt you: when a new version has been
 downloaded in the background, a small **chip appears in the status bar**
 ("Update x.y.z ready — restart to install"). **(fork)** While the update
 downloads, the chip fills in from left to right and shows the percentage
-done. Nothing installs until you
+done. **(fork)** Hover the chip (or focus it with the keyboard) to see what's in
+the update before you decide: a small card above it lists the headlines of that
+version's release notes, with **Read the full notes…** to open them in full and
+**View on GitHub** if the notes can't be loaded. Nothing installs until you
 click it — on Windows, quitting the app normally also applies
 a downloaded update on the way out. On macOS the update is staged the
 same way and clicking the chip restarts straight into the new version;

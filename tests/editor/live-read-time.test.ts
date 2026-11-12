@@ -198,7 +198,7 @@ describe('remainingReadSegment', () => {
         schema.nodes['card_body']!.create(null, [
           schema.text('one two three four', [hl()]),
           schema.text(' plain unread words'),
-          schema.text(' shaded skip here', [hl(), shaded()]),
+          schema.text(' shaded skip here', [shaded()]),
         ]),
       ]),
       schema.nodes['paragraph']!.create(null, schema.text('five six', [hl()])),
