@@ -68,7 +68,7 @@ Upstream release details are in the sections below under
 
 **Not verified.** In the running app by hand (tests drive the Enter command on constructed documents, including the one-Ctrl-Z undo); live zones and transclusions, where Enter is handled by other keymap layers ahead of this one.
 
-### Changed: the palette stays open after a Logos insert (`quick-card-search-ui.ts`, `insertLogosCard`)
+### Changed: the palette stays open after an insert (`quick-card-search-ui.ts`: `insertLogosCard`, `insertTaglineCard`, the slice insert)
 
 **Report.** Searching Logos (`g `) and inserting a card closed the search-everything bar, so a second card meant reopening it and retyping the query.
 
@@ -78,7 +78,9 @@ Upstream release details are in the sections below under
 
 **Why not a setting.** The only way to want the old behavior is to want the bar gone after one card, which Esc does in one key; the within-file source already keeps the palette open the same way (`keepOpen`), so this makes Logos match it. If someone wants the old behavior back, add a toggle then.
 
-**Not verified.** In the running app against the live Logos site (tests mock the network and drive the real palette in jsdom); the other card sources (`q` my cards, quick cards, drop zones) still close after an insert and were not asked about.
+**Extended (user, 2026-11-13).** Asked whether `q`, quick cards and drop zones should do the same, the user said yes. `insertTaglineCard` (`q` file cards) and the shared slice insert (quick cards, dropzone items, within-file objects) now keep the palette open the same way: the toast and the refocus run from the after-insert hook (skipped if the palette was closed or reopened meanwhile). The only closing insert left is the no-document case (the card opens as a new document, which takes the screen). The existing test that pinned `q` closing the palette now pins it staying open, and the test's `insertSpeechSlice` stand-in runs the hook as the real one does.
+
+**Not verified.** In the running app against the live Logos site (tests mock the network and drive the real palette in jsdom).
 
 ## 1.17.2-bcb.4 — 2026-11-12
 

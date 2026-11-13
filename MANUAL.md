@@ -1195,8 +1195,8 @@ you *browse* that whole source.
 | Prefix | Searches | Enter |
 |--------|----------|-------|
 | *(none)* | Everything — cards, commands, settings, files by name, and the dropzone (if on) | Acts on the selected row |
-| **`q`** | **My cards** — your **Quick Cards** (honoring your active tag filter; badge **QUICK**) and, on desktop, the **cards inside your indexed files** (badge **CARD**) **(fork)** | Inserts the card at your cursor |
-| **`d`** | The **dropzone** (only when it's turned on) | Inserts the item at your cursor |
+| **`q`** | **My cards** — your **Quick Cards** (honoring your active tag filter; badge **QUICK**) and, on desktop, the **cards inside your indexed files** (badge **CARD**) **(fork)** | Inserts the card at your cursor; the bar stays open for the next one |
+| **`d`** | The **dropzone** (only when it's turned on) | Inserts the item at your cursor; the bar stays open for the next one |
 | **`c`** | Ribbon **commands** — each row shows its current shortcut | Runs the command |
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
