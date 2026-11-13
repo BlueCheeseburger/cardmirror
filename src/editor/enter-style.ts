@@ -11,6 +11,11 @@
  * card to doc level, analytic_unit wrapping — inherit the established
  * behavior of those commands rather than duplicating it here.
  *
+ * The `enterAlwaysAnalytic` toggle (off by default) extends the same path
+ * to every textblock: Enter at the end of any line — plain paragraphs and
+ * card text included — then makes the new line an analytic, unless that
+ * block's own per-type setting already picks a style.
+ *
  * 'normal' (the default for all six) returns false so the key falls
  * through to the regular Enter pipeline untouched — including the
  * tag-keymap overrides (Enter at end of a tag creates a card_body
@@ -43,14 +48,17 @@ const CONVERT_COMMAND: Record<Exclude<EnterAfterStyle, 'normal'>, () => Command>
   undertag: () => setUndertag(),
 };
 
-/** The structural type whose END the (empty) cursor sits at, or null. */
-function structuralTypeAtEnd(state: EditorState): string | null {
+/** The textblock type whose END the (empty) cursor sits at, or null. With
+ *  `structuralOnly` just the six structural types count (the per-type
+ *  settings); otherwise any textblock does (the "every Enter starts an
+ *  analytic" toggle, which covers plain paragraphs and card text too). */
+function typeAtEnd(state: EditorState, structuralOnly: boolean): string | null {
   const sel = state.selection;
   if (!sel.empty) return null;
   const $from = sel.$from;
   const parent = $from.parent;
   if (!parent.isTextblock) return null;
-  if (!(parent.type.name in SETTING_KEY_BY_TYPE)) return null;
+  if (structuralOnly && !(parent.type.name in SETTING_KEY_BY_TYPE)) return null;
   if ($from.parentOffset !== parent.content.size) return null;
   return parent.type.name;
 }
@@ -73,17 +81,24 @@ const baseEnter: Command = (state, dispatch, view) =>
  * single undo event (verified by test).
  */
 export const enterWithConfiguredStyle: Command = (state, dispatch, view) => {
-  const type = structuralTypeAtEnd(state);
-  if (!type) return false;
-  const choice = settings.get(SETTING_KEY_BY_TYPE[type]!) as EnterAfterStyle;
+  // The per-type choice wins; where it is 'normal' (or the block is not one of
+  // the six structural types) the "every Enter starts an analytic" toggle,
+  // when on, supplies the style. Either way only at the END of a block, so a
+  // split in the middle of text keeps both halves as they were.
+  let choice: EnterAfterStyle = 'normal';
+  const structural = typeAtEnd(state, true);
+  if (structural) choice = settings.get(SETTING_KEY_BY_TYPE[structural]!) as EnterAfterStyle;
+  if (choice === 'normal' && settings.get('enterAlwaysAnalytic') && typeAtEnd(state, false)) {
+    choice = 'analytic';
+  }
   if (choice === 'normal') return false;
   if (!dispatch || !view) return baseEnter(state, dispatch, view);
   if (!baseEnter(state, dispatch, view)) return false;
   // `dispatch` was the view's own dispatch (keymap contract), so
   // view.state now reflects the split; convert the fresh block. A
-  // conversion that's invalid where the block landed returns false
-  // and leaves the plain Enter result — the same outcome as pressing
-  // the style key there by hand.
+  // conversion that's invalid where the block landed (a table cell, say)
+  // returns false and leaves the plain Enter result — the same outcome as
+  // pressing the style key there by hand.
   CONVERT_COMMAND[choice]()(view.state, view.dispatch.bind(view), view);
   return true;
 };

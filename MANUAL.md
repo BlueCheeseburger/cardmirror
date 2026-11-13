@@ -3663,6 +3663,14 @@ Typing helpers and the behavior of the cutting and condense commands
   splits — so Tag → Tag starts a fresh card on every Enter, and
   Analytic → Analytic chains analytics. One Ctrl-Z undoes the whole
   step.
+- **Every new line is an analytic** *(Fork)* — off by default. When on,
+  pressing Enter at the end of *any* line (a plain paragraph, card text,
+  an analytic, a tag) starts the next line as an analytic, for taking
+  notes straight into a doc. Enter in the middle of a line still just
+  splits it, and a style chosen in the dropdowns above for that kind of
+  line wins. Enter at the end of card text leaves the card, so you can't
+  add a second paragraph to a card by pressing Enter at its end while
+  this is on.
 
 **Condense**
 

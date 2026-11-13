@@ -10,6 +10,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **A setting to make every new line an analytic.** Turn on **Every new line is an analytic** in **Settings → Editing → New paragraph on Enter** and pressing Enter at the end of any line, whether a plain paragraph, card text, an analytic or a tag, starts the next line as an analytic, which is handy for taking notes straight into a doc. It is off by default. Pressing Enter in the middle of a line still just splits it, a style you picked in the dropdowns above for that kind of line still wins, and one Ctrl-Z undoes the whole step. Enter at the end of card text leaves the card, so with this on you can't add a second paragraph to a card by pressing Enter at its end.
+
 ### Changed
 
 - **The search bar stays open after you insert a card from Logos.** Pressing Enter on a Logos result (or **Insert** in its preview) used to close the bar, so getting a second card meant opening it and typing the search again. Now the card goes in, a small **Inserted "…"** notice appears, and the bar keeps your search and its results with the cursor back in it, so you can press Enter on the next card. Esc closes it. With no document open to insert into, the card still opens as a new document and the bar closes.

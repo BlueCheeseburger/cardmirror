@@ -1047,6 +1047,11 @@ export interface Settings {
   enterAfterTag: EnterAfterStyle;
   enterAfterAnalytic: EnterAfterStyle;
   enterAfterUndertag: EnterAfterStyle;
+  /** Pressing Enter at the end of ANY line (a plain paragraph or card text
+   *  too, not just the six structural styles above) makes the new line an
+   *  analytic. A style picked above for that block still wins. Off by
+   *  default. See enter-style.ts. */
+  enterAlwaysAnalytic: boolean;
   customDashStyle: 'en' | 'en-spaced' | 'em' | 'em-spaced';
   /** What typed sequence the primary custom-dash rule replaces: '---'
    *  (fires on the third hyphen) or '--' (fires on the second). See
@@ -2105,6 +2110,7 @@ const DEFAULTS: Settings = {
   enterAfterTag: 'normal',
   enterAfterAnalytic: 'normal',
   enterAfterUndertag: 'normal',
+  enterAlwaysAnalytic: false,
   customDashStyle: 'em',
   customDashTrigger: '---',
   customDashOtherEnabled: false,
@@ -3944,6 +3950,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['enter behavior', 'return key', 'new paragraph', 'enter after pocket', 'enter after hat', 'enter after block', 'enter after tag', 'enter after analytic', 'enter after undertag'],
   },
   {
+    key: 'enterAlwaysAnalytic',
+    label: 'Every new line is an analytic',
+    description:
+      "When on, pressing Enter at the end of any line starts the next line as an analytic, whatever the line you were on: a plain paragraph, card text, an analytic, a tag. Handy for taking notes straight into a doc. Pressing Enter in the middle of a line still just splits it, and a style you picked above for that kind of line wins. One undo reverts the whole step. Off by default.",
+    kind: 'toggle',
+    category: 'editing',
+    section: 'New paragraph on Enter',
+    aliases: ['enter analytic', 'every line analytic', 'notes mode', 'always analytic', 'enter makes analytic', 'new line analytic'],
+  },
+  {
     key: 'customStyles',
     label: 'Custom styles',
     description:
@@ -5351,6 +5367,7 @@ function sanitize(s: Settings): Settings {
     enterAfterTag: sanitizeEnterAfter(s.enterAfterTag),
     enterAfterAnalytic: sanitizeEnterAfter(s.enterAfterAnalytic),
     enterAfterUndertag: sanitizeEnterAfter(s.enterAfterUndertag),
+    enterAlwaysAnalytic: !!s.enterAlwaysAnalytic,
     customDashStyle: CUSTOM_DASH_STYLES.includes(s.customDashStyle as Settings['customDashStyle'])
       ? (s.customDashStyle as Settings['customDashStyle'])
       : 'em',

@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: `enterAlwaysAnalytic` ("Every new line is an analytic") (`enter-style.ts`, `settings.ts`)
+
+**Request.** A toggle, off by default, where every new line typed with Enter in a doc is an analytic.
+
+**Change.** A boolean setting in Settings → Editing → New paragraph on Enter. `enterWithConfiguredStyle` (the first handler in the Enter chain, and the one the voice "return" word reuses through `enterAsKey`) now resolves a style in two steps: the per-type `enterAfter*` choice for the six structural types, and where that is `'normal'` (or the block is not one of the six) the toggle supplies `'analytic'` when it is on and the cursor is at the END of any textblock. It then does what the per-type path always did: the normal Enter, then `setAnalytic()` on the new block, as one undo step. So the doc-level, card-split and analytic_unit-wrapping behavior is the existing Mod-F7 behavior, not new code. Off, it declines for every plain paragraph, exactly as before.
+
+**Judgment calls.** (1) End of line only, as with the per-type settings: a split mid-text keeps both halves as they were, so editing text never changes its style. (2) "Every" is taken literally, so card text counts: Enter at the end of a card body leaves the card for an analytic (`splitContainerAtBody`), and a second paragraph can't be added to a card by Enter at its end while this is on. Say if card text and cites should be left out instead. (3) A per-type choice wins over the toggle, so setting After a Pocket to Block still gives a block. (4) Table cells: the new-line conversion finds nothing to convert there (`setAnalytic` returns false), so the plain split stays; a test pins no analytic is created in a cell.
+
+**Not verified.** In the running app by hand (tests drive the Enter command on constructed documents, including the one-Ctrl-Z undo); live zones and transclusions, where Enter is handled by other keymap layers ahead of this one.
+
 ### Changed: the palette stays open after a Logos insert (`quick-card-search-ui.ts`, `insertLogosCard`)
 
 **Report.** Searching Logos (`g `) and inserting a card closed the search-everything bar, so a second card meant reopening it and retyping the query.
