@@ -598,6 +598,12 @@ export interface Settings {
   /** Filename prefix for Starred Doc saves when `prefixPresetSaveFilenames` is on.
    *  Default `STARRED_`. */
   starredDocPrefix: string;
+  /** Save Send / Read / Marked / Starred Doc never open the Save As dialog for
+   *  want of a destination: with no folder to use (a doc that was never saved,
+   *  or an unset fixed folder) the copy goes into the Downloads folder, and
+   *  the notice has an Undo button that moves it to the trash. Off by
+   *  default, when those cases open the dialog. Desktop app only. */
+  silentExportsToDownloads: boolean;
   /** Where Save Send Doc writes. `sameFolder` (default) drops the
    *  send doc beside the source file; `fixedFolder` always writes into
    *  `sendDocFolder`. Either way, an unresolvable destination (a
@@ -2018,6 +2024,7 @@ const DEFAULTS: Settings = {
   readDocPrefix: 'READ_',
   markedDocPrefix: 'MARKED_',
   starredDocPrefix: 'STARRED_',
+  silentExportsToDownloads: false,
   sendDocDestination: 'sameFolder',
   sendDocFolder: '',
   markedCardsDestination: 'sameFolder',
@@ -3001,6 +3008,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'files',
     section: 'Send / Read / Marked / Starred docs',
     dependsOn: 'prefixPresetSaveFilenames',
+  },
+  {
+    key: 'silentExportsToDownloads',
+    label: 'Save without asking where',
+    description:
+      'When on, Save Send Doc, Save Read Doc, Save Marked Cards and Save Starred Doc never open the Save As dialog just because they have nowhere to put the copy: a document you haven\'t saved yet (same-folder mode) or an unset fixed folder saves into your Downloads folder instead. A notice at the bottom says where it went, with an Undo button that moves the new file to the trash. A name already taken in Downloads gets a number (SEND_1AC (2).docx) rather than being replaced, and the dialog still opens if the copy would overwrite the document itself. Off by default.',
+    kind: 'toggle',
+    category: 'files',
+    section: 'Send / Read / Marked / Starred docs',
+    electronOnly: true,
+    aliases: ['send doc downloads', 'save without dialog', 'skip save dialog', 'silent save', 'undo save', 'default location'],
   },
   {
     key: 'sendDocDestination',
@@ -5193,6 +5211,7 @@ function sanitize(s: Settings): Settings {
     readDocPrefix: typeof s.readDocPrefix === 'string' ? s.readDocPrefix : 'READ_',
     markedDocPrefix: typeof s.markedDocPrefix === 'string' ? s.markedDocPrefix : 'MARKED_',
     starredDocPrefix: typeof s.starredDocPrefix === 'string' ? s.starredDocPrefix : 'STARRED_',
+    silentExportsToDownloads: !!s.silentExportsToDownloads,
     sendDocDestination:
       s.sendDocDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
     sendDocFolder: typeof s.sendDocFolder === 'string' ? s.sendDocFolder : '',

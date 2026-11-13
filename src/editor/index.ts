@@ -414,7 +414,7 @@ import {
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import type { MultiPaneWindowInfo } from './host/electron-host.js';
 import { showAlsoInCompareNotice } from './compare-also-open-notice.js';
-import { showPresetSavedNotice } from './preset-saved-notice.js';
+import { showPresetSavedNotice, showExportUndoNotice } from './preset-saved-notice.js';
 import { showMovedDocNotice } from './moved-doc-notice.js';
 import { captureReloadPosition, restoreReloadPosition } from './reload-position.js';
 import {
@@ -9654,11 +9654,17 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
 
     const electron = getElectronHost();
     let result: { name: string; handle?: unknown } | null = null;
+    // "Save without asking where": no folder to use → Downloads, not the dialog.
+    const skipDialog = settings.get('silentExportsToDownloads');
+    // The write made a brand-new file (what the notice's Undo may trash).
+    let created = false;
+    let viaDownloads = false;
     if (electron && destResolvable) {
       const silent = await electron.saveSendDoc(
         { folder, siblingHandle: sourceHandle, filename },
         bytes,
       );
+      if (silent !== 'collision' && silent !== null) created = silent.created === true;
       if (silent === 'collision') {
         // Target would overwrite the SOURCE document (a custom/empty prefix +
         // same folder/format) — defer to the dialog so the user can rename.
@@ -9671,8 +9677,22 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
       }
     } else {
       // Never-saved doc (same-folder mode), unset fixed folder, or a
-      // non-Electron host → let the OS dialog pick the location.
-      result = await getHost().saveAs(filename, bytes, {
+      // non-Electron host → let the OS dialog pick the location, unless the
+      // user asked not to be asked: then the Downloads folder takes it. An
+      // older shell that doesn't know the flag answers null, which falls
+      // through to the dialog like before.
+      if (electron && skipDialog) {
+        const silent = await electron.saveSendDoc(
+          { folder: null, siblingHandle: null, filename, useDownloads: true },
+          bytes,
+        );
+        if (silent !== 'collision' && silent !== null) {
+          result = silent;
+          created = silent.created === true;
+          viaDownloads = true;
+        }
+      }
+      result ??= await getHost().saveAs(filename, bytes, {
         filters: saveFiltersForFormat(format),
         ...(sourceHandle ? { nearPath: sourceHandle } : {}),
       });
@@ -9680,14 +9700,32 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
     if (!result) return false;
     // Surface the export in recents so it's reachable, but never touch
     // the working doc's identity / dirty state (it's a derived copy).
+    const savedHandle = typeof result.handle === 'string' ? result.handle : null;
     recordRecent({
-      handle: typeof result.handle === 'string' ? result.handle : null,
+      handle: savedHandle,
       filename: result.name,
       format,
     });
     flashSaveSuccess();
     markNonPristineStarter();
-    showPresetSavedNotice(spec.label, result.name, result.handle, electron?.showItemInFolder?.bind(electron));
+    if (skipDialog && created && savedHandle && electron?.trashExport) {
+      // The setting that skips the dialog also puts an Undo on the notice: it
+      // moves the new file to the trash and takes it back out of Recent.
+      const trash = electron.trashExport.bind(electron);
+      showExportUndoNotice({
+        label: spec.label,
+        fileName: result.name,
+        handle: savedHandle,
+        inDownloads: viaDownloads,
+        undo: async () => {
+          const ok = await trash(savedHandle).catch(() => false);
+          if (ok) removeRecent(savedHandle);
+          return ok;
+        },
+      });
+    } else {
+      showPresetSavedNotice(spec.label, result.name, result.handle, electron?.showItemInFolder?.bind(electron));
+    }
     return true;
   } catch (err) {
     console.error(`${spec.label} save failed:`, err);

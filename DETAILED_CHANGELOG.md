@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: `silentExportsToDownloads` ("Save without asking where") with an Undo notice (`index.ts`, `preset-saved-notice.ts`, `settings.ts`, desktop `main.ts` / `preload.ts` / `doc-writes.ts`)
+
+**Request.** For the Save Send / Read / Marked / Starred Doc shortcuts: a toggle, off by default, that just saves instead of asking, a toast at the bottom saying it went to Downloads, and an Undo button.
+
+**Interpretation (asked).** Those four commands already save silently when they have a destination (the source file's folder, or a fixed folder) and open the Save As dialog when they don't (a never-saved doc in same-folder mode, an unset fixed folder). The toggle changes only that second case: no destination → the OS Downloads folder. The Undo notice applies to every silent save of the four while the toggle is on, not just the Downloads ones.
+
+**How.** The renderer (`runSilentExportFlow`) passes `useDownloads: true` with no folder and no sibling path; `host:save-send-doc` resolves `app.getPath('downloads')` and writes through the new `saveNewDocUnique` (`name (2).ext` when the name is taken, each attempt a `failIfExists` write inside the per-path write chain, so racing exports can't take one name). The handler now also returns `created`: whether it made a new file (an overwrite of an existing export in a fixed folder is `created: false`, and gets the old notice, because an undo can't bring the old contents back). `host:trash-export` moves a file to the trash with `shell.trashItem` and only for a path this session's silent export created (a `createdExportPaths` set), so the renderer can't aim it at anything else. Undo also drops the entry from Recent. The notice is a bottom toast ("Send doc saved to Downloads" with the file name beside it, 8 s); a toast carries one button, so Undo replaces Show in folder while the setting is on.
+
+**Kept.** A collision with the source document still opens the dialog; an older desktop shell that doesn't know `useDownloads` answers null, which falls through to the dialog; the browser build has no silent saves at all and is unchanged. The setting is `electronOnly`.
+
+**Not verified.** In the running desktop app (this session can't run Electron): the Downloads path, the trash call and the macOS/Windows trash behavior are covered only by the unit tests (`saveNewDocUnique` on the real filesystem, the notice) and a type check of the main-process code. Undo moves to the trash rather than deleting, so a mistaken Undo is recoverable.
+
 ### Added: `enterAlwaysAnalytic` ("Every new line is an analytic") (`enter-style.ts`, `settings.ts`)
 
 **Request.** A toggle, off by default, where every new line typed with Enter in a doc is an analytic.

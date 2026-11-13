@@ -7,7 +7,7 @@ vi.mock('../../src/editor/toast.js', async () => {
   return { ...actual, showToast: vi.fn() };
 });
 
-import { presetSavedMessage, showPresetSavedNotice } from '../../src/editor/preset-saved-notice.js';
+import { presetSavedMessage, showPresetSavedNotice, showExportUndoNotice } from '../../src/editor/preset-saved-notice.js';
 import { showToast } from '../../src/editor/toast.js';
 
 afterEach(() => {
@@ -53,5 +53,44 @@ describe('showPresetSavedNotice', () => {
     showPresetSavedNotice('Send doc', 'SEND_x.docx', null, () => {});
     expect(toastEl()).toBeNull();
     expect(showToast).toHaveBeenCalledWith('Send doc saved: SEND_x.docx');
+  });
+});
+
+describe('showExportUndoNotice', () => {
+  const undoBtn = (): HTMLButtonElement => toastEl()!.querySelector('button')!;
+
+  it('says it went to Downloads, with the file name and an Undo button', () => {
+    showExportUndoNotice({ label: 'Send doc', fileName: 'SEND_1AC.docx', handle: '/Users/me/Downloads/SEND_1AC.docx', inDownloads: true, undo: async () => true });
+    expect(toastEl()?.textContent).toContain('Send doc saved to Downloads');
+    expect(toastEl()?.textContent).toContain('SEND_1AC.docx');
+    expect(undoBtn().textContent).toBe('Undo');
+  });
+
+  it('names the file\'s own folder when the save was not into Downloads', () => {
+    showExportUndoNotice({ label: 'Marked doc', fileName: 'MARKED_2NC.docx', handle: '/a/Round 4/MARKED_2NC.docx', inDownloads: false, undo: async () => true });
+    expect(toastEl()?.textContent).toContain('Marked doc saved to Round 4');
+  });
+
+  it('Undo runs the undo and confirms it', async () => {
+    const undo = vi.fn(async () => true);
+    showExportUndoNotice({ label: 'Read doc', fileName: 'READ_1NC.docx', handle: '/d/READ_1NC.docx', inDownloads: true, undo });
+    undoBtn().click();
+    await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith('Moved READ_1NC.docx to the trash.'));
+    expect(undo).toHaveBeenCalledTimes(1);
+  });
+
+  it('says so when the undo could not move the file', async () => {
+    showExportUndoNotice({ label: 'Read doc', fileName: 'READ_1NC.docx', handle: '/d/READ_1NC.docx', inDownloads: true, undo: async () => false });
+    undoBtn().click();
+    await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith('Couldn’t undo: READ_1NC.docx is still saved.'));
+  });
+
+  it('a second press does not undo twice', async () => {
+    const undo = vi.fn(async () => true);
+    showExportUndoNotice({ label: 'Send doc', fileName: 'a.docx', handle: '/d/a.docx', inDownloads: true, undo });
+    const b = undoBtn();
+    b.click();
+    b.click();
+    await vi.waitFor(() => expect(undo).toHaveBeenCalledTimes(1));
   });
 });
