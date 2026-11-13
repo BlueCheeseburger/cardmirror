@@ -12,9 +12,9 @@
  * behavior of those commands rather than duplicating it here.
  *
  * The `enterAlwaysAnalytic` toggle (off by default) extends the same path
- * to every textblock: Enter at the end of any line — plain paragraphs and
- * card text included — then makes the new line an analytic, unless that
- * block's own per-type setting already picks a style.
+ * to plain paragraphs: Enter at the end of any line then makes the new line an
+ * analytic, unless that block's own per-type setting already picks a style.
+ * Card text (body, cite, undertag) is left out so a card keeps growing on Enter.
  *
  * 'normal' (the default for all six) returns false so the key falls
  * through to the regular Enter pipeline untouched — including the
@@ -47,6 +47,11 @@ const CONVERT_COMMAND: Record<Exclude<EnterAfterStyle, 'normal'>, () => Command>
   analytic: () => setAnalytic(),
   undertag: () => setUndertag(),
 };
+
+/** Lines that are part of a card's text. The "every new line is an analytic"
+ *  toggle leaves these alone, so Enter at the end of a card's body, cite or
+ *  undertag still adds a line to that card instead of ending it. */
+const CARD_TEXT_TYPES = new Set(['card_body', 'cite_paragraph', 'undertag']);
 
 /** The textblock type whose END the (empty) cursor sits at, or null. With
  *  `structuralOnly` just the six structural types count (the per-type
@@ -88,8 +93,9 @@ export const enterWithConfiguredStyle: Command = (state, dispatch, view) => {
   let choice: EnterAfterStyle = 'normal';
   const structural = typeAtEnd(state, true);
   if (structural) choice = settings.get(SETTING_KEY_BY_TYPE[structural]!) as EnterAfterStyle;
-  if (choice === 'normal' && settings.get('enterAlwaysAnalytic') && typeAtEnd(state, false)) {
-    choice = 'analytic';
+  if (choice === 'normal' && settings.get('enterAlwaysAnalytic')) {
+    const any = typeAtEnd(state, false);
+    if (any && !CARD_TEXT_TYPES.has(any)) choice = 'analytic';
   }
   if (choice === 'normal') return false;
   if (!dispatch || !view) return baseEnter(state, dispatch, view);

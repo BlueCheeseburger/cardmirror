@@ -1053,10 +1053,10 @@ export interface Settings {
   enterAfterTag: EnterAfterStyle;
   enterAfterAnalytic: EnterAfterStyle;
   enterAfterUndertag: EnterAfterStyle;
-  /** Pressing Enter at the end of ANY line (a plain paragraph or card text
-   *  too, not just the six structural styles above) makes the new line an
-   *  analytic. A style picked above for that block still wins. Off by
-   *  default. See enter-style.ts. */
+  /** Pressing Enter at the end of a line (a plain paragraph too, not just the
+   *  six structural styles above) makes the new line an analytic. Card text
+   *  (body, cite, undertag) is left alone. A style picked above for that block
+   *  still wins. Off by default. See enter-style.ts. */
   enterAlwaysAnalytic: boolean;
   customDashStyle: 'en' | 'en-spaced' | 'em' | 'em-spaced';
   /** What typed sequence the primary custom-dash rule replaces: '---'
@@ -3971,7 +3971,7 @@ export const SETTING_METADATA: SettingMeta[] = [
     key: 'enterAlwaysAnalytic',
     label: 'Every new line is an analytic',
     description:
-      "When on, pressing Enter at the end of any line starts the next line as an analytic, whatever the line you were on: a plain paragraph, card text, an analytic, a tag. Handy for taking notes straight into a doc. Pressing Enter in the middle of a line still just splits it, and a style you picked above for that kind of line wins. One undo reverts the whole step. Off by default.",
+      "When on, pressing Enter at the end of a line starts the next line as an analytic: after a plain paragraph, an analytic, a heading or a tag. Handy for taking notes straight into a doc. Card text (the body, cite and undertag lines inside a card) is left alone, so Enter there still adds a line to the card. Pressing Enter in the middle of a line still just splits it, and a style you picked above for that kind of line wins. One undo reverts the whole step. Off by default.",
     kind: 'toggle',
     category: 'editing',
     section: 'New paragraph on Enter',

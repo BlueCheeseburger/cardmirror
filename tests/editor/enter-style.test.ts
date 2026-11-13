@@ -183,7 +183,7 @@ describe('enterWithConfiguredStyle', () => {
   });
 });
 
-describe('enterAlwaysAnalytic ("Every new line is an analytic")', () => {
+describe('enterAlwaysAnalytic ("Every new line is an analytic"; card text is left alone)', () => {
   const para = (text: string) => schema.nodes['paragraph']!.create(null, text ? schema.text(text) : []);
   const typeNames = (d: PMNode) => d.content.content.map((n) => n.type.name);
 
@@ -215,16 +215,24 @@ describe('enterAlwaysAnalytic ("Every new line is an analytic")', () => {
     expect(next!.doc.child(1).textContent).toBe('');
   });
 
-  it('Enter at the end of card text leaves the card for an analytic', () => {
+  it('leaves card text alone: Enter at the end of a card body, cite or undertag declines', () => {
     settings.set('enterAlwaysAnalytic', true);
-    const doc = makeDoc([cardWith(tag('T'), body('card text'))]);
-    const state = stateWithCursorAtEndOf(doc, 'card_body');
-    const next = runWithFakeView(state, enterWithConfiguredStyle);
-    expect(next).not.toBeNull();
-    expect(typeNames(next!.doc)).toEqual(['card', 'analytic_unit']);
-    expect(next!.doc.child(0).textContent).toBe('Tcard text');
-    expect(next!.doc.child(1).child(0).type.name).toBe('analytic');
-    expect(next!.doc.child(1).textContent).toBe('');
+    const cite = schema.nodes['cite_paragraph']!.create(null, schema.text('Smith 24'));
+    const under = schema.nodes['undertag']!.create(null, schema.text('note'));
+    const doc = makeDoc([cardWith(tag('T'), cite, body('card text'), under)]);
+    for (const name of ['cite_paragraph', 'card_body', 'undertag']) {
+      const state = stateWithCursorAtEndOf(doc, name);
+      expect(runWithFakeView(state, enterWithConfiguredStyle)).toBeNull();
+    }
+  });
+
+  it('a per-type style still applies to an undertag even with the toggle on', () => {
+    settings.set('enterAlwaysAnalytic', true);
+    settings.set('enterAfterUndertag', 'analytic');
+    const under = schema.nodes['undertag']!.create(null, schema.text('note'));
+    const doc = makeDoc([cardWith(tag('T'), body('b'), under)]);
+    const state = stateWithCursorAtEndOf(doc, 'undertag');
+    expect(runWithFakeView(state, enterWithConfiguredStyle)).not.toBeNull();
   });
 
   it('Enter at the end of a tag starts an analytic too', () => {
