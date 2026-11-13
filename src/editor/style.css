@@ -13567,6 +13567,17 @@ body.pmd-pane-dragging * {
   cursor: pointer;
 }
 .pmd-pane-chip-dropdown-row:hover { background: var(--pmd-c-surface); }
+/* Rows drag to reorder with no handle (row-reorder.ts), so a press must not
+   start a text selection, and a touch must not scroll the list under the drag. */
+.pmd-pane-chip-dropdown { user-select: none; -webkit-user-select: none; }
+.pmd-pane-chip-dropdown-row { touch-action: none; position: relative; }
+.pmd-pane-chip-dropdown.pmd-reordering,
+.pmd-pane-chip-dropdown.pmd-reordering .pmd-pane-chip-dropdown-row { cursor: grabbing; }
+/* The row being dragged: lifted off the list a little. */
+.pmd-pane-chip-dropdown-row.pmd-row-dragging {
+  background: var(--pmd-c-surface);
+  box-shadow: 0 2px 8px var(--pmd-c-shadow);
+}
 .pmd-pane-chip-dropdown-row.pmd-active { font-weight: 600; }
 /* The speech doc's row carries the speech mic (no tint). The slot is on every
    row while any row has the mic, so names line up. */

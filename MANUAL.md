@@ -1396,6 +1396,12 @@ workspace while another shows a single document.
   document's row has the speech mic icon at its left, and the ▾ button itself
   turns amber whenever the speech document is somewhere in that stack, even
   with another document showing.
+- **(fork)** **Drag the rows of a pane's stack list to reorder the documents.**
+  There are no handles: press on a name and drag. It is deliberately stiff so
+  nothing moves by accident (the pointer must travel a little first, and a row
+  swaps with the next only once you've dragged most of the way past it). A plain
+  click still switches document, **Esc** mid-drag puts everything back, and the
+  document you were on stays showing.
 - **(fork)** **Hover a title chip** and a greyed microphone appears at its left;
   click it to make that document the active speech doc (click again to clear).
   A single window has the same blue bar above its one document, with the same

@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: drag to reorder a pane's document list (`row-reorder.ts`, `multi-pane-shell.ts`, `style.css`)
+
+**Request.** Rearrange the documents in the pane's stack list by dragging them through it; no visible handles; stiff enough that it doesn't happen by accident.
+
+**Change.** `attachRowReorder` (new, generic) takes a container and its rows and handles a pointer drag: press anywhere on a row (not the close button), travel 16 px before it becomes a drag (a smaller wobble is a click and still switches document), then the held row follows the pointer and swaps with a neighbour only once it has moved 80% of that neighbour's height past it. One `onReorder(from, to)` on drop, only if the row ended elsewhere; Esc or a cancelled pointer restore the DOM order with no callback; the click after a drop is swallowed so it doesn't also pick a row. The shell wires it to the stack dropdown and applies the result through `Slot.applyStackOrder`, which refuses a list that isn't exactly the current stack and recomputes `visibleIndex` from the visible record, so the doc on screen stays on screen. The dropdown is `user-select: none` (a drag no longer selects the names) and its rows `touch-action: none`.
+
+**Stiffness is two numbers** (`dragThreshold` 16, `swapFraction` 0.8) and nothing else, so they are easy to change if it still feels loose or too hard. Not a hold-to-drag: a timer would make a quick deliberate drag feel laggy.
+
+**What the order means.** Index 0 is the bottom of the stack and the list reads top to bottom in that order; Ctrl+Tab cycles in it too. Nothing else keys on it.
+
+**Verified** in the real app (headless Chromium, three-pane layout, four documents): a 6 px press is a click and switches document; a 20 px drag leaves the order alone; dragging 1.2 rows swaps one place; dragging the last row to the top moves it there and the active document's highlight follows it; Esc mid-drag restores; a plain click still closes the list and switches. **Not verified:** touch, where it should also work (the rows take no touch scroll) but was not tried, and a stack that changes while the list is open (the captured order is rejected rather than applied).
+
 ### Added: `silentExportsToDownloads` ("Save without asking where") with an Undo notice (`index.ts`, `preset-saved-notice.ts`, `settings.ts`, desktop `main.ts` / `preload.ts` / `doc-writes.ts`)
 
 **Request.** For the Save Send / Read / Marked / Starred Doc shortcuts: a toggle, off by default, that just saves instead of asking, a toast at the bottom saying it went to Downloads, and an Undo button.
