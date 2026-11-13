@@ -105,6 +105,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
       'condenseNoIntegrityWithPilcrows',
       'condenseWithWarning',
       'condenseAndShrink',
+      'shrinkToSize',
       'uncondense',
       'toggleCase',
       'toggleParagraphIntegrity',

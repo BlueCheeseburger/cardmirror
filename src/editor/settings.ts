@@ -1634,6 +1634,15 @@ export interface Settings {
    *  restored to Normal so they remain visible in the shrunken output.
    *  When off, both are shrunk along with the surrounding text. */
   shrinkRestoresOmissionsToNormal: boolean;
+  /** Size (pt) the Card menu's "Shrink to N pt" row shrinks a card's text to.
+   *  Default 4. Underlined and emphasized text keeps its size, as with Shrink. */
+  shrinkToPt: number;
+  /** The warning line "Shrink to N pt" puts above the condensed, shrunken
+   *  text. Empty leaves it out. Default `<<TEXT CONDENSED, NONE OMITTED>>`. */
+  shrinkToWarningBefore: string;
+  /** The warning line it puts below the text. Empty leaves it out. Default
+   *  `<<PARAGRAPH BREAKS RESUME>>`. */
+  shrinkToWarningAfter: string;
   /**
    * Delimiter family for "Condense with warning". One of the six
    * bracket pairs (which produce `<open>PARAGRAPH INTEGRITY
@@ -2236,6 +2245,9 @@ const DEFAULTS: Settings = {
   createReferenceShrinkPt: 3,
   createReferenceHighlightMode: 'shading',
   shrinkRestoresOmissionsToNormal: false,
+  shrinkToPt: 4,
+  shrinkToWarningBefore: '<<TEXT CONDENSED, NONE OMITTED>>',
+  shrinkToWarningAfter: '<<PARAGRAPH BREAKS RESUME>>',
   condenseWarningDelimiter: '[',
   condenseWarningCustomPauseMarker: '',
   condenseWarningCustomResumeMarker: '',
@@ -4095,6 +4107,37 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'Formatting operations',
   },
   {
+    key: 'shrinkToPt',
+    label: 'Shrink to size (points)',
+    description:
+      'The size the Card menu\'s "Shrink to N pt" row shrinks a card\'s text to (default 4, from 1 to 20). It merges the card\'s body paragraphs into one, removes every highlight, underline and emphasis from it, shrinks all of the text to this size, and puts a warning line above and below (the two settings below).',
+    kind: 'number',
+    category: 'editing',
+    section: 'Formatting operations',
+    min: 1,
+    aliases: ['shrink to 4', 'tiny text', 'shrink size', 'shrink card to size', 'condense and shrink size'],
+  },
+  {
+    key: 'shrinkToWarningBefore',
+    label: 'Shrink to size: warning before the text',
+    description:
+      'The line "Shrink to N pt" puts above the shrunken text so a judge or opponent knows the paragraphs were merged. Default <<TEXT CONDENSED, NONE OMITTED>>. Leave empty for no line above (and empty here and below for no warnings at all). It stays at normal size.',
+    kind: 'text',
+    category: 'editing',
+    section: 'Formatting operations',
+    aliases: ['text condensed none omitted', 'condense warning before', 'shrink warning'],
+  },
+  {
+    key: 'shrinkToWarningAfter',
+    label: 'Shrink to size: warning after the text',
+    description:
+      'The line "Shrink to N pt" puts below the shrunken text. Default <<PARAGRAPH BREAKS RESUME>>. Leave empty for no line below. It stays at normal size.',
+    kind: 'text',
+    category: 'editing',
+    section: 'Formatting operations',
+    aliases: ['paragraph breaks resume', 'condense warning after', 'shrink warning'],
+  },
+  {
     key: 'shrinkRestoresOmissionsToNormal',
     label: 'Shrink keeps protected text at Normal size',
     description:
@@ -5653,6 +5696,13 @@ function sanitize(s: Settings): Settings {
     )
       ? (s.createReferenceHighlightMode as CreateReferenceHighlightMode)
       : DEFAULTS.createReferenceHighlightMode,
+    shrinkToPt: Number.isFinite(Number(s.shrinkToPt))
+      ? Math.min(20, Math.max(1, Math.round(Number(s.shrinkToPt))))
+      : DEFAULTS.shrinkToPt,
+    shrinkToWarningBefore:
+      typeof s.shrinkToWarningBefore === 'string' ? s.shrinkToWarningBefore : DEFAULTS.shrinkToWarningBefore,
+    shrinkToWarningAfter:
+      typeof s.shrinkToWarningAfter === 'string' ? s.shrinkToWarningAfter : DEFAULTS.shrinkToWarningAfter,
     shrinkRestoresOmissionsToNormal:
       s.shrinkRestoresOmissionsToNormal === undefined
         ? DEFAULTS.shrinkRestoresOmissionsToNormal

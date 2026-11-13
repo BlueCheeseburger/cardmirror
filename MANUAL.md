@@ -655,6 +655,31 @@ down to a single small paragraph between its pause and resume markers. The
 shrink follows Shrink's settings, so with omission protection on (the default)
 the markers stay full size. Press **Mod-8** again to keep cycling smaller.
 
+### Shrink to size (Card menu)
+
+**Card ▸ Shrink to 4 pt** *(Fork)* shrinks a whole card to a tiny size in one
+step, for the long middle of a card you will not read aloud. It merges the card's
+body paragraphs into one, **removes every highlight, underline and emphasis** from
+that paragraph, shrinks **all** of its text to the size you set (4 pt by
+default), and puts a warning line above and one below, so a judge or an
+opponent can see that paragraphs were merged and that nothing was omitted:
+
+> `<<TEXT CONDENSED, NONE OMITTED>>`
+> *(the card's text, all one plain tiny paragraph)*
+> `<<PARAGRAPH BREAKS RESUME>>`
+
+The tag and cite are left alone, and the warning lines stay full size. With the
+cursor in a card it acts on that whole card; with text selected it acts on the
+body paragraphs the selection reaches, in each card; and from the outline's
+right-click **Card ▸** menu it acts on every card under the heading. One undo
+reverts it. Running it again on a card that already has the warnings shrinks the
+text again (so a changed size takes effect) without adding a second pair. The
+command is also in the command bar as **Shrink to Size With Warnings** and can
+be bound to a key in Settings → Keyboard shortcuts. Change the size and the two
+warning lines in Settings → Editing → Formatting operations: **Shrink to size
+(points)**, **Shrink to size: warning before the text** and **…after the text**
+(leave both empty for no warnings at all).
+
 ### Citations
 
 - **Cite (F8)** applies the cite character style to the author and date,
@@ -3723,6 +3748,11 @@ Typing helpers and the behavior of the cutting and condense commands
   only.
 - **Bridge formatting across** — which gaps the automatic bridging closes:
   whitespace and punctuation (default), or whitespace only.
+- **Shrink to size (points)**, **Shrink to size: warning before the text**,
+  **Shrink to size: warning after the text** *(Fork)* — the size, and the two
+  warning lines, used by Card ▸ Shrink to N pt (above). Defaults: 4 pt,
+  `<<TEXT CONDENSED, NONE OMITTED>>` and `<<PARAGRAPH BREAKS RESUME>>`; an
+  empty line setting leaves that line out.
 - **Shrink keeps protected text at Normal size** — keep Omitted spans,
   warning markers, and your custom protections full-size when Shrinking.
 - **Custom shrink protections** — extra strings (or regexes) Shrink

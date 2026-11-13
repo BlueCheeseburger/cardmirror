@@ -1918,6 +1918,11 @@ const ribbonContext: RibbonContext = {
         ? settings.get('condenseWarningCustomResumeMarker')
         : '',
     ),
+  shrinkToPt: () => settings.get('shrinkToPt'),
+  shrinkToWarnings: () => ({
+    before: settings.get('shrinkToWarningBefore'),
+    after: settings.get('shrinkToWarningAfter'),
+  }),
   condenseWarningMarkers: () => {
     const d = settings.get('condenseWarningDelimiter');
     if (d === 'custom') {

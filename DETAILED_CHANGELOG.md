@@ -12,6 +12,20 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: Card menu "Shrink to N pt" with warning lines (`shrinkToSizeWithWarning` in `ribbon-commands.ts`, `condense.ts`, `card-menu-sections.ts`, `settings.ts`)
+
+**Request.** In the Card menu under Shrink, a row that shrinks the card's text to size 4 (size set in settings) and adds the `<<TEXT CONDENSED, NONE OMITTED>>` / `<<PARAGRAPH BREAKS RESUME>>` warnings from the sample screenshot, with the warning texts editable.
+
+**Interpretation.** There was no existing "Shrink to x pt" row (the Card menu's Shrink section had only Shrink, the Mod-8 cycle), so this is a new row, `Shrink to <shrinkToPt> pt`, command id `shrinkToSize`. It is the existing Condense With Warning + Shrink pair, parameterized: the markers come from `shrinkToWarningBefore` / `shrinkToWarningAfter` (defaults as in the screenshot) instead of the PARAGRAPH INTEGRITY ones, and the shrink goes to a fixed size (`sizeCycleCommand` with a constant `pickSize`) instead of cycling.
+
+**How.** For each card (the one at the cursor, every card a selection reaches, or every card under an outline heading), consecutive body paragraphs form a run. A run is condensed with `condenseWithWarning` (new `allowEmpty` option: an empty marker leaves its line out instead of refusing); then, on the merged middle paragraph only, `highlight`, `underline_mark`, `underline_direct` and `emphasis_mark` are removed and every character is shrunk to the size. The warning lines are outside that paragraph, so they stay at Normal size. Cards are processed last to first on one transaction, so it is one undo. A run already wrapped in the two warnings is stripped and shrunk again (a changed size takes effect), never wrapped twice.
+
+**Changed mid-task (user).** The first version kept underlined / emphasized words at their size, the way Shrink does. The user asked that it shrink to 4 pt and remove all highlight, underline and emphasis, and condense all the text. So the argument marking is deliberately destroyed (undo brings it back) and Shrink's exemption and the omission protections are not used here: nothing is exempt or protected. Shading, bold and other formatting are not touched. The same message said "condensing all text without warning"; since the warning lines were the original request (and have their own settings), they are kept, and emptying both warning settings gives no warnings at all. If "without warning" meant none by default, change the two defaults to empty.
+
+**Not changed.** The existing Condense With Warning, Shrink, Smart Shrink and Condense With Warning and Shrink. The setting size is clamped 1 to 20 like `createReferenceShrinkPt`.
+
+**Verified** in the real app on the user's Pharma doc (headless Chromium), with the first version (underlined words kept): Card menu, Shrink to 4 pt gave one merged paragraph at 4 pt with both warning lines. The strip-everything version is covered by unit tests (all marks gone, every piece at 8 half-points, tag and cite untouched), not re-run in the app. **Not verified:** the outline right-click path on a heading with many cards in the running app (unit-tested on a two-card selection, the same path), and Lite / web builds, which share the code.
+
 ### Added: drag to reorder a pane's document list (`row-reorder.ts`, `multi-pane-shell.ts`, `style.css`)
 
 **Request.** Rearrange the documents in the pane's stack list by dragging them through it; no visible handles; stiff enough that it doesn't happen by accident.
