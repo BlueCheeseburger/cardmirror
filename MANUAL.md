@@ -1418,7 +1418,8 @@ workspace while another shows a single document.
   **Comparing documents** pill and can't be dropped on. When the document arrives, the other window shows **Moved … here from …** with a **Go back** button.
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
-  document's row has the speech mic icon at its left, and the ▾ button itself
+  document's row has the speech mic icon at its left and its name in amber (names show
+  without .docx / .cmir), and the ▾ button itself
   turns amber whenever the speech document is somewhere in that stack, even
   with another document showing.
 - **(fork)** **Drag the rows of a pane's stack list to reorder the documents.**

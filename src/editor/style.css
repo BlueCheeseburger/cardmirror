@@ -13592,6 +13592,9 @@ body.pmd-pane-dragging * {
 
 .pmd-pane-chip-dropdown-close { color: inherit; opacity: 0.7; }
 .pmd-pane-chip-dropdown-row.pmd-speech .pmd-pane-chip-dropdown-close:hover { opacity: 1; }
+/* The speech doc's row: the mic and the name in amber (the name via
+   .pmd-speech-name). */
+.pmd-pane-chip-dropdown-row.pmd-speech .pmd-pane-chip-dropdown-mic { color: var(--pmd-c-speech-amber); }
 
 .pmd-pane-chip-dropdown-close {
   flex: 0 0 auto;

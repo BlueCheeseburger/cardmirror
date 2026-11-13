@@ -12,6 +12,14 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: the pane's document list: amber speech row, no file endings (`multi-pane-shell.ts`, `stack-row-names.ts`, `style.css`)
+
+**Request.** In the pane doc chooser the row holding the active speech doc should have amber text, file extensions should not show, and the speech mic stays.
+
+**Change.** The speech row's name gets the existing `.pmd-speech-name` class (`--pmd-c-speech-amber`, the colour the app already uses for the speech doc's name in lists) and its mic is tinted the same; both are tokens with a dark-theme value, checked in the real app in both themes (dark `rgb(240,180,41)`, light `rgb(154,103,0)`). `stackRowNames` strips `.cmir` / `.docx` from every row's name, except where two rows would then look alike (`Round 3.docx` and `Round 3.cmir`; a bare `Round 3` beside `Round 3.docx`), so no row is left telling nothing apart. Rows with the very same name keep their folder path as before. The chip, the tray and other lists still show whatever they showed.
+
+**Not verified.** A real saved `.docx` document in the list (the app here only had unsaved documents, so the stripping is covered by the unit tests and a wiring check, not by a screenshot of a real file name).
+
 ### Added: Card menu "Shrink to N pt" with warning lines (`shrinkToSizeWithWarning` in `ribbon-commands.ts`, `condense.ts`, `card-menu-sections.ts`, `settings.ts`)
 
 **Request.** In the Card menu under Shrink, a row that shrinks the card's text to size 4 (size set in settings) and adds the `<<TEXT CONDENSED, NONE OMITTED>>` / `<<PARAGRAPH BREAKS RESUME>>` warnings from the sample screenshot, with the warning texts editable.

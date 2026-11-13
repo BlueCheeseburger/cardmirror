@@ -198,6 +198,7 @@ import { icon, setIcon } from './icons';
 import { formatSpeechFilename } from './speech-filename.js';
 import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
 import { attachRowReorder } from './row-reorder.js';
+import { stackRowNames } from './stack-row-names.js';
 import { blankSpawnPayload } from './host/types.js';
 import { maybeSnapshotVersion } from './version-history.js';
 import { awaitWithSaveWatchdog } from './save-watchdog.js';
@@ -1805,7 +1806,9 @@ class Slot {
       ),
     );
     const anySpeech = this.stack.some((r) => getSpeechDocResolver().isSpeechByUid(r.uid));
-    for (const rec of this.stack) {
+    // Names without .docx / .cmir (kept only where two rows would look alike).
+    const rowNames = stackRowNames(this.stack.map((r) => displayFilename(r.filename)));
+    for (const [rowIndex, rec] of this.stack.entries()) {
       const row = document.createElement('div');
       row.className = 'pmd-pane-chip-dropdown-row';
       if (rec === this.visible) row.classList.add('pmd-active');
@@ -1824,7 +1827,9 @@ class Slot {
       }
       const name = document.createElement('span');
       name.className = 'pmd-pane-chip-dropdown-name';
-      name.textContent = displayFilename(rec.filename);
+      name.textContent = rowNames[rowIndex] ?? displayFilename(rec.filename);
+      // The speech doc's name is amber, beside its mic.
+      if (getSpeechDocResolver().isSpeechByUid(rec.uid)) name.classList.add('pmd-speech-name');
       name.addEventListener('click', () => {
         closeOpenStackDropdown();
         this.showRecord(rec);

@@ -22,6 +22,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 
+- **The pane's document list shows the speech doc in amber and no file endings.** In the small **v 4** list on a pane's title bar, the speech document's name is now amber next to its microphone, and names no longer show **.docx** or **.cmir**, so a row reads "1NC Shell---GGSA". The ending stays on a name only when two rows would otherwise look the same, such as the same file open as both a .docx and a .cmir.
 - **The search bar stays open after you insert a card from Logos.** Pressing Enter on a Logos result (or **Insert** in its preview) used to close the bar, so getting a second card meant opening it and typing the search again. Now the card goes in, a small **Inserted "…"** notice appears, and the bar keeps your search and its results with the cursor back in it, so you can press Enter on the next card. Esc closes it. With no document open to insert into, the card still opens as a new document and the bar closes.
 
 ## 1.17.2-bcb.4 — 2026-11-12
