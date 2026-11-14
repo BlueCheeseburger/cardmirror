@@ -71,6 +71,7 @@ import {
 import {
   saveExistingDoc,
   saveNewDoc,
+  saveNewDocUnique,
   DocExistsError,
   recordDiskStateFromDisk,
   refreshOwnedBaseline,
@@ -1863,7 +1864,8 @@ ipcMain.handle(
   },
 );
 
-// Silent "Save Send Doc" / "Save Marked Cards" write. The renderer has already
+// Silent "Save Send Doc" / "Save Read Doc" / "Save Marked Cards" / "Save Starred
+// Doc" write. The renderer has already
 // resolved the destination (a fixed folder, or the source file's own folder),
 // the final filename, AND passes the source document's own path as
 // `siblingHandle`; main joins, guards against clobbering the source, and
@@ -1872,15 +1874,36 @@ ipcMain.handle(
 // custom/empty prefix at the same folder + format, or a fixed folder that
 // happens to contain the source) — so the renderer can defer to the Save As
 // dialog instead.
+//
+// `useDownloads` (the "save without asking" setting): with no folder and no
+// source file to sit beside, the copy goes into the OS Downloads folder
+// instead of resolving to null (→ the dialog). There the name is made unique
+// ("name (2).docx") rather than overwriting a file that was already there.
+// `created` says the write made a brand-new file, which is what the toast's
+// Undo is allowed to move to the trash.
+/** Paths this session's silent exports created: the only files `host:trash-
+ *  export` will move to the trash, so the renderer can't aim it at anything
+ *  else. */
+const createdExportPaths = new Set<string>();
+
 ipcMain.handle(
   'host:save-send-doc',
   async (
     _event,
-    opts: { folder: string | null; siblingHandle: string | null; filename: string },
+    opts: { folder: string | null; siblingHandle: string | null; filename: string; useDownloads?: boolean },
     bytes: unknown,
   ) => {
-    const dir = opts.folder ?? (opts.siblingHandle ? path.dirname(opts.siblingHandle) : null);
+    const dir =
+      opts.folder ??
+      (opts.siblingHandle ? path.dirname(opts.siblingHandle) : null) ??
+      (opts.useDownloads === true ? app.getPath('downloads') : null);
     if (!dir) return null;
+    const viaDownloads = opts.folder == null && !opts.siblingHandle;
+    if (viaDownloads) {
+      const target = await saveNewDocUnique(dir, opts.filename, bytesToBuffer(bytes));
+      createdExportPaths.add(path.resolve(target));
+      return { name: path.basename(target), handle: target, created: true };
+    }
     const target = path.join(dir, opts.filename);
     if (opts.siblingHandle && path.resolve(target) === path.resolve(opts.siblingHandle)) {
       return 'collision';
@@ -1890,10 +1913,28 @@ ipcMain.handle(
     // folder). Overwriting it silently would swap its content out from
     // under its tab — defer to the Save As dialog, which refuses it.
     if (openElsewhere(target, opts.siblingHandle ?? undefined)) return 'collision';
+    const existed = existsSync(target);
     await saveNewDoc(target, bytesToBuffer(bytes), { mkdir: true });
-    return { name: path.basename(target), handle: target };
+    if (!existed) createdExportPaths.add(path.resolve(target));
+    return { name: path.basename(target), handle: target, created: !existed };
   },
 );
+
+// Undo for a silent export: moves a file this session's silent export just
+// created to the trash (recoverable from there), nothing else. False when the
+// path isn't one of those, the file is already gone, or the trash refused it.
+ipcMain.handle('host:trash-export', async (_event, filePath: unknown): Promise<boolean> => {
+  if (typeof filePath !== 'string' || !filePath) return false;
+  const key = path.resolve(filePath);
+  if (!createdExportPaths.has(key)) return false;
+  try {
+    await shell.trashItem(key);
+  } catch {
+    return false;
+  }
+  createdExportPaths.delete(key);
+  return true;
+});
 
 ipcMain.handle(
   'host:save-existing',

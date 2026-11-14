@@ -42,8 +42,10 @@ vi.mock('../../src/editor/speech-doc-send.js', async (importOriginal) => {
   const mod = await importOriginal<typeof import('../../src/editor/speech-doc-send.js')>();
   return {
     ...mod,
-    insertSpeechSlice: (_view: unknown, slice: unknown) => {
+    // Like the real one, runs the after-insert hook once the card is in.
+    insertSpeechSlice: (_view: unknown, slice: unknown, _atEnd: boolean, after?: () => void) => {
       hostState.inserted.push(slice);
+      after?.();
     },
   };
 });
@@ -195,7 +197,38 @@ describe('palette `q` (my cards: quick cards + cards in indexed files)', () => {
     expect(text).toContain('Warming is fast');
     expect(text).toContain('second body words');
     expect(text).not.toContain('first body words');
+    // The palette stays open (query and focus kept) so more cards can be grabbed.
+    expect(quickCardSearchUI.isOpen()).toBe(true);
+    expect(input().value).toBe('q warming');
+    expect(document.activeElement).toBe(input());
+    expect(showToast).toHaveBeenCalledWith('Inserted "Warming is fast".');
+    // A second Enter inserts it again; Esc closes the palette.
+    press('Enter');
+    await settle();
+    await settle();
+    expect(hostState.inserted).toHaveLength(2);
+    expect(quickCardSearchUI.isOpen()).toBe(true);
+    press('Escape');
     expect(quickCardSearchUI.isOpen()).toBe(false);
+  });
+
+  it('a quick card insert also keeps the palette open', async () => {
+    const spy = vi.spyOn(quickCardsStore, 'list').mockReturnValue([quickCard('Warming quick card')]);
+    try {
+      openPalette();
+      await settle();
+      type('q warming quick');
+      await settle();
+      press('Enter');
+      await settle();
+      await settle();
+      expect(hostState.inserted.length).toBeGreaterThanOrEqual(1);
+      expect(quickCardSearchUI.isOpen()).toBe(true);
+      expect(document.activeElement).toBe(input());
+      expect(showToast).toHaveBeenCalledWith('Inserted "Warming quick card".');
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('toasts instead of inserting when the card is gone from the file', async () => {

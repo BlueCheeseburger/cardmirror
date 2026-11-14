@@ -10,6 +10,78 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.17.2-bcb.5 — 2026-11-14
+
+### Changed: the pane's document list: amber speech row, no file endings (`multi-pane-shell.ts`, `stack-row-names.ts`, `style.css`)
+
+**Request.** In the pane doc chooser the row holding the active speech doc should have amber text, file extensions should not show, and the speech mic stays.
+
+**Change.** The speech row's name gets the existing `.pmd-speech-name` class (`--pmd-c-speech-amber`, the colour the app already uses for the speech doc's name in lists) and its mic is tinted the same; both are tokens with a dark-theme value, checked in the real app in both themes (dark `rgb(240,180,41)`, light `rgb(154,103,0)`). `stackRowNames` strips `.cmir` / `.docx` from every row's name, except where two rows would then look alike (`Round 3.docx` and `Round 3.cmir`; a bare `Round 3` beside `Round 3.docx`), so no row is left telling nothing apart. Rows with the very same name keep their folder path as before. The chip, the tray and other lists still show whatever they showed.
+
+**Not verified.** A real saved `.docx` document in the list (the app here only had unsaved documents, so the stripping is covered by the unit tests and a wiring check, not by a screenshot of a real file name).
+
+### Added: Card menu "Shrink to N pt" with warning lines (`shrinkToSizeWithWarning` in `ribbon-commands.ts`, `condense.ts`, `card-menu-sections.ts`, `settings.ts`)
+
+**Request.** In the Card menu under Shrink, a row that shrinks the card's text to size 4 (size set in settings) and adds the `<<TEXT CONDENSED, NONE OMITTED>>` / `<<PARAGRAPH BREAKS RESUME>>` warnings from the sample screenshot, with the warning texts editable.
+
+**Interpretation.** There was no existing "Shrink to x pt" row (the Card menu's Shrink section had only Shrink, the Mod-8 cycle), so this is a new row, `Shrink to <shrinkToPt> pt`, command id `shrinkToSize`. It is the existing Condense With Warning + Shrink pair, parameterized: the markers come from `shrinkToWarningBefore` / `shrinkToWarningAfter` (defaults as in the screenshot) instead of the PARAGRAPH INTEGRITY ones, and the shrink goes to a fixed size (`sizeCycleCommand` with a constant `pickSize`) instead of cycling.
+
+**How.** For each card (the one at the cursor, every card a selection reaches, or every card under an outline heading), consecutive body paragraphs form a run. A run is condensed with `condenseWithWarning` (new `allowEmpty` option: an empty marker leaves its line out instead of refusing); then, on the merged middle paragraph only, `highlight`, `underline_mark`, `underline_direct` and `emphasis_mark` are removed and every character is shrunk to the size. The warning lines are outside that paragraph, so they stay at Normal size. Cards are processed last to first on one transaction, so it is one undo. A run already wrapped in the two warnings is stripped and shrunk again (a changed size takes effect), never wrapped twice.
+
+**Changed mid-task (user).** The first version kept underlined / emphasized words at their size, the way Shrink does. The user asked that it shrink to 4 pt and remove all highlight, underline and emphasis, and condense all the text. So the argument marking is deliberately destroyed (undo brings it back) and Shrink's exemption and the omission protections are not used here: nothing is exempt or protected. Shading, bold and other formatting are not touched. The same message said "condensing all text without warning"; since the warning lines were the original request (and have their own settings), they are kept, and emptying both warning settings gives no warnings at all. If "without warning" meant none by default, change the two defaults to empty.
+
+**Not changed.** The existing Condense With Warning, Shrink, Smart Shrink and Condense With Warning and Shrink. The setting size is clamped 1 to 20 like `createReferenceShrinkPt`.
+
+**Verified** in the real app on the user's Pharma doc (headless Chromium), with the first version (underlined words kept): Card menu, Shrink to 4 pt gave one merged paragraph at 4 pt with both warning lines. The strip-everything version is covered by unit tests (all marks gone, every piece at 8 half-points, tag and cite untouched), not re-run in the app. **Not verified:** the outline right-click path on a heading with many cards in the running app (unit-tested on a two-card selection, the same path), and Lite / web builds, which share the code.
+
+### Added: drag to reorder a pane's document list (`row-reorder.ts`, `multi-pane-shell.ts`, `style.css`)
+
+**Request.** Rearrange the documents in the pane's stack list by dragging them through it; no visible handles; stiff enough that it doesn't happen by accident.
+
+**Change.** `attachRowReorder` (new, generic) takes a container and its rows and handles a pointer drag: press anywhere on a row (not the close button), travel 16 px before it becomes a drag (a smaller wobble is a click and still switches document), then the held row follows the pointer and swaps with a neighbour only once it has moved 80% of that neighbour's height past it. One `onReorder(from, to)` on drop, only if the row ended elsewhere; Esc or a cancelled pointer restore the DOM order with no callback; the click after a drop is swallowed so it doesn't also pick a row. The shell wires it to the stack dropdown and applies the result through `Slot.applyStackOrder`, which refuses a list that isn't exactly the current stack and recomputes `visibleIndex` from the visible record, so the doc on screen stays on screen. The dropdown is `user-select: none` (a drag no longer selects the names) and its rows `touch-action: none`.
+
+**Stiffness is two numbers** (`dragThreshold` 16, `swapFraction` 0.8) and nothing else, so they are easy to change if it still feels loose or too hard. Not a hold-to-drag: a timer would make a quick deliberate drag feel laggy.
+
+**What the order means.** Index 0 is the bottom of the stack and the list reads top to bottom in that order; Ctrl+Tab cycles in it too. Nothing else keys on it.
+
+**Verified** in the real app (headless Chromium, three-pane layout, four documents): a 6 px press is a click and switches document; a 20 px drag leaves the order alone; dragging 1.2 rows swaps one place; dragging the last row to the top moves it there and the active document's highlight follows it; Esc mid-drag restores; a plain click still closes the list and switches. **Not verified:** touch, where it should also work (the rows take no touch scroll) but was not tried, and a stack that changes while the list is open (the captured order is rejected rather than applied).
+
+### Added: `silentExportsToDownloads` ("Save without asking where") with an Undo notice (`index.ts`, `preset-saved-notice.ts`, `settings.ts`, desktop `main.ts` / `preload.ts` / `doc-writes.ts`)
+
+**Request.** For the Save Send / Read / Marked / Starred Doc shortcuts: a toggle, off by default, that just saves instead of asking, a toast at the bottom saying it went to Downloads, and an Undo button.
+
+**Interpretation (asked).** Those four commands already save silently when they have a destination (the source file's folder, or a fixed folder) and open the Save As dialog when they don't (a never-saved doc in same-folder mode, an unset fixed folder). The toggle changes only that second case: no destination → the OS Downloads folder. The Undo notice applies to every silent save of the four while the toggle is on, not just the Downloads ones.
+
+**How.** The renderer (`runSilentExportFlow`) passes `useDownloads: true` with no folder and no sibling path; `host:save-send-doc` resolves `app.getPath('downloads')` and writes through the new `saveNewDocUnique` (`name (2).ext` when the name is taken, each attempt a `failIfExists` write inside the per-path write chain, so racing exports can't take one name). The handler now also returns `created`: whether it made a new file (an overwrite of an existing export in a fixed folder is `created: false`, and gets the old notice, because an undo can't bring the old contents back). `host:trash-export` moves a file to the trash with `shell.trashItem` and only for a path this session's silent export created (a `createdExportPaths` set), so the renderer can't aim it at anything else. Undo also drops the entry from Recent. The notice is a bottom toast ("Send doc saved to Downloads" with the file name beside it, 8 s); a toast carries one button, so Undo replaces Show in folder while the setting is on.
+
+**Kept.** A collision with the source document still opens the dialog; an older desktop shell that doesn't know `useDownloads` answers null, which falls through to the dialog; the browser build has no silent saves at all and is unchanged. The setting is `electronOnly`.
+
+**Not verified.** In the running desktop app (this session can't run Electron): the Downloads path, the trash call and the macOS/Windows trash behavior are covered only by the unit tests (`saveNewDocUnique` on the real filesystem, the notice) and a type check of the main-process code. Undo moves to the trash rather than deleting, so a mistaken Undo is recoverable.
+
+### Added: `enterAlwaysAnalytic` ("Every new line is an analytic") (`enter-style.ts`, `settings.ts`)
+
+**Request.** A toggle, off by default, where every new line typed with Enter in a doc is an analytic.
+
+**Change.** A boolean setting in Settings → Editing → New paragraph on Enter. `enterWithConfiguredStyle` (the first handler in the Enter chain, and the one the voice "return" word reuses through `enterAsKey`) now resolves a style in two steps: the per-type `enterAfter*` choice for the six structural types, and where that is `'normal'` (or the block is not one of the six) the toggle supplies `'analytic'` when it is on and the cursor is at the END of any textblock. It then does what the per-type path always did: the normal Enter, then `setAnalytic()` on the new block, as one undo step. So the doc-level, card-split and analytic_unit-wrapping behavior is the existing Mod-F7 behavior, not new code. Off, it declines for every plain paragraph, exactly as before.
+
+**Judgment calls.** (1) End of line only, as with the per-type settings: a split mid-text keeps both halves as they were, so editing text never changes its style. (2) Card text is left out (`CARD_TEXT_TYPES`: `card_body`, `cite_paragraph`, `undertag`). The first version took "every" literally, so Enter at the end of a card body left the card for an analytic and a second paragraph couldn't be added to a card by Enter; asked, the user chose to skip card text. A tag still counts (Enter at the end of a tag starts an analytic, ending that card there). Undertag was not named in the question and was left out with the card text, since it is a card's own line; an `enterAfterUndertag` choice still applies to it. (3) A per-type choice wins over the toggle, so setting After a Pocket to Block still gives a block. (4) Table cells: the new-line conversion finds nothing to convert there (`setAnalytic` returns false), so the plain split stays; a test pins no analytic is created in a cell.
+
+**Not verified.** In the running app by hand (tests drive the Enter command on constructed documents, including the one-Ctrl-Z undo); live zones and transclusions, where Enter is handled by other keymap layers ahead of this one.
+
+### Changed: the palette stays open after an insert (`quick-card-search-ui.ts`: `insertLogosCard`, `insertTaglineCard`, the slice insert)
+
+**Report.** Searching Logos (`g `) and inserting a card closed the search-everything bar, so a second card meant reopening it and retyping the query.
+
+**Change.** `insertLogosCard` no longer closes the palette when there is a document to insert into. The query, result rows and selection are untouched; the card is fetched and inserted as before (the import condense/shrink commands still run), then a toast says `Inserted "<tag>".` and focus goes back to the bar (the deferred insert ends by focusing the editor, so it is claimed both right after the call and in the after-insert hook). Both Enter and the right-click preview's Insert go through it. A later insert lands below the previous one because the caret ends below the inserted card. Esc and an outside click close the palette as before.
+
+**Kept.** With no editable document (home screen, a screen over the editor) the card opens as a new document and the palette closes first, since that takes the screen. If the palette is closed, or closed and reopened, while the card loads, the card still lands but there is no toast and no refocus (an `asyncToken` check).
+
+**Why not a setting.** The only way to want the old behavior is to want the bar gone after one card, which Esc does in one key; the within-file source already keeps the palette open the same way (`keepOpen`), so this makes Logos match it. If someone wants the old behavior back, add a toggle then.
+
+**Extended (user, 2026-11-13).** Asked whether `q`, quick cards and drop zones should do the same, the user said yes. `insertTaglineCard` (`q` file cards) and the shared slice insert (quick cards, dropzone items, within-file objects) now keep the palette open the same way: the toast and the refocus run from the after-insert hook (skipped if the palette was closed or reopened meanwhile). The only closing insert left is the no-document case (the card opens as a new document, which takes the screen). The existing test that pinned `q` closing the palette now pins it staying open, and the test's `insertSpeechSlice` stand-in runs the hook as the real one does.
+
+**Not verified.** In the running app against the live Logos site (tests mock the network and drive the real palette in jsdom).
+
 ## 1.17.2-bcb.4 — 2026-11-12
 
 ### Release-notes card on the update chip (`update-notes-card.ts`, `update-chip.ts`, `whats-new.ts`, `style.css`)

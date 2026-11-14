@@ -330,16 +330,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('host:save-existing', handle, bytes, opts),
 
   /** Silent "Save Send Doc" write to a renderer-resolved folder.
-   *  Resolves to the written file's name + path, the string
-   *  'collision' when the target would overwrite the source, or null
-   *  when the destination couldn't be resolved. */
+   *  Resolves to the written file's name + path (and `created`: it made a new
+   *  file rather than replacing one), the string 'collision' when the target
+   *  would overwrite the source, or null when the destination couldn't be
+   *  resolved. `useDownloads` lets a save with no folder and no source file
+   *  land in the OS Downloads folder instead. */
   saveSendDoc: (
-    opts: { folder: string | null; siblingHandle: string | null; filename: string },
+    opts: { folder: string | null; siblingHandle: string | null; filename: string; useDownloads?: boolean },
     bytes: Uint8Array,
   ) =>
     ipcRenderer.invoke('host:save-send-doc', opts, bytes) as Promise<
-      { name: string; handle: string } | 'collision' | null
+      { name: string; handle: string; created?: boolean } | 'collision' | null
     >,
+
+  /** Undo for a silent export: moves a file the last silent export created to
+   *  the trash. Resolves to whether it did. */
+  trashExport: (filePath: string) =>
+    ipcRenderer.invoke('host:trash-export', filePath) as Promise<boolean>,
 
   /** Bulk-convert helpers: recursively list files of an extension
    *  under a directory, and write bytes to an arbitrary path. */

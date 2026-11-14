@@ -154,7 +154,8 @@ describe('palette Logos source (g prefix)', () => {
       .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     await vi.advanceTimersByTimeAsync(50);
     expect(String(fetchMock.mock.calls.at(-1)![0])).toContain('/card?id=c1');
-    expect(showToast).not.toHaveBeenCalled();
+    // The only toast is the "Inserted" confirmation, no error.
+    expect(vi.mocked(showToast).mock.calls.map((c) => c[0])).toEqual(['Inserted "Warming causes extinction".']);
     let card: import('prosemirror-model').Node | null = null;
     view.state.doc.descendants((n) => {
       if (!card && n.type.name === 'card') card = n;
@@ -195,6 +196,50 @@ describe('palette Logos source (g prefix)', () => {
     });
     return card!;
   }
+
+  it('keeps the palette open after inserting a card, so more cards can be grabbed from the same search', async () => {
+    const view = mkView();
+    await insertFirstResult(view);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(firstCard(view)).not.toBeNull();
+    // Still up, with the query and the result rows, focus on the bar, and a toast saying what landed.
+    expect(quickCardSearchUI.isOpen()).toBe(true);
+    const input = document.querySelector<HTMLInputElement>('.pmd-qcs-input')!;
+    expect(input.value).toBe('g warming');
+    expect(rows()).toHaveLength(1);
+    expect(document.activeElement).toBe(input);
+    expect(showToast).toHaveBeenCalledWith('Inserted "Warming causes extinction".');
+    // A second Enter inserts the card again, below the first.
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await vi.advanceTimersByTimeAsync(50);
+    let cards = 0;
+    view.state.doc.descendants((n) => {
+      if (n.type.name === 'card') cards++;
+      return true;
+    });
+    expect(cards).toBe(2);
+    expect(quickCardSearchUI.isOpen()).toBe(true);
+    // Esc still closes it.
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(quickCardSearchUI.isOpen()).toBe(false);
+    view.destroy();
+  });
+
+  it('does not reopen focus or toast when the palette was closed while the card loaded', async () => {
+    const view = mkView();
+    openPalette(view);
+    type('g warming');
+    await flush();
+    document
+      .querySelector('.pmd-qcs-input')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    quickCardSearchUI.close(); // closed before the card arrives
+    await vi.advanceTimersByTimeAsync(50);
+    expect(firstCard(view)).not.toBeNull(); // the card still lands
+    expect(quickCardSearchUI.isOpen()).toBe(false);
+    expect(showToast).not.toHaveBeenCalledWith('Inserted "Warming causes extinction".');
+    view.destroy();
+  });
 
   it('uses the Logos highlight color setting, falling back to the default highlight color', async () => {
     settings.set('logosImportHighlight', 'green');

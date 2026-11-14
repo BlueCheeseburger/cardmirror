@@ -3525,6 +3525,158 @@ export function condenseAndShrink(condense: Command, shrink: Command): Command {
   };
 }
 
+/** A run of a card's body paragraphs for Shrink to size: the content span from
+ *  the start of the first paragraph to the end of the last (what
+ *  `condenseWithWarning` expects selected), and — when the run already sits
+ *  between the two warning lines — the span of the paragraphs between them. */
+interface ShrinkToRun {
+  from: number;
+  to: number;
+  /** Already wrapped in the warning lines: only the middle is shrunk again. */
+  middle: { from: number; to: number } | null;
+}
+
+/** The body-paragraph runs Shrink to size acts on: the whole card at the cursor
+ *  (empty selection), or, for a selection, the body paragraphs it touches in
+ *  each card it reaches. */
+function shrinkToRuns(
+  state: EditorState,
+  warnings: { before: string; after: string },
+): ShrinkToRun[] {
+  const sel = state.selection;
+  const cards: { node: PMNode; pos: number }[] = [];
+  if (sel.empty) {
+    const $pos = sel.$from;
+    if ($pos.depth < 1 || $pos.node(1).type.name !== 'card') return [];
+    cards.push({ node: $pos.node(1), pos: $pos.before(1) });
+  } else {
+    state.doc.nodesBetween(sel.from, sel.to, (node, pos) => {
+      if (node.type.name === 'card') {
+        cards.push({ node, pos });
+        return false;
+      }
+      return !node.isTextblock;
+    });
+  }
+  const runs: ShrinkToRun[] = [];
+  for (const card of cards) {
+    // Consecutive body paragraphs (that the selection touches) form one run.
+    let group: { pos: number; node: PMNode }[] = [];
+    const flush = (): void => {
+      if (group.length === 0) return;
+      const first = group[0]!;
+      const last = group[group.length - 1]!;
+      const run: ShrinkToRun = { from: first.pos + 1, to: last.pos + last.node.nodeSize - 1, middle: null };
+      const { before, after } = warnings;
+      const textOf = (g: { node: PMNode }): string => g.node.textContent;
+      const bracketed =
+        group.length >= 2 &&
+        (before !== '' || after !== '') &&
+        (before === '' || textOf(first) === before) &&
+        (after === '' || textOf(last) === after);
+      if (bracketed) {
+        const inner = group.slice(before !== '' ? 1 : 0, after !== '' ? -1 : undefined);
+        if (inner.length > 0) {
+          const a = inner[0]!;
+          const z = inner[inner.length - 1]!;
+          run.middle = { from: a.pos + 1, to: z.pos + z.node.nodeSize - 1 };
+        }
+      }
+      runs.push(run);
+      group = [];
+    };
+    let offset = 1;
+    card.node.forEach((child) => {
+      const pos = card.pos + offset;
+      offset += child.nodeSize;
+      const touched =
+        child.type.name === 'card_body' && (sel.empty || (pos + child.nodeSize > sel.from && pos < sel.to));
+      if (touched) group.push({ pos, node: child });
+      else flush();
+    });
+    flush();
+  }
+  return runs;
+}
+
+/** Formatting Shrink to size strips from the merged text: the argument marking
+ *  is gone, so the block reads as one plain, tiny paragraph. */
+const SHRINK_TO_STRIPPED_MARKS = ['highlight', 'underline_mark', 'underline_direct', 'emphasis_mark'] as const;
+
+/** Shrink to size — the Card menu's "Shrink to N pt". For each card (the one at
+ *  the cursor, every card a selection reaches, or every card under an outline
+ *  heading): merge its body paragraphs into one (Condense With Warning, with
+ *  the two warning lines from settings in place of the PARAGRAPH INTEGRITY
+ *  ones), strip every highlight, underline and emphasis from that paragraph,
+ *  and shrink ALL of its text to `targetPt`, nothing kept at the old size. The
+ *  warning lines stay at Normal size. One undo. A card already wrapped in the
+ *  warnings is stripped and shrunk again (a changed size takes effect), not
+ *  wrapped twice. */
+export function shrinkToSizeWithWarning(
+  warnings: () => { before: string; after: string },
+  targetPt: () => number,
+  effectivePt: (node: PMNode | null, parent: PMNode) => number,
+  normalPt: () => number,
+): Command {
+  // Nothing is protected: every character of the merged text goes to the size.
+  const shrinkTo = sizeCycleCommand(effectivePt, normalPt, () => false, () => [], () => targetPt());
+  return (state, dispatch) => {
+    const w = warnings();
+    const runs = shrinkToRuns(state, w);
+    if (runs.length === 0) return false;
+    if (!dispatch) return true;
+    const tr = state.tr;
+    // Last card first, so the positions of the earlier ones are not moved by
+    // the edits already made.
+    for (const run of [...runs].reverse()) {
+      let mid = run.middle;
+      if (!mid) {
+        const scratch = EditorState.create({
+          doc: tr.doc,
+          selection: TextSelection.create(tr.doc, run.from, run.to),
+        });
+        let condenseTr: Transaction | null = null;
+        const ok = condenseWithWarning(() => ({ pause: w.before, resume: w.after }), { allowEmpty: true })(
+          scratch,
+          (t) => {
+            condenseTr = t;
+          },
+        );
+        if (!ok || !condenseTr) continue;
+        for (const step of (condenseTr as Transaction).steps) tr.step(step);
+        // The run is now [before line?, merged paragraph, after line?].
+        let pos = run.from - 1;
+        if (w.before !== '') pos += tr.doc.nodeAt(pos)?.nodeSize ?? 0;
+        const merged = tr.doc.nodeAt(pos);
+        if (!merged) continue;
+        mid = { from: pos + 1, to: pos + merged.nodeSize - 1 };
+      }
+      if (mid.from >= mid.to) continue;
+      // Strip the marking first: with no underline or emphasis left, Shrink's
+      // exemption has nothing to keep, so the whole paragraph is shrunk.
+      for (const name of SHRINK_TO_STRIPPED_MARKS) {
+        const type = schema.marks[name];
+        if (type) tr.removeMark(mid.from, mid.to, type);
+      }
+      const scratch = EditorState.create({
+        doc: tr.doc,
+        selection: TextSelection.create(tr.doc, mid.from, mid.to),
+      });
+      shrinkTo(scratch, (t) => {
+        for (const step of t.steps) tr.step(step);
+      });
+    }
+    if (!tr.docChanged) return false;
+    try {
+      tr.setSelection(state.selection.map(tr.doc, tr.mapping));
+    } catch {
+      /* keep the selection the steps left */
+    }
+    dispatch(tr);
+    return true;
+  };
+}
+
 /** Restore shrink-scope text straight to Normal size — the inverse of
  *  the shrink cycle, sharing its scope/eligibility/protection logic. */
 export function regrowText(
@@ -4860,6 +5012,7 @@ export type RibbonCommandId =
   | 'condenseNoIntegrityWithPilcrows'
   | 'condenseWithWarning'
   | 'condenseAndShrink'
+  | 'shrinkToSize'
   | 'uncondense'
   | 'toggleCase'
   | 'copyPreviousCite'
@@ -5160,6 +5313,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'condenseNoIntegrityWithPilcrows',
   'condenseWithWarning',
   'condenseAndShrink',
+  'shrinkToSize',
   'uncondense',
   'toggleCase',
   'copyPreviousCite',
@@ -5403,6 +5557,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   condenseNoIntegrityWithPilcrows: 'Condense Without Paragraph Integrity (With Pilcrows)',
   condenseWithWarning: 'Condense With Warning',
   condenseAndShrink: 'Condense With Warning and Shrink',
+  shrinkToSize: 'Shrink to Size With Warnings',
   uncondense: 'Uncondense',
   toggleCase: 'Toggle Case',
   copyPreviousCite: 'Copy Previous Cite',
@@ -5699,6 +5854,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   smartShrink: ['smart shrink', 'deep shrink'],
   shrinkAll: ['shrink document', 'shrink whole doc', 'shrink everything'],
   condenseAndShrink: ['fast condense', 'condense and shrink', 'condense shrink'],
+  shrinkToSize: ['shrink to 4', 'shrink to 4 pt', 'tiny text', 'shrink card small', 'text condensed none omitted', 'condense and shrink to size'],
   aiAskAboutSelection: ['question'],
   reformatAllCites: ['reformat all cites', 'reformat cites', 'all cites', 'every cite', 'bulk cite'],
   pasteAsText: ['paste without formatting', 'paste unformatted', 'paste text'],
@@ -5874,6 +6030,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   condenseNoIntegrityWithPilcrows: 'Mod-Alt-F3',
   condenseWithWarning: '',
   condenseAndShrink: '',
+  shrinkToSize: '',
   uncondense: 'Mod-Alt-Shift-F3',
   toggleCase: 'Shift-F3',
   copyPreviousCite: 'Alt-F8',
@@ -6196,6 +6353,10 @@ export interface RibbonContext {
    *  brackets). The resolver lets the command consume one shape
    *  regardless of which the user picked. */
   condenseWarningMarkers: () => { pause: string; resume: string };
+  /** Shrink to size (Card menu): the point size, and the warning lines put
+   *  above and below the shrunken text (empty = no line). */
+  shrinkToPt: () => number;
+  shrinkToWarnings: () => { before: string; after: string };
   /** Side-effecting actions for the menu-only / button-only commands.
    *  All four are no-ops by default so tests / standalone uses of
    *  `getRibbonCommand` don't need to wire them. The real editor
@@ -6446,6 +6607,8 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
     pause: '[PARAGRAPH INTEGRITY PAUSES]',
     resume: '[PARAGRAPH INTEGRITY RESUMES]',
   }),
+  shrinkToPt: () => 4,
+  shrinkToWarnings: () => ({ before: '<<TEXT CONDENSED, NONE OMITTED>>', after: '<<PARAGRAPH BREAKS RESUME>>' }),
   runCreateReference: () => {},
   openWordCountDialog: () => {},
   toggleReadMode: () => {},
@@ -6648,6 +6811,13 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
           ctx.shrinkRestoresOmissionsToNormal,
           ctx.shrinkProtectionPatterns,
         ),
+      );
+    case 'shrinkToSize':
+      return shrinkToSizeWithWarning(
+        ctx.shrinkToWarnings,
+        ctx.shrinkToPt,
+        ctx.effectivePtForNode,
+        ctx.normalPt,
       );
     case 'uncondense': return uncondense();
     case 'toggleCase': return toggleCase();

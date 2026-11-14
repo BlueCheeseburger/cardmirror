@@ -655,6 +655,31 @@ down to a single small paragraph between its pause and resume markers. The
 shrink follows Shrink's settings, so with omission protection on (the default)
 the markers stay full size. Press **Mod-8** again to keep cycling smaller.
 
+### Shrink to size (Card menu)
+
+**Card ▸ Shrink to 4 pt** *(Fork)* shrinks a whole card to a tiny size in one
+step, for the long middle of a card you will not read aloud. It merges the card's
+body paragraphs into one, **removes every highlight, underline and emphasis** from
+that paragraph, shrinks **all** of its text to the size you set (4 pt by
+default), and puts a warning line above and one below, so a judge or an
+opponent can see that paragraphs were merged and that nothing was omitted:
+
+> `<<TEXT CONDENSED, NONE OMITTED>>`
+> *(the card's text, all one plain tiny paragraph)*
+> `<<PARAGRAPH BREAKS RESUME>>`
+
+The tag and cite are left alone, and the warning lines stay full size. With the
+cursor in a card it acts on that whole card; with text selected it acts on the
+body paragraphs the selection reaches, in each card; and from the outline's
+right-click **Card ▸** menu it acts on every card under the heading. One undo
+reverts it. Running it again on a card that already has the warnings shrinks the
+text again (so a changed size takes effect) without adding a second pair. The
+command is also in the command bar as **Shrink to Size With Warnings** and can
+be bound to a key in Settings → Keyboard shortcuts. Change the size and the two
+warning lines in Settings → Editing → Formatting operations: **Shrink to size
+(points)**, **Shrink to size: warning before the text** and **…after the text**
+(leave both empty for no warnings at all).
+
 ### Citations
 
 - **Cite (F8)** applies the cite character style to the author and date,
@@ -1170,13 +1195,13 @@ you *browse* that whole source.
 | Prefix | Searches | Enter |
 |--------|----------|-------|
 | *(none)* | Everything — cards, commands, settings, files by name, and the dropzone (if on) | Acts on the selected row |
-| **`q`** | **My cards** — your **Quick Cards** (honoring your active tag filter; badge **QUICK**) and, on desktop, the **cards inside your indexed files** (badge **CARD**) **(fork)** | Inserts the card at your cursor |
-| **`d`** | The **dropzone** (only when it's turned on) | Inserts the item at your cursor |
+| **`q`** | **My cards** — your **Quick Cards** (honoring your active tag filter; badge **QUICK**) and, on desktop, the **cards inside your indexed files** (badge **CARD**) **(fork)** | Inserts the card at your cursor; the bar stays open for the next one |
+| **`d`** | The **dropzone** (only when it's turned on) | Inserts the item at your cursor; the bar stays open for the next one |
 | **`c`** | Ribbon **commands** — each row shows its current shortcut | Runs the command |
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
-| **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor |
+| **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor; the bar stays open for the next one |
 | **`w`** | Your other open **CardMirror windows**, most recently used first *(desktop only)* | Brings that window to the front |
 
 Searching **version** (or "about this install") shows the running app
@@ -1235,7 +1260,7 @@ disclose. Results appear shortly after you stop typing, since every search
 is a request to Logos' server. Each row shows the tag, the cite, and the
 division, year, school and side. **Enter** (or **Alt-Enter** for the end of
 the document) downloads the full card and inserts it with its cite,
-underlining, emphasis and highlighting. **Right-click** a result to preview
+underlining, emphasis and highlighting, and **the bar stays open** with your search and results, so you can press **Enter** on the next card (**Esc** closes it). **Right-click** a result to preview
 the full card first, without inserting it. The preview has **Copy to
 clipboard** and **Close**, and closing it (or pressing Esc) returns you to
 your results. To condense or shrink it
@@ -1393,9 +1418,16 @@ workspace while another shows a single document.
   **Comparing documents** pill and can't be dropped on. When the document arrives, the other window shows **Moved … here from …** with a **Go back** button.
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
-  document's row has the speech mic icon at its left, and the ▾ button itself
+  document's row has the speech mic icon at its left and its name in amber (names show
+  without .docx / .cmir), and the ▾ button itself
   turns amber whenever the speech document is somewhere in that stack, even
   with another document showing.
+- **(fork)** **Drag the rows of a pane's stack list to reorder the documents.**
+  There are no handles: press on a name and drag. It is deliberately stiff so
+  nothing moves by accident (the pointer must travel a little first, and a row
+  swaps with the next only once you've dragged most of the way past it). A plain
+  click still switches document, **Esc** mid-drag puts everything back, and the
+  document you were on stays showing.
 - **(fork)** **Hover a title chip** and a greyed microphone appears at its left;
   click it to make that document the active speech doc (click again to clear).
   A single window has the same blue bar above its one document, with the same
@@ -3440,6 +3472,14 @@ file search scans, and how much version history to keep.
 - **Send Doc / Read Doc / Marked Doc / Starred Doc filename prefix** — the prefix
   each preset uses (defaults `SEND_` / `READ_` / `MARKED_` / `STARRED_`); change any,
   or leave one empty for no prefix.
+- **Save without asking where** *(desktop, fork)* — off by default. When
+  on, Save Send Doc / Read Doc / Marked Cards / Starred Doc never open the
+  Save As dialog for want of a destination: a document you haven't saved
+  yet, or a fixed-folder setting with no folder, saves into your Downloads
+  folder. A notice at the bottom says where it went, with an **Undo**
+  button that moves the new file to the trash (it replaces **Show in
+  folder** while this is on). A name already taken in Downloads gets a
+  number (`SEND_1AC (2).docx`) rather than being replaced.
 - **Send Doc destination** *(desktop)* — whether Save Send Doc writes
   beside the source file or into a fixed folder
   (see [Saving a send doc](#saving-a-send-doc)).
@@ -3663,6 +3703,13 @@ Typing helpers and the behavior of the cutting and condense commands
   splits — so Tag → Tag starts a fresh card on every Enter, and
   Analytic → Analytic chains analytics. One Ctrl-Z undoes the whole
   step.
+- **Every new line is an analytic** *(Fork)* — off by default. When on,
+  pressing Enter at the end of a plain paragraph, an analytic, a heading or a
+  tag starts the next line as an analytic, for taking notes straight into a
+  doc. Card text (the body, cite and undertag lines inside a card) is left
+  alone, so Enter there still adds a line to the card. Enter in the middle of a
+  line still just splits it, and a style chosen in the dropdowns above for that
+  kind of line wins.
 
 **Condense**
 
@@ -3702,6 +3749,11 @@ Typing helpers and the behavior of the cutting and condense commands
   only.
 - **Bridge formatting across** — which gaps the automatic bridging closes:
   whitespace and punctuation (default), or whitespace only.
+- **Shrink to size (points)**, **Shrink to size: warning before the text**,
+  **Shrink to size: warning after the text** *(Fork)* — the size, and the two
+  warning lines, used by Card ▸ Shrink to N pt (above). Defaults: 4 pt,
+  `<<TEXT CONDENSED, NONE OMITTED>>` and `<<PARAGRAPH BREAKS RESUME>>`; an
+  empty line setting leaves that line out.
 - **Shrink keeps protected text at Normal size** — keep Omitted spans,
   warning markers, and your custom protections full-size when Shrinking.
 - **Custom shrink protections** — extra strings (or regexes) Shrink

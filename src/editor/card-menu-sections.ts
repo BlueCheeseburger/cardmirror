@@ -10,6 +10,7 @@ import type { DocMenuSection } from './doc-menu-ui.js';
 import { cardHighlightAction } from './card-highlight-toggle.js';
 import type { DocRange } from './card-highlight-toggle.js';
 import type { RibbonCommandId } from './ribbon-commands.js';
+import { settings } from './settings.js';
 
 export interface CardMenuHost {
   /** The state the rows are decided from when the menu opens. */
@@ -75,6 +76,13 @@ export function buildCardMenuSections(host: CardMenuHost): DocMenuSection[] {
         row('Background to Highlight', 'shadingToHighlight'),
       ],
     },
-    { title: 'Shrink', items: [row('Shrink', 'shrink')] },
+    {
+      title: 'Shrink',
+      items: [
+        row('Shrink', 'shrink'),
+        // The size comes from Settings → Editing → Formatting operations.
+        row(`Shrink to ${settings.get('shrinkToPt')} pt`, 'shrinkToSize'),
+      ],
+    },
   ];
 }

@@ -153,6 +153,7 @@ describe('outline right-click menu', () => {
       'Highlight to Background',
       'Background to Highlight',
       'Shrink',
+      'Shrink to 4 pt',
     ]);
   });
 

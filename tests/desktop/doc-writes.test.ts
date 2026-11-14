@@ -23,6 +23,7 @@ import * as path from 'node:path';
 import {
   saveExistingDoc,
   saveNewDoc,
+  saveNewDocUnique,
   DocExistsError,
   chainDocWrite,
   recordDiskStateFromDisk,
@@ -444,5 +445,40 @@ describe('rename retry — transiently locked target (Dropbox/antivirus holds)',
     expect(await fs.readFile(target, 'utf8')).toBe('v1');
     const leftovers = (await fs.readdir(caseDir)).filter((f) => f.includes('cmtmp'));
     expect(leftovers).toEqual([]);
+  });
+});
+
+describe('saveNewDocUnique (silent exports into Downloads)', () => {
+  it('writes the plain name when it is free, creating the folder', async () => {
+    const dir = path.join(caseDir, 'Downloads', 'nested');
+    const target = await saveNewDocUnique(dir, 'SEND_1AC.docx', Buffer.from('one'));
+    expect(target).toBe(path.join(dir, 'SEND_1AC.docx'));
+    expect((await fs.readFile(target)).toString()).toBe('one');
+  });
+
+  it('numbers the name instead of replacing a file that is already there', async () => {
+    const first = await saveNewDocUnique(caseDir, 'SEND_1AC.docx', Buffer.from('one'));
+    const second = await saveNewDocUnique(caseDir, 'SEND_1AC.docx', Buffer.from('two'));
+    const third = await saveNewDocUnique(caseDir, 'SEND_1AC.docx', Buffer.from('three'));
+    expect(path.basename(second)).toBe('SEND_1AC (2).docx');
+    expect(path.basename(third)).toBe('SEND_1AC (3).docx');
+    expect((await fs.readFile(first)).toString()).toBe('one');
+    expect((await fs.readFile(second)).toString()).toBe('two');
+    expect((await fs.readFile(third)).toString()).toBe('three');
+  });
+
+  it('two writes racing for one name each get their own file', async () => {
+    const [a, b] = await Promise.all([
+      saveNewDocUnique(caseDir, 'x.cmir', Buffer.from('a')),
+      saveNewDocUnique(caseDir, 'x.cmir', Buffer.from('b')),
+    ]);
+    expect(a).not.toBe(b);
+    expect((await fs.readdir(caseDir)).sort()).toEqual(['x (2).cmir', 'x.cmir']);
+  });
+
+  it('handles a name with no extension', async () => {
+    await saveNewDocUnique(caseDir, 'notes', Buffer.from('1'));
+    const second = await saveNewDocUnique(caseDir, 'notes', Buffer.from('2'));
+    expect(path.basename(second)).toBe('notes (2)');
   });
 });

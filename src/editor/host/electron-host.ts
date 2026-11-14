@@ -294,9 +294,12 @@ interface ElectronAPI {
   ): Promise<{ name: string; handle: string } | null>;
   saveExisting(handle: string, bytes: Uint8Array, opts?: { force?: boolean }): Promise<void>;
   saveSendDoc(
-    opts: { folder: string | null; siblingHandle: string | null; filename: string },
+    opts: { folder: string | null; siblingHandle: string | null; filename: string; useDownloads?: boolean },
     bytes: Uint8Array,
-  ): Promise<{ name: string; handle: string } | 'collision' | null>;
+  ): Promise<{ name: string; handle: string; created?: boolean } | 'collision' | null>;
+  /** Move a file the last silent export created to the trash (the toast's
+   *  Undo). Optional: older shells lack it, and the toast then has no Undo. */
+  trashExport?(filePath: string): Promise<boolean>;
   listFilesRecursive(dir: string, ext: string): Promise<Array<{ path: string; relPath: string }>>;
   /** Ask main for a direct MessagePort to the file-index service; it
    *  arrives via the `cardmirror:file-index-port` window message (see
@@ -1006,10 +1009,14 @@ export class ElectronHost implements Host {
    *  the source (caller should fall back to Save As), or `null` when the
    *  destination couldn't be resolved. */
   async saveSendDoc(
-    opts: { folder: string | null; siblingHandle: string | null; filename: string },
+    opts: { folder: string | null; siblingHandle: string | null; filename: string; useDownloads?: boolean },
     bytes: Uint8Array,
-  ): Promise<{ name: string; handle: string } | 'collision' | null> {
+  ): Promise<{ name: string; handle: string; created?: boolean } | 'collision' | null> {
     return api().saveSendDoc(opts, bytes);
+  }
+
+  async trashExport(filePath: string): Promise<boolean> {
+    return (await api().trashExport?.(filePath)) === true;
   }
 
   async listFilesRecursive(dir: string, ext: string): Promise<Array<{ path: string; relPath: string }>> {

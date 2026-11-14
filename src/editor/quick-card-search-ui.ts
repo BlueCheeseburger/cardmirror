@@ -1784,11 +1784,17 @@ class QuickCardSearchUI {
     }, LOGOS_DEBOUNCE_MS);
   }
 
-  /** Enter on a Logos row: fetch the full card, then insert it. The
-   *  palette closes first; the insert lands in the view it was opened
-   *  over, if that view is still editable when the card arrives. */
+  /** Enter on a Logos row: fetch the full card, then insert it. The insert
+   *  lands in the view the palette was opened over, if that view is still
+   *  editable when the card arrives. With a document to land in, the palette
+   *  STAYS OPEN (query, results and selection untouched, focus back on the
+   *  bar) so more cards can be grabbed from the same search; Esc closes it.
+   *  With none, the card opens as a new document, which takes the screen, so
+   *  the palette closes first. */
   private async insertLogosCard(result: PaletteResult, view: EditorView | null, atEnd: boolean): Promise<void> {
-    this.close();
+    const keepOpen = !!view;
+    if (!keepOpen) this.close();
+    const token = this.asyncToken; // taken after the close: a later close or reopen changes it
     let slice: Slice;
     try {
       const card = await fetchLogosCard(result.logosId!);
@@ -1808,7 +1814,18 @@ class QuickCardSearchUI {
       showToast('The document closed before the card arrived.');
       return;
     }
-    insertSpeechSlice(view, slice, atEnd, (v) => this.runLogosImportCommands(v));
+    // Still open when the card lands (it may have been closed while the card
+    // loaded): say what happened and hand focus back to the bar. The insert
+    // ends by focusing the editor, hence the focus calls here and after it.
+    const name = result.name;
+    insertSpeechSlice(view, slice, atEnd, (v) => {
+      this.runLogosImportCommands(v);
+      if (this.root && token === this.asyncToken) {
+        showToast(`Inserted "${name}".`);
+        this.input.focus();
+      }
+    });
+    if (this.root && token === this.asyncToken) this.input.focus();
   }
 
   /** No visible document to insert into (home screen, or a screen over the
@@ -2427,12 +2444,22 @@ class QuickCardSearchUI {
     const slice = await this.readTaglineSlice(result);
     if (!slice) return;
     if (!this.root) return; // closed while the file was being read
-    this.close();
     if (!view) {
+      this.close();
       this.deliverToNewDoc(slice);
       return;
     }
-    insertSpeechSlice(view, slice, atEnd);
+    // Into a document: the palette stays open (query, results and selection
+    // untouched, focus back on the bar) so more cards can be grabbed. Esc closes.
+    const token = this.asyncToken;
+    const name = result.name;
+    insertSpeechSlice(view, slice, atEnd, () => {
+      if (this.root && token === this.asyncToken) {
+        showToast(`Inserted "${name}".`);
+        this.input.focus();
+      }
+    });
+    this.input.focus();
   }
 
   /** Right-click on a card row (my cards, the dropzone): show the full card
@@ -3298,9 +3325,11 @@ class QuickCardSearchUI {
       showToast('That item is corrupted and can’t be inserted.');
       return;
     }
-    // Inserting a within-file object keeps the palette open and the file
-    // loaded so several blocks can be grabbed in a row (the file's slices
-    // are already in memory — no re-parse). Everything else closes.
+    // Inserting into a document keeps the palette open — the within-file
+    // objects (the file's slices are already in memory, no re-parse), my cards
+    // (`q`), quick cards and the dropzone — so several can be grabbed in a row;
+    // Esc closes it. With no document to land in the card opens as a new
+    // document, which takes the screen, so the palette closes first.
     //
     // The mid-text guard is a native `window.confirm`, so it can't
     // trigger the outside-click close. The disruption to guard against is
@@ -3312,24 +3341,17 @@ class QuickCardSearchUI {
       this.deliverToNewDoc(slice);
       return;
     }
-    const keepOpen = !!this.inFile && result.source === 'fileobject';
-    if (!keepOpen) this.close();
     const name = result.name;
-    insertSpeechSlice(
-      view,
-      slice,
-      atEnd,
-      keepOpen
-        ? () => {
-            showToast(`Inserted "${name}".`);
-            this.input.focus();
-          }
-        : undefined,
-    );
+    const token = this.asyncToken;
+    insertSpeechSlice(view, slice, atEnd, () => {
+      if (this.root && token === this.asyncToken) {
+        showToast(`Inserted "${name}".`);
+        this.input.focus();
+      }
+    });
     // insertSpeechSlice's deferred dispatch ends by focusing the editor view;
-    // pull focus back to the bar so a keep-open insert leaves you ready to
-    // search again.
-    if (keepOpen) this.input.focus();
+    // pull focus back to the bar so the insert leaves you ready to search again.
+    this.input.focus();
   }
 
   /** Build and insert a live zone from a selected header inside the dived-into

@@ -598,6 +598,12 @@ export interface Settings {
   /** Filename prefix for Starred Doc saves when `prefixPresetSaveFilenames` is on.
    *  Default `STARRED_`. */
   starredDocPrefix: string;
+  /** Save Send / Read / Marked / Starred Doc never open the Save As dialog for
+   *  want of a destination: with no folder to use (a doc that was never saved,
+   *  or an unset fixed folder) the copy goes into the Downloads folder, and
+   *  the notice has an Undo button that moves it to the trash. Off by
+   *  default, when those cases open the dialog. Desktop app only. */
+  silentExportsToDownloads: boolean;
   /** Where Save Send Doc writes. `sameFolder` (default) drops the
    *  send doc beside the source file; `fixedFolder` always writes into
    *  `sendDocFolder`. Either way, an unresolvable destination (a
@@ -1047,6 +1053,11 @@ export interface Settings {
   enterAfterTag: EnterAfterStyle;
   enterAfterAnalytic: EnterAfterStyle;
   enterAfterUndertag: EnterAfterStyle;
+  /** Pressing Enter at the end of a line (a plain paragraph too, not just the
+   *  six structural styles above) makes the new line an analytic. Card text
+   *  (body, cite, undertag) is left alone. A style picked above for that block
+   *  still wins. Off by default. See enter-style.ts. */
+  enterAlwaysAnalytic: boolean;
   customDashStyle: 'en' | 'en-spaced' | 'em' | 'em-spaced';
   /** What typed sequence the primary custom-dash rule replaces: '---'
    *  (fires on the third hyphen) or '--' (fires on the second). See
@@ -1623,6 +1634,15 @@ export interface Settings {
    *  restored to Normal so they remain visible in the shrunken output.
    *  When off, both are shrunk along with the surrounding text. */
   shrinkRestoresOmissionsToNormal: boolean;
+  /** Size (pt) the Card menu's "Shrink to N pt" row shrinks a card's text to.
+   *  Default 4. Underlined and emphasized text keeps its size, as with Shrink. */
+  shrinkToPt: number;
+  /** The warning line "Shrink to N pt" puts above the condensed, shrunken
+   *  text. Empty leaves it out. Default `<<TEXT CONDENSED, NONE OMITTED>>`. */
+  shrinkToWarningBefore: string;
+  /** The warning line it puts below the text. Empty leaves it out. Default
+   *  `<<PARAGRAPH BREAKS RESUME>>`. */
+  shrinkToWarningAfter: string;
   /**
    * Delimiter family for "Condense with warning". One of the six
    * bracket pairs (which produce `<open>PARAGRAPH INTEGRITY
@@ -2013,6 +2033,7 @@ const DEFAULTS: Settings = {
   readDocPrefix: 'READ_',
   markedDocPrefix: 'MARKED_',
   starredDocPrefix: 'STARRED_',
+  silentExportsToDownloads: false,
   sendDocDestination: 'sameFolder',
   sendDocFolder: '',
   markedCardsDestination: 'sameFolder',
@@ -2105,6 +2126,7 @@ const DEFAULTS: Settings = {
   enterAfterTag: 'normal',
   enterAfterAnalytic: 'normal',
   enterAfterUndertag: 'normal',
+  enterAlwaysAnalytic: false,
   customDashStyle: 'em',
   customDashTrigger: '---',
   customDashOtherEnabled: false,
@@ -2223,6 +2245,9 @@ const DEFAULTS: Settings = {
   createReferenceShrinkPt: 3,
   createReferenceHighlightMode: 'shading',
   shrinkRestoresOmissionsToNormal: false,
+  shrinkToPt: 4,
+  shrinkToWarningBefore: '<<TEXT CONDENSED, NONE OMITTED>>',
+  shrinkToWarningAfter: '<<PARAGRAPH BREAKS RESUME>>',
   condenseWarningDelimiter: '[',
   condenseWarningCustomPauseMarker: '',
   condenseWarningCustomResumeMarker: '',
@@ -2995,6 +3020,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     category: 'files',
     section: 'Send / Read / Marked / Starred docs',
     dependsOn: 'prefixPresetSaveFilenames',
+  },
+  {
+    key: 'silentExportsToDownloads',
+    label: 'Save without asking where',
+    description:
+      'When on, Save Send Doc, Save Read Doc, Save Marked Cards and Save Starred Doc never open the Save As dialog just because they have nowhere to put the copy: a document you haven\'t saved yet (same-folder mode) or an unset fixed folder saves into your Downloads folder instead. A notice at the bottom says where it went, with an Undo button that moves the new file to the trash. A name already taken in Downloads gets a number (SEND_1AC (2).docx) rather than being replaced, and the dialog still opens if the copy would overwrite the document itself. Off by default.',
+    kind: 'toggle',
+    category: 'files',
+    section: 'Send / Read / Marked / Starred docs',
+    electronOnly: true,
+    aliases: ['send doc downloads', 'save without dialog', 'skip save dialog', 'silent save', 'undo save', 'default location'],
   },
   {
     key: 'sendDocDestination',
@@ -3944,6 +3980,16 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['enter behavior', 'return key', 'new paragraph', 'enter after pocket', 'enter after hat', 'enter after block', 'enter after tag', 'enter after analytic', 'enter after undertag'],
   },
   {
+    key: 'enterAlwaysAnalytic',
+    label: 'Every new line is an analytic',
+    description:
+      "When on, pressing Enter at the end of a line starts the next line as an analytic: after a plain paragraph, an analytic, a heading or a tag. Handy for taking notes straight into a doc. Card text (the body, cite and undertag lines inside a card) is left alone, so Enter there still adds a line to the card. Pressing Enter in the middle of a line still just splits it, and a style you picked above for that kind of line wins. One undo reverts the whole step. Off by default.",
+    kind: 'toggle',
+    category: 'editing',
+    section: 'New paragraph on Enter',
+    aliases: ['enter analytic', 'every line analytic', 'notes mode', 'always analytic', 'enter makes analytic', 'new line analytic'],
+  },
+  {
     key: 'customStyles',
     label: 'Custom styles',
     description:
@@ -4059,6 +4105,37 @@ export const SETTING_METADATA: SettingMeta[] = [
     kind: 'formattingGapClass',
     category: 'editing',
     section: 'Formatting operations',
+  },
+  {
+    key: 'shrinkToPt',
+    label: 'Shrink to size (points)',
+    description:
+      'The size the Card menu\'s "Shrink to N pt" row shrinks a card\'s text to (default 4, from 1 to 20). It merges the card\'s body paragraphs into one, removes every highlight, underline and emphasis from it, shrinks all of the text to this size, and puts a warning line above and below (the two settings below).',
+    kind: 'number',
+    category: 'editing',
+    section: 'Formatting operations',
+    min: 1,
+    aliases: ['shrink to 4', 'tiny text', 'shrink size', 'shrink card to size', 'condense and shrink size'],
+  },
+  {
+    key: 'shrinkToWarningBefore',
+    label: 'Shrink to size: warning before the text',
+    description:
+      'The line "Shrink to N pt" puts above the shrunken text so a judge or opponent knows the paragraphs were merged. Default <<TEXT CONDENSED, NONE OMITTED>>. Leave empty for no line above (and empty here and below for no warnings at all). It stays at normal size.',
+    kind: 'text',
+    category: 'editing',
+    section: 'Formatting operations',
+    aliases: ['text condensed none omitted', 'condense warning before', 'shrink warning'],
+  },
+  {
+    key: 'shrinkToWarningAfter',
+    label: 'Shrink to size: warning after the text',
+    description:
+      'The line "Shrink to N pt" puts below the shrunken text. Default <<PARAGRAPH BREAKS RESUME>>. Leave empty for no line below. It stays at normal size.',
+    kind: 'text',
+    category: 'editing',
+    section: 'Formatting operations',
+    aliases: ['paragraph breaks resume', 'condense warning after', 'shrink warning'],
   },
   {
     key: 'shrinkRestoresOmissionsToNormal',
@@ -5177,6 +5254,7 @@ function sanitize(s: Settings): Settings {
     readDocPrefix: typeof s.readDocPrefix === 'string' ? s.readDocPrefix : 'READ_',
     markedDocPrefix: typeof s.markedDocPrefix === 'string' ? s.markedDocPrefix : 'MARKED_',
     starredDocPrefix: typeof s.starredDocPrefix === 'string' ? s.starredDocPrefix : 'STARRED_',
+    silentExportsToDownloads: !!s.silentExportsToDownloads,
     sendDocDestination:
       s.sendDocDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
     sendDocFolder: typeof s.sendDocFolder === 'string' ? s.sendDocFolder : '',
@@ -5351,6 +5429,7 @@ function sanitize(s: Settings): Settings {
     enterAfterTag: sanitizeEnterAfter(s.enterAfterTag),
     enterAfterAnalytic: sanitizeEnterAfter(s.enterAfterAnalytic),
     enterAfterUndertag: sanitizeEnterAfter(s.enterAfterUndertag),
+    enterAlwaysAnalytic: !!s.enterAlwaysAnalytic,
     customDashStyle: CUSTOM_DASH_STYLES.includes(s.customDashStyle as Settings['customDashStyle'])
       ? (s.customDashStyle as Settings['customDashStyle'])
       : 'em',
@@ -5617,6 +5696,13 @@ function sanitize(s: Settings): Settings {
     )
       ? (s.createReferenceHighlightMode as CreateReferenceHighlightMode)
       : DEFAULTS.createReferenceHighlightMode,
+    shrinkToPt: Number.isFinite(Number(s.shrinkToPt))
+      ? Math.min(20, Math.max(1, Math.round(Number(s.shrinkToPt))))
+      : DEFAULTS.shrinkToPt,
+    shrinkToWarningBefore:
+      typeof s.shrinkToWarningBefore === 'string' ? s.shrinkToWarningBefore : DEFAULTS.shrinkToWarningBefore,
+    shrinkToWarningAfter:
+      typeof s.shrinkToWarningAfter === 'string' ? s.shrinkToWarningAfter : DEFAULTS.shrinkToWarningAfter,
     shrinkRestoresOmissionsToNormal:
       s.shrinkRestoresOmissionsToNormal === undefined
         ? DEFAULTS.shrinkRestoresOmissionsToNormal

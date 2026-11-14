@@ -8,6 +8,23 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.17.2-bcb.5 — 2026-11-14
+
+### Added
+
+- **Card menu: Shrink to 4 pt, with warning lines.** A new row under **Shrink** in the Card menu (and in the outline's right-click **Card** menu) merges a card's body paragraphs into one, removes every highlight, underline and emphasis from it, shrinks all of the text to 4 pt, and puts **<<TEXT CONDENSED, NONE OMITTED>>** above it and **<<PARAGRAPH BREAKS RESUME>>** below it, so nobody mistakes the tiny block for cut text. The tag and cite are left alone, and one undo reverts it. Change the size and the two lines in **Settings → Editing → Formatting operations** (**Shrink to size (points)** and the two **Shrink to size: warning** boxes; leave a box empty to drop that line, both to drop the warnings). The row's label follows the size you set, and it is also a command, **Shrink to Size With Warnings**, that you can bind to a key.
+
+- **Drag the documents in a pane's list to put them in a different order.** Open the small **v 3** list on a pane's title bar and press on a document's name and drag it up or down. There are no handles to see, and the drag is deliberately stiff so nothing moves by accident: the pointer has to travel a little before a press becomes a drag, and a row only swaps with the next one once you have dragged most of the way past it. A plain click still switches to the document, Esc in the middle of a drag puts everything back, and the document you were on stays the one showing.
+
+- **A setting to save a Send, Read, Marked or Starred Doc without being asked where, with an Undo.** Turn on **Save without asking where** in **Settings → Files → Send / Read / Marked / Starred docs** (desktop app, off by default). A document you haven't saved yet, or a fixed-folder setting with no folder chosen, used to open the Save As dialog; now the copy goes into your Downloads folder, and a notice at the bottom says **Send doc saved to Downloads** (or whichever folder it went to) with an **Undo** button that moves the new file to the trash. A name already taken in Downloads gets a number, like `SEND_1AC (2).docx`, instead of being replaced, and the dialog still opens if the copy would overwrite the document itself. With the setting on, the notice has **Undo** in place of **Show in folder**.
+
+- **A setting to make every new line an analytic.** Turn on **Every new line is an analytic** in **Settings → Editing → New paragraph on Enter** and pressing Enter at the end of a plain paragraph, an analytic, a heading or a tag starts the next line as an analytic, which is handy for taking notes straight into a doc. It is off by default. Card text (the body, cite and undertag lines inside a card) is left alone, so Enter there still adds a line to the card. Pressing Enter in the middle of a line still just splits it, a style you picked in the dropdowns above for that kind of line still wins, and one Ctrl-Z undoes the whole step.
+
+### Changed
+
+- **The pane's document list shows the speech doc in amber and no file endings.** In the small **v 4** list on a pane's title bar, the speech document's name is now amber next to its microphone, and names no longer show **.docx** or **.cmir**, so a row reads "1NC Shell---GGSA". The ending stays on a name only when two rows would otherwise look the same, such as the same file open as both a .docx and a .cmir.
+- **The search bar stays open after you insert a card.** Pressing Enter on a result from Logos (`g`), your cards (`q`), a quick card or the dropzone (`d`) used to close the bar, so getting a second card meant opening it and typing the search again. Now the card goes in, a small **Inserted "…"** notice appears, and the bar keeps your search and its results with the cursor back in it, so you can press Enter on the next card. Esc closes it. With no document open to insert into, the card still opens as a new document and the bar closes.
+
 ## 1.17.2-bcb.4 — 2026-11-12
 
 ### Added

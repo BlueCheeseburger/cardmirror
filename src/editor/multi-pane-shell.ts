@@ -197,6 +197,8 @@ import {
 import { icon, setIcon } from './icons';
 import { formatSpeechFilename } from './speech-filename.js';
 import { pushOverlay, popOverlay, isTopOverlay } from './overlay-stack.js';
+import { attachRowReorder } from './row-reorder.js';
+import { stackRowNames } from './stack-row-names.js';
 import { blankSpawnPayload } from './host/types.js';
 import { maybeSnapshotVersion } from './version-history.js';
 import { awaitWithSaveWatchdog } from './save-watchdog.js';
@@ -1804,7 +1806,9 @@ class Slot {
       ),
     );
     const anySpeech = this.stack.some((r) => getSpeechDocResolver().isSpeechByUid(r.uid));
-    for (const rec of this.stack) {
+    // Names without .docx / .cmir (kept only where two rows would look alike).
+    const rowNames = stackRowNames(this.stack.map((r) => displayFilename(r.filename)));
+    for (const [rowIndex, rec] of this.stack.entries()) {
       const row = document.createElement('div');
       row.className = 'pmd-pane-chip-dropdown-row';
       if (rec === this.visible) row.classList.add('pmd-active');
@@ -1823,7 +1827,9 @@ class Slot {
       }
       const name = document.createElement('span');
       name.className = 'pmd-pane-chip-dropdown-name';
-      name.textContent = displayFilename(rec.filename);
+      name.textContent = rowNames[rowIndex] ?? displayFilename(rec.filename);
+      // The speech doc's name is amber, beside its mic.
+      if (getSpeechDocResolver().isSpeechByUid(rec.uid)) name.classList.add('pmd-speech-name');
       name.addEventListener('click', () => {
         closeOpenStackDropdown();
         this.showRecord(rec);
@@ -1852,12 +1858,31 @@ class Slot {
       dropdown.appendChild(row);
     }
     document.body.appendChild(dropdown);
+    // Drag a row through the list to reorder the stack. No handles, and a
+    // deliberately stiff drag (see row-reorder.ts) so a stray press can't
+    // shuffle documents. The rows are in `this.stack` order, so a row's index
+    // is its record's index; the records are captured now in case the stack
+    // changes while the list is open.
+    const listed = [...this.stack];
+    const detachReorder = attachRowReorder(dropdown, {
+      rows: () => [...dropdown.querySelectorAll<HTMLElement>(':scope > .pmd-pane-chip-dropdown-row')],
+      ignore: '.pmd-pane-chip-dropdown-close',
+      onReorder: (from, to) => {
+        const moved = listed[from];
+        if (!moved) return;
+        // `to` is where the row sits now among the listed records.
+        const order = listed.filter((r) => r !== moved);
+        order.splice(to, 0, moved);
+        this.applyStackOrder(order);
+      },
+    });
     const rect = this.chipStackBtn.getBoundingClientRect();
     // Fixed and clamped to the window: a pane at the right edge used to push
     // the list, and every row's close button, off the screen.
     dropdown.style.position = 'fixed';
     positionFloatingMenu(dropdown, rect.left, rect.bottom + 2);
     openStackDropdownEl = dropdown;
+    openStackDropdownDetach = detachReorder;
     const onDoc = (e: PointerEvent) => {
       const t = e.target as Node | null;
       if (t && dropdown.contains(t)) return;
@@ -1865,6 +1890,18 @@ class Slot {
       document.removeEventListener('pointerdown', onDoc);
     };
     setTimeout(() => document.addEventListener('pointerdown', onDoc), 0);
+  }
+
+  /** Put the stack in the given order (the stack dropdown's drag-to-reorder).
+   *  The visible doc stays the visible doc: only its index changes. Ignored
+   *  unless `order` holds exactly the records now in the stack, so a stale
+   *  list can't drop or duplicate a document. */
+  applyStackOrder(order: readonly DocRecord[]): void {
+    if (order.length !== this.stack.length || !order.every((r) => this.stack.includes(r))) return;
+    const visible = this.visible;
+    this.stack = [...order];
+    this.visibleIndex = visible ? this.stack.indexOf(visible) : -1;
+    this.refreshChip();
   }
 
   /** Close a specific record (not necessarily the visible one).
@@ -1959,7 +1996,10 @@ function flushHeavyUpdateNow(record: DocRecord): void {
 }
 
 let openStackDropdownEl: HTMLElement | null = null;
+let openStackDropdownDetach: (() => void) | null = null;
 function closeOpenStackDropdown(): void {
+  openStackDropdownDetach?.();
+  openStackDropdownDetach = null;
   if (!openStackDropdownEl) return;
   openStackDropdownEl.remove();
   openStackDropdownEl = null;

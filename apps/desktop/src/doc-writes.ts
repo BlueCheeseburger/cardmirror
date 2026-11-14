@@ -488,6 +488,27 @@ export function saveNewDoc(
   });
 }
 
+/** Write a document as a NEW file named `filename` in `dir`, never replacing
+ *  one: when the name is taken the write retries as `name (2).ext`,
+ *  `name (3).ext`… (each attempt is `saveNewDoc` with `failIfExists`, so two
+ *  exports racing for the same name can't both win it). Creates the folder if
+ *  needed and returns the path it wrote. */
+export async function saveNewDocUnique(dir: string, filename: string, buf: Buffer): Promise<string> {
+  const ext = path.extname(filename);
+  const stem = ext ? filename.slice(0, -ext.length) : filename;
+  for (let n = 1; n < 1000; n++) {
+    const target = path.join(dir, n === 1 ? filename : `${stem} (${n})${ext}`);
+    try {
+      await saveNewDoc(target, buf, { mkdir: true, failIfExists: true });
+      return target;
+    } catch (err) {
+      if (err instanceof DocExistsError) continue;
+      throw err;
+    }
+  }
+  throw new Error(`Could not find a free file name for ${filename}.`);
+}
+
 /** Sanitize a display name for use inside a filename. */
 export function fileNameSafe(name: string): string {
   return name.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, '').replace(/\s+/gu, ' ').trim();

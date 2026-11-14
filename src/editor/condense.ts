@@ -1074,10 +1074,12 @@ export function toggleCase(): Command {
  * No-op on empty selection, non-card-body content, multiple cards,
  * or when no card_body is actually touched. Also no-ops with a
  * console warn when either marker is empty (a half-filled custom
- * setting).
+ * setting), unless `allowEmpty` says an empty marker just means no
+ * line there (Shrink to size lets either warning be left blank).
  */
 export function condenseWithWarning(
   getMarkers: () => { pause: string; resume: string },
+  opts: { allowEmpty?: boolean } = {},
 ): Command {
   return (state, dispatch) => {
     const { from, to, empty } = state.selection;
@@ -1118,7 +1120,7 @@ export function condenseWithWarning(
     // Don't emit broken markers if the user picked Custom but left
     // a half-filled setting. No-op + console warn.
     const { pause, resume } = getMarkers();
-    if (!pause || !resume) {
+    if (!opts.allowEmpty && (!pause || !resume)) {
       console.warn(
         'condenseWithWarning: pause / resume marker is empty — skipping',
       );
@@ -1128,8 +1130,9 @@ export function condenseWithWarning(
 
     const cardBodyType = schema.nodes['card_body']!;
 
-    const pausePara = cardBodyType.create(null, schema.text(pause));
-    const resumePara = cardBodyType.create(null, schema.text(resume));
+    // `allowEmpty` (Shrink to size): an empty marker leaves its line out.
+    const pausePara = pause ? cardBodyType.create(null, schema.text(pause)) : null;
+    const resumePara = resume ? cardBodyType.create(null, schema.text(resume)) : null;
     const mergedPara =
       paragraphs.length === 1
         ? cleanedTextblock(paragraphs[0]!.node)
@@ -1141,7 +1144,9 @@ export function condenseWithWarning(
     tr.replaceWith(
       first.pos,
       last.pos + last.node.nodeSize,
-      Fragment.fromArray([pausePara, mergedPara, resumePara]),
+      Fragment.fromArray(
+        [pausePara, mergedPara, resumePara].filter((n): n is PMNode => n !== null),
+      ),
     );
     dispatch(tr);
     return true;
