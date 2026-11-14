@@ -2853,7 +2853,10 @@ lands on the Home screen, where the list is waiting, and nothing opens until
 you say so.
 
 Close every document (or its window) before you quit and there's nothing to
-offer, so the section disappears — a clean quit means a clean start. To keep a particular
+offer, so the section disappears — a clean quit means a clean start. A visit
+where you never opened a document at all (you launched, glanced at the Home
+screen and quit, or restarted to update) doesn't count: the list stays on offer.
+It keeps every window of a big session, up to 120 documents. To keep a particular
 working set regardless, run **Save Workspace** (command bar — try "save
 session"): a saved set survives quitting with nothing open, and stays on offer
 until you open other documents and quit with those. **Reopen Last Workspace**

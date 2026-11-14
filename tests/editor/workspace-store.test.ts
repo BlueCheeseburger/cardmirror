@@ -25,8 +25,21 @@ import {
   installWindowCloseForget,
 } from '../../src/editor/workspace-store.js';
 
-const LIVE_KEY = 'pmd-live-workspace';
+const LIVE_KEY = 'pmd-live-workspace'; // the pre-update single map (still read)
+const LIVE_PREFIX = 'pmd-live-workspace:'; // one key per window
 const LAST_KEY = 'pmd-last-workspace';
+
+/** Every window's live entry, whichever way it is stored. */
+function liveMap(): Record<string, Record<string, unknown>> {
+  const out: Record<string, Record<string, unknown>> = {};
+  const legacy = localStorage.getItem(LIVE_KEY);
+  if (legacy) Object.assign(out, JSON.parse(legacy));
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)!;
+    if (key.startsWith(LIVE_PREFIX)) out[key.slice(LIVE_PREFIX.length)] = JSON.parse(localStorage.getItem(key)!);
+  }
+  return out;
+}
 
 beforeEach(() => {
   localStorage.clear();
@@ -77,7 +90,7 @@ describe('workspace store', () => {
     report(['/w/a.cmir', '/w/b.cmir']);
     const snapshot = rolloverLastWorkspace();
     expect(snapshot?.docs.map((d) => d.path)).toEqual(['/w/a.cmir', '/w/b.cmir']);
-    expect(JSON.parse(localStorage.getItem(LIVE_KEY)!)).toEqual({});
+    expect(liveMap()).toEqual({});
     expect(lastWorkspace()?.docs).toHaveLength(2);
   });
 
@@ -94,9 +107,32 @@ describe('workspace store', () => {
   it('a fold with nothing open clears an automatic snapshot', () => {
     report(['/w/a.cmir']);
     rolloverLastWorkspace();
-    // Next session: everything was closed before quitting.
+    // Next session: documents were open, and everything was closed before quitting.
+    report(['/w/b.cmir']);
+    forgetWindowWorkspace();
     expect(rolloverLastWorkspace()).toBeNull();
     expect(lastWorkspace()).toBeNull();
+  });
+
+  it('a session that never held a document does not wipe the snapshot on offer', () => {
+    report(['/w/a.cmir', '/w/b.cmir']);
+    rolloverLastWorkspace();
+    // Next session: launched, looked at the Home screen, quit (an update
+    // restart, say) without reopening anything.
+    const again = rolloverLastWorkspace();
+    expect(again?.docs.map((d) => d.path)).toEqual(['/w/a.cmir', '/w/b.cmir']);
+    expect(lastWorkspace()?.docs).toHaveLength(2);
+    // …and again: still there until the user reopens or clears it.
+    expect(rolloverLastWorkspace()?.docs).toHaveLength(2);
+  });
+
+  it('once a session has held documents, the next fold is back to face value', () => {
+    report(['/w/a.cmir']);
+    rolloverLastWorkspace();
+    rolloverLastWorkspace(); // an empty session keeps it
+    report(['/w/c.cmir']); // the next one opens something…
+    forgetWindowWorkspace(); // …and closes it again
+    expect(rolloverLastWorkspace()).toBeNull();
   });
 
   it('a fold with nothing open keeps a pinned snapshot', () => {
@@ -158,9 +194,7 @@ describe('workspace store', () => {
   it('setWindowWorkspaceName labels this window, and clears again', () => {
     setWindowWorkspaceName('  Aff blocks  ');
     report(['/w/a.cmir']);
-    expect(JSON.parse(localStorage.getItem(LIVE_KEY)!)).toEqual({
-      [Object.keys(JSON.parse(localStorage.getItem(LIVE_KEY)!))[0]!]: expect.objectContaining({ name: 'Aff blocks' }),
-    });
+    expect(Object.values(liveMap())).toEqual([expect.objectContaining({ name: 'Aff blocks' })]);
     // Renaming rewrites the entry in place, no new report needed.
     setWindowWorkspaceName('Neg blocks');
     expect(rolloverLastWorkspace()!.windows[0]!.name).toBe('Neg blocks');
@@ -185,7 +219,7 @@ describe('workspace store', () => {
   it('an explicit save writes the snapshot without emptying the live map', () => {
     report(['/w/a.cmir']);
     expect(saveWorkspaceNow()?.docs).toHaveLength(1);
-    expect(Object.keys(JSON.parse(localStorage.getItem(LIVE_KEY)!))).toHaveLength(1);
+    expect(Object.keys(liveMap())).toHaveLength(1);
     expect(lastWorkspace()?.docs.map((d) => d.path)).toEqual(['/w/a.cmir']);
   });
 
@@ -207,6 +241,9 @@ describe('workspace store', () => {
       }),
     );
     expect(lastWorkspace()?.pinned).toBe(false);
+    // Unpinned: a session that held documents and closed them clears it.
+    report(['/w/x.cmir']);
+    forgetWindowWorkspace();
     expect(rolloverLastWorkspace()).toBeNull();
   });
 
@@ -215,13 +252,21 @@ describe('workspace store', () => {
     expect(rolloverLastWorkspace()).toBeNull();
   });
 
-  it('caps a snapshot at 24 documents, across windows', () => {
+  it('keeps a big session whole: 40 documents across windows are all offered', () => {
     seedLive('a', Date.now() - 3_000, Array.from({ length: 20 }, (_, i) => `/w/a${i}.cmir`));
     seedLive('b', Date.now() - 2_000, Array.from({ length: 20 }, (_, i) => `/w/b${i}.cmir`));
     seedLive('c', Date.now() - 1_000, ['/w/c.cmir']);
     const snapshot = rolloverLastWorkspace()!;
-    expect(snapshot.docs).toHaveLength(24);
-    expect(snapshot.windows.map((w) => w.docs.length)).toEqual([20, 4]);
+    expect(snapshot.docs).toHaveLength(41);
+    expect(snapshot.windows.map((w) => w.docs.length)).toEqual([20, 20, 1]);
+  });
+
+  it('still caps a runaway snapshot at 120 documents', () => {
+    seedLive('a', Date.now() - 3_000, Array.from({ length: 100 }, (_, i) => `/w/a${i}.cmir`));
+    seedLive('b', Date.now() - 2_000, Array.from({ length: 100 }, (_, i) => `/w/b${i}.cmir`));
+    const snapshot = rolloverLastWorkspace()!;
+    expect(snapshot.docs).toHaveLength(120);
+    expect(snapshot.windows.map((w) => w.docs.length)).toEqual([100, 20]);
   });
 
   it('notifies subscribers on save, clear, and another window’s write', () => {
@@ -277,13 +322,13 @@ describe('workspace store', () => {
     try {
       quitting = true;
       window.dispatchEvent(new Event('pagehide'));
-      const afterQuit = JSON.parse(localStorage.getItem(LIVE_KEY)!);
+      const afterQuit = liveMap();
       expect(Object.values(afterQuit)).toHaveLength(1);
       expect((Object.values(afterQuit)[0] as { closedAt?: number }).closedAt).toBeUndefined();
       expect(typeof JSON.parse(localStorage.getItem('pmd-live-quit-at')!)).toBe('number');
       quitting = false;
       window.dispatchEvent(new Event('pagehide'));
-      const afterClose = JSON.parse(localStorage.getItem(LIVE_KEY)!);
+      const afterClose = liveMap();
       expect(typeof (Object.values(afterClose)[0] as { closedAt?: number }).closedAt).toBe('number');
     } finally {
       uninstall();
@@ -341,7 +386,7 @@ describe('workspace store', () => {
     });
     try {
       window.dispatchEvent(new Event('pagehide'));
-      expect(Object.keys(JSON.parse(localStorage.getItem(LIVE_KEY)!))).toHaveLength(1);
+      expect(Object.keys(liveMap())).toHaveLength(1);
     } finally {
       uninstall();
     }
@@ -350,7 +395,7 @@ describe('workspace store', () => {
   it('with the setting off (the default) nothing is recorded, offered, or saved', () => {
     settings.set('lastWorkspaceEnabled', false);
     report(['/w/a.cmir']);
-    expect(localStorage.getItem(LIVE_KEY)).toBeNull();
+    expect(liveMap()).toEqual({});
     expect(saveWorkspaceNow()).toBeNull();
     expect(rolloverLastWorkspace()).toBeNull();
     // A snapshot left over from when it was on stays hidden until it is on again.
@@ -367,5 +412,68 @@ describe('workspace store', () => {
     localStorage.setItem(LAST_KEY, '{not json');
     expect(lastWorkspace()).toBeNull();
     expect(rolloverLastWorkspace()).toBeNull();
+  });
+});
+
+describe('workspace store: one key per window', () => {
+  it('this window writes only its own key, so another window\'s entry cannot be erased', () => {
+    // Another window's entry, written to its own key a moment earlier.
+    localStorage.setItem(
+      LIVE_PREFIX + 'other',
+      JSON.stringify({
+        openedAt: Date.now() - 1_000,
+        updatedAt: Date.now() - 1_000,
+        mode: 'panes',
+        name: null,
+        docs: [{ path: '/w/other.cmir', filename: 'other.cmir', format: 'cmir', slot: 'slot1' }],
+      }),
+    );
+    // This window reports, renames, and reports again.
+    report(['/w/mine.cmir']);
+    setWindowWorkspaceName('Mine');
+    report(['/w/mine.cmir', '/w/mine2.cmir']);
+    const keys = Object.keys(liveMap());
+    expect(keys).toHaveLength(2);
+    expect(keys).toContain('other');
+    const snapshot = rolloverLastWorkspace()!;
+    expect(snapshot.windows.map((w) => w.docs.map((d) => d.path))).toEqual([
+      ['/w/other.cmir'],
+      ['/w/mine.cmir', '/w/mine2.cmir'],
+    ]);
+  });
+
+  it('each window\'s entry lives under its own key', () => {
+    report(['/w/a.cmir']);
+    const own = [...Array(localStorage.length).keys()]
+      .map((i) => localStorage.key(i)!)
+      .filter((k) => k.startsWith(LIVE_PREFIX));
+    expect(own).toHaveLength(1);
+    expect(localStorage.getItem(LIVE_KEY)).toBeNull(); // the old single map is not written
+  });
+
+  it('still reads windows left in the old single map by a session from before the update', () => {
+    seedLive('legacy-a', Date.now() - 2_000, ['/w/old-a.cmir']);
+    seedLive('legacy-b', Date.now() - 1_000, ['/w/old-b.cmir']);
+    report(['/w/new.cmir']);
+    const snapshot = rolloverLastWorkspace()!;
+    expect(snapshot.docs.map((d) => d.path).sort()).toEqual(['/w/new.cmir', '/w/old-a.cmir', '/w/old-b.cmir']);
+    // The roll-over empties both shapes.
+    expect(liveMap()).toEqual({});
+    expect(localStorage.getItem(LIVE_KEY)).toBeNull();
+  });
+
+  it('a closed mark goes on this window\'s own key and leaves the others alone', () => {
+    seedLive('other', Date.now() - 1_000, ['/w/other.cmir']);
+    report(['/w/mine.cmir']);
+    const uninstall = installWindowCloseForget(() => false);
+    try {
+      window.dispatchEvent(new Event('pagehide'));
+    } finally {
+      uninstall();
+    }
+    const map = liveMap();
+    expect(Object.keys(map)).toHaveLength(2);
+    expect(map['other']!['closedAt']).toBeUndefined();
+    expect(typeof Object.values(map).find((e) => e['closedAt'] !== undefined)?.['closedAt']).toBe('number');
   });
 });
