@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: no Downloads fallback; `silentExportsToDownloads` becomes `exportSaveUndo` (`index.ts`, `settings.ts`, `preset-saved-notice.ts`, desktop `main.ts` / `preload.ts` / `doc-writes.ts`)
+
+**Request.** (After trying the setting: "make sure it still asks where if there is no set location for a specific type of save.") The previous release's setting saved into Downloads when a kind of save had no destination; the user wants the dialog there.
+
+**Change.** `runSilentExportFlow` no longer has a Downloads branch: an unresolvable destination (never-saved doc in same-folder mode, unset fixed folder, a non-Electron host, a collision with the source) goes to the Save As dialog, always. What the setting still does is the notice: with it on, a save that created a new file at its set location shows "<label> saved to <folder>" + file name with an Undo that moves it to the trash (`host:trash-export`, still limited to files this session's silent exports created). The key is renamed `exportSaveUndo` and the label to "Undo button after saving a Send, Read, Marked or Starred doc", since "save without asking where" no longer describes it; `load()` carries `silentExportsToDownloads: true` over to the new key when the new one was never stored. The dead pieces came out: the `useDownloads` flag on `host:save-send-doc` (preload, host types, main) and `saveNewDocUnique` with its tests.
+
+**Not changed.** The existing silent saves (to the same folder or the fixed folder) behave as before with the setting off, with the old Show in folder notice; an overwrite of an existing export keeps the old notice (an undo could not restore what it replaced).
+
+**Not verified.** In the running desktop app (no Electron here); the flow is pinned by a source-level test plus the notice tests.
+
 ### Fixed: Last workspace forgot windows (`workspace-store.ts`)
 
 **Report.** "Under last workspaces, CardMirror is forgetting the windows I had open, including windows that have multiple panes and panes with multiple stacked." No file or steps to reproduce; three ways the store could lose windows were found in the code and fixed. Which one the user hit is not known.

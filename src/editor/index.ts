@@ -9659,11 +9659,8 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
 
     const electron = getElectronHost();
     let result: { name: string; handle?: unknown } | null = null;
-    // "Save without asking where": no folder to use → Downloads, not the dialog.
-    const skipDialog = settings.get('silentExportsToDownloads');
     // The write made a brand-new file (what the notice's Undo may trash).
     let created = false;
-    let viaDownloads = false;
     if (electron && destResolvable) {
       const silent = await electron.saveSendDoc(
         { folder, siblingHandle: sourceHandle, filename },
@@ -9682,22 +9679,9 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
       }
     } else {
       // Never-saved doc (same-folder mode), unset fixed folder, or a
-      // non-Electron host → let the OS dialog pick the location, unless the
-      // user asked not to be asked: then the Downloads folder takes it. An
-      // older shell that doesn't know the flag answers null, which falls
-      // through to the dialog like before.
-      if (electron && skipDialog) {
-        const silent = await electron.saveSendDoc(
-          { folder: null, siblingHandle: null, filename, useDownloads: true },
-          bytes,
-        );
-        if (silent !== 'collision' && silent !== null) {
-          result = silent;
-          created = silent.created === true;
-          viaDownloads = true;
-        }
-      }
-      result ??= await getHost().saveAs(filename, bytes, {
+      // non-Electron host: no location is set for this kind of save, so the OS
+      // dialog asks where.
+      result = await getHost().saveAs(filename, bytes, {
         filters: saveFiltersForFormat(format),
         ...(sourceHandle ? { nearPath: sourceHandle } : {}),
       });
@@ -9713,15 +9697,14 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
     });
     flashSaveSuccess();
     markNonPristineStarter();
-    if (skipDialog && created && savedHandle && electron?.trashExport) {
-      // The setting that skips the dialog also puts an Undo on the notice: it
-      // moves the new file to the trash and takes it back out of Recent.
+    if (settings.get('exportSaveUndo') && created && savedHandle && electron?.trashExport) {
+      // With the Undo setting on, the notice carries an Undo that moves the new
+      // file to the trash and takes it back out of Recent.
       const trash = electron.trashExport.bind(electron);
       showExportUndoNotice({
         label: spec.label,
         fileName: result.name,
         handle: savedHandle,
-        inDownloads: viaDownloads,
         undo: async () => {
           const ok = await trash(savedHandle).catch(() => false);
           if (ok) removeRecent(savedHandle);
