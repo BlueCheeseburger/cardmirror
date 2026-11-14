@@ -71,7 +71,6 @@ import {
 import {
   saveExistingDoc,
   saveNewDoc,
-  saveNewDocUnique,
   DocExistsError,
   recordDiskStateFromDisk,
   refreshOwnedBaseline,
@@ -1875,12 +1874,8 @@ ipcMain.handle(
 // happens to contain the source) — so the renderer can defer to the Save As
 // dialog instead.
 //
-// `useDownloads` (the "save without asking" setting): with no folder and no
-// source file to sit beside, the copy goes into the OS Downloads folder
-// instead of resolving to null (→ the dialog). There the name is made unique
-// ("name (2).docx") rather than overwriting a file that was already there.
-// `created` says the write made a brand-new file, which is what the toast's
-// Undo is allowed to move to the trash.
+// `created` says the write made a brand-new file (not a replacement of one that
+// was there), which is what the notice's Undo is allowed to move to the trash.
 /** Paths this session's silent exports created: the only files `host:trash-
  *  export` will move to the trash, so the renderer can't aim it at anything
  *  else. */
@@ -1890,20 +1885,11 @@ ipcMain.handle(
   'host:save-send-doc',
   async (
     _event,
-    opts: { folder: string | null; siblingHandle: string | null; filename: string; useDownloads?: boolean },
+    opts: { folder: string | null; siblingHandle: string | null; filename: string },
     bytes: unknown,
   ) => {
-    const dir =
-      opts.folder ??
-      (opts.siblingHandle ? path.dirname(opts.siblingHandle) : null) ??
-      (opts.useDownloads === true ? app.getPath('downloads') : null);
+    const dir = opts.folder ?? (opts.siblingHandle ? path.dirname(opts.siblingHandle) : null);
     if (!dir) return null;
-    const viaDownloads = opts.folder == null && !opts.siblingHandle;
-    if (viaDownloads) {
-      const target = await saveNewDocUnique(dir, opts.filename, bytesToBuffer(bytes));
-      createdExportPaths.add(path.resolve(target));
-      return { name: path.basename(target), handle: target, created: true };
-    }
     const target = path.join(dir, opts.filename);
     if (opts.siblingHandle && path.resolve(target) === path.resolve(opts.siblingHandle)) {
       return 'collision';

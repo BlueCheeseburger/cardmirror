@@ -2853,7 +2853,10 @@ lands on the Home screen, where the list is waiting, and nothing opens until
 you say so.
 
 Close every document (or its window) before you quit and there's nothing to
-offer, so the section disappears — a clean quit means a clean start. To keep a particular
+offer, so the section disappears — a clean quit means a clean start. A visit
+where you never opened a document at all (you launched, glanced at the Home
+screen and quit, or restarted to update) doesn't count: the list stays on offer.
+It keeps every window of a big session, up to 120 documents. To keep a particular
 working set regardless, run **Save Workspace** (command bar — try "save
 session"): a saved set survives quitting with nothing open, and stays on offer
 until you open other documents and quit with those. **Reopen Last Workspace**
@@ -3472,14 +3475,14 @@ file search scans, and how much version history to keep.
 - **Send Doc / Read Doc / Marked Doc / Starred Doc filename prefix** — the prefix
   each preset uses (defaults `SEND_` / `READ_` / `MARKED_` / `STARRED_`); change any,
   or leave one empty for no prefix.
-- **Save without asking where** *(desktop, fork)* — off by default. When
-  on, Save Send Doc / Read Doc / Marked Cards / Starred Doc never open the
-  Save As dialog for want of a destination: a document you haven't saved
-  yet, or a fixed-folder setting with no folder, saves into your Downloads
-  folder. A notice at the bottom says where it went, with an **Undo**
-  button that moves the new file to the trash (it replaces **Show in
-  folder** while this is on). A name already taken in Downloads gets a
-  number (`SEND_1AC (2).docx`) rather than being replaced.
+- **Undo button after saving a Send, Read, Marked or Starred doc**
+  *(desktop, fork)* — off by default. When on, the notice after Save Send Doc /
+  Read Doc / Marked Cards / Starred Doc saves to its location names the folder
+  it went to and has an **Undo** button that moves the new file to the trash (it
+  replaces **Show in folder**). It never changes where a save goes: a kind of
+  save with no location set (a document you haven't saved yet in same-folder
+  mode, or a fixed-folder choice with no folder) still opens the Save As dialog
+  to ask. Undo is offered only for a file that did not exist before.
 - **Send Doc destination** *(desktop)* — whether Save Send Doc writes
   beside the source file or into a fixed folder
   (see [Saving a send doc](#saving-a-send-doc)).

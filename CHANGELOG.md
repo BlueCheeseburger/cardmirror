@@ -8,6 +8,18 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Fixed
+
+- **Last workspace no longer loses windows.** Windows that were open at the same moment, such as the ones a reopened workspace starts together, could erase each other from the saved list, so the next launch offered fewer windows than you had. Each window now saves its own record and nothing else can overwrite it. This covers three-pane windows and panes with several stacked documents too.
+- **Launching and quitting without opening anything no longer wipes the Last workspace list.** Starting CardMirror, looking at the Home screen and quitting (or restarting to update) used to count as "everything closed on purpose" and erased the list you had not reopened yet. It now stays until you open documents and quit with those, or press **Forget**. Closing documents yourself before quitting still clears it.
+- **A big session is no longer cut off at 24 documents.** The Last workspace list kept only the first 24 documents, so later windows (easy to pass with several three-pane windows full of stacked documents) were silently left out. It now keeps up to 120.
+
+### Changed
+
+- **A save with no set location still asks where; the setting is now just an Undo button.** The **Save without asking where** setting added in the last release also saved into your Downloads folder when a kind of save had no location set (a document you hadn't saved yet in same-folder mode, or a fixed-folder choice with no folder). That is gone: those saves open the Save As dialog and ask, as they always did. What is left is renamed **Undo button after saving a Send, Read, Marked or Starred doc** in **Settings → Files → Send / Read / Marked / Starred docs**: when on, the notice after a save to its set location names the folder and has an **Undo** that moves the new file to the trash. A value you had already turned on carries over.
+
 ## 1.17.2-bcb.5 — 2026-11-14
 
 ### Added

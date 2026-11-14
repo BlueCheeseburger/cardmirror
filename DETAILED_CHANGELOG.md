@@ -10,6 +10,32 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: no Downloads fallback; `silentExportsToDownloads` becomes `exportSaveUndo` (`index.ts`, `settings.ts`, `preset-saved-notice.ts`, desktop `main.ts` / `preload.ts` / `doc-writes.ts`)
+
+**Request.** (After trying the setting: "make sure it still asks where if there is no set location for a specific type of save.") The previous release's setting saved into Downloads when a kind of save had no destination; the user wants the dialog there.
+
+**Change.** `runSilentExportFlow` no longer has a Downloads branch: an unresolvable destination (never-saved doc in same-folder mode, unset fixed folder, a non-Electron host, a collision with the source) goes to the Save As dialog, always. What the setting still does is the notice: with it on, a save that created a new file at its set location shows "<label> saved to <folder>" + file name with an Undo that moves it to the trash (`host:trash-export`, still limited to files this session's silent exports created). The key is renamed `exportSaveUndo` and the label to "Undo button after saving a Send, Read, Marked or Starred doc", since "save without asking where" no longer describes it; `load()` carries `silentExportsToDownloads: true` over to the new key when the new one was never stored. The dead pieces came out: the `useDownloads` flag on `host:save-send-doc` (preload, host types, main) and `saveNewDocUnique` with its tests.
+
+**Not changed.** The existing silent saves (to the same folder or the fixed folder) behave as before with the setting off, with the old Show in folder notice; an overwrite of an existing export keeps the old notice (an undo could not restore what it replaced).
+
+**Not verified.** In the running desktop app (no Electron here); the flow is pinned by a source-level test plus the notice tests.
+
+### Fixed: Last workspace forgot windows (`workspace-store.ts`)
+
+**Report.** "Under last workspaces, CardMirror is forgetting the windows I had open, including windows that have multiple panes and panes with multiple stacked." No file or steps to reproduce; three ways the store could lose windows were found in the code and fixed. Which one the user hit is not known.
+
+**1. Lost updates in the shared map (the likeliest).** Every window kept its entry in ONE localStorage key (`pmd-live-workspace`, a windowId → entry map) and updated it by read-modify-write. The windows are separate renderer processes sharing localStorage, whose reads can lag another process's write by a moment, so two windows reporting at about the same time (a reopened workspace boots all its windows together, each reporting as it mounts) each wrote back the whole map as it looked to them, and the later write erased the other's entry. A window missing from the map at the next launch is a window missing from the offer. Now each window writes only `pmd-live-workspace:<windowId>`; reads enumerate the prefix. The old single-map key is still read (a session that straddles the update keeps its windows) and is emptied with the rest at the roll-over; it is never written.
+
+**2. An empty session wiped the standing snapshot.** The roll-over cleared an unpinned snapshot whenever the ending session had no open documents, which also fits "launched, looked at the Home screen, quit" (an update restart before anything was reopened). A new key, `pmd-live-session-had-docs`, is set when any window of the session reports a document. A session that never held one leaves the standing snapshot alone; a session that held documents and closed them still clears it (the documented clean quit, pinned or not as before). The flag is cleared at the roll-over.
+
+**3. The 24-document cap.** `MAX_DOCS` dropped every window past the 24th document. A multi-window three-pane session with stacks passes that. Raised to 120 (still a bound against stale entries); the Home screen already lists windows with tick boxes.
+
+**Not changed / not done.** A partial restore still replaces the snapshot with just what was reopened (windows left unticked are not carried over to the next session); that is the existing documented "what was open at quit" rule, and changing it is a design decision. The visible document of each stack is not recorded, so a restored stack shows the last-loaded document on top. Neither was reproduced or asked about.
+
+**Tests.** The store tests now read per-window keys (`liveMap` helper); new ones cover another window's key surviving this window's reports, the old map still being read and emptied, the closed mark going on one key, a never-held session keeping the snapshot, the face-value clear after a session that did hold documents, and the new cap. **Not verified:** the race itself in a running app (it needs two real processes); the fix removes the shared write by construction.
+
 ## 1.17.2-bcb.5 — 2026-11-14
 
 ### Changed: the pane's document list: amber speech row, no file endings (`multi-pane-shell.ts`, `stack-row-names.ts`, `style.css`)

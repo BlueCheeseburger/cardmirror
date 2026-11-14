@@ -42,19 +42,16 @@ export interface ExportUndoNotice {
   fileName: string;
   /** The saved file's path. */
   handle: string;
-  /** It went to the Downloads folder (the setting that skips the dialog), so
-   *  the notice says "Downloads" whatever the OS calls the folder. */
-  inDownloads: boolean;
   /** Moves the new file to the trash; resolves to whether it did. */
   undo: () => Promise<boolean>;
 }
 
-/** The notice for a save that went to its place without asking: where it went
- *  ("Send doc saved to Downloads", the file's name beside it) and an Undo
- *  button, which moves the new file to the trash. Replaces the Show in folder
- *  notice, since a toast carries one button. */
+/** The notice for a save with the Undo setting on: where it went ("Send doc
+ *  saved to Round 3", the file's name beside it) and an Undo button, which
+ *  moves the new file to the trash. Replaces the Show in folder notice, since a
+ *  toast carries one button. */
 export function showExportUndoNotice(n: ExportUndoNotice): CloseToast {
-  const folder = n.inDownloads ? 'Downloads' : parts(n.handle).slice(-2, -1)[0];
+  const folder = parts(n.handle).slice(-2, -1)[0];
   return showBottomToast(`${n.label} saved${folder ? ` to ${folder}` : ''}`, {
     detail: n.fileName,
     durationMs: 8000,

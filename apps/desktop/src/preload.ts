@@ -333,10 +333,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
    *  Resolves to the written file's name + path (and `created`: it made a new
    *  file rather than replacing one), the string 'collision' when the target
    *  would overwrite the source, or null when the destination couldn't be
-   *  resolved. `useDownloads` lets a save with no folder and no source file
-   *  land in the OS Downloads folder instead. */
+   *  resolved. */
   saveSendDoc: (
-    opts: { folder: string | null; siblingHandle: string | null; filename: string; useDownloads?: boolean },
+    opts: { folder: string | null; siblingHandle: string | null; filename: string },
     bytes: Uint8Array,
   ) =>
     ipcRenderer.invoke('host:save-send-doc', opts, bytes) as Promise<
