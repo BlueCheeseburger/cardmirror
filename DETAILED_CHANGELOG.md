@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.17.2-bcb.5 — 2026-11-14
 
 ### Changed: the pane's document list: amber speech row, no file endings (`multi-pane-shell.ts`, `stack-row-names.ts`, `style.css`)
 
