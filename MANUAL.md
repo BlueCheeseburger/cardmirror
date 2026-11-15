@@ -3482,7 +3482,9 @@ file search scans, and how much version history to keep.
   replaces **Show in folder**). It never changes where a save goes: a kind of
   save with no location set (a document you haven't saved yet in same-folder
   mode, or a fixed-folder choice with no folder) still opens the Save As dialog
-  to ask. Undo is offered only for a file that did not exist before.
+  to ask. These saves never replace a file: if the name is already taken, the
+  new file is saved as **name (1)**, **name (2)** and so on, so Undo is always
+  offered.
 - **Send Doc destination** *(desktop)* — whether Save Send Doc writes
   beside the source file or into a fixed folder
   (see [Saving a send doc](#saving-a-send-doc)).

@@ -308,8 +308,8 @@ interface ElectronAPI {
   writeFileAtPath(
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean; grantRead?: boolean; selfPath?: string },
-  ): Promise<'collision' | void>;
+    opts?: { failIfExists?: boolean; numberIfExists?: boolean; grantRead?: boolean; selfPath?: string },
+  ): Promise<'collision' | { name: string; handle: string } | void>;
   bulkCompress(
     dir: string,
     onProgress: (p: BulkCompressProgress) => void,
@@ -1005,9 +1005,9 @@ export class ElectronHost implements Host {
   /** Silent "Save Send Doc" write. `opts.folder` (fixed-folder mode)
    *  or `opts.siblingHandle` (same-folder mode, the source file's path)
    *  resolves the destination directory in main. Returns the written
-   *  file's name + path, `'collision'` when the target would overwrite
-   *  the source (caller should fall back to Save As), or `null` when the
-   *  destination couldn't be resolved. */
+   *  file's name + path (a taken name is written as "name (1)", never
+   *  over the existing file), or `null` when the destination couldn't be
+   *  resolved. */
   async saveSendDoc(
     opts: { folder: string | null; siblingHandle: string | null; filename: string },
     bytes: Uint8Array,
@@ -1036,12 +1036,13 @@ export class ElectronHost implements Host {
   /** `grantRead` marks the write as one whose file the caller adopts
    *  as the live document, so main keeps it reopenable by path (the
    *  same grant a Save As dialog pick gets). Bulk writers leave it
-   *  off. */
+   *  off. `numberIfExists` writes a taken name as "name (1)" and
+   *  resolves the name + path it landed on. */
   async writeFileAtPath(
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean; grantRead?: boolean; selfPath?: string },
-  ): Promise<'collision' | void> {
+    opts?: { failIfExists?: boolean; numberIfExists?: boolean; grantRead?: boolean; selfPath?: string },
+  ): Promise<'collision' | { name: string; handle: string } | void> {
     return await api().writeFileAtPath(filePath, bytes, opts);
   }
 

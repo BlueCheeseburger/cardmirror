@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: saving to a taken name numbers the new file, never replaces (`doc-writes.ts`, desktop `main.ts` / `preload.ts`, `electron-host.ts`, `index.ts`)
+
+**Request.** "If I want CardMirror to save a file but that filename already exists, it overwrites it, which is the only way CardMirror gives me an option to save it. Can you just have it saved regardless, but with the numbering thing many OSs do with the (1)."
+
+**Change.** New `saveNewDocNumbered` in `doc-writes.ts`: tries the name, then `name (1).ext`, `name (2).ext` …, each attempt an exclusive create (`saveNewDoc` with `failIfExists`, whose check already runs inside that path's write chain), so concurrent saves of one name become different files; capped at 1000. `host:save-send-doc` uses it for every case (the old `'collision'` returns for the source document and for a doc open elsewhere are gone, and so is the silent overwrite of an earlier export), and `created` is therefore always true, so the Undo notice now covers a re-export too. `host:write-file-at-path` gets `numberIfExists`, which resolves `{name, handle}` of the file actually written; the new-speech-doc auto-save and `saveIntoDirectory` (Save As into a remembered location) use it, replacing the Save As-dialog fallback and the "Replace it?" confirm. Saving a document onto its own path in `saveIntoDirectory` stays a plain re-save (writing to itself is not a clash).
+
+**Not changed.** The OS Save As dialog keeps its own replace prompt. Bulk convert still skips an existing file and says so (it is a batch job; a pile of numbered duplicates on a re-run is worse). The renderer still handles a `'collision'` answer defensively (an older shell); main no longer sends one from these handlers.
+
+**Rejected.** Stripping a trailing "(n)" before numbering (a name like "Aff (2024)" would become "Aff (2025)").
+
+**Tests.** `numberedPath`, free name as-is, taken names count up, skipping a taken "(1)", three concurrent saves, folder creation. **Not verified:** in the running desktop app (no Electron here); the IPC handlers are thin wrappers over the tested function.
+
 ### Changed: no Downloads fallback; `silentExportsToDownloads` becomes `exportSaveUndo` (`index.ts`, `settings.ts`, `preset-saved-notice.ts`, desktop `main.ts` / `preload.ts` / `doc-writes.ts`)
 
 **Request.** (After trying the setting: "make sure it still asks where if there is no set location for a specific type of save.") The previous release's setting saved into Downloads when a kind of save had no destination; the user wants the dialog there.

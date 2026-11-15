@@ -18,6 +18,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 
+- **Saving to a name that is already taken now saves a numbered copy instead of replacing the file.** Save Send, Read, Marked and Starred Doc, a new speech document saved to its folder, and Save As into a remembered location used to overwrite a file of the same name (or, when it would have replaced the document itself or one open in another window, only offered the Save As dialog). They now save the new file as **name (1)**, **name (2)** and so on, the way Windows and macOS number copies, and the existing file is left alone. The notice and the **Undo** button name the numbered file. Saving a document onto its own file is still a plain re-save, and the Save As dialog's own replace prompt is unchanged.
 - **A save with no set location still asks where; the setting is now just an Undo button.** The **Save without asking where** setting added in the last release also saved into your Downloads folder when a kind of save had no location set (a document you hadn't saved yet in same-folder mode, or a fixed-folder choice with no folder). That is gone: those saves open the Save As dialog and ask, as they always did. What is left is renamed **Undo button after saving a Send, Read, Marked or Starred doc** in **Settings → Files → Send / Read / Marked / Starred docs**: when on, the notice after a save to its set location names the folder and has an **Undo** that moves the new file to the trash. A value you had already turned on carries over.
 
 ## 1.17.2-bcb.5 — 2026-11-14

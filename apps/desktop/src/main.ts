@@ -72,6 +72,7 @@ import {
   saveExistingDoc,
   saveNewDoc,
   DocExistsError,
+  saveNewDocNumbered,
   recordDiskStateFromDisk,
   refreshOwnedBaseline,
   claimBaseline,
@@ -1776,14 +1777,14 @@ ipcMain.handle(
     _event,
     filePath: string,
     bytes: unknown,
-    opts?: { failIfExists?: boolean; grantRead?: boolean; selfPath?: string },
+    opts?: { failIfExists?: boolean; numberIfExists?: boolean; grantRead?: boolean; selfPath?: string },
   ) => {
     if (typeof filePath !== 'string' || !filePath) {
       throw new Error('write-file-at-path: no path');
     }
     // Adopting writes (Save As into a folder) that replace an existing
     // file must not hit another open document.
-    if (opts?.grantRead && !opts.failIfExists && openElsewhere(filePath, opts.selfPath)) {
+    if (opts?.grantRead && !opts.failIfExists && !opts.numberIfExists && openElsewhere(filePath, opts.selfPath)) {
       throw new Error(SAVE_OVER_OPEN_MESSAGE);
     }
     // Scoped like read-file-at-path: documents / zips only, inside a
@@ -1797,6 +1798,13 @@ ipcMain.handle(
     // overwrites by design. The check lives inside saveNewDoc's write
     // chain (not here) so it can't race a concurrent create.
     try {
+      if (opts?.numberIfExists) {
+        // Never replace: a taken name becomes "name (1).ext", "(2)" …, the
+        // way Explorer and Finder do. The caller gets the path it landed on.
+        const written = await saveNewDocNumbered(filePath, bytesToBuffer(bytes), { mkdir: true });
+        if (opts.grantRead) grantReadPath(written.path);
+        return { name: path.basename(written.path), handle: written.path };
+      }
       await saveNewDoc(filePath, bytesToBuffer(bytes), {
         mkdir: true,
         failIfExists: opts?.failIfExists,
@@ -1864,18 +1872,15 @@ ipcMain.handle(
 );
 
 // Silent "Save Send Doc" / "Save Read Doc" / "Save Marked Cards" / "Save Starred
-// Doc" write. The renderer has already
-// resolved the destination (a fixed folder, or the source file's own folder),
-// the final filename, AND passes the source document's own path as
-// `siblingHandle`; main joins, guards against clobbering the source, and
-// writes. Returns the literal string 'collision' whenever the resolved target
-// would overwrite the source document — in EITHER destination mode (e.g. a
-// custom/empty prefix at the same folder + format, or a fixed folder that
-// happens to contain the source) — so the renderer can defer to the Save As
-// dialog instead.
+// Doc" write. The renderer has already resolved the destination (a fixed
+// folder, or the source file's own folder) and the final filename, AND passes
+// the source document's own path as `siblingHandle`; main joins and writes.
 //
-// `created` says the write made a brand-new file (not a replacement of one that
-// was there), which is what the notice's Undo is allowed to move to the trash.
+// It never replaces a file: when the name is taken (a previous export, the
+// source document itself, a document that is open right now) the new file is
+// written as "name (1).ext", "name (2).ext" …, the numbering Explorer and
+// Finder use. So `created` is always true for a write that happened, which is
+// what the notice's Undo is allowed to move to the trash.
 /** Paths this session's silent exports created: the only files `host:trash-
  *  export` will move to the trash, so the renderer can't aim it at anything
  *  else. */
@@ -1890,19 +1895,11 @@ ipcMain.handle(
   ) => {
     const dir = opts.folder ?? (opts.siblingHandle ? path.dirname(opts.siblingHandle) : null);
     if (!dir) return null;
-    const target = path.join(dir, opts.filename);
-    if (opts.siblingHandle && path.resolve(target) === path.resolve(opts.siblingHandle)) {
-      return 'collision';
-    }
-    // The export's name can also be a doc that is open right now (an
-    // earlier export kept open to review, a same-named file in the fixed
-    // folder). Overwriting it silently would swap its content out from
-    // under its tab — defer to the Save As dialog, which refuses it.
-    if (openElsewhere(target, opts.siblingHandle ?? undefined)) return 'collision';
-    const existed = existsSync(target);
-    await saveNewDoc(target, bytesToBuffer(bytes), { mkdir: true });
-    if (!existed) createdExportPaths.add(path.resolve(target));
-    return { name: path.basename(target), handle: target, created: !existed };
+    const written = await saveNewDocNumbered(path.join(dir, opts.filename), bytesToBuffer(bytes), {
+      mkdir: true,
+    });
+    createdExportPaths.add(path.resolve(written.path));
+    return { name: path.basename(written.path), handle: written.path, created: true };
   },
 );
 

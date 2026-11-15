@@ -331,9 +331,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /** Silent "Save Send Doc" write to a renderer-resolved folder.
    *  Resolves to the written file's name + path (and `created`: it made a new
-   *  file rather than replacing one), the string 'collision' when the target
-   *  would overwrite the source, or null when the destination couldn't be
-   *  resolved. */
+   *  file rather than replacing one) — a taken name comes back as "name (1)" —
+   *  or null when the destination couldn't be resolved. */
   saveSendDoc: (
     opts: { folder: string | null; siblingHandle: string | null; filename: string },
     bytes: Uint8Array,
@@ -363,8 +362,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeFileAtPath: (
     filePath: string,
     bytes: Uint8Array,
-    opts?: { failIfExists?: boolean; grantRead?: boolean; selfPath?: string },
-  ) => ipcRenderer.invoke('host:write-file-at-path', filePath, bytes, opts),
+    opts?: { failIfExists?: boolean; numberIfExists?: boolean; grantRead?: boolean; selfPath?: string },
+  ) =>
+    ipcRenderer.invoke('host:write-file-at-path', filePath, bytes, opts) as Promise<
+      'collision' | { name: string; handle: string } | void
+    >,
 
   /** Bulk-compress every `.cmir` under `dir` in place (temporary
    *  migration tool). `onProgress` fires (throttled) as files are
