@@ -12,6 +12,14 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: bottom toasts covered the status bar and pane footers (`style.css`)
+
+**Report.** A screenshot of the "Sent to speech doc" toast sitting over the reading times of the second and third panes: "move the toast up above the bottom ribbon".
+
+**Change.** `.pmd-toast-action` (the button toast, which the sent-to-speech and saved-file notices use) was `bottom: 1.5rem`, which lands inside the status bar and, with several panes, the per-pane footer. It is now `calc(var(--status-bar-height) + 0.5rem)`, plus `--pmd-pane-footer-height` under `body.pmd-multi-doc`, the same offsets the pill tray and the Card Cutter trim already use.
+
+**Checked.** In a browser, the toast's bottom edge lands 8px above the status bar in one-document mode and 22px higher again with the multi-document class. **Not verified:** a real multi-pane window with long panes in the desktop app.
+
 ### Changed: Compare documents picker: multi-select, and the Open dialog's filter groups (`doc-diff-ui.ts`)
 
 **Report.** A macOS screenshot of the Compare documents file picker with the Open button greyed out and nothing selectable ("why won't it let me select the file? it should let me select multiple files").
