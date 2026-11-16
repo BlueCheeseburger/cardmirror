@@ -2962,7 +2962,8 @@ yours, or a file before and after cutting.
 
 1. Click **Compare documents** (or press **3** on the Home screen), then
    **Choose…** a `.cmir` or `.docx` file for **First document** and
-   **Second document**.
+   **Second document**. The picker lets you select two files at once to fill
+   both rows.
 2. Click **Compare**. The comparison opens full-screen: the first file on
    the left, the second on the right, line by line, like a code diff.
    Lines only in the first file are red, lines only in the second are

@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: Compare documents picker: multi-select, and the Open dialog's filter groups (`doc-diff-ui.ts`)
+
+**Report.** A macOS screenshot of the Compare documents file picker with the Open button greyed out and nothing selectable ("why won't it let me select the file? it should let me select multiple files").
+
+**Change.** `pick()` now uses `host.openFiles` when the host has it: two files fill both rows, one fills the clicked row, more than two use the first two and say so in a toast. `DOC_FILTERS` becomes the main Open dialog's shape (an either-kind group, then `.cmir`, then `.docx`) instead of a single group.
+
+**Not known.** The cause of the unselectable files. The only difference found from the main Open dialog, which works, is that this picker passed one filter group, so the filter change is a guess at the cause, not a confirmed fix. It could not be reproduced here (no macOS, no Electron). If it still happens, the next things to look at are the file type declarations in the macOS bundle and whether the picker was attached to the right window.
+
+**Tests.** A multi-select picker filling both rows, and one returning a single file filling only the clicked row.
+
 ### Changed: saving to a taken name numbers the new file, never replaces (`doc-writes.ts`, desktop `main.ts` / `preload.ts`, `electron-host.ts`, `index.ts`)
 
 **Request.** "If I want CardMirror to save a file but that filename already exists, it overwrites it, which is the only way CardMirror gives me an option to save it. Can you just have it saved regardless, but with the numbering thing many OSs do with the (1)."

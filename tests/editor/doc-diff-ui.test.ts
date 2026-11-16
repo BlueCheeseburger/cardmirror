@@ -9,8 +9,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const openFileMock = vi.fn();
+const openFilesMock = vi.fn();
+let multiPicker = false;
 vi.mock('../../src/editor/host/index.js', () => ({
-  getHost: () => ({ openFile: openFileMock }),
+  getHost: () => (multiPicker ? { openFile: openFileMock, openFiles: openFilesMock } : { openFile: openFileMock }),
 }));
 
 import { openDocDiff } from '../../src/editor/doc-diff-ui.js';
@@ -67,6 +69,8 @@ async function flush(): Promise<void> {
 beforeEach(() => {
   document.body.innerHTML = '';
   openFileMock.mockReset();
+  openFilesMock.mockReset();
+  multiPicker = false;
 });
 
 afterEach(() => {
@@ -96,6 +100,29 @@ describe('Compare documents — the picker step', () => {
     pickerButtons()[0]!.click();
     await flush();
     expect(q('.pmd-doc-diff-picker-name-empty')).not.toBeNull();
+  });
+
+  it('a multi-select picker fills both rows from one dialog', async () => {
+    multiPicker = true;
+    openFilesMock.mockResolvedValueOnce([
+      { name: 'a.cmir', bytes: cardBytes('Tag', 'Body') },
+      { name: 'b.cmir', bytes: cardBytes('Tag', 'Body 2') },
+    ]);
+    openDocDiff();
+    pickerButtons()[0]!.click();
+    await flush();
+    expect(qa('.pmd-doc-diff-picker-name').map((e) => e.textContent)).toEqual(['a.cmir', 'b.cmir']);
+    expect(compareBtn().disabled).toBe(false);
+    expect(openFileMock).not.toHaveBeenCalled();
+  });
+
+  it('a multi-select picker returning one file fills only the clicked row', async () => {
+    multiPicker = true;
+    openFilesMock.mockResolvedValueOnce([{ name: 'only.cmir', bytes: cardBytes('Tag', 'Body') }]);
+    openDocDiff();
+    pickerButtons()[1]!.click();
+    await flush();
+    expect(qa('.pmd-doc-diff-picker-name').map((e) => e.textContent)).toEqual(['No file chosen', 'only.cmir']);
   });
 
   it('Cancel closes the dialog', () => {
