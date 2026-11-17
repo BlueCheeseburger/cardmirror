@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: spellcheck split words at a curly apostrophe (`viewport-spellcheck.ts`)
+
+**Report.** A screenshot of "weren’t" with a red squiggle under "weren", "autocorrect doesn't recognize apostrophe as one word". Reproduced first, against the real dictionary: `weren't` (straight) gave no flags, `weren’t` and `didn’t` (curly) flagged "weren" and "didn".
+
+**Cause.** `WORD_RE` allowed only a straight `'` inside a word, so a curly `’` ended it; "weren" was checked on its own ("t" is under the 3-letter minimum). Smart quotes types the curly one, so every contraction typed with that setting on was affected, while pasted or straight ones were not.
+
+**Change.** `WORD_RE` accepts `’` (U+2019) and `ʼ` (U+02BC) inside a word. The word is folded to straight apostrophes (1:1, so ranges are unchanged) before the dictionary lookup, the trailing-apostrophe trim, and the right-click menu's suggestions, **Add to dictionary** and **Ignore**.
+
+**Not changed.** The opening single quote `‘` still ends a word (it is a quote, not an apostrophe). A word-final `’` is still trimmed as a possessive/closing quote.
+
+**Tests.** A contraction with a curly apostrophe is one word and not flagged; a misspelled one is flagged over its whole length; a trailing curly apostrophe is trimmed from the range. **Not verified:** in the running desktop app (the unit tests use the real dictionary through the same function the editor calls, via a throwaway script).
+
 ### Fixed: bottom toasts covered the status bar and pane footers (`style.css`)
 
 **Report.** A screenshot of the "Sent to speech doc" toast sitting over the reading times of the second and third panes: "move the toast up above the bottom ribbon".

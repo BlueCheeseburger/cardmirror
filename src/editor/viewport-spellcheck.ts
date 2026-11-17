@@ -95,8 +95,16 @@ async function ensureSpell(onReady: () => void): Promise<void> {
   onReady();
 }
 
-// Latin words incl. internal apostrophes (don't / O'Brien).
-const WORD_RE = /[A-Za-z][A-Za-z']*/g;
+// Latin words incl. internal apostrophes (don't / O'Brien). The curly forms
+// count too: with Smart quotes on, "weren't" is typed as "weren’t", and
+// splitting it at the ’ left "weren" to be flagged.
+const WORD_RE = /[A-Za-z][A-Za-z'\u2019\u02BC]*/g;
+
+/** Curly apostrophes → straight, 1:1, so a word is looked up the way the
+ *  dictionary spells it and offsets into the text stay put. */
+function foldApostrophes(w: string): string {
+  return w.replace(/[\u2019\u02BC]/g, "'");
+}
 // A character WORD_RE can never match, used to break words across non-text
 // inline nodes when joining a textblock's inline content (U+FFFF, a
 // noncharacter that won't appear in real document text).
@@ -154,7 +162,7 @@ export function misspelledRangesIn(
     // Trim a trailing possessive apostrophe ("dogs'", "James'") so the base
     // word is what gets checked — and underlined — not the apostrophe-
     // suffixed form the dictionary never contains.
-    const w = m[0].replace(/'+$/, '');
+    const w = foldApostrophes(m[0]).replace(/'+$/, '');
     if (w.length < 3) continue; // skip a/an/etc.
     if (w === w.toUpperCase()) continue; // skip ACRONYMS / ALLCAPS
     if (isWordCorrect(w)) continue;
@@ -238,7 +246,7 @@ export function viewportSpellcheckPlugin(): Plugin {
             .find(Math.max(0, pos - 1), pos + 1)
             .find((d) => d.from <= pos && pos <= d.to);
           if (!hit) return false;
-          const word = view.state.doc.textBetween(hit.from, hit.to);
+          const word = foldApostrophes(view.state.doc.textBetween(hit.from, hit.to));
           if (!word) return false;
           event.preventDefault();
           showSpellMenu(event.clientX, event.clientY, view, hit.from, hit.to, word);
