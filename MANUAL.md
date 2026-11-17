@@ -3143,8 +3143,11 @@ and format settings beside the Send Doc ones.
 
 **(Fork)** When Save Send Doc, Save Read Doc, Save Marked Cards or Save Starred Doc
 finishes, a notice at the bottom says where the copy went — for example **Send doc
-saved: SEND_1AC.docx in Round 3** — with a **Show in folder** button that opens the folder
-with the file selected.
+saved: SEND_1AC.docx in Round 3** — with a button that opens the folder with the file
+selected (**Show in Finder** on macOS, **Show in File Explorer** on Windows, **Show in
+folder** elsewhere). **(Fork)** A **Save As** (including the first save of a new document)
+ends with a notice in the same style, **Saved to Round 3** with the file's name and the
+same button. A plain **Save** (and autosave) shows no notice.
 
 The filename prefixes for the preset saves — **Send Doc**, **Read Doc**,
 **Marked Doc** and **Starred Doc** (defaults `SEND_`, `READ_`, `MARKED_`,

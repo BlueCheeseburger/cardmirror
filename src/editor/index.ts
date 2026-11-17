@@ -415,7 +415,7 @@ import {
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import type { MultiPaneWindowInfo } from './host/electron-host.js';
 import { showAlsoInCompareNotice } from './compare-also-open-notice.js';
-import { showPresetSavedNotice, showExportUndoNotice } from './preset-saved-notice.js';
+import { showPresetSavedNotice, showExportUndoNotice, showSavedNotice } from './preset-saved-notice.js';
 import { showMovedDocNotice } from './moved-doc-notice.js';
 import { captureReloadPosition, restoreReloadPosition } from './reload-position.js';
 import {
@@ -9585,6 +9585,9 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     }
     flashSaveSuccess();
     markNonPristineStarter();
+    // Save As says where the file went, with a button to open its folder.
+    const savedElectron = getElectronHost();
+    showSavedNotice(result.name, result.handle, savedElectron?.showItemInFolder?.bind(savedElectron));
     return true;
   } catch (err) {
     console.error('Save failed:', err);

@@ -13,6 +13,14 @@ export function isMacPlatform(): boolean {
   return typeof navigator !== 'undefined' && /mac/i.test(navigator.platform ?? '');
 }
 
+/** The label for the button that opens a saved file's folder with the file
+ *  selected: the name of this system's file manager. */
+export function revealInFileManagerLabel(): string {
+  if (isMacPlatform()) return 'Show in Finder';
+  if (typeof navigator !== 'undefined' && /win/i.test(navigator.platform ?? '')) return 'Show in File Explorer';
+  return 'Show in folder';
+}
+
 /** "Cmd" on macOS, "Ctrl" everywhere else — for user-facing prose
  *  that names the app's cross-platform modifier key by word instead
  *  of going through `formatKeyForDisplay`'s "Mod-" → "⌘"/"Ctrl+"

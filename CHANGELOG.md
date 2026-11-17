@@ -12,6 +12,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **Save As now says where the file went, with a button to open its folder.** After a **Save As** (and the first save of a new document) a notice at the bottom reads **Saved to Round 3** with the file's name, and a button that opens the folder with the file selected: **Show in Finder** on macOS, **Show in File Explorer** on Windows, **Show in folder** on Linux. The same wording is now used on the Send, Read, Marked and Starred Doc notices. A plain **Save** and autosave stay quiet.
 - **Card menu: Export as New File…** A new **Export** row in the Card menu saves just part of the document as a new file: the card your cursor is in, or, from the outline's right-click **Card** menu, the heading you clicked with everything under it (a whole block, hat or pocket, or several selected headings). It asks where to save, names the file after the first line, uses your default format for new documents, and leaves the open document untouched. Card numbers start again from 1 in the new file, and live views are written out as real cards so nothing in it points back at the original.
 
 ### Fixed

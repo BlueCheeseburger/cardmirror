@@ -6,6 +6,7 @@
  */
 
 import { showActionToast, showBottomToast, showToast, type CloseToast } from './toast.js';
+import { revealInFileManagerLabel } from './platform.js';
 
 const parts = (path: string): string[] => path.split(/[\\/]/).filter(Boolean);
 
@@ -30,9 +31,31 @@ export function showPresetSavedNotice(
     return null;
   }
   return showActionToast(message, {
-    actionLabel: 'Show in folder',
+    actionLabel: revealInFileManagerLabel(),
     onAction: () => reveal(handle),
     durationMs: 6000,
+  });
+}
+
+/** The notice after a Save As: "Saved to Round 3", the file's name beside it
+ *  and a button that opens that folder in Finder / File Explorer with the file
+ *  selected. A plain toast when the host cannot reveal a file (the web build,
+ *  or no path). */
+export function showSavedNotice(
+  fileName: string,
+  handle: unknown,
+  reveal: ((path: string) => void) | undefined,
+): CloseToast | null {
+  const folder = typeof handle === 'string' && handle ? parts(handle).slice(-2, -1)[0] : undefined;
+  if (typeof handle !== 'string' || !handle || !reveal) {
+    showToast(`Saved ${fileName}`);
+    return null;
+  }
+  return showBottomToast(`Saved${folder ? ` to ${folder}` : ''}`, {
+    icon: 'check',
+    detail: fileName,
+    durationMs: 6000,
+    action: { label: revealInFileManagerLabel(), onClick: () => reveal(handle) },
   });
 }
 

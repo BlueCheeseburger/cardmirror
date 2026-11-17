@@ -7,7 +7,7 @@ vi.mock('../../src/editor/toast.js', async () => {
   return { ...actual, showToast: vi.fn() };
 });
 
-import { presetSavedMessage, showPresetSavedNotice, showExportUndoNotice } from '../../src/editor/preset-saved-notice.js';
+import { presetSavedMessage, showPresetSavedNotice, showExportUndoNotice, showSavedNotice } from '../../src/editor/preset-saved-notice.js';
 import { showToast } from '../../src/editor/toast.js';
 
 afterEach(() => {
@@ -92,5 +92,34 @@ describe('showExportUndoNotice', () => {
     b.click();
     b.click();
     await vi.waitFor(() => expect(undo).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('showSavedNotice (Save As)', () => {
+  it('names the folder and the file, with a button that reveals the file', () => {
+    const reveal = vi.fn();
+    showSavedNotice('1AC Shell.docx', '/Users/me/Round 3/1AC Shell.docx', reveal);
+    const t = toastEl()!;
+    expect(t.textContent).toContain('Saved to Round 3');
+    expect(t.textContent).toContain('1AC Shell.docx');
+    const button = t.querySelector('button')!;
+    button.click();
+    expect(reveal).toHaveBeenCalledWith('/Users/me/Round 3/1AC Shell.docx');
+  });
+  it('labels the button for this system', () => {
+    const platform = vi.spyOn(navigator, 'platform', 'get');
+    platform.mockReturnValue('MacIntel');
+    showSavedNotice('a.docx', '/x/y/a.docx', vi.fn());
+    expect(toastEl()!.querySelector('button')!.textContent).toBe('Show in Finder');
+    document.body.innerHTML = '';
+    platform.mockReturnValue('Win32');
+    showSavedNotice('a.docx', 'C:\\x\\y\\a.docx', vi.fn());
+    expect(toastEl()!.querySelector('button')!.textContent).toBe('Show in File Explorer');
+    platform.mockRestore();
+  });
+  it('is a plain toast when the host cannot reveal a file', () => {
+    showSavedNotice('a.docx', '/x/y/a.docx', undefined);
+    expect(toastEl()).toBeNull();
+    expect(showToast).toHaveBeenCalledWith('Saved a.docx');
   });
 });

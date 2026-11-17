@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: a notice with a reveal button after Save As (`preset-saved-notice.ts`, `platform.ts`, `index.ts`)
+
+**Request.** "When a document gets saved, there should be a button in the toast saying it's saved, to reveal in File Explorer/Finder." After a mockup, the answers were: no setting, and only on Save As (not every ⌘S).
+
+**Change.** `showSavedNotice` shows the bottom toast "Saved to <folder>" (check icon, file name as detail) with a reveal button, six seconds; a plain toast where the host cannot reveal a file. `runSaveAsFlowInner` calls it once the write succeeded, for a full save and for a derived export alike, so it covers the first save of a new document (Save falls through to Save As). `revealInFileManagerLabel()` in `platform.ts` gives the label: Finder, File Explorer, or "Show in folder"; the Send / Read / Marked / Starred notice now uses it instead of the fixed "Show in folder".
+
+**Not changed.** Plain Save and autosave show nothing. The Save without asking where (Undo) notice is unchanged. No setting.
+
+**Tests.** Folder and file name, the reveal call, the per-platform label, the web fallback. **Not verified:** the macOS and Windows desktop builds (no Electron here); the toast itself was rendered in a browser for the mockup.
+
 ### Added: Card menu "Export as New File…" (`export-ranges.ts`, `card-menu-sections.ts`, `index.ts`, `nav-panel.ts`)
 
 **Request.** "When I right click on a heading, I want the option to export just that. It should be under the card menu, so it would show up in multiple places."
