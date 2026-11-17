@@ -10,6 +10,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **Card menu: Export as New File…** A new **Export** row in the Card menu saves just part of the document as a new file: the card your cursor is in, or, from the outline's right-click **Card** menu, the heading you clicked with everything under it (a whole block, hat or pocket, or several selected headings). It asks where to save, names the file after the first line, uses your default format for new documents, and leaves the open document untouched. Card numbers start again from 1 in the new file, and live views are written out as real cards so nothing in it points back at the original.
+
 ### Fixed
 
 - **Spellcheck no longer flags contractions typed with a curly apostrophe.** With **Smart quotes** on, "weren't" and "didn't" are typed as "weren’t" and "didn’t", and the spellchecker cut them at the apostrophe and underlined the first half ("weren", "didn"). A curly apostrophe now counts as part of the word, and the word is looked up the way the dictionary spells it.

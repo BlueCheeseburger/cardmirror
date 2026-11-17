@@ -24,6 +24,7 @@ import { showToast } from './toast.js';
 import { countReadAloudSplit, formatReadTimeFor, type ReadAloudCounts } from './word-count.js';
 import { computeMarkInfo, READING_MARKER_META } from './reading-marker.js';
 import { buildCardMenuSections } from './card-menu-sections.js';
+import { exportRangesAsDocument } from './export-ranges.js';
 import { fillMenuRow } from './menu-shortcut-hint.js';
 import { openAiForRanges } from './ai/ai-panel-ui.js';
 import { buildDocMenuSections } from './doc-menu-sections.js';
@@ -3022,6 +3023,9 @@ export class NavigationPanel {
           run: (id) => this.runHeadingCommand(entry, id),
           ai: (kind, ranges) => openAiForRanges(kind, ranges),
           aiEnabled: () => settings.get('aiFeaturesEnabled'),
+          exportRanges: (ranges) => {
+            if (this.view) void exportRangesAsDocument(this.view.state.doc, ranges);
+          },
         }),
       },
     ];

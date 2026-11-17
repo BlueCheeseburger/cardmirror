@@ -23,6 +23,8 @@ export interface CardMenuHost {
    *  `aiEnabled` false) leaves the AI section out. */
   ai?(kind: 'crossex' | 'cred', ranges: DocRange[]): void;
   aiEnabled?(): boolean;
+  /** Save just those ranges as a new file. Absent leaves the Export row out. */
+  exportRanges?(ranges: DocRange[]): void;
 }
 
 export function buildCardMenuSections(host: CardMenuHost): DocMenuSection[] {
@@ -63,6 +65,14 @@ export function buildCardMenuSections(host: CardMenuHost): DocMenuSection[] {
       title: 'Excerpt',
       items: [row('Create Reference', 'createReference'), row('Extract Undertag', 'extractUndertag')],
     },
+    ...(host.exportRanges
+      ? [
+          {
+            title: 'Export',
+            items: [{ label: 'Export as New File…', run: () => host.exportRanges?.(ranges) }],
+          },
+        ]
+      : []),
     {
       title: 'Highlighting',
       items: [

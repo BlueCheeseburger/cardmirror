@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: Card menu "Export as New File…" (`export-ranges.ts`, `card-menu-sections.ts`, `index.ts`, `nav-panel.ts`)
+
+**Request.** "When I right click on a heading, I want the option to export just that. It should be under the card menu, so it would show up in multiple places."
+
+**Change.** `buildCardMenuSections` gets an optional host callback `exportRanges(ranges)` and, when present, an **Export** section (alphabetically between Excerpt and Highlighting) with one row. Both hosts that build the shared list pass it: the toolbar Card dropdown (the cursor's card or the selection's cards) and the outline's right-click **Card** submenu (the clicked heading's whole subtree, or every selected heading's). New `export-ranges.ts`: `sectionDocFromRanges` sorts and merges the ranges, slices each from the document, resolves live views (`self_ref`) against the WHOLE document before cutting (so a view of something outside the section is written out as real cards rather than dangling) and builds a standalone doc; `suggestedSectionName` takes the first line's text, strips file-name characters and caps at 80; `exportRangesAsDocument` runs `transformForExport` with everything kept (no comments), serializes to `.cmir` or `.docx` per `defaultSaveFormat`, asks where through `saveAs` and shows the existing saved notice (Show in folder).
+
+**Decisions.** Numbering mode `keep`: the new file's card numbers are live and start at 1, which is what a new standalone file wants (freezing would carry numbers from the middle of the old one). Comments and private notes are not carried (their threads are anchored to the old document). The export is not added to Recent and does not change the open document, like the Send / Read exports.
+
+**Not verified.** The desktop save dialog (no Electron here); checked in a browser through the web host's download path: a three-node section came out as `AT Politics.docx`, a zip. Not covered: a section whose cards carry comment threads (they are dropped).
+
+**Tests.** Section building (only the covered pieces, document order, overlaps merged, empty → null), file naming, and the row on the shared menu list (present with a host, absent without; the outline's Card submenu row list updated).
+
 ### Fixed: spellcheck split words at a curly apostrophe (`viewport-spellcheck.ts`)
 
 **Report.** A screenshot of "weren’t" with a red squiggle under "weren", "autocorrect doesn't recognize apostrophe as one word". Reproduced first, against the real dictionary: `weren't` (straight) gave no flags, `weren’t` and `didn’t` (curly) flagged "weren" and "didn".

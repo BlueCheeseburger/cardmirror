@@ -363,7 +363,7 @@ mirrors Word's Navigation Pane, but does more:
   of a heading, use the commands in the Search palette or the ribbon; the
   right-click menu no longer has them.)
   **(Fork)** A **Card ▸** row opens (on hover) a side menu with what the
-  toolbar's Card menu has — Condense, Excerpt, Highlighting and Shrink —
+  toolbar's Card menu has — Condense, Excerpt, Export, Highlighting and Shrink —
   acting on the card under the right-clicked heading, or on every card under a
   Pocket, Hat or Block. It is the same list as the toolbar menu, built from one
   definition. **(Fork)** Every row in the toolbar's Doc and Card menus, and in
@@ -654,6 +654,18 @@ as one step with one undo. It's the fast way to cut the unread middle of a card
 down to a single small paragraph between its pause and resume markers. The
 shrink follows Shrink's settings, so with omission protection on (the default)
 the markers stay full size. Press **Mod-8** again to keep cycling smaller.
+
+### Export as New File (Card menu)
+
+**Card ▸ Export as New File…** *(Fork)* saves just part of the document as a new
+file. With the cursor in a card (or text selected across cards) it exports those
+cards; from the outline's right-click **Card ▸** menu it exports the heading you
+clicked with everything under it, so right-clicking a Block exports the whole
+block, and with several headings selected it exports all of them, in document
+order. It asks where to save, names the file after its first line, and uses the
+default format for new documents (Settings → Files). The open document is not
+changed. In the new file the card numbers start again from 1, live views are
+written out as real cards, and comments are not carried over.
 
 ### Shrink to size (Card menu)
 

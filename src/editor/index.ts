@@ -306,6 +306,7 @@ import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
 import { cardHighlightPlugin, cardRangesForSelection } from './card-highlight-toggle.js';
 import { buildCardMenuSections } from './card-menu-sections.js';
+import { exportRangesAsDocument } from './export-ranges.js';
 import { buildDocMenuSections } from './doc-menu-sections.js';
 import { emojiUprightPlugin } from './emoji-upright-plugin.js';
 import { readerViewPlugin, applyReaderViewToTarget } from './reader-view.js';
@@ -3110,6 +3111,9 @@ if (cardMenuBtn) {
         run: (id) => runRibbon(id),
         ai: (kind, ranges) => openAiForRanges(kind, ranges),
         aiEnabled: () => settings.get('aiFeaturesEnabled'),
+        exportRanges: (ranges) => {
+          if (view) void exportRangesAsDocument(view.state.doc, ranges);
+        },
       }),
     );
   });
