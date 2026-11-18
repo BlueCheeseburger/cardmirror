@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.17.2-bcb.6 — 2026-11-18
 
 ### Added: a notice with a reveal button after Save As (`preset-saved-notice.ts`, `platform.ts`, `index.ts`)
 
