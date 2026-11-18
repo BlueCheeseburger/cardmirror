@@ -148,6 +148,7 @@ describe('outline right-click menu', () => {
       'Uncondense',
       'Create Reference',
       'Extract Undertag',
+      'Export as New File…',
       'Lock Highlighting',
       'Unhighlight Card',
       'Highlight to Background',

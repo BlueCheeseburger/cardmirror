@@ -23,7 +23,8 @@ import * as path from 'node:path';
 import {
   saveExistingDoc,
   saveNewDoc,
-  saveNewDocUnique,
+  saveNewDocNumbered,
+  numberedPath,
   DocExistsError,
   chainDocWrite,
   recordDiskStateFromDisk,
@@ -225,6 +226,47 @@ describe('atomic writes', () => {
     ]);
     expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
     expect(['first', 'second']).toContain(await read(p));
+  });
+
+  it('numberedPath inserts " (n)" before the extension, in the same folder', () => {
+    expect(numberedPath(path.join('d', 'Send - Aff.docx'), 1)).toBe(path.join('d', 'Send - Aff (1).docx'));
+    expect(numberedPath(path.join('d', 'notes.tar.cmir'), 2)).toBe(path.join('d', 'notes.tar (2).cmir'));
+  });
+
+  it('saveNewDocNumbered writes a free name as-is, and a taken one as "name (1)", "(2)" …', async () => {
+    const p = docPath('Send - Aff.docx');
+    const first = await saveNewDocNumbered(p, Buffer.from('one'));
+    expect(first.path).toBe(p);
+    const second = await saveNewDocNumbered(p, Buffer.from('two'));
+    expect(second.path).toBe(docPath('Send - Aff (1).docx'));
+    const third = await saveNewDocNumbered(p, Buffer.from('three'));
+    expect(third.path).toBe(docPath('Send - Aff (2).docx'));
+    // Nothing was replaced.
+    expect(await read(p)).toBe('one');
+    expect(await read(second.path)).toBe('two');
+    expect(await read(third.path)).toBe('three');
+  });
+
+  it('saveNewDocNumbered skips a gap-free run: "(1)" taken → "(2)"', async () => {
+    const p = docPath('a.cmir');
+    await fs.writeFile(p, 'x');
+    await fs.writeFile(docPath('a (1).cmir'), 'y');
+    expect((await saveNewDocNumbered(p, Buffer.from('z'))).path).toBe(docPath('a (2).cmir'));
+  });
+
+  it('concurrent saves of one name land in different files', async () => {
+    const p = docPath('speech.docx');
+    const results = await Promise.all(
+      ['a', 'b', 'c'].map((t) => saveNewDocNumbered(p, Buffer.from(t))),
+    );
+    expect(new Set(results.map((r) => r.path)).size).toBe(3);
+    const contents = await Promise.all(results.map((r) => read(r.path)));
+    expect(contents.sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('saveNewDocNumbered creates missing folders when asked', async () => {
+    const p = path.join(caseDir, 'new', 'folder', 'out.docx');
+    expect((await saveNewDocNumbered(p, Buffer.from('x'), { mkdir: true })).path).toBe(p);
   });
 
   it('preserves the existing file mode across the tmp+rename', async () => {
@@ -445,40 +487,5 @@ describe('rename retry — transiently locked target (Dropbox/antivirus holds)',
     expect(await fs.readFile(target, 'utf8')).toBe('v1');
     const leftovers = (await fs.readdir(caseDir)).filter((f) => f.includes('cmtmp'));
     expect(leftovers).toEqual([]);
-  });
-});
-
-describe('saveNewDocUnique (silent exports into Downloads)', () => {
-  it('writes the plain name when it is free, creating the folder', async () => {
-    const dir = path.join(caseDir, 'Downloads', 'nested');
-    const target = await saveNewDocUnique(dir, 'SEND_1AC.docx', Buffer.from('one'));
-    expect(target).toBe(path.join(dir, 'SEND_1AC.docx'));
-    expect((await fs.readFile(target)).toString()).toBe('one');
-  });
-
-  it('numbers the name instead of replacing a file that is already there', async () => {
-    const first = await saveNewDocUnique(caseDir, 'SEND_1AC.docx', Buffer.from('one'));
-    const second = await saveNewDocUnique(caseDir, 'SEND_1AC.docx', Buffer.from('two'));
-    const third = await saveNewDocUnique(caseDir, 'SEND_1AC.docx', Buffer.from('three'));
-    expect(path.basename(second)).toBe('SEND_1AC (2).docx');
-    expect(path.basename(third)).toBe('SEND_1AC (3).docx');
-    expect((await fs.readFile(first)).toString()).toBe('one');
-    expect((await fs.readFile(second)).toString()).toBe('two');
-    expect((await fs.readFile(third)).toString()).toBe('three');
-  });
-
-  it('two writes racing for one name each get their own file', async () => {
-    const [a, b] = await Promise.all([
-      saveNewDocUnique(caseDir, 'x.cmir', Buffer.from('a')),
-      saveNewDocUnique(caseDir, 'x.cmir', Buffer.from('b')),
-    ]);
-    expect(a).not.toBe(b);
-    expect((await fs.readdir(caseDir)).sort()).toEqual(['x (2).cmir', 'x.cmir']);
-  });
-
-  it('handles a name with no extension', async () => {
-    await saveNewDocUnique(caseDir, 'notes', Buffer.from('1'));
-    const second = await saveNewDocUnique(caseDir, 'notes', Buffer.from('2'));
-    expect(path.basename(second)).toBe('notes (2)');
   });
 });

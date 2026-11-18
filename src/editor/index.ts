@@ -306,6 +306,7 @@ import { wordSelectionPlugin } from './word-selection-plugin.js';
 import { typeOverBoundaryPlugin, crossContainerDeleteSelection, neverThrow } from './type-over-boundary.js';
 import { cardHighlightPlugin, cardRangesForSelection } from './card-highlight-toggle.js';
 import { buildCardMenuSections } from './card-menu-sections.js';
+import { exportRangesAsDocument } from './export-ranges.js';
 import { buildDocMenuSections } from './doc-menu-sections.js';
 import { emojiUprightPlugin } from './emoji-upright-plugin.js';
 import { readerViewPlugin, applyReaderViewToTarget } from './reader-view.js';
@@ -414,7 +415,7 @@ import {
 import { getHost, getElectronHost, isWindowsHost, isSameOpenHandle, type OpenedFile, type JournalEntry } from './host/index.js';
 import type { MultiPaneWindowInfo } from './host/electron-host.js';
 import { showAlsoInCompareNotice } from './compare-also-open-notice.js';
-import { showPresetSavedNotice, showExportUndoNotice } from './preset-saved-notice.js';
+import { showPresetSavedNotice, showExportUndoNotice, showSavedNotice } from './preset-saved-notice.js';
 import { showMovedDocNotice } from './moved-doc-notice.js';
 import { captureReloadPosition, restoreReloadPosition } from './reload-position.js';
 import {
@@ -972,28 +973,20 @@ async function runNewSpeechDocumentSingleDoc(): Promise<void> {
       // A brand-new file — use the at-path writer (which also creates
       // the folder if needed); `saveExisting` refuses paths that don't
       // exist on disk. Electron-only, like the folder setting itself.
-      // failIfExists: a custom filename template can drop the
-      // timestamp, which makes two docs of the same name easy. Hand
-      // the collision to the native dialog rather than clobbering.
+      // numberIfExists: a custom filename template can drop the
+      // timestamp, which makes two docs of the same name easy. A taken
+      // name becomes "name (1)" rather than clobbering the first.
       const result = await electronForSpeechSave.writeFileAtPath(
         targetPath,
         docBytes,
         // grantRead: this file becomes the window's live doc and lands
         // in recents, so it has to stay reopenable by path — the OS
         // picker grants that for a dialog pick, and this path skips it.
-        { failIfExists: true, grantRead: true },
+        { numberIfExists: true, grantRead: true },
       );
-      if (result === 'collision') {
-        const saved = await host.saveAs(filename, docBytes, {
-          filters: saveFiltersForFormat(format),
-          nearPath: targetPath,
-        });
-        // Cancelled dialog: carry on unsaved rather than losing the
-        // doc. The user still gets the window and can Save As later.
-        if (saved) {
-          handle = typeof saved.handle === 'string' ? saved.handle : null;
-          filename = saved.name;
-        }
+      if (result && result !== 'collision') {
+        handle = result.handle;
+        filename = result.name;
       } else {
         handle = targetPath;
       }
@@ -3118,6 +3111,9 @@ if (cardMenuBtn) {
         run: (id) => runRibbon(id),
         ai: (kind, ranges) => openAiForRanges(kind, ranges),
         aiEnabled: () => settings.get('aiFeaturesEnabled'),
+        exportRanges: (ranges) => {
+          if (view) void exportRangesAsDocument(view.state.doc, ranges);
+        },
       }),
     );
   });
@@ -9392,13 +9388,13 @@ export async function runSaveAsFlow(): Promise<boolean> {
 
 /** Write `bytes` into a remembered folder as `filename`, skipping the
  *  OS picker. Resolves the same `{name, handle}` `host.saveAs` does, or
- *  null when the user backs out of overwriting / the write fails.
+ *  null when the write fails.
  *
- *  The picker's own overwrite prompt is gone on this path, so the
- *  collision check has to happen here: `failIfExists` first, and only
- *  an explicit confirmation writes over an existing file. Silently
- *  clobbering a teammate's file because a folder was one click away is
- *  exactly the failure this shortcut must not introduce. */
+ *  The picker's own overwrite prompt is gone on this path, so a name
+ *  that is already taken is never replaced: the file is saved as
+ *  "name (1)", "name (2)" … beside it. Silently clobbering a teammate's
+ *  file because a folder was one click away is exactly the failure
+ *  this shortcut must not introduce. */
 async function saveIntoDirectory(
   dir: string,
   filename: string,
@@ -9415,21 +9411,18 @@ async function saveIntoDirectory(
     // grantRead: this becomes the window's live doc and goes into
     // recents, so main has to keep it reopenable by path — the grant
     // the OS save dialog hands out, which this shortcut skips.
-    const collided = await electron.writeFileAtPath(target, bytes, {
-      failIfExists: true,
+    // numberIfExists: a taken name is saved as "name (1)", "(2)" …
+    // rather than replacing the file that is there.
+    if (selfPath && selfPath === target) {
+      // Saving the document onto its own file is a re-save, not a clash.
+      await electron.writeFileAtPath(target, bytes, { grantRead: true, selfPath });
+      return { name: filename, handle: target };
+    }
+    const written = await electron.writeFileAtPath(target, bytes, {
+      numberIfExists: true,
       grantRead: true,
     });
-    if (collided === 'collision') {
-      const overwrite = await confirmDialog(
-        `“${filename}” already exists in ${dir}. Replace it?`,
-        { title: 'File exists', okLabel: 'Replace', cancelLabel: 'Cancel' },
-      );
-      if (!overwrite) return null;
-      await electron.writeFileAtPath(target, bytes, {
-        grantRead: true,
-        ...(selfPath ? { selfPath } : {}),
-      });
-    }
+    if (written && written !== 'collision') return { name: written.name, handle: written.handle };
     return { name: filename, handle: target };
   } catch (err) {
     void alertDialog(
@@ -9592,6 +9585,9 @@ async function runSaveAsFlowInner(): Promise<boolean> {
     }
     flashSaveSuccess();
     markNonPristineStarter();
+    // Save As says where the file went, with a button to open its folder.
+    const savedElectron = getElectronHost();
+    showSavedNotice(result.name, result.handle, savedElectron?.showItemInFolder?.bind(savedElectron));
     return true;
   } catch (err) {
     console.error('Save failed:', err);
@@ -9644,9 +9640,9 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
   // Resolve the silent destination. Fixed-folder mode needs a configured path;
   // same-folder mode needs an on-disk source. Either missing → the dialog
   // fallback below. `sourceHandle` is ALWAYS passed to the IPC so the desktop
-  // refuses to overwrite the ORIGINAL document (returns 'collision' → we defer
-  // to the dialog) in BOTH modes — including when a custom/empty prefix would
-  // land the export on the source's exact path.
+  // numbers a taken name ("name (1)") instead of overwriting, in BOTH modes —
+  // including when a custom/empty prefix would land the export on the source's
+  // exact path, so the original document is never replaced.
   const sourceHandle =
     typeof file.handle === 'string' && file.handle ? file.handle : null;
   const fixedFolderMode = settings.get(spec.destinationKey) === 'fixedFolder';
@@ -9659,11 +9655,8 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
 
     const electron = getElectronHost();
     let result: { name: string; handle?: unknown } | null = null;
-    // "Save without asking where": no folder to use → Downloads, not the dialog.
-    const skipDialog = settings.get('silentExportsToDownloads');
     // The write made a brand-new file (what the notice's Undo may trash).
     let created = false;
-    let viaDownloads = false;
     if (electron && destResolvable) {
       const silent = await electron.saveSendDoc(
         { folder, siblingHandle: sourceHandle, filename },
@@ -9671,8 +9664,8 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
       );
       if (silent !== 'collision' && silent !== null) created = silent.created === true;
       if (silent === 'collision') {
-        // Target would overwrite the SOURCE document (a custom/empty prefix +
-        // same folder/format) — defer to the dialog so the user can rename.
+        // Defensive: main numbers a taken name now ("name (1)") and no longer
+        // answers 'collision'; an older shell might, so ask where instead.
         result = await getHost().saveAs(filename, bytes, {
           filters: saveFiltersForFormat(format),
           ...(sourceHandle ? { nearPath: sourceHandle } : {}),
@@ -9682,22 +9675,9 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
       }
     } else {
       // Never-saved doc (same-folder mode), unset fixed folder, or a
-      // non-Electron host → let the OS dialog pick the location, unless the
-      // user asked not to be asked: then the Downloads folder takes it. An
-      // older shell that doesn't know the flag answers null, which falls
-      // through to the dialog like before.
-      if (electron && skipDialog) {
-        const silent = await electron.saveSendDoc(
-          { folder: null, siblingHandle: null, filename, useDownloads: true },
-          bytes,
-        );
-        if (silent !== 'collision' && silent !== null) {
-          result = silent;
-          created = silent.created === true;
-          viaDownloads = true;
-        }
-      }
-      result ??= await getHost().saveAs(filename, bytes, {
+      // non-Electron host: no location is set for this kind of save, so the OS
+      // dialog asks where.
+      result = await getHost().saveAs(filename, bytes, {
         filters: saveFiltersForFormat(format),
         ...(sourceHandle ? { nearPath: sourceHandle } : {}),
       });
@@ -9713,15 +9693,14 @@ async function runSilentExportFlow(spec: SilentExportSpec): Promise<boolean> {
     });
     flashSaveSuccess();
     markNonPristineStarter();
-    if (skipDialog && created && savedHandle && electron?.trashExport) {
-      // The setting that skips the dialog also puts an Undo on the notice: it
-      // moves the new file to the trash and takes it back out of Recent.
+    if (settings.get('exportSaveUndo') && created && savedHandle && electron?.trashExport) {
+      // With the Undo setting on, the notice carries an Undo that moves the new
+      // file to the trash and takes it back out of Recent.
       const trash = electron.trashExport.bind(electron);
       showExportUndoNotice({
         label: spec.label,
         fileName: result.name,
         handle: savedHandle,
-        inDownloads: viaDownloads,
         undo: async () => {
           const ok = await trash(savedHandle).catch(() => false);
           if (ok) removeRecent(savedHandle);
@@ -9845,8 +9824,8 @@ export async function runSaveMarkedCardsFlow(): Promise<boolean> {
     (settings.get('prefixPresetSaveFilenames') ? settings.get('markedDocPrefix') : '') +
     `${base}.${format}`;
 
-  // Always pass the source path so the desktop refuses to overwrite the original
-  // (→ 'collision' → dialog) in BOTH destination modes; see runSaveSendDocFlow.
+  // The desktop numbers a taken name ("name (1)") instead of overwriting, so the
+  // original is never replaced in either destination mode.
   const sourceHandle =
     typeof file.handle === 'string' && file.handle ? file.handle : null;
   const fixedFolderMode = settings.get('markedCardsDestination') === 'fixedFolder';

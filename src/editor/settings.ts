@@ -598,12 +598,14 @@ export interface Settings {
   /** Filename prefix for Starred Doc saves when `prefixPresetSaveFilenames` is on.
    *  Default `STARRED_`. */
   starredDocPrefix: string;
-  /** Save Send / Read / Marked / Starred Doc never open the Save As dialog for
-   *  want of a destination: with no folder to use (a doc that was never saved,
-   *  or an unset fixed folder) the copy goes into the Downloads folder, and
-   *  the notice has an Undo button that moves it to the trash. Off by
-   *  default, when those cases open the dialog. Desktop app only. */
-  silentExportsToDownloads: boolean;
+  /** Save Send / Read / Marked / Starred Doc: the notice after a save that went
+   *  to its set location carries an Undo button that moves the new file to the
+   *  trash (instead of Show in folder). A type with no set location (a doc that
+   *  was never saved in same-folder mode, or an unset fixed folder) still asks
+   *  where, as always. Off by default. Desktop app only. (Was
+   *  `silentExportsToDownloads`, which also saved into Downloads when there was
+   *  no location; that part was taken out.) */
+  exportSaveUndo: boolean;
   /** Where Save Send Doc writes. `sameFolder` (default) drops the
    *  send doc beside the source file; `fixedFolder` always writes into
    *  `sendDocFolder`. Either way, an unresolvable destination (a
@@ -2033,7 +2035,7 @@ const DEFAULTS: Settings = {
   readDocPrefix: 'READ_',
   markedDocPrefix: 'MARKED_',
   starredDocPrefix: 'STARRED_',
-  silentExportsToDownloads: false,
+  exportSaveUndo: false,
   sendDocDestination: 'sameFolder',
   sendDocFolder: '',
   markedCardsDestination: 'sameFolder',
@@ -3022,15 +3024,15 @@ export const SETTING_METADATA: SettingMeta[] = [
     dependsOn: 'prefixPresetSaveFilenames',
   },
   {
-    key: 'silentExportsToDownloads',
-    label: 'Save without asking where',
+    key: 'exportSaveUndo',
+    label: 'Undo button after saving a Send, Read, Marked or Starred doc',
     description:
-      'When on, Save Send Doc, Save Read Doc, Save Marked Cards and Save Starred Doc never open the Save As dialog just because they have nowhere to put the copy: a document you haven\'t saved yet (same-folder mode) or an unset fixed folder saves into your Downloads folder instead. A notice at the bottom says where it went, with an Undo button that moves the new file to the trash. A name already taken in Downloads gets a number (SEND_1AC (2).docx) rather than being replaced, and the dialog still opens if the copy would overwrite the document itself. Off by default.',
+      'When on, the notice that appears after Save Send Doc, Save Read Doc, Save Marked Cards or Save Starred Doc saves to its location says which folder it went to and has an Undo button that moves the new file to the trash (it takes the place of Show in folder). It does not change where anything saves: a kind of save with no location set (a document you haven\'t saved yet in same-folder mode, or a fixed-folder choice with no folder) still opens the Save As dialog to ask. Off by default.',
     kind: 'toggle',
     category: 'files',
     section: 'Send / Read / Marked / Starred docs',
     electronOnly: true,
-    aliases: ['send doc downloads', 'save without dialog', 'skip save dialog', 'silent save', 'undo save', 'default location'],
+    aliases: ['undo save', 'undo send doc', 'trash saved copy', 'save notice undo', 'silent save'],
   },
   {
     key: 'sendDocDestination',
@@ -5114,6 +5116,12 @@ export class SettingsStore {
           for (const key of TRANSIENT_SETTING_KEYS) {
             delete (parsed as Record<string, unknown>)[key];
           }
+          // Was `silentExportsToDownloads` for one release: carry its value over
+          // (before the merge with DEFAULTS, which would fill the new key in).
+          const p = parsed as Record<string, unknown>;
+          if (p['exportSaveUndo'] === undefined && p['silentExportsToDownloads'] === true) {
+            p['exportSaveUndo'] = true;
+          }
           return sanitize({ ...DEFAULTS, ...withLegacyPaceGuides(parsed) });
         }
       }
@@ -5254,7 +5262,7 @@ function sanitize(s: Settings): Settings {
     readDocPrefix: typeof s.readDocPrefix === 'string' ? s.readDocPrefix : 'READ_',
     markedDocPrefix: typeof s.markedDocPrefix === 'string' ? s.markedDocPrefix : 'MARKED_',
     starredDocPrefix: typeof s.starredDocPrefix === 'string' ? s.starredDocPrefix : 'STARRED_',
-    silentExportsToDownloads: !!s.silentExportsToDownloads,
+    exportSaveUndo: !!s.exportSaveUndo,
     sendDocDestination:
       s.sendDocDestination === 'fixedFolder' ? 'fixedFolder' : 'sameFolder',
     sendDocFolder: typeof s.sendDocFolder === 'string' ? s.sendDocFolder : '',

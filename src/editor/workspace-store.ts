@@ -6,10 +6,18 @@
  * edition's `FileSystemFileHandle` can't be stored, exactly as in
  * `recents-store.ts`, so web docs are skipped):
  *
- *  - LIVE (`pmd-live-workspace`): a map of windowId → the docs that
- *    window currently has open. Every window rewrites its OWN entry
- *    whenever its open set changes (single-doc: on handle change;
- *    three-pane: on every slot composition change). A window that
+ *  - LIVE (`pmd-live-workspace:<windowId>`, one localStorage key per
+ *    window): the docs that window currently has open. Every window
+ *    rewrites its OWN key — and only its own — whenever its open set
+ *    changes (single-doc: on handle change; three-pane: on every slot
+ *    composition change). One key per window matters: the windows are
+ *    separate processes sharing one localStorage, and when they all kept
+ *    ONE map under one key, two windows reporting at the same moment (a
+ *    restored workspace booting its windows together) each wrote back
+ *    the map as it looked to them, and the later write erased the
+ *    other's entry — that window was then missing from the next
+ *    session's offer. (The old single-map key is still read, so a
+ *    session that straddles the update is not lost.) A window that
  *    closes on its own is MARKED closed (`installWindowCloseForget`),
  *    not dropped: what the next session is offered is what was open at
  *    the QUIT plus any window closed by hand in the last few minutes
@@ -44,8 +52,16 @@
 
 import { settings } from './settings.js';
 
+/** The pre-update single map (windowId → entry). Still read, never written. */
 const LIVE_KEY = 'pmd-live-workspace';
+/** One key per window: `LIVE_PREFIX + windowId` holds that window's entry. */
+const LIVE_PREFIX = 'pmd-live-workspace:';
 const LAST_KEY = 'pmd-last-workspace';
+/** Set (to '1') once any window of this session has reported a document.
+ *  Tells "the session never held a document" (a launch that was only a look
+ *  at the home screen) from "every document was closed on purpose": the first
+ *  must not wipe the snapshot that was on offer, the second does. */
+const SESSION_DOCS_KEY = 'pmd-live-session-had-docs';
 /** When the app last began to quit (ms since epoch), stamped by a window
  *  closing during the quit. Lets the next roll-over tell "windows closed
  *  a moment before the quit" from "a window closed an hour ago". */
@@ -57,10 +73,12 @@ const QUIT_KEY = 'pmd-live-quit-at';
  *  only the last survivor lost the rest. */
 const CLOSE_GRACE_MS = 3 * 60 * 1000;
 
-/** Cap on a snapshot's size — a workspace bigger than this is
- *  almost certainly stale entries from windows that never got
- *  pruned, and reopening 40 documents would be hostile anyway. */
-const MAX_DOCS = 24;
+/** Cap on a snapshot's size, against stale entries from windows that never
+ *  got pruned. It was 24, which a busy three-pane session (several windows,
+ *  each pane a stack of documents) passes easily; the windows past the cap were
+ *  silently left out. The Home screen lists them with tick boxes, so a long
+ *  list is no longer a hostile reopen. */
+const MAX_DOCS = 120;
 
 /** Live entries older than this are dropped on read. Bounds the map
  *  against windowIds that vanished without a rollover (a crash on a
@@ -171,26 +189,68 @@ function writeJson(key: string, value: unknown): void {
   }
 }
 
+/** One entry as stored, validated; null when it is unusable or too old. */
+function parseEntry(value: unknown, cutoff: number): LiveEntry | null {
+  if (!value || typeof value !== 'object') return null;
+  const e = value as LiveEntry;
+  if (typeof e.updatedAt !== 'number' || e.updatedAt < cutoff) return null;
+  if (!Array.isArray(e.docs)) return null;
+  return {
+    openedAt: typeof e.openedAt === 'number' ? e.openedAt : e.updatedAt,
+    updatedAt: e.updatedAt,
+    mode: e.mode === 'panes' ? 'panes' : 'windows',
+    name: normalizeName(e.name),
+    docs: e.docs.filter(isDoc).map(normalizeDoc),
+    ...(typeof e.closedAt === 'number' ? { closedAt: e.closedAt } : {}),
+  };
+}
+
+/** Every window's live entry: the per-window keys, plus any left in the old
+ *  single map by a session that began before the update. */
 function readLive(): Record<string, LiveEntry> {
-  const parsed = readJson(LIVE_KEY);
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
   const out: Record<string, LiveEntry> = {};
   const cutoff = Date.now() - LIVE_MAX_AGE_MS;
-  for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (!value || typeof value !== 'object') continue;
-    const e = value as LiveEntry;
-    if (typeof e.updatedAt !== 'number' || e.updatedAt < cutoff) continue;
-    if (!Array.isArray(e.docs)) continue;
-    out[id] = {
-      openedAt: typeof e.openedAt === 'number' ? e.openedAt : e.updatedAt,
-      updatedAt: e.updatedAt,
-      mode: e.mode === 'panes' ? 'panes' : 'windows',
-      name: normalizeName(e.name),
-      docs: e.docs.filter(isDoc).map(normalizeDoc),
-      ...(typeof e.closedAt === 'number' ? { closedAt: e.closedAt } : {}),
-    };
+  const legacy = readJson(LIVE_KEY);
+  if (legacy && typeof legacy === 'object' && !Array.isArray(legacy)) {
+    for (const [id, value] of Object.entries(legacy as Record<string, unknown>)) {
+      const e = parseEntry(value, cutoff);
+      if (e) out[id] = e;
+    }
+  }
+  for (const key of liveKeys()) {
+    const e = parseEntry(readJson(key), cutoff);
+    if (e) out[key.slice(LIVE_PREFIX.length)] = e;
   }
   return out;
+}
+
+/** The localStorage keys holding per-window entries. */
+function liveKeys(): string[] {
+  const keys: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(LIVE_PREFIX)) keys.push(key);
+    }
+  } catch {
+    /* storage unavailable: no entries */
+  }
+  return keys;
+}
+
+/** THIS window's own entry. */
+function readOwn(): LiveEntry | null {
+  return parseEntry(readJson(LIVE_PREFIX + WINDOW_ID), Date.now() - LIVE_MAX_AGE_MS);
+}
+
+function writeOwn(entry: LiveEntry | null): void {
+  writeJson(LIVE_PREFIX + WINDOW_ID, entry);
+}
+
+/** Empty the live record: every window's key and the old single map. */
+function clearLive(): void {
+  for (const key of liveKeys()) writeJson(key, null);
+  writeJson(LIVE_KEY, null);
 }
 
 /** Build a snapshot from windows already in order: de-duplicate by path
@@ -273,20 +333,21 @@ export function reportWindowWorkspace(
     if (typeof d.path !== 'string' || !d.path || !d.filename) continue;
     kept.push({ path: d.path, filename: d.filename, format: d.format, slot: d.slot ?? null });
   }
-  const live = readLive();
-  if (kept.length === 0) delete live[WINDOW_ID];
-  else {
-    const now = Date.now();
-    // (Reporting again clears any closed mark: a window that reports is open.)
-    live[WINDOW_ID] = {
-      openedAt: live[WINDOW_ID]?.openedAt ?? now,
-      updatedAt: now,
-      mode,
-      name: windowName,
-      docs: kept,
-    };
+  if (kept.length === 0) {
+    writeOwn(null);
+    return;
   }
-  writeJson(LIVE_KEY, live);
+  const now = Date.now();
+  // (Reporting again clears any closed mark: a window that reports is open.)
+  writeOwn({
+    openedAt: readOwn()?.openedAt ?? now,
+    updatedAt: now,
+    mode,
+    name: windowName,
+    docs: kept,
+  });
+  // This session has held a document (see SESSION_DOCS_KEY).
+  writeJson(SESSION_DOCS_KEY, '1');
 }
 
 /** Tell the store this window's name (null = unnamed), so the snapshot
@@ -298,30 +359,23 @@ export function setWindowWorkspaceName(name: string | null): void {
   if (next === windowName) return;
   windowName = next;
   if (!settings.get('lastWorkspaceEnabled')) return;
-  const live = readLive();
-  const mine = live[WINDOW_ID];
+  const mine = readOwn();
   if (!mine) return;
-  live[WINDOW_ID] = { ...mine, name: next };
-  writeJson(LIVE_KEY, live);
+  writeOwn({ ...mine, name: next });
 }
 
 /** Drop THIS window's live entry outright. */
 export function forgetWindowWorkspace(): void {
-  const live = readLive();
-  if (!(WINDOW_ID in live)) return;
-  delete live[WINDOW_ID];
-  writeJson(LIVE_KEY, live);
+  writeOwn(null);
 }
 
 /** THIS window closed on its own. Keep its entry, stamped, so the
  *  end-of-session fold can still offer it when the session ended soon
  *  after (see `entriesForSnapshot`). */
 export function markWindowClosed(): void {
-  const live = readLive();
-  const mine = live[WINDOW_ID];
+  const mine = readOwn();
   if (!mine) return;
-  live[WINDOW_ID] = { ...mine, closedAt: Date.now() };
-  writeJson(LIVE_KEY, live);
+  writeOwn({ ...mine, closedAt: Date.now() });
 }
 
 /** The app is quitting: stamp when, so windows closed by hand just
@@ -401,15 +455,22 @@ function publish(snapshot: WorkspaceSnapshot | null): void {
 export function rolloverLastWorkspace(): WorkspaceSnapshot | null {
   if (!settings.get('lastWorkspaceEnabled')) return null; // off: leave storage alone
   const folded = foldLive(readLive(), true);
-  writeJson(LIVE_KEY, {});
+  const sessionHeldDocs = readJson(SESSION_DOCS_KEY) === '1';
+  clearLive();
   writeJson(QUIT_KEY, null);
+  writeJson(SESSION_DOCS_KEY, null);
   let snapshot: WorkspaceSnapshot | null;
   if (folded) {
     writeJson(LAST_KEY, folded);
     snapshot = folded;
   } else {
     const standing = lastWorkspace();
-    snapshot = standing?.pinned ? standing : null;
+    // A pinned snapshot survives an empty quit. So does ANY standing snapshot
+    // when the session never held a document at all: a launch that only looked
+    // at the Home screen (or an update restart before anything was reopened)
+    // says nothing about what the user wants back, and used to erase it.
+    // Closing documents on purpose is different: the session held some.
+    snapshot = standing && (standing.pinned || !sessionHeldDocs) ? standing : null;
     if (!snapshot) writeJson(LAST_KEY, null);
   }
   publish(snapshot);

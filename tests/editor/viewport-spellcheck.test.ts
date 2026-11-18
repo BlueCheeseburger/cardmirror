@@ -140,3 +140,24 @@ describe('misspelledRangesIn — skipNames', () => {
     expect(flagged('done. “Teh end', true)).toEqual(['done', 'Teh', 'end']);
   });
 });
+
+describe('misspelledRangesIn — curly apostrophes (Smart quotes on)', () => {
+  const check = (text: string, ...known: string[]): string[] => {
+    const { node, base } = para(t(text));
+    return misspelledRangesIn(node, base, dict(...known)).map((r) => slice(node, base, r));
+  };
+
+  it("a contraction with a curly apostrophe is one word, looked up with a straight one", () => {
+    // The dictionary spells it "weren't"; "weren’t" used to split into "weren" + "t".
+    expect(check('they weren’t sure', 'they', "weren't", 'sure')).toEqual([]);
+    expect(check("they weren't sure", 'they', "weren't", 'sure')).toEqual([]);
+  });
+
+  it('still flags a genuinely misspelled contraction, over the whole word', () => {
+    expect(check('they wernt’t sure', 'they', 'sure')).toEqual(['wernt’t']);
+  });
+
+  it('trims a trailing curly possessive apostrophe from the flagged range', () => {
+    expect(check('the Teh’ end', 'the', 'end')).toEqual(['Teh']);
+  });
+});

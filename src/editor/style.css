@@ -7714,11 +7714,18 @@ html.pmd-nav-flat .pmd-nav-type-analytic:hover .pmd-nav-label {
   white-space: nowrap;
 }
 
+/* With several panes each pane has its own footer (reader count, the Σ button
+   and the time left to read) on top of the status bar: clear that too. */
+body.pmd-multi-doc .pmd-toast.pmd-toast-action {
+  bottom: calc(var(--status-bar-height) + var(--pmd-pane-footer-height) + 0.5rem);
+}
+
 /* Toast with a button: bottom centre, takes clicks. */
 .pmd-toast.pmd-toast-action {
   left: 50%;
   top: auto;
-  bottom: 1.5rem;
+  /* Above the status bar, so the toast never covers the reading times in it. */
+  bottom: calc(var(--status-bar-height) + 0.5rem);
   transform: translateX(-50%);
   display: flex;
   align-items: center;

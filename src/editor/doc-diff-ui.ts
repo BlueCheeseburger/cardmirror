@@ -21,6 +21,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { getHost } from './host/index.js';
 import type { FileFilter } from './host/types.js';
 import { alertDialog } from './text-prompt.js';
+import { showToast } from './toast.js';
 import { installModalKeys, captureFocusForDialog, armDialogFocus } from './text-prompt.js';
 import { pushOverlay, popOverlay } from './overlay-stack.js';
 import { parseNative } from '../native/index.js';
@@ -46,7 +47,14 @@ import { settings } from './settings.js';
 import { READING_LINE_FRACTION, readingLineOffset } from './reading-line.js';
 import { enterTakeover } from './window-takeover.js';
 
-const DOC_FILTERS: FileFilter[] = [{ name: 'CardMirror / Word documents', extensions: ['cmir', 'docx'] }];
+// The same shape the main Open dialog uses (an "either kind" group first, then
+// one group per kind): a lone filter group left the macOS picker unable to
+// select anything for one user.
+const DOC_FILTERS: FileFilter[] = [
+  { name: 'CardMirror or Word documents', extensions: ['cmir', 'docx'] },
+  { name: 'CardMirror native (.cmir)', extensions: ['cmir'] },
+  { name: 'Microsoft Word (.docx)', extensions: ['docx'] },
+];
 
 /** A `.docx` is a zip and starts `PK`; native `.cmir` never does —
  *  the same sniff `index.ts`'s own open path uses, kept local here so
@@ -170,18 +178,35 @@ class DocDiffModal {
     this.resolveDone();
   }
 
+  /** Choose the file for one row. The picker lets you select several at once:
+   *  two files fill both rows (in the order the picker returns them), one file
+   *  fills the row you clicked, and a third or later one is left out. */
   private async pick(side: 'a' | 'b'): Promise<void> {
-    let opened;
+    const host = getHost();
+    let opened: Array<{ name: string; bytes: Uint8Array }>;
     try {
-      opened = await getHost().openFile({ filters: DOC_FILTERS });
+      if (host.openFiles) {
+        opened = await host.openFiles({ filters: DOC_FILTERS });
+      } else {
+        const one = await host.openFile({ filters: DOC_FILTERS });
+        opened = one ? [one] : [];
+      }
     } catch (err) {
       void alertDialog(`Couldn't open the file: ${err instanceof Error ? err.message : err}`);
       return;
     }
-    if (!opened) return;
-    const picked: PickedFile = { name: opened.name, bytes: opened.bytes };
-    if (side === 'a') this.a = picked;
-    else this.b = picked;
+    if (opened.length === 0) return;
+    const toPicked = (f: { name: string; bytes: Uint8Array }): PickedFile => ({ name: f.name, bytes: f.bytes });
+    if (opened.length === 1) {
+      if (side === 'a') this.a = toPicked(opened[0]!);
+      else this.b = toPicked(opened[0]!);
+    } else {
+      this.a = toPicked(opened[0]!);
+      this.b = toPicked(opened[1]!);
+      if (opened.length > 2) {
+        showToast(`You picked ${opened.length} files; comparing the first two.`);
+      }
+    }
     this.renderPicker();
   }
 
@@ -227,7 +252,7 @@ class DocDiffModal {
     body.className = 'pmd-doc-diff-picker-body';
     const blurb = document.createElement('p');
     blurb.className = 'pmd-doc-diff-blurb';
-    blurb.textContent = 'Choose two .cmir or .docx files to see a line-by-line diff of their text, or merge them into one new file.';
+    blurb.textContent = 'Choose two .cmir or .docx files to see a line-by-line diff of their text, or merge them into one new file. You can select both in one go.';
     body.appendChild(blurb);
 
     const rows = document.createElement('div');

@@ -10,6 +10,96 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.17.2-bcb.6 — 2026-11-18
+
+### Added: a notice with a reveal button after Save As (`preset-saved-notice.ts`, `platform.ts`, `index.ts`)
+
+**Request.** "When a document gets saved, there should be a button in the toast saying it's saved, to reveal in File Explorer/Finder." After a mockup, the answers were: no setting, and only on Save As (not every ⌘S).
+
+**Change.** `showSavedNotice` shows the bottom toast "Saved to <folder>" (check icon, file name as detail) with a reveal button, six seconds; a plain toast where the host cannot reveal a file. `runSaveAsFlowInner` calls it once the write succeeded, for a full save and for a derived export alike, so it covers the first save of a new document (Save falls through to Save As). `revealInFileManagerLabel()` in `platform.ts` gives the label: Finder, File Explorer, or "Show in folder"; the Send / Read / Marked / Starred notice now uses it instead of the fixed "Show in folder".
+
+**Not changed.** Plain Save and autosave show nothing. The Save without asking where (Undo) notice is unchanged. No setting.
+
+**Tests.** Folder and file name, the reveal call, the per-platform label, the web fallback. **Not verified:** the macOS and Windows desktop builds (no Electron here); the toast itself was rendered in a browser for the mockup.
+
+### Added: Card menu "Export as New File…" (`export-ranges.ts`, `card-menu-sections.ts`, `index.ts`, `nav-panel.ts`)
+
+**Request.** "When I right click on a heading, I want the option to export just that. It should be under the card menu, so it would show up in multiple places."
+
+**Change.** `buildCardMenuSections` gets an optional host callback `exportRanges(ranges)` and, when present, an **Export** section (alphabetically between Excerpt and Highlighting) with one row. Both hosts that build the shared list pass it: the toolbar Card dropdown (the cursor's card or the selection's cards) and the outline's right-click **Card** submenu (the clicked heading's whole subtree, or every selected heading's). New `export-ranges.ts`: `sectionDocFromRanges` sorts and merges the ranges, slices each from the document, resolves live views (`self_ref`) against the WHOLE document before cutting (so a view of something outside the section is written out as real cards rather than dangling) and builds a standalone doc; `suggestedSectionName` takes the first line's text, strips file-name characters and caps at 80; `exportRangesAsDocument` runs `transformForExport` with everything kept (no comments), serializes to `.cmir` or `.docx` per `defaultSaveFormat`, asks where through `saveAs` and shows the existing saved notice (Show in folder).
+
+**Decisions.** Numbering mode `keep`: the new file's card numbers are live and start at 1, which is what a new standalone file wants (freezing would carry numbers from the middle of the old one). Comments and private notes are not carried (their threads are anchored to the old document). The export is not added to Recent and does not change the open document, like the Send / Read exports.
+
+**Not verified.** The desktop save dialog (no Electron here); checked in a browser through the web host's download path: a three-node section came out as `AT Politics.docx`, a zip. Not covered: a section whose cards carry comment threads (they are dropped).
+
+**Tests.** Section building (only the covered pieces, document order, overlaps merged, empty → null), file naming, and the row on the shared menu list (present with a host, absent without; the outline's Card submenu row list updated).
+
+### Fixed: spellcheck split words at a curly apostrophe (`viewport-spellcheck.ts`)
+
+**Report.** A screenshot of "weren’t" with a red squiggle under "weren", "autocorrect doesn't recognize apostrophe as one word". Reproduced first, against the real dictionary: `weren't` (straight) gave no flags, `weren’t` and `didn’t` (curly) flagged "weren" and "didn".
+
+**Cause.** `WORD_RE` allowed only a straight `'` inside a word, so a curly `’` ended it; "weren" was checked on its own ("t" is under the 3-letter minimum). Smart quotes types the curly one, so every contraction typed with that setting on was affected, while pasted or straight ones were not.
+
+**Change.** `WORD_RE` accepts `’` (U+2019) and `ʼ` (U+02BC) inside a word. The word is folded to straight apostrophes (1:1, so ranges are unchanged) before the dictionary lookup, the trailing-apostrophe trim, and the right-click menu's suggestions, **Add to dictionary** and **Ignore**.
+
+**Not changed.** The opening single quote `‘` still ends a word (it is a quote, not an apostrophe). A word-final `’` is still trimmed as a possessive/closing quote.
+
+**Tests.** A contraction with a curly apostrophe is one word and not flagged; a misspelled one is flagged over its whole length; a trailing curly apostrophe is trimmed from the range. **Not verified:** in the running desktop app (the unit tests use the real dictionary through the same function the editor calls, via a throwaway script).
+
+### Fixed: bottom toasts covered the status bar and pane footers (`style.css`)
+
+**Report.** A screenshot of the "Sent to speech doc" toast sitting over the reading times of the second and third panes: "move the toast up above the bottom ribbon".
+
+**Change.** `.pmd-toast-action` (the button toast, which the sent-to-speech and saved-file notices use) was `bottom: 1.5rem`, which lands inside the status bar and, with several panes, the per-pane footer. It is now `calc(var(--status-bar-height) + 0.5rem)`, plus `--pmd-pane-footer-height` under `body.pmd-multi-doc`, the same offsets the pill tray and the Card Cutter trim already use.
+
+**Checked.** In a browser, the toast's bottom edge lands 8px above the status bar in one-document mode and 22px higher again with the multi-document class. **Not verified:** a real multi-pane window with long panes in the desktop app.
+
+### Changed: Compare documents picker: multi-select, and the Open dialog's filter groups (`doc-diff-ui.ts`)
+
+**Report.** A macOS screenshot of the Compare documents file picker with the Open button greyed out and nothing selectable ("why won't it let me select the file? it should let me select multiple files").
+
+**Change.** `pick()` now uses `host.openFiles` when the host has it: two files fill both rows, one fills the clicked row, more than two use the first two and say so in a toast. `DOC_FILTERS` becomes the main Open dialog's shape (an either-kind group, then `.cmir`, then `.docx`) instead of a single group.
+
+**Not known.** The cause of the unselectable files. The only difference found from the main Open dialog, which works, is that this picker passed one filter group, so the filter change is a guess at the cause, not a confirmed fix. It could not be reproduced here (no macOS, no Electron). If it still happens, the next things to look at are the file type declarations in the macOS bundle and whether the picker was attached to the right window.
+
+**Tests.** A multi-select picker filling both rows, and one returning a single file filling only the clicked row.
+
+### Changed: saving to a taken name numbers the new file, never replaces (`doc-writes.ts`, desktop `main.ts` / `preload.ts`, `electron-host.ts`, `index.ts`)
+
+**Request.** "If I want CardMirror to save a file but that filename already exists, it overwrites it, which is the only way CardMirror gives me an option to save it. Can you just have it saved regardless, but with the numbering thing many OSs do with the (1)."
+
+**Change.** New `saveNewDocNumbered` in `doc-writes.ts`: tries the name, then `name (1).ext`, `name (2).ext` …, each attempt an exclusive create (`saveNewDoc` with `failIfExists`, whose check already runs inside that path's write chain), so concurrent saves of one name become different files; capped at 1000. `host:save-send-doc` uses it for every case (the old `'collision'` returns for the source document and for a doc open elsewhere are gone, and so is the silent overwrite of an earlier export), and `created` is therefore always true, so the Undo notice now covers a re-export too. `host:write-file-at-path` gets `numberIfExists`, which resolves `{name, handle}` of the file actually written; the new-speech-doc auto-save and `saveIntoDirectory` (Save As into a remembered location) use it, replacing the Save As-dialog fallback and the "Replace it?" confirm. Saving a document onto its own path in `saveIntoDirectory` stays a plain re-save (writing to itself is not a clash).
+
+**Not changed.** The OS Save As dialog keeps its own replace prompt. Bulk convert still skips an existing file and says so (it is a batch job; a pile of numbered duplicates on a re-run is worse). The renderer still handles a `'collision'` answer defensively (an older shell); main no longer sends one from these handlers.
+
+**Rejected.** Stripping a trailing "(n)" before numbering (a name like "Aff (2024)" would become "Aff (2025)").
+
+**Tests.** `numberedPath`, free name as-is, taken names count up, skipping a taken "(1)", three concurrent saves, folder creation. **Not verified:** in the running desktop app (no Electron here); the IPC handlers are thin wrappers over the tested function.
+
+### Changed: no Downloads fallback; `silentExportsToDownloads` becomes `exportSaveUndo` (`index.ts`, `settings.ts`, `preset-saved-notice.ts`, desktop `main.ts` / `preload.ts` / `doc-writes.ts`)
+
+**Request.** (After trying the setting: "make sure it still asks where if there is no set location for a specific type of save.") The previous release's setting saved into Downloads when a kind of save had no destination; the user wants the dialog there.
+
+**Change.** `runSilentExportFlow` no longer has a Downloads branch: an unresolvable destination (never-saved doc in same-folder mode, unset fixed folder, a non-Electron host, a collision with the source) goes to the Save As dialog, always. What the setting still does is the notice: with it on, a save that created a new file at its set location shows "<label> saved to <folder>" + file name with an Undo that moves it to the trash (`host:trash-export`, still limited to files this session's silent exports created). The key is renamed `exportSaveUndo` and the label to "Undo button after saving a Send, Read, Marked or Starred doc", since "save without asking where" no longer describes it; `load()` carries `silentExportsToDownloads: true` over to the new key when the new one was never stored. The dead pieces came out: the `useDownloads` flag on `host:save-send-doc` (preload, host types, main) and `saveNewDocUnique` with its tests.
+
+**Not changed.** The existing silent saves (to the same folder or the fixed folder) behave as before with the setting off, with the old Show in folder notice; an overwrite of an existing export keeps the old notice (an undo could not restore what it replaced).
+
+**Not verified.** In the running desktop app (no Electron here); the flow is pinned by a source-level test plus the notice tests.
+
+### Fixed: Last workspace forgot windows (`workspace-store.ts`)
+
+**Report.** "Under last workspaces, CardMirror is forgetting the windows I had open, including windows that have multiple panes and panes with multiple stacked." No file or steps to reproduce; three ways the store could lose windows were found in the code and fixed. Which one the user hit is not known.
+
+**1. Lost updates in the shared map (the likeliest).** Every window kept its entry in ONE localStorage key (`pmd-live-workspace`, a windowId → entry map) and updated it by read-modify-write. The windows are separate renderer processes sharing localStorage, whose reads can lag another process's write by a moment, so two windows reporting at about the same time (a reopened workspace boots all its windows together, each reporting as it mounts) each wrote back the whole map as it looked to them, and the later write erased the other's entry. A window missing from the map at the next launch is a window missing from the offer. Now each window writes only `pmd-live-workspace:<windowId>`; reads enumerate the prefix. The old single-map key is still read (a session that straddles the update keeps its windows) and is emptied with the rest at the roll-over; it is never written.
+
+**2. An empty session wiped the standing snapshot.** The roll-over cleared an unpinned snapshot whenever the ending session had no open documents, which also fits "launched, looked at the Home screen, quit" (an update restart before anything was reopened). A new key, `pmd-live-session-had-docs`, is set when any window of the session reports a document. A session that never held one leaves the standing snapshot alone; a session that held documents and closed them still clears it (the documented clean quit, pinned or not as before). The flag is cleared at the roll-over.
+
+**3. The 24-document cap.** `MAX_DOCS` dropped every window past the 24th document. A multi-window three-pane session with stacks passes that. Raised to 120 (still a bound against stale entries); the Home screen already lists windows with tick boxes.
+
+**Not changed / not done.** A partial restore still replaces the snapshot with just what was reopened (windows left unticked are not carried over to the next session); that is the existing documented "what was open at quit" rule, and changing it is a design decision. The visible document of each stack is not recorded, so a restored stack shows the last-loaded document on top. Neither was reproduced or asked about.
+
+**Tests.** The store tests now read per-window keys (`liveMap` helper); new ones cover another window's key surviving this window's reports, the old map still being read and emptied, the closed mark going on one key, a never-held session keeping the snapshot, the face-value clear after a session that did hold documents, and the new cap. **Not verified:** the race itself in a running app (it needs two real processes); the fix removes the shared write by construction.
+
 ## 1.17.2-bcb.5 — 2026-11-14
 
 ### Changed: the pane's document list: amber speech row, no file endings (`multi-pane-shell.ts`, `stack-row-names.ts`, `style.css`)

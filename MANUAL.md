@@ -363,7 +363,7 @@ mirrors Word's Navigation Pane, but does more:
   of a heading, use the commands in the Search palette or the ribbon; the
   right-click menu no longer has them.)
   **(Fork)** A **Card ▸** row opens (on hover) a side menu with what the
-  toolbar's Card menu has — Condense, Excerpt, Highlighting and Shrink —
+  toolbar's Card menu has — Condense, Excerpt, Export, Highlighting and Shrink —
   acting on the card under the right-clicked heading, or on every card under a
   Pocket, Hat or Block. It is the same list as the toolbar menu, built from one
   definition. **(Fork)** Every row in the toolbar's Doc and Card menus, and in
@@ -654,6 +654,18 @@ as one step with one undo. It's the fast way to cut the unread middle of a card
 down to a single small paragraph between its pause and resume markers. The
 shrink follows Shrink's settings, so with omission protection on (the default)
 the markers stay full size. Press **Mod-8** again to keep cycling smaller.
+
+### Export as New File (Card menu)
+
+**Card ▸ Export as New File…** *(Fork)* saves just part of the document as a new
+file. With the cursor in a card (or text selected across cards) it exports those
+cards; from the outline's right-click **Card ▸** menu it exports the heading you
+clicked with everything under it, so right-clicking a Block exports the whole
+block, and with several headings selected it exports all of them, in document
+order. It asks where to save, names the file after its first line, and uses the
+default format for new documents (Settings → Files). The open document is not
+changed. In the new file the card numbers start again from 1, live views are
+written out as real cards, and comments are not carried over.
 
 ### Shrink to size (Card menu)
 
@@ -2853,7 +2865,10 @@ lands on the Home screen, where the list is waiting, and nothing opens until
 you say so.
 
 Close every document (or its window) before you quit and there's nothing to
-offer, so the section disappears — a clean quit means a clean start. To keep a particular
+offer, so the section disappears — a clean quit means a clean start. A visit
+where you never opened a document at all (you launched, glanced at the Home
+screen and quit, or restarted to update) doesn't count: the list stays on offer.
+It keeps every window of a big session, up to 120 documents. To keep a particular
 working set regardless, run **Save Workspace** (command bar — try "save
 session"): a saved set survives quitting with nothing open, and stays on offer
 until you open other documents and quit with those. **Reopen Last Workspace**
@@ -2959,7 +2974,8 @@ yours, or a file before and after cutting.
 
 1. Click **Compare documents** (or press **3** on the Home screen), then
    **Choose…** a `.cmir` or `.docx` file for **First document** and
-   **Second document**.
+   **Second document**. The picker lets you select two files at once to fill
+   both rows.
 2. Click **Compare**. The comparison opens full-screen: the first file on
    the left, the second on the right, line by line, like a code diff.
    Lines only in the first file are red, lines only in the second are
@@ -3127,8 +3143,11 @@ and format settings beside the Send Doc ones.
 
 **(Fork)** When Save Send Doc, Save Read Doc, Save Marked Cards or Save Starred Doc
 finishes, a notice at the bottom says where the copy went — for example **Send doc
-saved: SEND_1AC.docx in Round 3** — with a **Show in folder** button that opens the folder
-with the file selected.
+saved: SEND_1AC.docx in Round 3** — with a button that opens the folder with the file
+selected (**Show in Finder** on macOS, **Show in File Explorer** on Windows, **Show in
+folder** elsewhere). **(Fork)** A **Save As** (including the first save of a new document)
+ends with a notice in the same style, **Saved to Round 3** with the file's name and the
+same button. A plain **Save** (and autosave) shows no notice.
 
 The filename prefixes for the preset saves — **Send Doc**, **Read Doc**,
 **Marked Doc** and **Starred Doc** (defaults `SEND_`, `READ_`, `MARKED_`,
@@ -3472,14 +3491,16 @@ file search scans, and how much version history to keep.
 - **Send Doc / Read Doc / Marked Doc / Starred Doc filename prefix** — the prefix
   each preset uses (defaults `SEND_` / `READ_` / `MARKED_` / `STARRED_`); change any,
   or leave one empty for no prefix.
-- **Save without asking where** *(desktop, fork)* — off by default. When
-  on, Save Send Doc / Read Doc / Marked Cards / Starred Doc never open the
-  Save As dialog for want of a destination: a document you haven't saved
-  yet, or a fixed-folder setting with no folder, saves into your Downloads
-  folder. A notice at the bottom says where it went, with an **Undo**
-  button that moves the new file to the trash (it replaces **Show in
-  folder** while this is on). A name already taken in Downloads gets a
-  number (`SEND_1AC (2).docx`) rather than being replaced.
+- **Undo button after saving a Send, Read, Marked or Starred doc**
+  *(desktop, fork)* — off by default. When on, the notice after Save Send Doc /
+  Read Doc / Marked Cards / Starred Doc saves to its location names the folder
+  it went to and has an **Undo** button that moves the new file to the trash (it
+  replaces **Show in folder**). It never changes where a save goes: a kind of
+  save with no location set (a document you haven't saved yet in same-folder
+  mode, or a fixed-folder choice with no folder) still opens the Save As dialog
+  to ask. These saves never replace a file: if the name is already taken, the
+  new file is saved as **name (1)**, **name (2)** and so on, so Undo is always
+  offered.
 - **Send Doc destination** *(desktop)* — whether Save Send Doc writes
   beside the source file or into a fixed folder
   (see [Saving a send doc](#saving-a-send-doc)).

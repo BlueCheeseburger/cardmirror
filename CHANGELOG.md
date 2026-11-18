@@ -8,6 +8,27 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.17.2-bcb.6 — 2026-11-18
+
+### Added
+
+- **Save As now says where the file went, with a button to open its folder.** After a **Save As** (and the first save of a new document) a notice at the bottom reads **Saved to Round 3** with the file's name, and a button that opens the folder with the file selected: **Show in Finder** on macOS, **Show in File Explorer** on Windows, **Show in folder** on Linux. The same wording is now used on the Send, Read, Marked and Starred Doc notices. A plain **Save** and autosave stay quiet.
+- **Card menu: Export as New File…** A new **Export** row in the Card menu saves just part of the document as a new file: the card your cursor is in, or, from the outline's right-click **Card** menu, the heading you clicked with everything under it (a whole block, hat or pocket, or several selected headings). It asks where to save, names the file after the first line, uses your default format for new documents, and leaves the open document untouched. Card numbers start again from 1 in the new file, and live views are written out as real cards so nothing in it points back at the original.
+
+### Fixed
+
+- **Spellcheck no longer flags contractions typed with a curly apostrophe.** With **Smart quotes** on, "weren't" and "didn't" are typed as "weren’t" and "didn’t", and the spellchecker cut them at the apostrophe and underlined the first half ("weren", "didn"). A curly apostrophe now counts as part of the word, and the word is looked up the way the dictionary spells it.
+- **Bottom notices no longer cover the reading times.** The notices with a button at the bottom of the window (**Sent to speech doc** with its **Undo**, and the saved-file notices) sat on top of the status bar and, with several panes open, on top of each pane's footer, hiding the time left to read. They now sit just above them.
+- **Compare documents: you can pick both files at once, and the file picker uses the same filter list as Open.** The picker in **Compare documents** now allows selecting several files: choosing two fills both rows, choosing one fills the row you clicked, and a third is left out with a note. Its file-type list now has the same groups as the main Open dialog (CardMirror or Word, CardMirror only, Word only), after a report that the picker would not let a `.docx` be selected on macOS.
+- **Last workspace no longer loses windows.** Windows that were open at the same moment, such as the ones a reopened workspace starts together, could erase each other from the saved list, so the next launch offered fewer windows than you had. Each window now saves its own record and nothing else can overwrite it. This covers three-pane windows and panes with several stacked documents too.
+- **Launching and quitting without opening anything no longer wipes the Last workspace list.** Starting CardMirror, looking at the Home screen and quitting (or restarting to update) used to count as "everything closed on purpose" and erased the list you had not reopened yet. It now stays until you open documents and quit with those, or press **Forget**. Closing documents yourself before quitting still clears it.
+- **A big session is no longer cut off at 24 documents.** The Last workspace list kept only the first 24 documents, so later windows (easy to pass with several three-pane windows full of stacked documents) were silently left out. It now keeps up to 120.
+
+### Changed
+
+- **Saving to a name that is already taken now saves a numbered copy instead of replacing the file.** Save Send, Read, Marked and Starred Doc, a new speech document saved to its folder, and Save As into a remembered location used to overwrite a file of the same name (or, when it would have replaced the document itself or one open in another window, only offered the Save As dialog). They now save the new file as **name (1)**, **name (2)** and so on, the way Windows and macOS number copies, and the existing file is left alone. The notice and the **Undo** button name the numbered file. Saving a document onto its own file is still a plain re-save, and the Save As dialog's own replace prompt is unchanged.
+- **A save with no set location still asks where; the setting is now just an Undo button.** The **Save without asking where** setting added in the last release also saved into your Downloads folder when a kind of save had no location set (a document you hadn't saved yet in same-folder mode, or a fixed-folder choice with no folder). That is gone: those saves open the Save As dialog and ask, as they always did. What is left is renamed **Undo button after saving a Send, Read, Marked or Starred doc** in **Settings → Files → Send / Read / Marked / Starred docs**: when on, the notice after a save to its set location names the folder and has an **Undo** that moves the new file to the trash. A value you had already turned on carries over.
+
 ## 1.17.2-bcb.5 — 2026-11-14
 
 ### Added

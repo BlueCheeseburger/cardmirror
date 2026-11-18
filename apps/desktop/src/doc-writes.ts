@@ -488,25 +488,35 @@ export function saveNewDoc(
   });
 }
 
-/** Write a document as a NEW file named `filename` in `dir`, never replacing
- *  one: when the name is taken the write retries as `name (2).ext`,
- *  `name (3).ext`… (each attempt is `saveNewDoc` with `failIfExists`, so two
- *  exports racing for the same name can't both win it). Creates the folder if
- *  needed and returns the path it wrote. */
-export async function saveNewDocUnique(dir: string, filename: string, buf: Buffer): Promise<string> {
-  const ext = path.extname(filename);
-  const stem = ext ? filename.slice(0, -ext.length) : filename;
-  for (let n = 1; n < 1000; n++) {
-    const target = path.join(dir, n === 1 ? filename : `${stem} (${n})${ext}`);
+/** `name.ext` → `name (1).ext`, `name (2).ext` … : the numbering Explorer and
+ *  Finder add when a name is taken. Pure, so the numbering is testable. */
+export function numberedPath(filePath: string, n: number): string {
+  const ext = path.extname(filePath);
+  return path.join(path.dirname(filePath), `${path.basename(filePath, ext)} (${n})${ext}`);
+}
+
+/** Write a new document to `filePath`, or, when that name is already taken,
+ *  to the first free `name (1).ext`, `name (2).ext` … beside it. Never
+ *  replaces anything. Each attempt is its own exclusive create (the existence
+ *  check runs inside that path's write chain), so two saves of the same name
+ *  at the same moment end up as two different files. Resolves with the path
+ *  actually written. */
+export async function saveNewDocNumbered(
+  filePath: string,
+  buf: Buffer,
+  opts?: { mkdir?: boolean },
+): Promise<{ path: string; state: DiskState }> {
+  for (let n = 0; n < 1000; n++) {
+    const candidate = n === 0 ? filePath : numberedPath(filePath, n);
     try {
-      await saveNewDoc(target, buf, { mkdir: true, failIfExists: true });
-      return target;
+      const state = await saveNewDoc(candidate, buf, { mkdir: opts?.mkdir, failIfExists: true });
+      return { path: candidate, state };
     } catch (err) {
       if (err instanceof DocExistsError) continue;
       throw err;
     }
   }
-  throw new Error(`Could not find a free file name for ${filename}.`);
+  throw new Error(`Couldn't find a free name for ${path.basename(filePath)}.`);
 }
 
 /** Sanitize a display name for use inside a filename. */

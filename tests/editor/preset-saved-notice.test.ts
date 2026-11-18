@@ -7,7 +7,7 @@ vi.mock('../../src/editor/toast.js', async () => {
   return { ...actual, showToast: vi.fn() };
 });
 
-import { presetSavedMessage, showPresetSavedNotice, showExportUndoNotice } from '../../src/editor/preset-saved-notice.js';
+import { presetSavedMessage, showPresetSavedNotice, showExportUndoNotice, showSavedNotice } from '../../src/editor/preset-saved-notice.js';
 import { showToast } from '../../src/editor/toast.js';
 
 afterEach(() => {
@@ -59,38 +59,67 @@ describe('showPresetSavedNotice', () => {
 describe('showExportUndoNotice', () => {
   const undoBtn = (): HTMLButtonElement => toastEl()!.querySelector('button')!;
 
-  it('says it went to Downloads, with the file name and an Undo button', () => {
-    showExportUndoNotice({ label: 'Send doc', fileName: 'SEND_1AC.docx', handle: '/Users/me/Downloads/SEND_1AC.docx', inDownloads: true, undo: async () => true });
-    expect(toastEl()?.textContent).toContain('Send doc saved to Downloads');
+  it('says which folder it went to, with the file name and an Undo button', () => {
+    showExportUndoNotice({ label: 'Send doc', fileName: 'SEND_1AC.docx', handle: '/Users/me/Round 3/SEND_1AC.docx', undo: async () => true });
+    expect(toastEl()?.textContent).toContain('Send doc saved to Round 3');
     expect(toastEl()?.textContent).toContain('SEND_1AC.docx');
     expect(undoBtn().textContent).toBe('Undo');
   });
 
-  it('names the file\'s own folder when the save was not into Downloads', () => {
-    showExportUndoNotice({ label: 'Marked doc', fileName: 'MARKED_2NC.docx', handle: '/a/Round 4/MARKED_2NC.docx', inDownloads: false, undo: async () => true });
+  it("names the file's own folder, not Downloads, wherever it was saved", () => {
+    showExportUndoNotice({ label: 'Marked doc', fileName: 'MARKED_2NC.docx', handle: '/a/Round 4/MARKED_2NC.docx', undo: async () => true });
     expect(toastEl()?.textContent).toContain('Marked doc saved to Round 4');
   });
 
   it('Undo runs the undo and confirms it', async () => {
     const undo = vi.fn(async () => true);
-    showExportUndoNotice({ label: 'Read doc', fileName: 'READ_1NC.docx', handle: '/d/READ_1NC.docx', inDownloads: true, undo });
+    showExportUndoNotice({ label: 'Read doc', fileName: 'READ_1NC.docx', handle: '/d/READ_1NC.docx', undo });
     undoBtn().click();
     await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith('Moved READ_1NC.docx to the trash.'));
     expect(undo).toHaveBeenCalledTimes(1);
   });
 
   it('says so when the undo could not move the file', async () => {
-    showExportUndoNotice({ label: 'Read doc', fileName: 'READ_1NC.docx', handle: '/d/READ_1NC.docx', inDownloads: true, undo: async () => false });
+    showExportUndoNotice({ label: 'Read doc', fileName: 'READ_1NC.docx', handle: '/d/READ_1NC.docx', undo: async () => false });
     undoBtn().click();
     await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith('Couldn’t undo: READ_1NC.docx is still saved.'));
   });
 
   it('a second press does not undo twice', async () => {
     const undo = vi.fn(async () => true);
-    showExportUndoNotice({ label: 'Send doc', fileName: 'a.docx', handle: '/d/a.docx', inDownloads: true, undo });
+    showExportUndoNotice({ label: 'Send doc', fileName: 'a.docx', handle: '/d/a.docx', undo });
     const b = undoBtn();
     b.click();
     b.click();
     await vi.waitFor(() => expect(undo).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('showSavedNotice (Save As)', () => {
+  it('names the folder and the file, with a button that reveals the file', () => {
+    const reveal = vi.fn();
+    showSavedNotice('1AC Shell.docx', '/Users/me/Round 3/1AC Shell.docx', reveal);
+    const t = toastEl()!;
+    expect(t.textContent).toContain('Saved to Round 3');
+    expect(t.textContent).toContain('1AC Shell.docx');
+    const button = t.querySelector('button')!;
+    button.click();
+    expect(reveal).toHaveBeenCalledWith('/Users/me/Round 3/1AC Shell.docx');
+  });
+  it('labels the button for this system', () => {
+    const platform = vi.spyOn(navigator, 'platform', 'get');
+    platform.mockReturnValue('MacIntel');
+    showSavedNotice('a.docx', '/x/y/a.docx', vi.fn());
+    expect(toastEl()!.querySelector('button')!.textContent).toBe('Show in Finder');
+    document.body.innerHTML = '';
+    platform.mockReturnValue('Win32');
+    showSavedNotice('a.docx', 'C:\\x\\y\\a.docx', vi.fn());
+    expect(toastEl()!.querySelector('button')!.textContent).toBe('Show in File Explorer');
+    platform.mockRestore();
+  });
+  it('is a plain toast when the host cannot reveal a file', () => {
+    showSavedNotice('a.docx', '/x/y/a.docx', undefined);
+    expect(toastEl()).toBeNull();
+    expect(showToast).toHaveBeenCalledWith('Saved a.docx');
   });
 });
