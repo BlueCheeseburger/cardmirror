@@ -11835,6 +11835,15 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   font-weight: 700;
   color: var(--pmd-c-text-secondary);
 }
+.pmd-qcs-empty-headline {
+  display: block;
+  color: var(--pmd-c-text);
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+.pmd-qcs-empty-legend {
+  color: var(--pmd-c-text-muted);
+}
 .pmd-qcs-empty-separator {
   color: var(--pmd-c-text-secondary);
   font-weight: 800;

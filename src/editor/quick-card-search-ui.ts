@@ -559,7 +559,7 @@ interface PaletteResult {
   collapsed?: boolean;
 }
 
-type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'g' | 'w' | null;
+type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'g' | 'w' | 'e' | null;
 
 function activeTagSet(): Set<string> {
   return new Set(settings.get('quickCardActiveTags').map(normalizeTag));
@@ -578,16 +578,54 @@ function parseBrowsePrefix(
   return /^\/c?$/i.test(raw) ? 'pending' : null;
 }
 
-/** Split a leading single-letter prefix (`q `/`d `/`c `/`s `/`f `/`g `/`w `) off the query. */
+/** Split a leading single-letter prefix (`e `/`q `/`d `/`c `/`s `/`f `/`g `/`w `) off the query. */
 function parsePrefix(raw: string): { prefix: Prefix; query: string } {
   const m = raw.match(/^([a-zA-Z])\s+(.*)$/);
   if (m) {
     const p = m[1]!.toLowerCase();
-    if (p === 'q' || p === 'd' || p === 'c' || p === 's' || p === 'f' || p === 'w')
+    if (p === 'q' || p === 'd' || p === 'c' || p === 's' || p === 'f' || p === 'w' || p === 'e')
       return { prefix: p, query: m[2]! };
     if (p === 'g' && !isLiteBuild()) return { prefix: p, query: m[2]! };
   }
   return { prefix: null, query: raw };
+}
+
+/** After the `e ` (evidence) prefix, one more letter narrows the search:
+ *  `q` my cards only, `g` Logos only, `a` authors. With no letter it searches
+ *  all evidence: my cards and Logos together. A lone letter with no space yet
+ *  is a letter still being typed (`pending`), not a search for that letter. */
+type EvidenceSub = 'q' | 'g' | 'a';
+function parseEvidenceSub(raw: string): { sub: EvidenceSub | null; query: string; pending: boolean } {
+  const m = raw.match(/^([qgaQGA])\s+(.*)$/);
+  if (m) {
+    const sub = m[1]!.toLowerCase() as EvidenceSub;
+    if (sub !== 'g' || !isLiteBuild()) return { sub, query: m[2]!, pending: false };
+  }
+  if (/^[qgaQGA]$/.test(raw) && !(raw.toLowerCase() === 'g' && isLiteBuild())) {
+    return { sub: null, query: '', pending: true };
+  }
+  return { sub: null, query: raw, pending: false };
+}
+
+/** What the bar says after `e `, before anything narrows or searches. The first
+ *  line is the headline; the rest is the legend of letters that can follow. */
+function evidenceLegend(): string {
+  return `Searching all evidence\nAdd a letter to narrow your search · q my cards${
+    isLiteBuild() ? '' : ' · g Logos (web)'
+  } · a authors`;
+}
+
+/** Text split on " · ", with each dot drawn bold (the prefix legends). */
+function appendLegend(el: HTMLElement, text: string): void {
+  text.split(' · ').forEach((part, i) => {
+    if (i > 0) {
+      const separator = document.createElement('strong');
+      separator.className = 'pmd-qcs-empty-separator';
+      separator.textContent = ' · ';
+      el.appendChild(separator);
+    }
+    el.appendChild(document.createTextNode(part));
+  });
 }
 
 function searchQuickCardSource(query: string): PaletteResult[] {
@@ -1454,6 +1492,8 @@ class QuickCardSearchUI {
     this.asyncToken++; // invalidate any in-flight query / read
     this.cancelLogos();
     this.logosCache = null;
+    this.logosError = null;
+    this.logosPending = null;
     this.fileQueryKey = null;
     this.fileQueryPending = null;
     this.fileRows = [];
@@ -1652,7 +1692,11 @@ class QuickCardSearchUI {
     }
     if (this.browseActive) this.resetBrowseState();
     const { prefix, query } = parsePrefix(this.input.value);
-    if (prefix !== 'g') this.cancelLogos();
+    if (prefix !== 'g' && prefix !== 'e') this.cancelLogos();
+    if (prefix === 'e') {
+      this.runEvidenceSearch(query);
+      return;
+    }
     if (prefix === 'f') {
       this.runFileSearch(query);
       return;
@@ -1705,7 +1749,7 @@ class QuickCardSearchUI {
       this.results = [];
       this.emptyText = `Type to search everything · / browse · c commands${
         dropzoneOn() ? ' · d dropzone' : ''
-      } · f files · q my cards${isLiteBuild() ? '' : ' · g Logos (web)'} · s settings${getElectronHost() ? ' · w windows' : ''}`;
+      } · e evidence · f files · s settings${getElectronHost() ? ' · w windows' : ''}`;
     } else {
       // No prefix — search everything. Files (by filename) join the
       // other sources; the ranked rows come from the file-index service
@@ -1738,11 +1782,45 @@ class QuickCardSearchUI {
     this.logosTimer = null;
     this.logosAbort?.abort();
     this.logosAbort = null;
+    this.logosPending = null;
   }
 
-  /** `g` prefix: debounced network search against Logos. Shows a
-   *  searching state until the latest query answers; older answers are
+  /** The Logos query that is waiting out its debounce or in flight, and the
+   *  last one that failed (so a re-render does not start it again). */
+  private logosPending: string | null = null;
+  private logosError: { query: string; message: string } | null = null;
+
+  /** Start (or restart) the debounced network query for `q`. The answer lands in
+   *  `logosCache` (or `logosError`) and re-runs the search; older answers are
    *  aborted so a slow early response can't overwrite a newer one. */
+  private startLogosFetch(q: string): void {
+    this.cancelLogos();
+    this.logosError = null;
+    this.logosPending = q;
+    this.logosTimer = setTimeout(() => {
+      this.logosTimer = null;
+      const ctl = new AbortController();
+      this.logosAbort = ctl;
+      searchLogos(q, ctl.signal)
+        .then((rows) => {
+          if (ctl.signal.aborted || !this.root) return;
+          this.logosAbort = null;
+          this.logosPending = null;
+          this.logosCache = { query: q, rows };
+          this.rerunPreservingView();
+        })
+        .catch((err: unknown) => {
+          if (ctl.signal.aborted || !this.root) return;
+          this.logosAbort = null;
+          this.logosPending = null;
+          this.logosError = { query: q, message: err instanceof Error ? err.message : String(err) };
+          this.rerunPreservingView();
+        });
+    }, LOGOS_DEBOUNCE_MS);
+  }
+
+  /** `g` prefix (and `e g`): debounced network search against Logos. Shows a
+   *  searching state until the latest query answers. */
   private runLogosSearch(query: string): void {
     const q = query.trim();
     if (!q) {
@@ -1759,29 +1837,76 @@ class QuickCardSearchUI {
       this.finishSearch();
       return;
     }
-    this.cancelLogos();
+    if (this.logosError?.query === q) {
+      this.results = [];
+      this.emptyText = `Couldn't reach Logos: ${this.logosError.message}`;
+      this.finishSearch();
+      return;
+    }
+    if (this.logosPending !== q) this.startLogosFetch(q);
     this.results = [];
     this.emptyText = 'Searching Logos…';
     this.finishSearch();
-    this.logosTimer = setTimeout(() => {
-      this.logosTimer = null;
-      const ctl = new AbortController();
-      this.logosAbort = ctl;
-      searchLogos(q, ctl.signal)
-        .then((rows) => {
-          if (ctl.signal.aborted || !this.root) return;
-          this.logosAbort = null;
-          this.logosCache = { query: q, rows };
-          this.runSearch();
-        })
-        .catch((err: unknown) => {
-          if (ctl.signal.aborted || !this.root) return;
-          this.logosAbort = null;
-          this.results = [];
-          this.emptyText = `Couldn't reach Logos: ${err instanceof Error ? err.message : String(err)}`;
-          this.finishSearch();
-        });
-    }, LOGOS_DEBOUNCE_MS);
+  }
+
+  /** `e` prefix: all the evidence at once. A letter after it narrows the search
+   *  (`q` my cards, `g` Logos, `a` authors); with no letter it shows your own
+   *  cards first and the Logos cards after them. */
+  private runEvidenceSearch(raw: string): void {
+    const { sub, query, pending } = parseEvidenceSub(raw);
+    if (pending || (sub === null && query.trim() === '')) {
+      this.cancelLogos();
+      this.results = [];
+      this.emptyText = evidenceLegend();
+      this.finishSearch();
+      return;
+    }
+    if (sub === 'g') {
+      this.runLogosSearch(query);
+      return;
+    }
+    this.cancelLogos();
+    if (sub === 'q') {
+      this.runMyCardsSearch(query);
+      return;
+    }
+    if (sub === 'a') {
+      this.runAuthorSearch(query);
+      return;
+    }
+    this.runAllEvidenceSearch(query.trim());
+  }
+
+  /** `e a <name>`: the author's cards, then the responses to the author. */
+  private runAuthorSearch(query: string): void {
+    this.results = [];
+    this.emptyText = query.trim() ? 'Author search is not ready yet.' : 'Type an author’s last name.';
+    this.finishSearch();
+  }
+
+  /** `e <words>`: my cards (quick cards and the cards in my files), then Logos. */
+  private runAllEvidenceSearch(q: string): void {
+    const mine = this.myCardsRows(q);
+    let logosRows: PaletteResult[] = [];
+    let logosNote = '';
+    let logosLoading = false;
+    if (!isLiteBuild()) {
+      if (this.logosCache?.query === q) {
+        logosRows = this.logosCache.rows.map(logosResult);
+      } else if (this.logosError?.query === q) {
+        logosNote = ` Couldn’t reach Logos: ${this.logosError.message}`;
+      } else {
+        logosLoading = true;
+        if (this.logosPending !== q) this.startLogosFetch(q);
+      }
+    }
+    this.results = [...mine.rows, ...logosRows];
+    this.emptyText = logosLoading
+      ? 'Searching your cards and Logos…'
+      : isLiteBuild()
+        ? mine.emptyText
+        : `${mine.emptyText}${logosNote}`;
+    this.finishSearch();
   }
 
   /** Enter on a Logos row: fetch the full card, then insert it. The insert
@@ -2318,6 +2443,16 @@ class QuickCardSearchUI {
    *  finishes cover the files indexed so far and fill in as it goes (the
    *  empty-state line says how far along it is). */
   private runMyCardsSearch(query: string): void {
+    const { rows, emptyText } = this.myCardsRows(query);
+    this.results = rows;
+    this.emptyText = emptyText;
+    this.finishSearch();
+  }
+
+  /** The rows and the empty-state text for "my cards" (quick cards, then the
+   *  cards in my files). Starts the file-card fetch when one is needed; its
+   *  arrival re-runs the search. */
+  private myCardsRows(query: string): { rows: PaletteResult[]; emptyText: string } {
     const quick = searchQuickCardSource(query);
     const haveQuick = quickCardsStore.list().length > 0;
     const electron = getElectronHost();
@@ -2326,20 +2461,20 @@ class QuickCardSearchUI {
     // Without a query there is nothing to match a tagline against: show the
     // quick cards (browse) and a nudge toward the file cards.
     if (query.trim() === '' || !filesOn) {
-      this.results = quick;
-      this.emptyText = !electron
-        ? haveQuick
-          ? 'No matching cards.'
-          : 'No quick cards yet.'
-        : !roots.length
+      return {
+        rows: quick,
+        emptyText: !electron
           ? haveQuick
             ? 'No matching cards.'
-            : 'No quick cards yet. Add a file-search folder in Settings → General to search the cards in your files.'
-          : haveQuick
-            ? 'No matching cards.'
-            : 'Type words from a card’s tagline to search your quick cards and the cards in your files.';
-      this.finishSearch();
-      return;
+            : 'No quick cards yet.'
+          : !roots.length
+            ? haveQuick
+              ? 'No matching cards.'
+              : 'No quick cards yet. Add a file-search folder in Settings → General to search the cards in your files.'
+            : haveQuick
+              ? 'No matching cards.'
+              : 'Type words from a card’s tagline to search your quick cards and the cards in your files.',
+      };
     }
     const state = this.ensureTaglineQuery(query);
     const status = this.taglineStatus;
@@ -2348,16 +2483,17 @@ class QuickCardSearchUI {
         ? `Indexing cards in your files… ${status.indexed.toLocaleString()} of ${status.files.toLocaleString()} files`
         : '';
     const fileRows = this.taglineKey === null ? [] : this.taglineRows.map(taglineResult);
-    this.results = [...quick, ...fileRows];
-    this.emptyText =
-      state === 'loading' && this.taglineKey === null
-        ? 'Searching your cards…'
-        : progress
-          ? `No matching cards yet. ${progress}`
-          : status?.capped
-            ? 'No matching cards (the oldest files are not indexed).'
-            : 'No matching cards.';
-    this.finishSearch();
+    return {
+      rows: [...quick, ...fileRows],
+      emptyText:
+        state === 'loading' && this.taglineKey === null
+          ? 'Searching your cards…'
+          : progress
+            ? `No matching cards yet. ${progress}`
+            : status?.capped
+              ? 'No matching cards (the oldest files are not indexed).'
+              : 'No matching cards.',
+    };
   }
 
   /** Ensure `taglineRows` (eventually) reflect this query — the same
@@ -2952,17 +3088,19 @@ class QuickCardSearchUI {
     if (this.results.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'pmd-qcs-empty';
-      if (this.emptyText.startsWith('Type to search everything · ')) {
-        const parts = this.emptyText.split(' · ');
-        parts.forEach((part, i) => {
-          if (i > 0) {
-            const separator = document.createElement('strong');
-            separator.className = 'pmd-qcs-empty-separator';
-            separator.textContent = ' · ';
-            empty.appendChild(separator);
-          }
-          empty.appendChild(document.createTextNode(part));
-        });
+      if (this.emptyText.startsWith('Searching all evidence\n')) {
+        // After `e `: the headline, then the letters that can follow it.
+        const [headline = '', legend = ''] = this.emptyText.split('\n');
+        const strong = document.createElement('strong');
+        strong.className = 'pmd-qcs-empty-headline';
+        strong.textContent = headline;
+        empty.appendChild(strong);
+        const second = document.createElement('div');
+        second.className = 'pmd-qcs-empty-legend';
+        appendLegend(second, legend);
+        empty.appendChild(second);
+      } else if (this.emptyText.startsWith('Type to search everything · ')) {
+        appendLegend(empty, this.emptyText);
       } else {
         empty.textContent = this.emptyText;
       }
