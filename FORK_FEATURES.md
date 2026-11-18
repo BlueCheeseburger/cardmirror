@@ -20,7 +20,7 @@ is in [DETAILED_CHANGELOG.md](./DETAILED_CHANGELOG.md). The complete manual is
 4. [Flow and lay read times](#4-flow-and-lay-read-times)
 5. [Compare and merge documents](#5-compare-and-merge-documents)
 6. [Autosave for Word files](#6-autosave-for-word-files)
-7. [Logos card search](#7-logos-card-search)
+7. [One search for all your cards: evidence, Logos and authors](#7-one-search-for-all-your-cards-evidence-logos-and-authors)
 8. [Search your own cards](#8-search-your-own-cards)
 9. [A redesigned Save As](#9-a-redesigned-save-as)
 10. [Mark Card and Marked Doc](#10-mark-card-and-marked-doc)
@@ -145,28 +145,46 @@ tells you whether it is **saving** or **paused** (for example, when a live view
 means Word can't hold the file open). Click the button to turn it on or off for the
 document.
 
-## 7. Logos card search
+## 7. One search for all your cards: evidence, Logos and authors
 
 Search Logos, a search engine over the round documents college and high school
-teams open-source on opencaselist, and drop a full card into your document.
+teams open-source on opencaselist, your own cards, and the authors behind them,
+all from one prefix.
 
 1. Open **Search Everything** (the magnifying-glass button at the bottom left, or
    its shortcut).
-2. Type **g**, a space, then your search.
-3. Press **Enter** to insert the card at your cursor with its cite, underlining and
-   highlighting intact. Right-click a result to read the card first.
+2. Type **e**, a space, then your search. It searches **your cards and Logos
+   together**, your cards first. Typed alone, **e** and a space says **Searching
+   all evidence** and lists the three letters that narrow it.
+3. Add a letter and a space to narrow it: **e q** my cards only, **e g** Logos
+   only, **e a** an author (below).
+4. Press **Enter** to insert the card at your cursor with its cite, underlining and
+   highlighting intact. Right-click a result to read the card first. The bar stays
+   open for the next card.
+
+**Author search (`e a stein`).** Lists the cards by that author, then **responses
+to them**: headings in your files that name the author, like `AT: Stein` or `Stein
+is a hack`, each labelled **RESPONSE TO STEIN** with the word that matched
+(**hack**, **funded**, **AT**). A block inserts whole, so `AT: Stein` brings all the
+answers under it. Add a year for a common name (`e a smith 19`). It goes by the
+wording of the headings, so a response that never names the author in a heading
+isn't found.
+
+The plain `q ` and `g ` prefixes still work on their own.
 
 **Settings:** **Settings → Editing → Cards from Logos** can condense, shrink and
-recolor every card as it lands.
+recolor every Logos card as it lands. **Settings → Files → File search → Author
+search: attack words** changes the words that mark a response.
 
 ## 8. Search your own cards
 
-Type **q**, a space, then your search in Search Everything. It searches your Quick
-Cards (badge **QUICK**) and the cards inside your indexed files (badge **CARD**) at
-once. Right-click any result to read the full card first; a card from a file shows
-the file's name and path. Cards in your files are indexed when the app opens, so
-results are ready right away. Search Everything works on every screen, including
-ones with no open document; picking a card there opens it as a new document.
+Type **e q**, or just **q**, a space, then your search in Search Everything. It
+searches your Quick Cards (badge **QUICK**) and the cards inside your indexed files
+(badge **CARD**) at once. Right-click any result to read the full card first; a card
+from a file shows the file's name and path. Cards in your files are indexed when the
+app opens, so results are ready right away. Search Everything works on every screen,
+including ones with no open document; picking a card there opens it as a new
+document.
 
 ## 9. A redesigned Save As
 

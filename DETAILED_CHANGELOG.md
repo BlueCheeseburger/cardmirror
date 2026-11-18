@@ -12,6 +12,20 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: the `e` (evidence) prefix and author search (`quick-card-search-ui.ts`, `author-search.ts`, `tagline-search.ts`, `tagline-index-core.ts`, protocol / client / service)
+
+**Request.** After a mockup: one prefix for all cards (default my cards + Logos), then `q` / `g` / an author prefix to narrow it, and the bar's hints after the prefix showing only those three letters and saying it searches everything; author responses clearly labelled; "extend q" for the author search. ("This looks exactly the same as before": the mockup had not been built yet.)
+
+**Choices I made.** `e` (evidence) is the card prefix, `a` the author letter; `q ` and `g ` keep working alone as aliases but are no longer in the opening legend. The no-prefix search still leaves Logos out (a network round trip per keystroke). A lone letter after `e ` with no space yet (`e q`) is a letter still being typed, not a search for "q".
+
+**Prefix.** `parseEvidenceSub` splits the letter off after `e `; `runEvidenceSearch` dispatches: nothing typed → the two-line legend ("Searching all evidence" / "Add a letter to narrow your search · …"); `q` → `runMyCardsSearch`; `g` → `runLogosSearch`; `a` → `runAuthorSearch`; words → `runAllEvidenceSearch` (my cards at once, Logos when its debounced query lands, appended). `runMyCardsSearch` was split into `myCardsRows` so both modes share it; the Logos fetch moved into `startLogosFetch` with `logosPending` / `logosError` so a re-render never restarts it. A bug found on the way: `close()` did not clear a failed-Logos state, so a failed query stuck to the next palette session; fixed.
+
+**Author search.** `authorsFromCite` reads the surnames before the year ("Stein 21", "Stein and Lee 23", "Stein et al. 23", "O'Brien '19", "de la Cruz 21"; accents folded; an organisation is one author). The tagline index record now also holds each card's authors and every heading (level, text up to 240 characters, the card it heads); the stored file is version 2 (an older one is ignored and rebuilt once, 8,000 headings per file at most). `searchAuthors` (pure, shared by the service and tests) returns three lists: cards by the author (de-duplicated across files like `q`, newest first, narrowed by year), responses (a heading that names the author as a whole word, possessive allowed, and holds an attack word; most words first) and mentions (names the author, no attack word). The author's own cards are excluded from the second and third. The attack words come from a new setting (`authorAttackWords`, comma-separated; a short all-caps entry like AT / A2 matches only as written). The service answers a new `authorQuery` op over the same port. Rows: group titles, a `RESPONSE TO <NAME>` / `NAMES <NAME>` badge, chips for the matched words, and a line saying what Enter inserts (whole block for pocket / hat / block, the card for a tag); `findHeadingEntry` + `computeHeadingRange` cut the slice the same way a `q` card is cut.
+
+**Not done.** Card text is not searched (a response that lives only in a card's body, or never names the author in a heading, is not found). Not verified: the real desktop app and a big masterfile folder (index size and the one-time rebuild time); the 8,000-heading and 600,000-tag caps were chosen, not measured. AI re-ranking of the responses was left out.
+
+**Tests.** `author-search` (name parsing from cites, whole-word and possessive matching, attack words, year narrowing, de-duplication, the author's own cards), the index core (author query, stored version 2, an older file rebuilt), the palette (`e` legend, `e` mixed results, `e q` / `e g`, `e a` groups, chips, what Enter inserts), and the changed legend and record shape in the older tests.
+
 ### Changed: the pane stack list keeps the name white; only the mic is amber (`multi-pane-shell.ts`, `style.css`)
 
 **Request.** "In the pane chooser, the text should be white; it should only be the speech doc icon that is amber." (A screenshot of the stack list, with the speech row's name amber.) This reverses the bcb.5 request that made the name amber there.

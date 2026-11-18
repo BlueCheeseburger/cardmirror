@@ -1355,6 +1355,10 @@ export interface Settings {
    *  Absolute paths. Electron only. See `searchFiles`. */
   fileSearchHighestFolders: string[];
   fileSearchPreferredFolders: string[];
+  /** Words that make a heading naming an author read as a response to them in
+   *  the author search (`e a <name>`), comma-separated. A short all-caps entry
+   *  (AT, A2) matches as written. */
+  authorAttackWords: string;
   /** Which file formats appear in the command-palette file search:
    *  'both' (default), 'cmir' only, or 'docx' only. */
   fileSearchFormats: 'both' | 'cmir' | 'docx';
@@ -2195,6 +2199,8 @@ const DEFAULTS: Settings = {
   fileSearchExclusions: [],
   fileSearchHighestFolders: [],
   fileSearchPreferredFolders: [],
+  authorAttackWords:
+    'AT, A2, answer to, hack, biased, bought, funded, unqualified, no qualifications, reject, ignore, discredit, debunked, retracted, indict',
   fileSearchFormats: 'both',
   fileSearchObjectTypes: ['block', 'tag'],
   fileSearchOutlineDepth: 3,
@@ -3225,6 +3231,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     section: 'File search',
     electronOnly: true,
     aliases: ['folder priority', 'prefer folder', 'boost folder', 'search ranking'],
+  },
+  {
+    key: 'authorAttackWords',
+    label: 'Author search: attack words',
+    description:
+      'In the author search (e a, then a last name), a heading that names the author and also holds one of these words is listed first, as a response to that author, with the word shown. Separate them with commas; a phrase like "no qualifications" is fine. A short all-caps entry such as AT or A2 matches only as written, so "look at" is not an AT.',
+    kind: 'text',
+    category: 'files',
+    section: 'File search',
+    electronOnly: true,
+    aliases: ['author search', 'responses to author', 'reject author', 'at author', 'indict'],
   },
   {
     key: 'fileSearchFormats',
@@ -5533,6 +5550,10 @@ function sanitize(s: Settings): Settings {
     fileSearchPreferredFolders: sanitizeStringList(
       (s as { fileSearchPreferredFolders?: unknown }).fileSearchPreferredFolders,
     ),
+    authorAttackWords:
+      typeof (s as { authorAttackWords?: unknown }).authorAttackWords === 'string'
+        ? (s as { authorAttackWords: string }).authorAttackWords
+        : DEFAULTS.authorAttackWords,
     fileSearchFormats:
       s.fileSearchFormats === 'cmir'
         ? 'cmir'

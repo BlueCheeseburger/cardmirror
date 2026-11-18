@@ -10,6 +10,11 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **One prefix for cards in Search Everything: `e`, with `q`, `g` and `a` to narrow it.** Type **e** and a space and the bar says **Searching all evidence**, with **Add a letter to narrow your search · q my cards · g Logos · a authors** under it and nothing else. With words after it (`e heg bad`) it searches your own cards and Logos together, your cards first. **e q** searches only your cards, **e g** only Logos. The bar's opening list now shows **e evidence** instead of **q** and **g**, but typing `q ` or `g ` on its own still works as before.
+- **Author search: `e a stein`.** It lists the cards by that author, then the responses to them: headings in your files that name the author, such as **AT: Stein**, **Stein is a hack** or **Reject Stein**. Each is labelled **RESPONSE TO STEIN** with the word that matched shown beside it (**hack**, **funded**, **AT**), the strongest first, and headings that only name the author come last under their own title. A block, hat or pocket inserts whole, so `AT: Stein` brings all the answers under it; a tag inserts just that card. Add a year to narrow a common name (`e a smith 19`). It finds responses by the wording of the headings, not by understanding them, so a response that never names the author in a heading is not found. Edit the attack words in **Settings → Files → File search → Author search: attack words**. The first launch after this update re-reads your search folders once to add the authors and headings to the card index.
+
 ### Changed
 
 - **In a pane's document list, only the speech mic is amber now.** The speech document's name in the small **v 4** list on a pane's title bar is back to the normal text colour, so it reads like the other rows, and its microphone stays amber. The other lists that name the speech document (the drag tray, **Select Speech Document** and **Switch Window**) are unchanged.

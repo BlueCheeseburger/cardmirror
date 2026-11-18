@@ -11835,6 +11835,25 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   font-weight: 700;
   color: var(--pmd-c-text-secondary);
 }
+.pmd-qcs-section {
+  padding: 0.4rem 0.5rem 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-qcs-badge-response {
+  color: var(--pmd-c-warning);
+  border-color: var(--pmd-c-warning);
+}
+.pmd-qcs-chip-attack {
+  margin-left: 0.2rem;
+  color: var(--pmd-c-danger);
+  border-color: color-mix(in srgb, var(--pmd-c-danger) 45%, transparent);
+  background: color-mix(in srgb, var(--pmd-c-danger) 10%, transparent);
+  text-transform: none;
+  letter-spacing: 0;
+}
 .pmd-qcs-empty-headline {
   display: block;
   color: var(--pmd-c-text);

@@ -1207,13 +1207,12 @@ you *browse* that whole source.
 | Prefix | Searches | Enter |
 |--------|----------|-------|
 | *(none)* | Everything — cards, commands, settings, files by name, and the dropzone (if on) | Acts on the selected row |
-| **`q`** | **My cards** — your **Quick Cards** (honoring your active tag filter; badge **QUICK**) and, on desktop, the **cards inside your indexed files** (badge **CARD**) **(fork)** | Inserts the card at your cursor; the bar stays open for the next one |
+| **`e`** | **Evidence** — all the cards at once: **my cards** first, then **Logos**; one more letter after it narrows it (`e q`, `e g`, `e a`) **(fork)** | Inserts the card at your cursor; the bar stays open for the next one |
 | **`d`** | The **dropzone** (only when it's turned on) | Inserts the item at your cursor; the bar stays open for the next one |
 | **`c`** | Ribbon **commands** — each row shows its current shortcut | Runs the command |
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
-| **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor; the bar stays open for the next one |
 | **`w`** | Your other open **CardMirror windows**, most recently used first *(desktop only)* | Brings that window to the front |
 
 Searching **version** (or "about this install") shows the running app
@@ -1229,10 +1228,42 @@ at your cursor (the same insertion the send-to-speech and Quick Card
 buttons use). If your cursor is in the middle of a paragraph, the insertion
 will drop at the nearest valid target. 
 
-**My cards (`q`, fork).** `q` searches the cards you already own: your Quick
+**Evidence (`e`, fork).** `e` and a space is the one prefix for cards. Typed
+alone, the bar says **Searching all evidence** and lists the letters that can
+follow it, **Add a letter to narrow your search · q my cards · g Logos · a
+authors**, and nothing else (the other prefixes are not offered there). With
+words after it (`e heg bad`) it searches **my cards and Logos together**: your
+own cards first, the Logos cards after them when they arrive. A letter and a
+space after `e` narrows it to one source: **`e q`** my cards only, **`e g`**
+Logos only, **`e a`** the author search below. The old **`q `** and **`g `**
+prefixes still work on their own, so nothing you have typed from habit breaks;
+they are just no longer listed in the bar. The no-prefix search still leaves
+Logos out, since every Logos search is a slow request over the network.
+
+**Author search (`e a`, fork, desktop).** `e a stein` lists, in groups with
+their own titles, **Cards by Stein** (cards whose cite names that author: "Stein
+21", "Stein and Lee 23", "Stein et al. 23") and then **Responses to Stein**:
+headings in your files that name the author *and* hold an attack word, such as
+**AT: Stein**, **Stein is a hack** or **Reject Stein**, each labelled **RESPONSE
+TO STEIN** with the word that matched shown beside it (**hack**, **funded**, **AT**), the
+ones with the most such words first. Headings that name the author with no
+attack word follow in a third group, **Headings that name Stein**. Add a year to
+narrow a common name (`e a smith 19`). Enter on a response that is a **Block**,
+**Hat** or **Pocket** inserts the whole thing, so `AT: Stein` brings all the
+answers under it; Enter on a tag inserts just that card. The author's own cards
+are never listed as responses to them, and a short name matches whole words only
+("Lee" is not "Leech"). **It is wording, not understanding:** it finds the headings
+that say the author's name, so a response that never names them in a heading is
+not found, and card text is not searched. It reads the same index as `e q`, built
+in the background from the folders under Settings → Files → File search (the first
+launch after this update re-reads them once, since the index now also keeps each
+card's authors and every heading). Change the attack words in **Settings → Files →
+File search → Author search: attack words**.
+
+**My cards (`e q`, fork; also `q`).** `e q` searches the cards you already own: your Quick
 Cards first (badge **QUICK**), then, on desktop, the **taglines of the cards
 inside the files in your file-search folders** (badge **CARD**). It is "my
-cards" to set it apart from `g`, Logos, whose cards come from the web. Every
+cards" to set it apart from Logos, whose cards come from the web. Every
 word you type has to appear in the tagline, in any order, and a card's cite
 counts as a weaker match. A file card's row is its tagline with the cite
 underneath and the file it came from on the right; a card that appears in
@@ -1263,7 +1294,7 @@ it into a document you can't see: a new window on desktop, a slot of the current
 window in three-pane mode, or the current tab in a plain browser. The card
 preview's button says "Open in new document" in that case.
 
-**Searching Logos (`g`, fork).** `g` and a space searches
+**Searching Logos (`e g`, fork; also `g`).** `e g` (or just `g`) and a space searches
 [Logos](https://logos-debate.netlify.app), a card search engine run by
 someone else. It covers cards from the round docs teams open-source on
 opencaselist, for college and high school policy only. It doesn't include
@@ -1278,7 +1309,7 @@ clipboard** and **Close**, and closing it (or pressing Esc) returns you to
 your results. To condense or shrink it
 automatically, or to pick its highlight color, see **Cards from Logos** in
 Settings → Editing. You need an internet connection, and the source isn't
-available in CardMirror Lite. It isn't part of the no-prefix search.
+available in CardMirror Lite. It isn't part of the no-prefix search, but `e` searches it along with your own cards.
 
 **Diving into a file (`f`, desktop only).** Press **Tab** on a selected file
 — or right-click any file — to dive *into* it without leaving the palette.
@@ -4133,7 +4164,7 @@ these to extend the selection.
 |----------|--------|
 | Mod-F / Mod-H | Find / Find and Replace |
 | Alt-F | Find without grouping |
-| Mod-Shift-Space | Search Everything palette (files `f`, folders `/`, my cards `q`) |
+| Mod-Shift-Space | Search Everything palette (files `f`, folders `/`, cards `e`) |
 
 ### Speech, comments, and AI
 | Shortcut | Action |
