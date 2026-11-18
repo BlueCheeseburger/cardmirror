@@ -19,6 +19,7 @@ import type {
   FileIndexQueryParams,
 } from '../../src/editor/file-search-client.js';
 import { searchTaglines, type TaglineRecord } from '../../src/editor/tagline-search.js';
+import { searchAuthors } from '../../src/editor/author-search.js';
 import { deriveBrowse, deriveBrowseAcrossRoots, locateInRoots, normalizeRelativeDirectory } from '../../src/editor/file-browse.js';
 
 export interface FakeFileListing {
@@ -59,6 +60,17 @@ export function makeFakeFileIndexClient(listing: {
         record: listing.taglines?.[e.path] ?? { tags: [], cites: [] },
       }));
       const r = searchTaglines(files, params.query, params.limit);
+      return { ...r, status: { indexed: files.length, files: files.length, running: false, capped: false } };
+    },
+    authorQuery: async (params) => {
+      const files = entries(params).map((e) => ({
+        path: e.path,
+        relPath: e.relPath,
+        name: e.name,
+        mtimeMs: e.mtimeMs,
+        record: listing.taglines?.[e.path] ?? { tags: [], cites: [] },
+      }));
+      const r = searchAuthors(files, params.query, { attackWords: params.attackWords, limit: params.limit });
       return { ...r, status: { indexed: files.length, files: files.length, running: false, capped: false } };
     },
     onTaglinesChanged: () => () => {},

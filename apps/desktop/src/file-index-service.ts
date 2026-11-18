@@ -70,7 +70,7 @@ const taglines = createTaglineIndex({
 
 interface Request {
   id: number;
-  op: 'configure' | 'refresh' | 'query' | 'browse' | 'locateCurrentFile' | 'entriesForPaths' | 'taglineQuery';
+  op: 'configure' | 'refresh' | 'query' | 'browse' | 'locateCurrentFile' | 'entriesForPaths' | 'taglineQuery' | 'authorQuery';
   args: unknown;
 }
 
@@ -94,6 +94,8 @@ async function handle(req: Request): Promise<unknown> {
       return core.refresh((req.args as { roots: string[] }).roots);
     case 'taglineQuery':
       return taglines.query(req.args as Parameters<typeof taglines.query>[0]);
+    case 'authorQuery':
+      return taglines.authorQuery(req.args as Parameters<typeof taglines.authorQuery>[0]);
     case 'query':
       return core.query(req.args as Parameters<typeof core.query>[0]);
     case 'browse':

@@ -68,7 +68,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
-const flush = (): Promise<void> => vi.advanceTimersByTimeAsync(600);
+const flush = async (): Promise<void> => {
+  await vi.advanceTimersByTimeAsync(600);
+};
 
 describe('the top-level legend', () => {
   it('lists e evidence, and no longer lists q or g separately', () => {
