@@ -10,6 +10,16 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: the pane stack list keeps the name white; only the mic is amber (`multi-pane-shell.ts`, `style.css`)
+
+**Request.** "In the pane chooser, the text should be white; it should only be the speech doc icon that is amber." (A screenshot of the stack list, with the speech row's name amber.) This reverses the bcb.5 request that made the name amber there.
+
+**Change.** The stack list no longer puts `pmd-speech-name` on the speech row's name; the mic keeps its amber rule. Only this list changed: the drag tray, **Select Speech Document**, the palette's Switch Window and the which-window chooser still draw the speech name amber with the mic (`renderSpeechName`), since the request named the pane chooser.
+
+**Not verified.** The running desktop app; the test pins the source (no class on the name, mic kept).
+
 ## 1.17.2-bcb.6 — 2026-11-18
 
 ### Added: a notice with a reveal button after Save As (`preset-saved-notice.ts`, `platform.ts`, `index.ts`)

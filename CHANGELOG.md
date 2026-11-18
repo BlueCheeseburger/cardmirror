@@ -8,6 +8,12 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **In a pane's document list, only the speech mic is amber now.** The speech document's name in the small **v 4** list on a pane's title bar is back to the normal text colour, so it reads like the other rows, and its microphone stays amber. The other lists that name the speech document (the drag tray, **Select Speech Document** and **Switch Window**) are unchanged.
+
 ## 1.17.2-bcb.6 — 2026-11-18
 
 ### Added

@@ -1828,8 +1828,8 @@ class Slot {
       const name = document.createElement('span');
       name.className = 'pmd-pane-chip-dropdown-name';
       name.textContent = rowNames[rowIndex] ?? displayFilename(rec.filename);
-      // The speech doc's name is amber, beside its mic.
-      if (getSpeechDocResolver().isSpeechByUid(rec.uid)) name.classList.add('pmd-speech-name');
+      // The speech doc's row is marked by its amber mic alone; its name stays
+      // the normal text colour.
       name.addEventListener('click', () => {
         closeOpenStackDropdown();
         this.showRecord(rec);
