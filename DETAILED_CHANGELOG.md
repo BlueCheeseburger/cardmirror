@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: Backspace could not remove an emptied table (`delete-empty-table.ts`, `index.ts`)
+
+**Report.** "When there is a table, it is impossible to delete the table if I removed everything in the table but one last cell with nothing in it. I have to navigate to the table menu, which would be hidden if the user has Show additional formatting buttons off."
+
+**Cause.** A caret in an empty table cell has nothing before it to join or delete, and prosemirror-tables only acts on Backspace / Delete for a cell *selection* (which clears the cells, never the table). So the last empty cell was a dead end; only the Delete Table command (a menu item) removed it.
+
+**Change.** `deleteEmptyTable`, first in the Backspace and Delete chains after the paragraph-selection handlers (ahead of tableEditing): when every cell of the table holds only empty paragraphs and either the caret is in a one-cell table or a cell selection covers every cell, it runs prosemirror-tables' `deleteTable`. Anything else falls through unchanged.
+
+**Rejected.** Deleting a blank multi-cell table on a caret Backspace (a freshly inserted 3 × 3 table would vanish on the first Backspace), and deleting a one-cell table that has content (that is the user's text).
+
+**Tests.** One empty cell removed in the middle, at the end and as the only block of a document (the document stays valid); a one-cell table with text, a blank multi-cell table with a caret, a partial cell selection and a selection over a table with content are left alone; the availability query does not dispatch. **Not verified:** a real keypress in the running app (the command is tested directly against the real schema).
+
 ### Added: the `e` (evidence) prefix and author search (`quick-card-search-ui.ts`, `author-search.ts`, `tagline-search.ts`, `tagline-index-core.ts`, protocol / client / service)
 
 **Request.** After a mockup: one prefix for all cards (default my cards + Logos), then `q` / `g` / an author prefix to narrow it, and the bar's hints after the prefix showing only those three letters and saying it searches everything; author responses clearly labelled; "extend q" for the author search. ("This looks exactly the same as before": the mockup had not been built yet.)

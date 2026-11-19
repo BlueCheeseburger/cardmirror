@@ -10,6 +10,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Fixed
+
+- **A table with nothing left in it can be deleted with Backspace or Delete.** If you emptied a table down to one last empty cell, Backspace in it did nothing and the only way to remove the table was the table menu, which is hidden when **Show additional formatting buttons** is off. Backspace or Delete now removes a table whose cells are all empty when the caret is in its only cell, or when every cell is selected. A table with any text in it, or a blank table of several cells with just a caret in it, is left alone.
+
 ### Added
 
 - **One prefix for cards in Search Everything: `e`, with `q`, `g` and `a` to narrow it.** Type **e** and a space and the bar says **Searching all evidence**, with **Add a letter to narrow your search · q my cards · g Logos · a authors** under it and nothing else. With words after it (`e heg bad`) it searches your own cards and Logos together, your cards first. **e q** searches only your cards, **e g** only Logos. The bar's opening list now shows **e evidence** instead of **q** and **g**, but typing `q ` or `g ` on its own still works as before.

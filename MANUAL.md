@@ -856,7 +856,11 @@ color to all of them at once.
 ### Tables and images
 
 - **Insert Table** (Format menu) drops in a table; further menu items add
-  or delete rows and columns and merge or split cells. Tables round-trip
+  or delete rows and columns and merge or split cells. **(Fork)** A table with
+  nothing left in it goes away with **Backspace** or **Delete**: the caret in a
+  table of one empty cell, or every cell of an empty table selected. A table with
+  anything in it, or a blank table of several cells with just a caret, is left
+  alone, so you never lose one by accident. Tables round-trip
   to Word with their borders and background colors intact.
 - **Insert Image** (Format menu) inserts an image from a file; you can
   also paste one from the clipboard or *(fork)* drag image files in from

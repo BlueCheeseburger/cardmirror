@@ -282,6 +282,7 @@ import { buildMacroKeymap } from './keyboard-macros.js';
 import { FindReplaceBar } from './find-replace-ui.js';
 import { RepairParagraphBar } from './repair-paragraph-ui.js';
 import { tableEditingPlugin, columnResizingPlugin } from './table-plugins.js';
+import { deleteEmptyTable } from './delete-empty-table.js';
 import { buildPastePlugin } from './paste-plugin.js';
 import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
 import { imageDropPlugin, allowImageDragStart } from './image-drop-plugin.js';
@@ -6354,6 +6355,8 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
         // A selection covering whole paragraphs takes them out, break
         // included — no empty paragraph left behind (whole-paragraph-delete.ts).
         deleteWholeParagraphSelection(state, dispatch, view) ||
+        // A table with nothing left in it (one empty cell) goes away.
+        deleteEmptyTable(state, dispatch) ||
         backspaceAtTagStart(state, dispatch, view) ||
         backspaceAtFirstBodyStart(state, dispatch, view) ||
         keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
@@ -6364,6 +6367,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
       Delete: (state, dispatch, view) =>
         crossContainerDeleteSelection(state, dispatch, view) ||
         deleteWholeParagraphSelection(state, dispatch, view) ||
+        deleteEmptyTable(state, dispatch) ||
         deleteAtTagEnd(state, dispatch, view) ||
         deleteAtContainerEnd(state, dispatch, view) ||
         keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
