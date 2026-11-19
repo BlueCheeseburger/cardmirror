@@ -771,7 +771,9 @@ paintbrush mode, and F11 / Mod-Shift-F11 then *strip* the mark wherever you
 paint, until you pick a color again.
 
 - **Highlight with selected color (F11)** — toggles the active highlight
-  on the selection. Supports all 15 Word highlight colors.
+  on the selection. Supports all 15 Word highlight colors. With nothing
+  selected, F11 arms paintbrush mode (below) instead; press F11 again or
+  **Esc** to put it down.
 - **Highlight with white (Mod-F11)** — paints white over the selection
   (covering any other highlight) regardless of the selected color;
   pressing it again removes it. It stays a real highlight, so it round-trips
@@ -815,7 +817,8 @@ nothing — so a highlight sitting on plain text (from an import, or painted
 with the setting off) always comes off with the same key.
 
 **Paintbrush mode** (the way Word's highlighter works): click a main
-color button with *nothing* selected to arm it. The cursor changes, and
+color button with *nothing* selected to arm it (for highlight, **F11** does
+the same). The cursor changes, and
 every drag-select you make applies that color until you press **Esc** or
 click the button again. While a colored brush is armed, hold **Alt**
 (**⌃ Control** on macOS, where an ⌥ drag moves the window) to

@@ -12,6 +12,18 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: F11 with a bare caret does nothing (`ribbon-commands.ts`)
+
+**Report.** "Pressing F11 should work when the user doesn't have a word selected. It should have the thing next to the cursor that symbolizes it will highlight whatever the user selects next."
+
+**Cause.** `applyHighlight` deliberately returns false on an empty selection (no word expansion). The ribbon Highlight button already arms the sticky paint mode (`color-panel.ts`, the highlighter cursor with the pen color) on a bare caret, but the keyboard route never reached it.
+
+**Fix.** The `applyHighlight` command is now `highlightOrArmPaintbrush`: the normal toggle first; if that declines, there is no selection and no shadow selection, it calls `ctx.togglePaintbrushHighlight()`, the same hook the existing "Toggle Highlight Paint Mode" command uses. So it reuses the existing cursor, Esc to disarm, strip-key pen and stroke guard, and pressing F11 again disarms. Dry runs (no dispatch) report handled without arming.
+
+**Rejected.** A second, separate pending-highlight state (stored mark) — it would not highlight a selection made by dragging, and the paint mode already does.
+
+**Not done.** Mod-Shift-F11 (background color) and Mod-F11 (white) still do nothing on a bare caret. Not verified: a real F11 keypress in the Electron app (on macOS F11 may be taken by the system unless the user enables the function keys); the new tests cover the command and its context hook only.
+
 ### Fixed: Backspace could not remove an emptied table (`delete-empty-table.ts`, `index.ts`)
 
 **Report.** "When there is a table, it is impossible to delete the table if I removed everything in the table but one last cell with nothing in it. I have to navigate to the table menu, which would be hidden if the user has Show additional formatting buttons off."

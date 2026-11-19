@@ -12,6 +12,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Fixed
 
+- **F11 with nothing selected now picks up the highlighter.** It used to do nothing unless you had selected text first. Now the pointer turns into a highlighter showing the current color, and whatever you select next is highlighted. Press **F11** again or **Esc** to put it down. With text selected, F11 works as before.
 - **A table with nothing left in it can be deleted with Backspace or Delete.** If you emptied a table down to one last empty cell, Backspace in it did nothing and the only way to remove the table was the table menu, which is hidden when **Show additional formatting buttons** is off. Backspace or Delete now removes a table whose cells are all empty when the caret is in its only cell, or when every cell is selected. A table with any text in it, or a blank table of several cells with just a caret in it, is left alone.
 
 ### Added
