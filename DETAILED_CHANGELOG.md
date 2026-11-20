@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: Enter on a file in "Insert Linked Copy from a File" opened the file (`quick-card-search-ui.ts`)
+
+**Report.** "I tried to create a linked copy and it just said 'Cap K is already open' ... I'm trying to create a linked section from there to the 1NC."
+
+**Cause.** The command opens the palette in transclude mode, but Enter on a file result still ran the normal "open this document" path, whose duplicate guard toasts "already open" for a file open in a pane or window. Only Tab dived into the file, and I had pointed the user at Tab without saying that Enter would go wrong.
+
+**Fix.** In transclude mode, outside a file, Enter on a file or on a card hit from one (`tagline`) calls `enterInFile()` like Tab; the bottom hint reads "↵ search inside". The normal palette is unchanged (test covers both). Enter on a heading inside a file still inserts the linked copy.
+
+**Not verified.** In the real app with a real file that is already open in another window; the tests use a fake file index.
+
 ### Added: one-time "autosave is paused" notice for a .docx with live links (`autosave-links-notice.ts`, `index.ts`, `multi-pane-shell.ts`)
 
 **Request.** After asking whether live views and linked copies cause autosave problems in a .docx: "a .docx should show a one-time notice".

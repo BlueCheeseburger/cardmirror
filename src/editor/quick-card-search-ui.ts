@@ -3212,7 +3212,9 @@ class QuickCardSearchUI {
 
     if (this.results.length > 0) segs.push('↑↓ navigate');
     if (sel) {
-      segs.push(`↵ ${enterVerb(sel.source)}`);
+      const goesInside =
+        this.transcludeMode && !inFile && (sel.source === 'file' || sel.source === 'tagline');
+      segs.push(`↵ ${goesInside ? 'search inside' : enterVerb(sel.source)}`);
       // Alt+Enter (insert at end of doc) only applies to inserts.
       if (isInsertSource(sel.source)) segs.push('⌥↵ at end');
       if (sel.source === 'logos') segs.push('right-click: preview');
@@ -3580,6 +3582,18 @@ class QuickCardSearchUI {
         .then((ok) => {
           if (!ok) showToast('That window has closed.');
         });
+      return;
+    }
+    // Opened by "Insert Linked Copy from a File": the point is to pick a heading
+    // INSIDE a file, so Enter on a file (or on a card hit from one) goes in, like
+    // Tab, instead of opening the document (which, for a file that is already
+    // open, only said "already open").
+    if (
+      this.transcludeMode &&
+      !this.inFile &&
+      (result.source === 'file' || result.source === 'tagline')
+    ) {
+      void this.enterInFile();
       return;
     }
     // File: close the palette, then open the document. atEnd irrelevant.

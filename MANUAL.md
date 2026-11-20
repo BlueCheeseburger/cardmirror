@@ -2342,8 +2342,9 @@ connected to its source. There are two flavors, and the difference is simple —
   Favorites are remembered per file on this computer; a document that hasn't
   been saved yet keeps them until it is closed.
 - **Insert Linked Copy from a File** — open the Search Everything palette, dive
-  into the source file, land on a heading — or on a card's tag, to copy just
-  that one card — and press **Mod-Enter**. The source
+  into the source file (**Enter** or **Tab** on it), land on a heading — or on a
+  card's tag, to copy just that one card — and press **Enter**. (From the
+  ordinary palette, dive in with **Tab** and press **Mod-Enter** on the heading.) The source
   can be a `.cmir` or a Word `.docx`; for a Word file CardMirror adds a small,
   invisible bookmark so it can find the section again (nothing else changes), and
   declines if it can't. *(Making and refreshing a copy from a file is
