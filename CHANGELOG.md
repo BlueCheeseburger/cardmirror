@@ -24,6 +24,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 
+- **The linked-copy and live-view picker says why a row is greyed out.** Rows that hold your cursor (your own card, its block, hat and pocket) can't be copied into themselves, and the picker used to grey them with no explanation. Now each greyed row says why when you hover it, and a short line above the list says that greyed rows hold your cursor and to move it elsewhere to pick them. Empty sections say they have nothing in them.
 - **In a pane's document list, only the speech mic is amber now.** The speech document's name in the small **v 4** list on a pane's title bar is back to the normal text colour, so it reads like the other rows, and its microphone stays amber. The other lists that name the speech document (the drag tray, **Select Speech Document** and **Switch Window**) are unchanged.
 
 ## 1.17.2-bcb.6 — 2026-11-18

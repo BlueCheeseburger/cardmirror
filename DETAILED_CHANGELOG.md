@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Changed: the in-document section picker explains greyed rows (`self-ref-picker.ts`)
+
+**Report.** A screenshot of "Copy a section of this document (linked)" with the first four rows (pocket, hat, block and the first card) greyed out: "why can't I select parts of this document for a linked copy".
+
+**Cause.** Not a bug: the picker deliberately disables any section that contains the cursor (inserting a copy inside the section it copies would make it contain itself), and a section with no content or no heading text. It gave no reason, so it looked broken.
+
+**Change.** Each row now records why it is disabled (`cursor`, `empty`, `untitled`) and shows it as the row's hover note, also on favorites; and when any row is disabled because it holds the cursor, one hint line above the list says to move the cursor elsewhere. Eligibility itself is unchanged. The guard is still applied to linked copies as well as live views (shared picker); I did not check whether a linked copy needs it as strictly as a live view does.
+
+**Not verified.** Only in jsdom, with the picker's test fixtures; not seen in the real app.
+
 ### Added: Auto-Scroll follows the blue pace bar; optional start/pause link with the timer (`auto-scroll.ts`, `pace-marker.ts`, `auto-scroll-timer-link.ts`, `reading-line.ts`)
 
 **Request.** Make Auto-Scroll more integrated with the blue marker and the timer. Decisions: the scroll uses the pace marker's own position, speed and rules; a setting, off by default, starts and pauses them together; the timer's Start starts the clock and blue bar only, the Auto-Scroll button starts both.

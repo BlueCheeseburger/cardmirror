@@ -50,6 +50,10 @@ interface PickerRow {
   /** Eligible to actually pick (id + text + non-empty + not the guard's own
    *  section). Ineligible rows render disabled, for hierarchy. */
   pickable: boolean;
+  /** Why the row is greyed out (null when pickable): the cursor sits inside this
+   *  section, or it has no content, or it has no usable heading. Shown as the
+   *  row's hover note. */
+  disabledReason: 'cursor' | 'empty' | 'untitled' | null;
   /** Lowercased match fields, precomputed once — the filter re-runs over
    *  every row per keystroke. `citeLower` is '' for non-tag rows. */
   textLower: string;
@@ -70,6 +74,20 @@ interface NavSlot {
   el: HTMLButtonElement;
   row: PickerRow;
   favorite: boolean;
+}
+
+/** The hover note on a greyed-out row: says why it can't be picked. */
+export function disabledRowNote(reason: PickerRow['disabledReason']): string {
+  switch (reason) {
+    case 'cursor':
+      return 'Your cursor is inside this section. Move the cursor somewhere else to copy it.';
+    case 'empty':
+      return 'This section has nothing in it to copy.';
+    case 'untitled':
+      return 'This heading has no text, so it can\u2019t be picked.';
+    default:
+      return '';
+  }
 }
 
 const STAR_ON = '★';
@@ -154,6 +172,13 @@ export function openSelfRefPicker(
       from: geo.from,
       to: geo.to,
       pickable,
+      disabledReason: pickable
+        ? null
+        : inGuardSection
+          ? 'cursor'
+          : !geo.nonEmpty
+            ? 'empty'
+            : 'untitled',
       textLower: entry.text.trim().toLowerCase(),
       citeLower: entry.cite?.toLowerCase() ?? '',
       ancestors: [...ancestorStack],
@@ -205,6 +230,16 @@ export function openSelfRefPicker(
   filter.autocomplete = 'off';
   filter.spellcheck = false;
   dialog.appendChild(filter);
+
+  // Greyed rows with no explanation look broken: when the cursor's own section
+  // (pocket, hat, block, card) is greyed, say so once, above the list.
+  if (rows.some((r) => r.disabledReason === 'cursor')) {
+    const hint = document.createElement('div');
+    hint.className = 'pmd-selfref-picker-hint';
+    hint.textContent =
+      'Greyed rows hold your cursor, so they can\u2019t be copied into themselves. Move the cursor elsewhere to pick them.';
+    dialog.appendChild(hint);
+  }
 
   const list = document.createElement('div');
   list.className = 'pmd-selfref-picker-list';
@@ -291,6 +326,7 @@ export function openSelfRefPicker(
       if (!row.pickable) {
         btn.classList.add('pmd-selfref-picker-row-disabled');
         btn.setAttribute('aria-disabled', 'true');
+        btn.title = disabledRowNote(row.disabledReason);
       }
       const label = document.createElement('span');
       label.className = 'pmd-selfref-picker-label';
@@ -315,6 +351,7 @@ export function openSelfRefPicker(
     if (!row.pickable) {
       btn.classList.add('pmd-selfref-picker-row-disabled');
       btn.setAttribute('aria-disabled', 'true');
+      btn.title = disabledRowNote(row.disabledReason);
     }
     if (!row.entry.text.trim()) btn.classList.add('pmd-selfref-picker-row-untitled');
 

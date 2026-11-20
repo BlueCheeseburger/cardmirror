@@ -2804,6 +2804,11 @@ code {
   outline: 1px solid var(--pmd-c-border-soft);
 }
 .pmd-selfref-picker-row-disabled { opacity: 0.55; cursor: default; }
+.pmd-selfref-picker-hint {
+  margin: 6px 2px 0;
+  font-size: 0.85em;
+  color: var(--pmd-c-text-muted);
+}
 .pmd-selfref-picker-row-disabled:hover { background: none; }
 .pmd-selfref-picker-row-untitled .pmd-selfref-picker-label {
   font-style: italic;

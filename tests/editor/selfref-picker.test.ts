@@ -144,6 +144,32 @@ describe('self-ref picker: eligibility (one-pass parity)', () => {
     res.view.destroy();
   });
 
+  it('greyed rows say why on hover, and one hint line explains the cursor’s own section', () => {
+    const doc = fixtureDoc();
+    const res = openPicker(doc, posInText(doc, 'TAG X'));
+    const byLabel = (l: string): HTMLButtonElement =>
+      res.rows.find((r) => r.querySelector('.pmd-selfref-picker-label')?.textContent === l)!;
+    // The cursor's own chain: "your cursor is inside this section".
+    expect(byLabel('POCKET A').title).toMatch(/cursor is inside this section/i);
+    expect(byLabel('TAG X').title).toMatch(/cursor is inside this section/i);
+    // An empty section says so instead.
+    expect(byLabel('EMPTY BLOCK D').title).toMatch(/nothing in it/i);
+    // Pickable rows carry no note.
+    expect(byLabel('TAG Y').title).toBe('');
+    // One hint line above the list.
+    const hint = document.querySelector('.pmd-selfref-picker-hint');
+    expect(hint?.textContent).toMatch(/Move the cursor elsewhere/);
+    res.view.destroy();
+  });
+
+  it('shows no hint when the cursor is in none of the listed sections', () => {
+    const doc = fixtureDoc();
+    // Guard past the end of every section.
+    const res = openPicker(doc, doc.content.size + 10);
+    expect(document.querySelector('.pmd-selfref-picker-hint')).toBeNull();
+    res.view.destroy();
+  });
+
   it('guard ON the heading line excludes that section (spec §3.4 delta 1)', () => {
     const doc = fixtureDoc();
     const res = openPicker(doc, posInText(doc, 'BLOCK C'));
