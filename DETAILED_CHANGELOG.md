@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: one-time "autosave is paused" notice for a .docx with live links (`autosave-links-notice.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+**Request.** After asking whether live views and linked copies cause autosave problems in a .docx: "a .docx should show a one-time notice".
+
+**Behavior.** Autosave already skips a `.docx` that holds a live view or linked copy (it cannot show the flatten confirmation a manual save does), and only the button's tooltip said so. Both autosave paths (single-document `runAutosaveAttempt`, and panes' `runAutosaveForRecord`) now call `noteAutosavePausedByLinks(uid, views, copies)` on a skipped tick. The toast says what the file holds (live views and linked copies are counted by the same check, so one notice covers both) and how to resume. It shows once per document uid per session; a tick that runs because there are no links any more clears that document's flag, so removing the links and adding one back is news again.
+
+**Rejected.** Making autosave write the `.docx` anyway (flattening without consent); a modal (a toast fits a background event).
+
+**Not verified.** Seen only in jsdom (the helper) and by typecheck for the two call sites; not in the real app. The notice appears on the first skipped tick, about five seconds after the first edit that follows adding the link, not at the moment of inserting it.
+
 ### Changed: the in-document section picker explains greyed rows (`self-ref-picker.ts`)
 
 **Report.** A screenshot of "Copy a section of this document (linked)" with the first four rows (pocket, hat, block and the first card) greyed out: "why can't I select parts of this document for a linked copy".

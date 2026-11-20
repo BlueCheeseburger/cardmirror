@@ -30,6 +30,7 @@ import { initUpdateChip } from './update-chip.js';
 import { mountTimerUI } from './timer-ui.js';
 import { mountTimerPace, refreshTimerPace, speechClockStarted } from './timer-pace.js';
 import { mountPaceMarker, paceBarFor, refreshPaceMarker } from './pace-marker.js';
+import { clearAutosavePausedNotice, noteAutosavePausedByLinks } from './autosave-links-notice.js';
 import {
   mountAutoScrollTimerLink,
   pauseClockWithAutoScroll,
@@ -10740,8 +10741,10 @@ async function runAutosaveAttempt(): Promise<void> {
       // landed — refresh now so it flips to "paused" instead of staying
       // stale until the next successful save.
       refreshAutosaveBtn();
+      noteAutosavePausedByLinks(activeDocIdentity().sessionUid, views, copies);
       return;
     }
+    clearAutosavePausedNotice(activeDocIdentity().sessionUid);
   }
   // A recovered draft may only be written by a MANUAL save until its first
   // one lands — the stale-overwrite confirmation lives on the manual path,

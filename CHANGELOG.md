@@ -24,6 +24,7 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Changed
 
+- **A notice tells you when autosave pauses for a Word file with a live view or linked copy.** Word (.docx) can't hold either, so autosave skips that file, and until now the only sign was the autosave button's tooltip. Now a notice appears the first time it happens in a document, saying autosave is paused and how to resume (save by hand, or unlink; a .cmir file keeps them live and autosaves). It shows once per document, and again only if you remove them and add one back.
 - **The linked-copy and live-view picker says why a row is greyed out.** Rows that hold your cursor (your own card, its block, hat and pocket) can't be copied into themselves, and the picker used to grey them with no explanation. Now each greyed row says why when you hover it, and a short line above the list says that greyed rows hold your cursor and to move it elsewhere to pick them. Empty sections say they have nothing in them.
 - **In a pane's document list, only the speech mic is amber now.** The speech document's name in the small **v 4** list on a pane's title bar is back to the normal text colour, so it reads like the other rows, and its microphone stays amber. The other lists that name the speech document (the drag tray, **Select Speech Document** and **Switch Window**) are unchanged.
 

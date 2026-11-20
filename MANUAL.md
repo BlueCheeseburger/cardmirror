@@ -2397,7 +2397,8 @@ connected in CardMirror's own `.cmir` format. **Saving to Word flattens every
 view and copy to plain cards and drops the link** — the content stays, but it
 stops being connected, and re-opening that `.docx` won't bring the links back.
 CardMirror warns you before any `.docx` save that would do this — including
-when you save while closing a document. Keep the working copy as `.cmir` if
+when you save while closing a document. Autosave for such a file pauses
+(its button's tooltip says so), and a notice tells you the first time. Keep the working copy as `.cmir` if
 you want them live; export to `.docx` only for a hand-off.
 
 ---
