@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: Bulk convert takes several files at once (`bulk-convert-ui.ts`)
+
+**Request.** "I want to be able to select multiple files in bulk convert, under select files."
+
+**Change.** The input is now `files` (a list of picked files with their bytes) or a folder. **Choose files…** uses the host's multi-select picker (`openFiles`, falling back to one file where a host lacks it), and the same loop that converted a folder converts the list: loose files go to the destination by name, or one `Converted files.zip` (one file keeps its own `<name>.zip`). Within a batch, same-named files get ` (2)`, ` (3)` (`uniqueBatchName`), because without it the second would either overwrite in the zip or be miscounted as "already in the destination". Existing files in the destination are never overwritten (`failIfExists`), as before. A single file keeps its old status text, except that a conversion error now reads "Couldn't convert ..." (the old single-file path showed the raw error message).
+
+**Rejected.** Preserving each file's source folder in the output (picked files have no common root; a folder input still preserves its structure). Converting several folders at once.
+
+**Not verified.** The real file dialog (Ctrl/Shift multi-select) and writing to a real folder; the tests use a fake host and a stub converter.
+
 ### Fixed: Enter on a file in "Insert Linked Copy from a File" opened the file (`quick-card-search-ui.ts`)
 
 **Report.** "I tried to create a linked copy and it just said 'Cap K is already open' ... I'm trying to create a linked section from there to the 1NC."
