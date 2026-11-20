@@ -11,6 +11,7 @@ import { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema } from '../../src/schema/index.js';
 import { openSelfRefPicker } from '../../src/editor/self-ref-picker.js';
+import { openInsertInDocCopy, openInsertSelfRef } from '../../src/editor/self-transclusion-commands.js';
 
 const n = schema.nodes;
 function pocket(id: string, text: string): PMNode {
@@ -160,6 +161,21 @@ describe('self-ref picker: eligibility (one-pass parity)', () => {
     const hint = document.querySelector('.pmd-selfref-picker-hint');
     expect(hint?.textContent).toMatch(/Move the cursor elsewhere/);
     res.view.destroy();
+  });
+
+  it('Insert Live View and Insert Linked Copy (this document) both show the notes and the hint', () => {
+    for (const open of [openInsertSelfRef, openInsertInDocCopy]) {
+      const doc = fixtureDoc();
+      const view = mkView(doc);
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, posInText(doc, 'TAG X'))));
+      open(view);
+      const rows = [...document.querySelectorAll<HTMLButtonElement>('.pmd-selfref-picker-row-disabled')];
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.some((r) => /cursor is inside this section/i.test(r.title))).toBe(true);
+      expect(document.querySelector('.pmd-selfref-picker-hint')).not.toBeNull();
+      closeAll();
+      view.destroy();
+    }
   });
 
   it('shows no hint when the cursor is in none of the listed sections', () => {
