@@ -43,9 +43,15 @@ describe('extractTaglines', () => {
       n['block']!.create({ id: 'B' }, schema.text('Block')),
       card('b', 'Warming is fast'),
     );
-    expect(extractTaglines(doc)).toEqual({
-      tags: ['Warming is real', 'Warming is fast'],
-      cites: ['Smith 24', ''],
+    const rec = extractTaglines(doc);
+    expect(rec.tags).toEqual(['Warming is real', 'Warming is fast']);
+    expect(rec.cites).toEqual(['Smith 24', '']);
+    // The author search's data rides along: each card's authors, every heading.
+    expect(rec.authors).toEqual([['smith'], []]);
+    expect(rec.heads).toEqual({
+      l: [1, 4, 3, 4],
+      t: ['1AC', 'Warming is real', 'Block', 'Warming is fast'],
+      c: [-1, 0, -1, 1],
     });
   });
 });

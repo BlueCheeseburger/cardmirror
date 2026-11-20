@@ -2,7 +2,7 @@
  * Bulk convert — a home-screen utility to batch-convert between
  * `.docx` and `.cmir`.
  *
- * Pick an input (a single file or a folder, recursed incl. subfolders)
+ * Pick an input (one or more files, or a folder, recursed incl. subfolders)
  * and a destination folder, choose the direction and output form
  * (loose files or a single `.zip`), then Convert. Files are written
  * into the destination (preserving the input's subfolder structure);
@@ -24,12 +24,38 @@ import { isBackdropClick } from './backdrop-click.js';
 type Direction = 'docx2cmir' | 'cmir2docx';
 type Output = 'files' | 'zip';
 
-interface InputSel {
-  kind: 'file' | 'folder';
+interface PickedFile {
   path: string;
   name: string;
-  /** Bytes (file input only). */
-  bytes?: Uint8Array;
+  bytes: Uint8Array;
+}
+
+type InputSel =
+  | { kind: 'files'; files: PickedFile[] }
+  | { kind: 'folder'; path: string; name: string };
+
+/** A name not yet used in this batch: two picked files can share a name (same
+ *  file name in different folders), and the second must not overwrite the first
+ *  or be skipped as "already in the destination". Adds " (2)", " (3)" before the
+ *  extension. `used` is compared case-insensitively and updated. */
+export function uniqueBatchName(used: Set<string>, name: string): string {
+  const dot = name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : '';
+  let candidate = name;
+  for (let n = 2; used.has(candidate.toLowerCase()); n++) candidate = `${stem} (${n})${ext}`;
+  used.add(candidate.toLowerCase());
+  return candidate;
+}
+
+/** The text shown under Input for a picked set. */
+export function describeInput(sel: InputSel | null): string {
+  if (!sel) return 'None selected';
+  if (sel.kind === 'folder') return `Folder: ${sel.path}`;
+  if (sel.files.length === 1) return `File: ${sel.files[0]!.path}`;
+  const names = sel.files.slice(0, 3).map((f) => f.name);
+  const more = sel.files.length - names.length;
+  return `${sel.files.length} files: ${names.join(', ')}${more > 0 ? `, and ${more} more` : ''}`;
 }
 
 async function convertBytes(bytes: Uint8Array, dir: Direction): Promise<Uint8Array> {
@@ -169,7 +195,7 @@ class BulkConvertModal {
     const inBtns = document.createElement('div');
     inBtns.className = 'pmd-bulk-pickrow';
     inBtns.append(
-      button('Choose file…', () => void this.pickFile()),
+      button('Choose files…', () => void this.pickFile()),
       button('Choose folder…', () => void this.pickFolder()),
     );
     inField.appendChild(inBtns);
@@ -212,9 +238,7 @@ class BulkConvertModal {
 
   /** Update the path displays + the Convert button's enabled state. */
   private refresh(): void {
-    this.inputPathEl.textContent = this.inputSel
-      ? `${this.inputSel.kind === 'folder' ? 'Folder' : 'File'}: ${this.inputSel.path}`
-      : 'None selected';
+    this.inputPathEl.textContent = describeInput(this.inputSel);
     this.inputPathEl.classList.toggle('pmd-bulk-path-set', !!this.inputSel);
     this.outputPathEl.textContent = this.outputDir ? this.outputDir : 'None selected';
     this.outputPathEl.classList.toggle('pmd-bulk-path-set', !!this.outputDir);
@@ -235,11 +259,18 @@ class BulkConvertModal {
 
   private async pickFile(): Promise<void> {
     const srcExt = this.direction() === 'docx2cmir' ? 'docx' : 'cmir';
-    const opened = await getHost().openFile({
-      filters: [{ name: `.${srcExt}`, extensions: [srcExt] }],
-    });
-    if (!opened || typeof opened.handle !== 'string') return;
-    this.inputSel = { kind: 'file', path: opened.handle, name: opened.name, bytes: opened.bytes };
+    const host = getHost();
+    const filters = [{ name: `.${srcExt}`, extensions: [srcExt] }];
+    // Several at once where the host can; one otherwise.
+    const picked = host.openFiles
+      ? await host.openFiles({ filters })
+      : await host.openFile({ filters }).then((o) => (o ? [o] : []));
+    const files: PickedFile[] = [];
+    for (const f of picked) {
+      if (typeof f.handle === 'string') files.push({ path: f.handle, name: f.name, bytes: f.bytes });
+    }
+    if (files.length === 0) return;
+    this.inputSel = { kind: 'files', files };
     this.refresh();
   }
 
@@ -276,19 +307,65 @@ class BulkConvertModal {
     const input = this.inputSel;
     this.setBusy(true);
     try {
-      if (input.kind === 'file') {
-        this.setStatus(`Converting ${input.name}…`);
-        const converted = await convertBytes(input.bytes!, dir);
-        // Never overwrite: a same-named file in the destination (a re-run,
-        // or converting into the source folder) is left alone and reported.
-        const target = out === 'zip' ? `${baseNoExt(input.name)}.zip` : swapExt(input.name, dir);
-        const bytes = out === 'zip' ? zipSync({ [swapExt(input.name, dir)]: converted }) : converted;
-        const r = await electron.writeFileAtPath(joinPath(dest, target), bytes, { failIfExists: true });
-        this.setStatus(
-          r === 'collision'
-            ? `“${target}” already exists in the destination — not overwritten.`
-            : `Converted “${input.name}”.`,
-        );
+      if (input.kind === 'files') {
+        const used = new Set<string>();
+        const zipParts: Record<string, Uint8Array> | null = out === 'zip' ? {} : null;
+        let ok = 0;
+        let failed = 0;
+        let skipped = 0;
+        let lastTarget = '';
+        for (let i = 0; i < input.files.length; i++) {
+          const f = input.files[i]!;
+          this.setStatus(
+            input.files.length === 1 ? `Converting ${f.name}…` : `Converting ${i + 1} / ${input.files.length}…`,
+          );
+          try {
+            const converted = await convertBytes(f.bytes, dir);
+            const outName = uniqueBatchName(used, swapExt(f.name, dir));
+            lastTarget = outName;
+            if (zipParts) {
+              zipParts[outName] = converted;
+            } else {
+              // Never overwrite: a same-named file in the destination (a re-run,
+              // or converting into the source folder) is left alone and reported.
+              const r = await electron.writeFileAtPath(joinPath(dest, outName), converted, { failIfExists: true });
+              if (r === 'collision') {
+                skipped++;
+                continue;
+              }
+            }
+            ok++;
+          } catch (err) {
+            failed++;
+            console.error('Bulk convert failed for', f.path, err);
+          }
+        }
+        let zipTarget = '';
+        if (zipParts && ok > 0) {
+          zipTarget =
+            input.files.length === 1 ? `${baseNoExt(input.files[0]!.name)}.zip` : 'Converted files.zip';
+          const r = await electron.writeFileAtPath(joinPath(dest, zipTarget), zipSync(zipParts), {
+            failIfExists: true,
+          });
+          if (r === 'collision') {
+            this.setStatus(`“${zipTarget}” already exists in the destination — not overwritten.`);
+            return;
+          }
+        }
+        if (input.files.length === 1) {
+          const name = input.files[0]!.name;
+          this.setStatus(
+            skipped
+              ? `“${lastTarget}” already exists in the destination — not overwritten.`
+              : failed
+                ? `Couldn’t convert “${name}” (see console).`
+                : `Converted “${name}”.`,
+          );
+        } else {
+          this.setStatus(
+            `Done — ${ok} converted${skipped ? `, ${skipped} skipped (already in the destination)` : ''}${failed ? `, ${failed} failed (see console)` : ''}.`,
+          );
+        }
       } else {
         const srcExt = dir === 'docx2cmir' ? 'docx' : 'cmir';
         this.setStatus('Scanning…');

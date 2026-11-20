@@ -2804,6 +2804,11 @@ code {
   outline: 1px solid var(--pmd-c-border-soft);
 }
 .pmd-selfref-picker-row-disabled { opacity: 0.55; cursor: default; }
+.pmd-selfref-picker-hint {
+  margin: 6px 2px 0;
+  font-size: 0.85em;
+  color: var(--pmd-c-text-muted);
+}
 .pmd-selfref-picker-row-disabled:hover { background: none; }
 .pmd-selfref-picker-row-untitled .pmd-selfref-picker-label {
   font-style: italic;
@@ -11835,6 +11840,34 @@ body.pmd-recovery-active.pmd-multi-doc #app {
   font-weight: 700;
   color: var(--pmd-c-text-secondary);
 }
+.pmd-qcs-section {
+  padding: 0.4rem 0.5rem 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-qcs-badge-response {
+  color: var(--pmd-c-warning);
+  border-color: var(--pmd-c-warning);
+}
+.pmd-qcs-chip-attack {
+  margin-left: 0.2rem;
+  color: var(--pmd-c-danger);
+  border-color: color-mix(in srgb, var(--pmd-c-danger) 45%, transparent);
+  background: color-mix(in srgb, var(--pmd-c-danger) 10%, transparent);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.pmd-qcs-empty-headline {
+  display: block;
+  color: var(--pmd-c-text);
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+.pmd-qcs-empty-legend {
+  color: var(--pmd-c-text-muted);
+}
 .pmd-qcs-empty-separator {
   color: var(--pmd-c-text-secondary);
   font-weight: 800;
@@ -13599,8 +13632,7 @@ body.pmd-pane-dragging * {
 
 .pmd-pane-chip-dropdown-close { color: inherit; opacity: 0.7; }
 .pmd-pane-chip-dropdown-row.pmd-speech .pmd-pane-chip-dropdown-close:hover { opacity: 1; }
-/* The speech doc's row: the mic and the name in amber (the name via
-   .pmd-speech-name). */
+/* The speech doc's row: only the mic is amber; the name keeps the normal text colour. */
 .pmd-pane-chip-dropdown-row.pmd-speech .pmd-pane-chip-dropdown-mic { color: var(--pmd-c-speech-amber); }
 
 .pmd-pane-chip-dropdown-close {

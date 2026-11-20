@@ -13,6 +13,7 @@
 import type { Node as PMNode } from 'prosemirror-model';
 import { collectHeadings } from './headings.js';
 import { matchTier, tokenizeQuery } from './file-search.js';
+import { authorsFromCite } from './author-search.js';
 
 /** Taglines of one file, in document order. `tags[i]` is the i-th card tag
  *  of the file (empty string for an untitled tag, so the index doubles as
@@ -20,6 +21,13 @@ import { matchTier, tokenizeQuery } from './file-search.js';
 export interface TaglineRecord {
   tags: string[];
   cites: string[];
+  /** Author surnames of each card (`authorsFromCite`), index-aligned with `tags`.
+   *  Absent in a record indexed before author search existed. */
+  authors?: string[][];
+  /** Every heading in the file, in outline order (pocket, hat, block, tag and
+   *  analytic): its level, its text, and the ordinal of the card it heads
+   *  (-1 when it heads no card). Index-aligned arrays, to keep the stored file small. */
+  heads?: { l: number[]; t: string[]; c: number[] };
 }
 
 /** Every card tag in `doc`, in order, with its cite. Analytics are not cards
@@ -27,12 +35,41 @@ export interface TaglineRecord {
 export function extractTaglines(doc: PMNode): TaglineRecord {
   const tags: string[] = [];
   const cites: string[] = [];
+  const authors: string[][] = [];
+  const heads = { l: [] as number[], t: [] as string[], c: [] as number[] };
   for (const entry of collectHeadings(doc)) {
-    if (entry.type !== 'tag') continue;
-    tags.push(entry.text.trim());
-    cites.push((entry.cite ?? '').trim());
+    const text = entry.text.trim();
+    let cardOrd = -1;
+    if (entry.type === 'tag') {
+      cardOrd = tags.length;
+      tags.push(text);
+      cites.push((entry.cite ?? '').trim());
+      authors.push(authorsFromCite(entry.cite ?? ''));
+    }
+    heads.l.push(entry.level);
+    heads.t.push(text.slice(0, MAX_HEAD_CHARS));
+    heads.c.push(cardOrd);
   }
-  return { tags, cites };
+  return { tags, cites, authors, heads };
+}
+
+/** A heading's text is kept to this many characters in the index. */
+export const MAX_HEAD_CHARS = 240;
+
+/** The `index`-th heading of `doc` (outline order, the same order the index
+ *  stored), with the entry the caller needs to compute its range. Falls back to
+ *  the first heading with the same text when the file changed since it was
+ *  indexed. Null when the heading is gone. */
+export function findHeadingEntry(
+  doc: PMNode,
+  index: number,
+  text: string,
+): ReturnType<typeof collectHeadings>[number] | null {
+  const entries = collectHeadings(doc);
+  const same = (e: { text: string }): boolean => e.text.trim().slice(0, MAX_HEAD_CHARS) === text;
+  const at = entries[index];
+  if (at && same(at)) return at;
+  return entries.find(same) ?? null;
 }
 
 /** One indexed file as the search sees it. `lower`/`citeLower` are filled

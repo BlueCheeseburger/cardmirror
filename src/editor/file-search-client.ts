@@ -31,6 +31,8 @@ import type {
   LocateCurrentFileResult,
   TaglineQueryParams,
   TaglineQueryResult,
+  AuthorQueryParams,
+  AuthorQueryResult,
 } from './file-index-protocol.js';
 export type {
   FileBrowseLocation,
@@ -44,6 +46,8 @@ export type {
   LocateCurrentFileResult,
   TaglineQueryParams,
   TaglineQueryResult,
+  AuthorQueryParams,
+  AuthorQueryResult,
 } from './file-index-protocol.js';
 
 export interface FileIndexClient {
@@ -73,6 +77,9 @@ export interface FileIndexClient {
   /** Card taglines inside the indexed files (`q` my cards). The first call
    *  starts the background build; results fill in as it goes. */
   taglineQuery(params: TaglineQueryParams): Promise<TaglineQueryResult>;
+  /** `e a <name>`: the author's cards and the headings that answer them, from the
+   *  same index. */
+  authorQuery(params: AuthorQueryParams): Promise<AuthorQueryResult>;
   /** More taglines were indexed — re-query to stay live. */
   onTaglinesChanged(handler: () => void): () => void;
 }
@@ -200,6 +207,7 @@ function wrapPort(port: MessagePort): FileIndexClient {
       return () => changedHandlers.delete(handler);
     },
     taglineQuery: (params) => request('taglineQuery', params),
+    authorQuery: (params) => request('authorQuery', params),
     onTaglinesChanged: (handler) => {
       taglineHandlers.add(handler);
       return () => taglineHandlers.delete(handler);

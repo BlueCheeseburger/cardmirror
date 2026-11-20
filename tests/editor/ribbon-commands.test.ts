@@ -2686,6 +2686,48 @@ describe('applyHighlight (F11)', () => {
     expect(apply(state, applyHighlight(() => 'yellow'))).toBeNull();
   });
 
+  it('F11 command on a bare caret arms the highlighter paint mode instead of doing nothing', () => {
+    let armed = 0;
+    const ctx = {
+      highlightColor: () => 'yellow',
+      togglePaintbrushHighlight: () => { armed++; },
+    } as unknown as RibbonContext;
+    const doc = makeDoc([paragraph('hello world')]);
+    const state = setCursorIn(doc, (n) => n.type.name === 'paragraph');
+    const cmd = getRibbonCommand('applyHighlight', ctx);
+    // Dry run reports it handled the key, with no side effect.
+    expect(cmd(state, undefined)).toBe(true);
+    expect(armed).toBe(0);
+    expect(cmd(state, () => {})).toBe(true);
+    expect(armed).toBe(1);
+    // Pressing it again goes through the same toggle (disarms in the panel).
+    expect(cmd(state, () => {})).toBe(true);
+    expect(armed).toBe(2);
+  });
+
+  it('F11 command with a selection highlights it and does not touch the paint mode', () => {
+    let armed = 0;
+    const ctx = {
+      highlightColor: () => 'yellow',
+      togglePaintbrushHighlight: () => { armed++; },
+    } as unknown as RibbonContext;
+    const doc = makeDoc([cardWithChildren(tag('T'), cardBody('hello world'))]);
+    let start = -1;
+    doc.descendants((n, p) => {
+      if (n.isText && n.text === 'hello world') start = p;
+      return true;
+    });
+    const state = EditorState.create({ doc }).apply(
+      EditorState.create({ doc }).tr.setSelection(
+        TextSelection.create(doc, start, start + 11),
+      ),
+    );
+    const next = apply(state, getRibbonCommand('applyHighlight', ctx));
+    expect(next).not.toBeNull();
+    expect(hasMarkOfNameWithAttr(next!.doc, 'hello world', 'highlight', 'color')).toBe('yellow');
+    expect(armed).toBe(0);
+  });
+
   it('selection with no highlights: applies the active color to the entire range', () => {
     const doc = makeDoc([
       cardWithChildren(tag('T'), cardBody('hello world')),

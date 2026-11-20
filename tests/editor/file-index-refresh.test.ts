@@ -20,6 +20,7 @@ function fakeClient(refresh: FileIndexClient['refresh']): FileIndexClient {
     locateCurrentFile: nope,
     entriesForPaths: nope,
     taglineQuery: nope,
+    authorQuery: nope,
     onChanged: () => () => {},
     onTaglinesChanged: () => () => {},
   };

@@ -28,11 +28,18 @@ import { NavigationPanel, setNavCommandRunner } from './nav-panel.js';
 import { setShortcutHintResolver } from './menu-shortcut-hint.js';
 import { initUpdateChip } from './update-chip.js';
 import { mountTimerUI } from './timer-ui.js';
-import { mountTimerPace, refreshTimerPace } from './timer-pace.js';
-import { mountPaceMarker, refreshPaceMarker } from './pace-marker.js';
+import { mountTimerPace, refreshTimerPace, speechClockStarted } from './timer-pace.js';
+import { mountPaceMarker, paceBarFor, refreshPaceMarker } from './pace-marker.js';
+import { clearAutosavePausedNotice, noteAutosavePausedByLinks } from './autosave-links-notice.js';
+import {
+  mountAutoScrollTimerLink,
+  pauseClockWithAutoScroll,
+  startClockWithAutoScroll,
+} from './auto-scroll-timer-link.js';
 import { initTimerAudio } from './timer-audio.js';
 import {
   getTimerState as getTimerStateNow,
+  pauseTimer as pauseTimerNow,
   reconcileTimerPopout,
   setTimerPoppedOut,
   setTimerVisible,
@@ -282,6 +289,7 @@ import { buildMacroKeymap } from './keyboard-macros.js';
 import { FindReplaceBar } from './find-replace-ui.js';
 import { RepairParagraphBar } from './repair-paragraph-ui.js';
 import { tableEditingPlugin, columnResizingPlugin } from './table-plugins.js';
+import { deleteEmptyTable } from './delete-empty-table.js';
 import { buildPastePlugin } from './paste-plugin.js';
 import { buildImageNodeFromBlob, insertImageNode } from './image-insert.js';
 import { imageDropPlugin, allowImageDragStart } from './image-drop-plugin.js';
@@ -2080,7 +2088,17 @@ const ribbonContext: RibbonContext = {
     }
     if (!view) return;
     const reader = settings.get('readers')[0] ?? { name: 'Reader 1', wpm: 200 };
-    const started = startAutoScroll(view, reader, () => refreshAutoScrollBtn(), {
+    // With "Start and pause Auto-Scroll with the timer" on, the speech clock
+    // starts first, so the run (which looks at the clock on its first frame)
+    // follows the blue bar.
+    const clockStarted = startClockWithAutoScroll();
+    const started = startAutoScroll(view, reader, () => {
+      refreshAutoScrollBtn();
+      pauseClockWithAutoScroll();
+    }, {
+      // Follow the blue bar whenever it would show; otherwise pace by wpm.
+      bar: paceBarFor,
+      followClock: () => settings.get('paceGuides') && speechClockStarted(getTimerStateNow()),
       // Pace at the lay rate while the document is on the lay speaking toggle
       // (per pane in three-pane mode), like the read-time readouts do.
       useLay: () => {
@@ -2090,6 +2108,7 @@ const ribbonContext: RibbonContext = {
       },
     });
     if (!started) {
+      if (clockStarted) pauseTimerNow();
       showToast('Nothing to auto-scroll — the document fits on screen, or you\u2019re already at the end.');
     }
     refreshAutoScrollBtn();
@@ -4831,6 +4850,7 @@ const paceTarget = (): { view: EditorView; useLay: boolean } | null => {
 };
 mountTimerPace(paceTarget);
 mountPaceMarker(paceTarget);
+mountAutoScrollTimerLink();
 // The bottom bar's "Left" readout moves under the ribbon timer (and back)
 // as the timer is shown, hidden or popped out.
 subscribeTimer(() => {
@@ -6354,6 +6374,8 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
         // A selection covering whole paragraphs takes them out, break
         // included — no empty paragraph left behind (whole-paragraph-delete.ts).
         deleteWholeParagraphSelection(state, dispatch, view) ||
+        // A table with nothing left in it (one empty cell) goes away.
+        deleteEmptyTable(state, dispatch) ||
         backspaceAtTagStart(state, dispatch, view) ||
         backspaceAtFirstBodyStart(state, dispatch, view) ||
         keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
@@ -6364,6 +6386,7 @@ export function buildEditorPlugins(targetUid?: string | null): Plugin[] {
       Delete: (state, dispatch, view) =>
         crossContainerDeleteSelection(state, dispatch, view) ||
         deleteWholeParagraphSelection(state, dispatch, view) ||
+        deleteEmptyTable(state, dispatch) ||
         deleteAtTagEnd(state, dispatch, view) ||
         deleteAtContainerEnd(state, dispatch, view) ||
         keepCursorInLeadingBlockOnBlockedMerge(state, dispatch, view) ||
@@ -10718,8 +10741,10 @@ async function runAutosaveAttempt(): Promise<void> {
       // landed — refresh now so it flips to "paused" instead of staying
       // stale until the next successful save.
       refreshAutosaveBtn();
+      noteAutosavePausedByLinks(activeDocIdentity().sessionUid, views, copies);
       return;
     }
+    clearAutosavePausedNotice(activeDocIdentity().sessionUid);
   }
   // A recovered draft may only be written by a MANUAL save until its first
   // one lands — the stale-overwrite confirmation lives on the manual path,

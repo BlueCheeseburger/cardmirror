@@ -161,3 +161,65 @@ describe('tagline index core', () => {
     expect(parsed).toEqual([]);
   });
 });
+
+describe('tagline index core: author search', () => {
+  const authorRecord = (p: string): TaglineRecord => ({
+    tags: ['Tariffs raise prices'],
+    cites: ['Stein 21'],
+    authors: [['stein']],
+    heads: p.includes('Old')
+      ? { l: [3, 4], t: ['AT: Stein', 'Tariffs raise prices'], c: [-1, 0] }
+      : { l: [4], t: ['Tariffs raise prices'], c: [0] },
+  });
+  const ask2 = (idx: ReturnType<typeof make>, query: string) =>
+    idx.authorQuery({ ...scope, query, limit: 50, attackWords: ['AT', 'hack'] });
+
+  it("answers an author query from the indexed files' authors and headings", async () => {
+    const idx = make({ parse: async (p) => authorRecord(p) });
+    await ask2(idx, 'stein'); // starts the build
+    await idx.idle();
+    const r = await ask2(idx, 'stein');
+    expect(r.totalBy).toBe(1); // the same card in three files collapses to one row
+    expect(r.by[0]!.alsoIn).toBe(2);
+    expect(r.responses.map((x) => x.text)).toEqual(['AT: Stein']);
+    expect(r.responses[0]!.matched).toEqual(['AT']);
+    expect(r.status.indexed).toBe(3);
+  });
+
+  it('keeps the authors and headings across a restart (stored file version 2)', async () => {
+    const a = make({ parse: async (p) => authorRecord(p) });
+    await ask2(a, 'stein');
+    await a.idle();
+    const stored = JSON.parse(fs.readFileSync(path.join(dataDir, 'cmir-tagline-index.json'), 'utf8'));
+    expect(stored.version).toBe(2);
+    expect(Object.values<{ a?: unknown; h?: unknown }>(stored.files).every((f) => f.a && f.h)).toBe(true);
+    const parsedAgain: string[] = [];
+    const b = make({
+      parse: async (p) => {
+        parsedAgain.push(p);
+        return authorRecord(p);
+      },
+    });
+    const r = await ask2(b, 'stein');
+    await b.idle();
+    expect(parsedAgain).toEqual([]); // nothing re-parsed: the stored file was read
+    expect(r.responses.map((x) => x.text)).toEqual(['AT: Stein']);
+  });
+
+  it('ignores an older stored file (version 1 had no authors) and rebuilds', async () => {
+    fs.writeFileSync(
+      path.join(dataDir, 'cmir-tagline-index.json'),
+      JSON.stringify({ version: 1, scope, files: { '/r/Old.cmir': { m: 1, t: ['x'], c: [''] } } }),
+    );
+    const parsedAgain: string[] = [];
+    const idx = make({
+      parse: async (p) => {
+        parsedAgain.push(p);
+        return authorRecord(p);
+      },
+    });
+    await ask2(idx, 'stein');
+    await idx.idle();
+    expect(parsedAgain.length).toBe(3);
+  });
+});

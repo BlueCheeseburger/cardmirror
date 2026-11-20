@@ -122,8 +122,10 @@ import {
   type FileBrowseRow,
   type FileIndexRow,
   type TaglineQueryResult,
+  type AuthorQueryResult,
 } from './file-search-client.js';
-import { findTaglineEntry, type TaglineRow } from './tagline-search.js';
+import { findTaglineEntry, findHeadingEntry, type TaglineRow } from './tagline-search.js';
+import { parseAuthorQuery, parseAttackWords, type AuthorRow } from './author-search.js';
 import { computeHeadingRange } from './headings.js';
 import { toggleManualPin, recordUsage, effectivePins } from './pins-store.js';
 import { listRecents } from './recents-store.js';
@@ -497,6 +499,7 @@ interface PaletteResult {
     | 'file'
     | 'fileobject'
     | 'tagline'
+    | 'response'
     | 'logos'
     | 'window';
   name: string;
@@ -522,6 +525,17 @@ interface PaletteResult {
   taglineText?: string;
   /** The file's display name (tagline source; `name` is the tagline). */
   fileName?: string;
+  /** A heading in the file that answers an author (response source): its index
+   *  among the file's headings, its text, and its outline level. */
+  headingIndex?: number;
+  headingText?: string;
+  /** Replaces the usual badge text (author search: the author's name, or
+   *  RESPONSE TO <NAME>). */
+  badge?: string;
+  /** Small outlined words after the row's name (the attack words a response holds). */
+  chips?: string[];
+  /** A heading drawn above this row, where a new group starts. */
+  sectionTitle?: string;
   /** File's mtime — the warm-cache freshness key (file source). */
   fileMtimeMs?: number;
   /** Whether this file is pinned (file source) — drives ★ + sort. */
@@ -559,7 +573,7 @@ interface PaletteResult {
   collapsed?: boolean;
 }
 
-type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'g' | 'w' | null;
+type Prefix = 'q' | 'd' | 'c' | 's' | 'f' | 'g' | 'w' | 'e' | null;
 
 function activeTagSet(): Set<string> {
   return new Set(settings.get('quickCardActiveTags').map(normalizeTag));
@@ -578,16 +592,114 @@ function parseBrowsePrefix(
   return /^\/c?$/i.test(raw) ? 'pending' : null;
 }
 
-/** Split a leading single-letter prefix (`q `/`d `/`c `/`s `/`f `/`g `/`w `) off the query. */
+/** Split a leading single-letter prefix (`e `/`q `/`d `/`c `/`s `/`f `/`g `/`w `) off the query. */
 function parsePrefix(raw: string): { prefix: Prefix; query: string } {
   const m = raw.match(/^([a-zA-Z])\s+(.*)$/);
   if (m) {
     const p = m[1]!.toLowerCase();
-    if (p === 'q' || p === 'd' || p === 'c' || p === 's' || p === 'f' || p === 'w')
+    if (p === 'q' || p === 'd' || p === 'c' || p === 's' || p === 'f' || p === 'w' || p === 'e')
       return { prefix: p, query: m[2]! };
     if (p === 'g' && !isLiteBuild()) return { prefix: p, query: m[2]! };
   }
   return { prefix: null, query: raw };
+}
+
+/** After the `e ` (evidence) prefix, one more letter narrows the search:
+ *  `q` my cards only, `g` Logos only, `a` authors. With no letter it searches
+ *  all evidence: my cards and Logos together. A lone letter with no space yet
+ *  is a letter still being typed (`pending`), not a search for that letter. */
+type EvidenceSub = 'q' | 'g' | 'a';
+function parseEvidenceSub(raw: string): { sub: EvidenceSub | null; query: string; pending: boolean } {
+  const m = raw.match(/^([qgaQGA])\s+(.*)$/);
+  if (m) {
+    const sub = m[1]!.toLowerCase() as EvidenceSub;
+    if (sub !== 'g' || !isLiteBuild()) return { sub, query: m[2]!, pending: false };
+  }
+  if (/^[qgaQGA]$/.test(raw) && !(raw.toLowerCase() === 'g' && isLiteBuild())) {
+    return { sub: null, query: '', pending: true };
+  }
+  return { sub: null, query: raw, pending: false };
+}
+
+/** What the bar says after `e `, before anything narrows or searches. The first
+ *  line is the headline; the rest is the legend of letters that can follow. */
+function evidenceLegend(): string {
+  return `Searching all evidence\nAdd a letter to narrow your search · q my cards${
+    isLiteBuild() ? '' : ' · g Logos (web)'
+  } · a authors`;
+}
+
+/** "de la cruz" → "De La Cruz". */
+function authorDisplayName(name: string): string {
+  return name.replace(/(^|[\s-])(\p{L})/gu, (_m, sep: string, c: string) => sep + c.toUpperCase());
+}
+
+const LEVEL_LABELS: Record<number, string> = { 1: 'Pocket', 2: 'Hat', 3: 'Block', 4: 'Tag' };
+
+/** The rows for an author answer: the author's cards, then the responses to
+ *  them, then plain mentions. The first row of each group carries its title. */
+function authorResults(res: AuthorQueryResult, display: string): PaletteResult[] {
+  const upper = display.toUpperCase();
+  const out: PaletteResult[] = [];
+  const group = (rows: PaletteResult[], title: string): void => {
+    if (rows.length === 0) return;
+    rows[0]!.sectionTitle = title;
+    out.push(...rows);
+  };
+  group(res.by.map((r) => authorByRow(r, upper, display)), `CARDS BY ${upper} · ${res.totalBy}`);
+  group(res.responses.map((r) => authorAboutRow(r, upper)), `RESPONSES TO ${upper} · ${res.totalResponses} (STRONGEST FIRST)`);
+  group(res.mentions.map((r) => authorAboutRow(r, upper)), `HEADINGS THAT NAME ${upper} · ${res.totalMentions}`);
+  return out;
+}
+
+/** A card by the author: a file-card row (inserts the card) badged with the name. */
+function authorByRow(r: AuthorRow, upper: string, display: string): PaletteResult {
+  return {
+    source: 'tagline',
+    name: r.text,
+    meta: [r.cite, r.alsoIn > 0 ? `${r.name} +${r.alsoIn}` : r.name].filter(Boolean).join(' · '),
+    matchedName: false,
+    snippet: `card by ${display}`,
+    badge: upper,
+    filePath: r.path,
+    fileMtimeMs: r.mtimeMs,
+    fileName: r.name,
+    taglineOrd: r.idx,
+    taglineText: r.text,
+  };
+}
+
+/** A heading that names the author: inserts the whole block (or the card, for a tag). */
+function authorAboutRow(r: AuthorRow, upper: string): PaletteResult {
+  const level = LEVEL_LABELS[r.level] ?? 'Heading';
+  const inserts = r.level <= 3 ? `inserts the whole ${level.toLowerCase()}` : 'inserts the card';
+  return {
+    source: 'response',
+    name: r.text,
+    meta: '',
+    matchedName: false,
+    snippet: `${level} in ${r.alsoIn > 0 ? `${r.name} +${r.alsoIn}` : r.name} · ${inserts}`,
+    badge: r.role === 'response' ? `RESPONSE TO ${upper}` : `NAMES ${upper}`,
+    chips: r.matched,
+    filePath: r.path,
+    fileMtimeMs: r.mtimeMs,
+    fileName: r.name,
+    headingIndex: r.idx,
+    headingText: r.text,
+  };
+}
+
+/** Text split on " · ", with each dot drawn bold (the prefix legends). */
+function appendLegend(el: HTMLElement, text: string): void {
+  text.split(' · ').forEach((part, i) => {
+    if (i > 0) {
+      const separator = document.createElement('strong');
+      separator.className = 'pmd-qcs-empty-separator';
+      separator.textContent = ' · ';
+      el.appendChild(separator);
+    }
+    el.appendChild(document.createTextNode(part));
+  });
 }
 
 function searchQuickCardSource(query: string): PaletteResult[] {
@@ -1087,6 +1199,7 @@ function logosResult(r: LogosResult): PaletteResult {
 
 /** Short left-aligned badge for a result row. */
 function badgeText(r: PaletteResult): string {
+  if (r.badge && r.source !== 'response') return r.badge;
   switch (r.source) {
     case 'quickcard':
       return 'QUICK';
@@ -1109,6 +1222,8 @@ function badgeText(r: PaletteResult): string {
       return r.fileObjectKind ? FILE_OBJECT_KIND_BADGES[r.fileObjectKind] : 'OBJ';
     case 'tagline':
       return 'CARD';
+    case 'response':
+      return r.badge ?? 'RESPONSE';
     case 'logos':
       // Which side ran the card; LOGOS only when the round doc didn't say.
       return r.logosSide === 'A' ? 'AFF' : r.logosSide === 'N' ? 'NEG' : 'LOGOS';
@@ -1121,7 +1236,9 @@ function badgeText(r: PaletteResult): string {
  *  a re-render (e.g. a live file-index refresh) so the cursor doesn't
  *  bounce back to the top. */
 function resultKey(r: PaletteResult): string {
-  const id = r.source === 'tagline'
+  const id = r.source === 'response'
+    ? `${r.filePath}#h${r.headingIndex}`
+    : r.source === 'tagline'
     ? `${r.filePath}#${r.taglineOrd}`
     : r.filePath
     ?? r.logosId
@@ -1138,6 +1255,7 @@ function isInsertSource(source: PaletteResult['source']): boolean {
     source === 'dropzone' ||
     source === 'fileobject' ||
     source === 'tagline' ||
+    source === 'response' ||
     source === 'logos'
   );
 }
@@ -1325,6 +1443,13 @@ class QuickCardSearchUI {
   private taglineRows: TaglineRow[] = [];
   private taglineTotal = 0;
   private taglineStatus: TaglineQueryResult['status'] | null = null;
+  /** `e a` source: the answer for the current name. */
+  private authorKey: string | null = null;
+  private authorPending: string | null = null;
+  private authorGen = 0;
+  private authorGenApplied = 0;
+  private authorResult: AuthorQueryResult | null = null;
+  private authorUnsub: (() => void) | null = null;
   private taglineUnsub: (() => void) | null = null;
   /** Unsubscribe from main's live `.cmir` index-refresh broadcasts
    *  (Electron only); set on open, cleared on close. */
@@ -1451,9 +1576,16 @@ class QuickCardSearchUI {
     this.fileIndexUnsub = null;
     this.taglineUnsub?.();
     this.taglineUnsub = null;
+    this.authorUnsub?.();
+    this.authorUnsub = null;
+    this.authorKey = null;
+    this.authorPending = null;
+    this.authorResult = null;
     this.asyncToken++; // invalidate any in-flight query / read
     this.cancelLogos();
     this.logosCache = null;
+    this.logosError = null;
+    this.logosPending = null;
     this.fileQueryKey = null;
     this.fileQueryPending = null;
     this.fileRows = [];
@@ -1652,7 +1784,11 @@ class QuickCardSearchUI {
     }
     if (this.browseActive) this.resetBrowseState();
     const { prefix, query } = parsePrefix(this.input.value);
-    if (prefix !== 'g') this.cancelLogos();
+    if (prefix !== 'g' && prefix !== 'e') this.cancelLogos();
+    if (prefix === 'e') {
+      this.runEvidenceSearch(query);
+      return;
+    }
     if (prefix === 'f') {
       this.runFileSearch(query);
       return;
@@ -1705,7 +1841,7 @@ class QuickCardSearchUI {
       this.results = [];
       this.emptyText = `Type to search everything · / browse · c commands${
         dropzoneOn() ? ' · d dropzone' : ''
-      } · f files · q my cards${isLiteBuild() ? '' : ' · g Logos (web)'} · s settings${getElectronHost() ? ' · w windows' : ''}`;
+      } · e evidence · f files · s settings${getElectronHost() ? ' · w windows' : ''}`;
     } else {
       // No prefix — search everything. Files (by filename) join the
       // other sources; the ranked rows come from the file-index service
@@ -1738,11 +1874,45 @@ class QuickCardSearchUI {
     this.logosTimer = null;
     this.logosAbort?.abort();
     this.logosAbort = null;
+    this.logosPending = null;
   }
 
-  /** `g` prefix: debounced network search against Logos. Shows a
-   *  searching state until the latest query answers; older answers are
+  /** The Logos query that is waiting out its debounce or in flight, and the
+   *  last one that failed (so a re-render does not start it again). */
+  private logosPending: string | null = null;
+  private logosError: { query: string; message: string } | null = null;
+
+  /** Start (or restart) the debounced network query for `q`. The answer lands in
+   *  `logosCache` (or `logosError`) and re-runs the search; older answers are
    *  aborted so a slow early response can't overwrite a newer one. */
+  private startLogosFetch(q: string): void {
+    this.cancelLogos();
+    this.logosError = null;
+    this.logosPending = q;
+    this.logosTimer = setTimeout(() => {
+      this.logosTimer = null;
+      const ctl = new AbortController();
+      this.logosAbort = ctl;
+      searchLogos(q, ctl.signal)
+        .then((rows) => {
+          if (ctl.signal.aborted || !this.root) return;
+          this.logosAbort = null;
+          this.logosPending = null;
+          this.logosCache = { query: q, rows };
+          this.rerunPreservingView();
+        })
+        .catch((err: unknown) => {
+          if (ctl.signal.aborted || !this.root) return;
+          this.logosAbort = null;
+          this.logosPending = null;
+          this.logosError = { query: q, message: err instanceof Error ? err.message : String(err) };
+          this.rerunPreservingView();
+        });
+    }, LOGOS_DEBOUNCE_MS);
+  }
+
+  /** `g` prefix (and `e g`): debounced network search against Logos. Shows a
+   *  searching state until the latest query answers. */
   private runLogosSearch(query: string): void {
     const q = query.trim();
     if (!q) {
@@ -1759,29 +1929,149 @@ class QuickCardSearchUI {
       this.finishSearch();
       return;
     }
-    this.cancelLogos();
+    if (this.logosError?.query === q) {
+      this.results = [];
+      this.emptyText = `Couldn't reach Logos: ${this.logosError.message}`;
+      this.finishSearch();
+      return;
+    }
+    if (this.logosPending !== q) this.startLogosFetch(q);
     this.results = [];
     this.emptyText = 'Searching Logos…';
     this.finishSearch();
-    this.logosTimer = setTimeout(() => {
-      this.logosTimer = null;
-      const ctl = new AbortController();
-      this.logosAbort = ctl;
-      searchLogos(q, ctl.signal)
-        .then((rows) => {
-          if (ctl.signal.aborted || !this.root) return;
-          this.logosAbort = null;
-          this.logosCache = { query: q, rows };
-          this.runSearch();
-        })
-        .catch((err: unknown) => {
-          if (ctl.signal.aborted || !this.root) return;
-          this.logosAbort = null;
-          this.results = [];
-          this.emptyText = `Couldn't reach Logos: ${err instanceof Error ? err.message : String(err)}`;
-          this.finishSearch();
-        });
-    }, LOGOS_DEBOUNCE_MS);
+  }
+
+  /** `e` prefix: all the evidence at once. A letter after it narrows the search
+   *  (`q` my cards, `g` Logos, `a` authors); with no letter it shows your own
+   *  cards first and the Logos cards after them. */
+  private runEvidenceSearch(raw: string): void {
+    const { sub, query, pending } = parseEvidenceSub(raw);
+    if (pending || (sub === null && query.trim() === '')) {
+      this.cancelLogos();
+      this.results = [];
+      this.emptyText = evidenceLegend();
+      this.finishSearch();
+      return;
+    }
+    if (sub === 'g') {
+      this.runLogosSearch(query);
+      return;
+    }
+    this.cancelLogos();
+    if (sub === 'q') {
+      this.runMyCardsSearch(query);
+      return;
+    }
+    if (sub === 'a') {
+      this.runAuthorSearch(query);
+      return;
+    }
+    this.runAllEvidenceSearch(query.trim());
+  }
+
+  /** `e a <name>`: the author's cards, then the responses to the author (headings
+   *  in my files that name them, ones with an attack word first). */
+  private runAuthorSearch(query: string): void {
+    const q = query.trim();
+    const parsed = parseAuthorQuery(q);
+    if (!parsed) {
+      this.results = [];
+      this.emptyText = 'Type an author’s last name. Add a year to narrow it, like “stein 21”.';
+      this.finishSearch();
+      return;
+    }
+    const electron = getElectronHost();
+    if (!electron || settings.get('fileSearchRoots').length === 0) {
+      this.results = [];
+      this.emptyText =
+        'Author search reads the cards in your files: add a file-search folder in Settings → General.';
+      this.finishSearch();
+      return;
+    }
+    const state = this.ensureAuthorQuery(q);
+    const res = this.authorKey === null ? null : this.authorResult;
+    const status = res?.status ?? null;
+    const display = authorDisplayName(parsed.name);
+    this.results = res ? authorResults(res, display) : [];
+    const progress =
+      status && (status.running || status.indexed < status.files)
+        ? ` Indexing the cards in your files… ${status.indexed.toLocaleString()} of ${status.files.toLocaleString()} files`
+        : '';
+    this.emptyText =
+      state === 'loading' && !res
+        ? 'Searching your files for authors…'
+        : `No cards by ${display} and no headings that name ${display}.${progress}`;
+    this.finishSearch();
+  }
+
+  /** Ensure `authorResult` (eventually) matches this name: the same latest-wins
+   *  fetch as `ensureTaglineQuery`. The arrival re-runs the search. */
+  private ensureAuthorQuery(query: string): 'ready' | 'loading' {
+    const limit = 100;
+    const roots = settings.get('fileSearchRoots');
+    const exclusions = settings.get('fileSearchExclusions');
+    const formats = settings.get('fileSearchFormats');
+    const attackWords = parseAttackWords(settings.get('authorAttackWords'));
+    const key = JSON.stringify([query, roots, exclusions, formats, limit, attackWords]);
+    if (this.authorKey === key) return 'ready';
+    if (this.authorPending === key) return 'loading';
+    this.authorPending = key;
+    const gen = ++this.authorGen;
+    const token = this.asyncToken;
+    void (async () => {
+      let res: AuthorQueryResult | null = null;
+      try {
+        const client = await getFileIndexClient();
+        if (client) {
+          // More of the files indexed in the background → refresh what is shown.
+          if (!this.authorUnsub) {
+            this.authorUnsub = client.onTaglinesChanged(() => {
+              if (!this.root || this.inFile) return;
+              const { prefix, query: q } = parsePrefix(this.input.value);
+              if (prefix !== 'e' || parseEvidenceSub(q).sub !== 'a') return;
+              this.authorKey = null;
+              this.rerunPreservingView();
+            });
+          }
+          res = await client.authorQuery({ query, roots, exclusions, formats, limit, attackWords });
+        }
+      } catch {
+        /* service down: treat as empty; the next keystroke retries */
+      }
+      if (token !== this.asyncToken || !this.root) return;
+      if (gen <= this.authorGenApplied) return;
+      this.authorGenApplied = gen;
+      if (this.authorPending === key) this.authorPending = null;
+      this.authorKey = key;
+      this.authorResult = res;
+      this.rerunPreservingView();
+    })();
+    return 'loading';
+  }
+
+  /** `e <words>`: my cards (quick cards and the cards in my files), then Logos. */
+  private runAllEvidenceSearch(q: string): void {
+    const mine = this.myCardsRows(q);
+    let logosRows: PaletteResult[] = [];
+    let logosNote = '';
+    let logosLoading = false;
+    if (!isLiteBuild()) {
+      if (this.logosCache?.query === q) {
+        logosRows = this.logosCache.rows.map(logosResult);
+      } else if (this.logosError?.query === q) {
+        logosNote = ` Couldn’t reach Logos: ${this.logosError.message}`;
+      } else {
+        logosLoading = true;
+        if (this.logosPending !== q) this.startLogosFetch(q);
+      }
+    }
+    this.results = [...mine.rows, ...logosRows];
+    this.emptyText = logosLoading
+      ? 'Searching your cards and Logos…'
+      : isLiteBuild()
+        ? mine.emptyText
+        : `${mine.emptyText}${logosNote}`;
+    this.finishSearch();
   }
 
   /** Enter on a Logos row: fetch the full card, then insert it. The insert
@@ -2318,6 +2608,16 @@ class QuickCardSearchUI {
    *  finishes cover the files indexed so far and fill in as it goes (the
    *  empty-state line says how far along it is). */
   private runMyCardsSearch(query: string): void {
+    const { rows, emptyText } = this.myCardsRows(query);
+    this.results = rows;
+    this.emptyText = emptyText;
+    this.finishSearch();
+  }
+
+  /** The rows and the empty-state text for "my cards" (quick cards, then the
+   *  cards in my files). Starts the file-card fetch when one is needed; its
+   *  arrival re-runs the search. */
+  private myCardsRows(query: string): { rows: PaletteResult[]; emptyText: string } {
     const quick = searchQuickCardSource(query);
     const haveQuick = quickCardsStore.list().length > 0;
     const electron = getElectronHost();
@@ -2326,20 +2626,20 @@ class QuickCardSearchUI {
     // Without a query there is nothing to match a tagline against: show the
     // quick cards (browse) and a nudge toward the file cards.
     if (query.trim() === '' || !filesOn) {
-      this.results = quick;
-      this.emptyText = !electron
-        ? haveQuick
-          ? 'No matching cards.'
-          : 'No quick cards yet.'
-        : !roots.length
+      return {
+        rows: quick,
+        emptyText: !electron
           ? haveQuick
             ? 'No matching cards.'
-            : 'No quick cards yet. Add a file-search folder in Settings → General to search the cards in your files.'
-          : haveQuick
-            ? 'No matching cards.'
-            : 'Type words from a card’s tagline to search your quick cards and the cards in your files.';
-      this.finishSearch();
-      return;
+            : 'No quick cards yet.'
+          : !roots.length
+            ? haveQuick
+              ? 'No matching cards.'
+              : 'No quick cards yet. Add a file-search folder in Settings → General to search the cards in your files.'
+            : haveQuick
+              ? 'No matching cards.'
+              : 'Type words from a card’s tagline to search your quick cards and the cards in your files.',
+      };
     }
     const state = this.ensureTaglineQuery(query);
     const status = this.taglineStatus;
@@ -2348,16 +2648,17 @@ class QuickCardSearchUI {
         ? `Indexing cards in your files… ${status.indexed.toLocaleString()} of ${status.files.toLocaleString()} files`
         : '';
     const fileRows = this.taglineKey === null ? [] : this.taglineRows.map(taglineResult);
-    this.results = [...quick, ...fileRows];
-    this.emptyText =
-      state === 'loading' && this.taglineKey === null
-        ? 'Searching your cards…'
-        : progress
-          ? `No matching cards yet. ${progress}`
-          : status?.capped
-            ? 'No matching cards (the oldest files are not indexed).'
-            : 'No matching cards.';
-    this.finishSearch();
+    return {
+      rows: [...quick, ...fileRows],
+      emptyText:
+        state === 'loading' && this.taglineKey === null
+          ? 'Searching your cards…'
+          : progress
+            ? `No matching cards yet. ${progress}`
+            : status?.capped
+              ? 'No matching cards (the oldest files are not indexed).'
+              : 'No matching cards.',
+    };
   }
 
   /** Ensure `taglineRows` (eventually) reflect this query — the same
@@ -2412,8 +2713,9 @@ class QuickCardSearchUI {
   private async readTaglineSlice(result: PaletteResult): Promise<Slice | null> {
     const electron = getElectronHost();
     const path = result.filePath;
-    const text = result.taglineText;
-    const ord = result.taglineOrd;
+    const isHeading = result.source === 'response';
+    const text = isHeading ? result.headingText : result.taglineText;
+    const ord = isHeading ? result.headingIndex : result.taglineOrd;
     if (!electron || !path || text === undefined || ord === undefined) return null;
     const fileName = result.fileName ?? 'that file';
     recordUsage(path);
@@ -2421,10 +2723,10 @@ class QuickCardSearchUI {
       const file = await electron.readFileAtPath(path);
       if (!file) throw new Error('read failed');
       const doc = await parseFileDoc(file.bytes, file.format);
-      const entry = findTaglineEntry(doc, ord, text);
+      const entry = isHeading ? findHeadingEntry(doc, ord, text) : findTaglineEntry(doc, ord, text);
       const range = entry ? computeHeadingRange(doc, entry) : null;
       if (!range) {
-        showToast(`That card is no longer in "${fileName}".`);
+        showToast(`That ${isHeading ? 'heading' : 'card'} is no longer in "${fileName}".`);
         return null;
       }
       return flattenSelfRefsInSlice(doc.slice(range.from, range.to), doc, newHeadingId);
@@ -2470,7 +2772,7 @@ class QuickCardSearchUI {
     const token = this.asyncToken;
     let sliceJson: unknown;
     try {
-      if (result.source === 'tagline') {
+      if (result.source === 'tagline' || result.source === 'response') {
         const slice = await this.readTaglineSlice(result);
         if (!slice) return;
         sliceJson = slice.toJSON();
@@ -2486,7 +2788,7 @@ class QuickCardSearchUI {
     const toNewDoc = !this.view?.editable && !!this.openSliceAsNewDoc;
     openCardPreview({
       title: result.name,
-      ...(result.source === 'tagline'
+      ...(result.source === 'tagline' || result.source === 'response'
         ? { subtitle: result.fileName ?? undefined, sourcePath: result.filePath ?? undefined }
         : result.meta
           ? { subtitle: result.meta }
@@ -2494,7 +2796,7 @@ class QuickCardSearchUI {
       sliceJson,
       ...(toNewDoc ? { insertLabel: 'Open in new document' } : {}),
       onInsert: () => this.activateSelected(false),
-      ...(result.source === 'tagline' && result.filePath
+      ...((result.source === 'tagline' || result.source === 'response') && result.filePath
         ? {
             onOpenSource: () => {
               const path = result.filePath!;
@@ -2910,7 +3212,9 @@ class QuickCardSearchUI {
 
     if (this.results.length > 0) segs.push('↑↓ navigate');
     if (sel) {
-      segs.push(`↵ ${enterVerb(sel.source)}`);
+      const goesInside =
+        this.transcludeMode && !inFile && (sel.source === 'file' || sel.source === 'tagline');
+      segs.push(`↵ ${goesInside ? 'search inside' : enterVerb(sel.source)}`);
       // Alt+Enter (insert at end of doc) only applies to inserts.
       if (isInsertSource(sel.source)) segs.push('⌥↵ at end');
       if (sel.source === 'logos') segs.push('right-click: preview');
@@ -2952,17 +3256,19 @@ class QuickCardSearchUI {
     if (this.results.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'pmd-qcs-empty';
-      if (this.emptyText.startsWith('Type to search everything · ')) {
-        const parts = this.emptyText.split(' · ');
-        parts.forEach((part, i) => {
-          if (i > 0) {
-            const separator = document.createElement('strong');
-            separator.className = 'pmd-qcs-empty-separator';
-            separator.textContent = ' · ';
-            empty.appendChild(separator);
-          }
-          empty.appendChild(document.createTextNode(part));
-        });
+      if (this.emptyText.startsWith('Searching all evidence\n')) {
+        // After `e `: the headline, then the letters that can follow it.
+        const [headline = '', legend = ''] = this.emptyText.split('\n');
+        const strong = document.createElement('strong');
+        strong.className = 'pmd-qcs-empty-headline';
+        strong.textContent = headline;
+        empty.appendChild(strong);
+        const second = document.createElement('div');
+        second.className = 'pmd-qcs-empty-legend';
+        appendLegend(second, legend);
+        empty.appendChild(second);
+      } else if (this.emptyText.startsWith('Type to search everything · ')) {
+        appendLegend(empty, this.emptyText);
       } else {
         empty.textContent = this.emptyText;
       }
@@ -2994,6 +3300,12 @@ class QuickCardSearchUI {
       markPrefixHintSeen();
     }
     this.results.forEach((r, i) => {
+      if (r.sectionTitle) {
+        const head = document.createElement('div');
+        head.className = 'pmd-qcs-section';
+        head.textContent = r.sectionTitle;
+        this.resultsEl.appendChild(head);
+      }
       const row = document.createElement('div');
       row.className = 'pmd-qcs-row';
       row.setAttribute('role', 'option');
@@ -3048,7 +3360,7 @@ class QuickCardSearchUI {
           this.setSelected(i);
           void this.previewLogosCard(r);
         });
-      } else if (r.source === 'quickcard' || r.source === 'dropzone' || r.source === 'tagline') {
+      } else if (r.source === 'quickcard' || r.source === 'dropzone' || r.source === 'tagline' || r.source === 'response') {
         // Same right-click preview Logos rows have, for the cards in my own
         // collection and the cards indexed from my files.
         row.addEventListener('contextmenu', (ev) => {
@@ -3075,6 +3387,12 @@ class QuickCardSearchUI {
       if (r.nameDocs) name.appendChild(renderDocNames(r.nameDocs.names, r.nameDocs.speechDoc).el);
       else name.textContent = r.name;
       top.appendChild(name);
+      for (const word of r.chips ?? []) {
+        const chip = document.createElement('span');
+        chip.className = 'pmd-qcs-row-badge pmd-qcs-chip-attack';
+        chip.textContent = word;
+        top.appendChild(chip);
+      }
       let meta: HTMLSpanElement | null = null;
       const pills = r.pills ? renderWindowPills(r.pills) : null;
       if (pills) {
@@ -3266,6 +3584,18 @@ class QuickCardSearchUI {
         });
       return;
     }
+    // Opened by "Insert Linked Copy from a File": the point is to pick a heading
+    // INSIDE a file, so Enter on a file (or on a card hit from one) goes in, like
+    // Tab, instead of opening the document (which, for a file that is already
+    // open, only said "already open").
+    if (
+      this.transcludeMode &&
+      !this.inFile &&
+      (result.source === 'file' || result.source === 'tagline')
+    ) {
+      void this.enterInFile();
+      return;
+    }
     // File: close the palette, then open the document. atEnd irrelevant.
     if (result.source === 'file') {
       const path = result.filePath;
@@ -3276,7 +3606,7 @@ class QuickCardSearchUI {
       return;
     }
     // File card (`q` my cards): read its file and insert the card.
-    if (result.source === 'tagline') {
+    if (result.source === 'tagline' || result.source === 'response') {
       void this.insertTaglineCard(result, atEnd);
       return;
     }

@@ -35,9 +35,10 @@
 >    new document, choosing a side for each conflicting line.
 > 5. **Autosave for `.docx` files**, not just `.cmir` — plus a ribbon button that
 >    shows when it's saving.
-> 6. **Index Logos for cards in Search Everything** — type `g ` to search
->    Logos's index of open-source round-doc cards (from opencaselist)
->    and insert a full, intact card.
+> 6. **One prefix for cards in Search Everything** — type `e ` to search
+>    your own cards and Logos's index of open-source round-doc cards (from
+>    opencaselist) together; add `q` (my cards), `g` (Logos) or `a` (author
+>    search, with responses to that author) to narrow it. Cards insert in full.
 > 7. **Easier to use, especially for newcomers** — small changes that make
 >    CardMirror discoverable without a manual:
 >    - a. **A visible Search button** (a magnifying glass at the bottom left)

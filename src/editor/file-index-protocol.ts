@@ -114,6 +114,16 @@ export interface TaglineQueryParams {
   limit: number;
 }
 
+/** `e a <name>`: the author's cards and the headings that answer them. */
+export interface AuthorQueryParams extends TaglineQueryParams {
+  /** The words that make a heading naming the author read as a response. */
+  attackWords: string[];
+}
+
+export type AuthorQueryResult = import('./author-search.js').AuthorResult & {
+  status: TaglineQueryResult['status'];
+};
+
 export interface TaglineQueryResult {
   rows: import('./tagline-search.js').TaglineRow[];
   total: number;

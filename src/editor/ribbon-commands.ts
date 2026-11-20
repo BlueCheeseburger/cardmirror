@@ -2432,6 +2432,24 @@ export function applyHighlight(activeColor: () => string | null): Command {
 }
 
 /**
+ * F11 with nothing selected: arm (or disarm) the highlighter paint mode, the
+ * same thing the ribbon Highlight button does on a bare caret. The pointer
+ * then shows the highlighter with the active color, and whatever is selected
+ * next gets highlighted. With a selection (or a shadow selection) it is the
+ * ordinary toggle above.
+ */
+function highlightOrArmPaintbrush(ctx: RibbonContext): Command {
+  const highlight = applyHighlight(ctx.highlightColor);
+  return (state, dispatch, view) => {
+    if (highlight(state, dispatch, view)) return true;
+    if (!state.selection.empty) return false;
+    if (getOperatingRangesForFormatting(state).ranges.length > 0) return false;
+    if (dispatch) ctx.togglePaintbrushHighlight();
+    return true;
+  };
+}
+
+/**
  * Mod-Shift-F11 — toggle Shading (background color, `<w:shd w:fill="…"/>`).
  * Same toggle shape as F11. Shading is independent of highlight —
  * both can coexist on the same character. When both are present the
@@ -6776,7 +6794,7 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
     case 'applyEmphasisAndShading': return applyEmphasisAndShading(ctx.shadingColor);
     case 'emphasizeAcronym': return emphasizeAcronym();
     case 'removeEmphasis': return removeEmphasis();
-    case 'applyHighlight': return applyHighlight(ctx.highlightColor);
+    case 'applyHighlight': return highlightOrArmPaintbrush(ctx);
     case 'applyHighlightWhite': return applyHighlight(() => 'white');
     case 'highlightAcronym': return highlightAcronym(ctx.highlightColor);
     case 'underlineAcronym': return underlineAcronym();

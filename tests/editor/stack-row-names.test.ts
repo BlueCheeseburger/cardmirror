@@ -48,10 +48,9 @@ describe('pane stack list rows', () => {
     expect(fn).toContain('rowNames[rowIndex]');
   });
 
-  it('marks the speech doc\'s name amber and keeps its mic', () => {
-    expect(fn).toContain("name.classList.add('pmd-speech-name')");
+  it('marks the speech doc by its amber mic only, leaving the name in the normal colour', () => {
+    expect(fn).not.toContain("pmd-speech-name");
     expect(fn).toContain("setIcon(mark, 'mic')");
-    expect(css).toMatch(/\.pmd-speech-name \{[^}]*--pmd-c-speech-amber/s);
     expect(css).toMatch(/\.pmd-pane-chip-dropdown-row\.pmd-speech \.pmd-pane-chip-dropdown-mic \{[^}]*--pmd-c-speech-amber/);
   });
 });
