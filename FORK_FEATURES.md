@@ -97,6 +97,20 @@ document scrolls at *your* reading pace: slower over dense highlighted text, fas
 through everything you skip. It works in read mode and Reading view (where it turns the pages) and follows the lay-speaking
 toggle. A thin outlined bar in the margin marks the line it thinks you're reading.
 
+**With the speech clock.** Once the speech clock has started, Auto-Scroll stops guessing
+from your reading speed and follows the blue line from [Pace guides](#2-pace-guides-on-time-too-slow-too-fast):
+it keeps that line on the line you're reading, at the blue line's own pace, and stops when
+the line reaches the end of the document (in Reading view it turns to the page the line is
+on). Start the clock first (click a speech time, then **Start**) and then press
+**Auto-Scroll**. Without a running clock, or when the blue line can't show (a masterfile),
+it paces by your reading speed. It follows the blue line only when **Show pace guides** is on.
+
+**Start and pause together** (off by default). The **Auto-Scroll** button then also starts
+the speech clock, and stopping Auto-Scroll pauses the clock, and pausing the clock stops
+Auto-Scroll. The timer's own **Start** button still starts only the clock and the blue line.
+Load a speech time first. **Settings → Appearance → Timer display → Start and pause
+Auto-Scroll with the timer**.
+
 Press **Escape**, any scroll key (PageUp, PageDown, Home, End, the arrow keys), or
 scroll yourself to stop it.
 

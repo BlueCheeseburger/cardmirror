@@ -12,6 +12,20 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: Auto-Scroll follows the blue pace bar; optional start/pause link with the timer (`auto-scroll.ts`, `pace-marker.ts`, `auto-scroll-timer-link.ts`, `reading-line.ts`)
+
+**Request.** Make Auto-Scroll more integrated with the blue marker and the timer. Decisions: the scroll uses the pace marker's own position, speed and rules; a setting, off by default, starts and pauses them together; the timer's Start starts the clock and blue bar only, the Auto-Scroll button starts both.
+
+**Follow.** `paceBarFor(view)` (pace marker) returns the bar's drawn position (after its smoothing, so the scroll and the bar are the same thing), the document position, and whether the clock has run it to the end. It is null whenever the bar would be hidden (pace guides off, clock not started, no reader speed, masterfile-length doc, or a view the bar does not follow). Each frame Auto-Scroll sets `scrollTop` to `scrollTopForReadingLine(bar.y, ...)`, the exact inverse of the reading line (including its ease down from the top), so the bar sits on the line the pace sampler and the old outlined bar used. The scroll's speed is therefore the bar's speed, including its capped rush through unhighlighted text. It does **not** stop when the scroll bottoms out (the last third of the screen is still being read); it stops when the bar reaches the end (`atEnd`, clock out). Reading view flips to the page holding the bar's position (`goToPos`) every 0.3 s.
+
+**When it follows.** Decided once, on the run's first frame: the speech clock has started and Show pace guides is on. A run that starts without the clock keeps pacing by the reader's wpm for its whole length, so starting the clock mid-run never throws the scroll back to the top. A following run whose bar disappears (reset, masterfile) paces by wpm until it returns. The outlined bar is not drawn while following.
+
+**The link (`autoScrollWithTimer`, off).** The Auto-Scroll button starts the speech clock first (so the run sees it on its first frame); a start that then fails (nothing to scroll) undoes it. Any stop of Auto-Scroll pauses the clock; a running to paused change of the clock stops Auto-Scroll (any window, a reset, the clock running out). Only the speech countdown is touched: with no speech time loaded (starting would begin a count-up) or a prep clock showing, the clock is left alone.
+
+**Rejected.** Timer Start also starting Auto-Scroll (asked to keep it separate); stopping the scroll when it hits the bottom of the document (would pause the clock a minute or two early); letting the follow ignore the Show pace guides switch (kept "same rules as the marker").
+
+**Not verified.** In the real app: how the scroll feels against a running clock, the one-time nudge of a few pixels as the bar passes the first line, content-visibility cards materializing under the bar, Reading view page turns, a popped-out timer pausing the scroll. Tests cover the inverse-line maths, the follow / fallback / stop logic with a scripted bar, and the link rules; the bar's own placement needs a real layout.
+
 ### Fixed: F11 with a bare caret does nothing (`ribbon-commands.ts`)
 
 **Report.** "Pressing F11 should work when the user doesn't have a word selected. It should have the thing next to the cursor that symbolizes it will highlight whatever the user selects next."

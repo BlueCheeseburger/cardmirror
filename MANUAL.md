@@ -1679,7 +1679,23 @@ teleprompter for practicing a speech. Any manual scroll, wheel, touch,
 or click hands control straight back to you and stops it; running out
 of document does too. In **Reading view** (the book) there is nothing to scroll, so it turns the pages
 instead, giving each page as long as it takes to read aloud at your first reader's
-rate; flipping a page yourself stops it. Escape, Page Up/Down, Home, End and the up/down arrows
+rate; flipping a page yourself stops it.
+
+**(Fork)** **With the speech clock.** Once the speech clock has started (and
+**Show pace guides** is on), Auto-Scroll follows the
+[reading-position marker](#the-speech-and-prep-timer) instead of pacing by the reader's
+rate: it keeps the blue bar on the reading line, at the bar's own pace and by its own
+rules, and stops when the bar reaches the end of the document (in Reading view it turns
+to the page the bar is on). The outlined bar isn't drawn then, since it would sit on the
+blue one. With the clock not started, or the bar hidden (a masterfile, no reader speed),
+it paces by the reader's rate as above. The mode is chosen when Auto-Scroll starts, so
+starting the clock later does not move a running scroll.
+
+**(Fork)** **Start and pause together** (Settings → Appearance → Timer display →
+*Start and pause Auto-Scroll with the timer*, off by default). The Auto-Scroll button
+then also starts the speech clock (a speech time must be loaded; a prep clock is never
+touched), stopping Auto-Scroll pauses the clock, and pausing the clock stops
+Auto-Scroll. The timer's own Start button starts only the clock and the blue bar. Escape, Page Up/Down, Home, End and the up/down arrows
 stop it as well. Switching focus to another pane (in the
 multi-doc workspace) also stops it — it never keeps scrolling somewhere
 you're not looking.
@@ -1840,8 +1856,9 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   document is more than three minutes longer than the speech, which is probably a
   masterfile. The bar glides down smoothly rather than line by line; unhighlighted
   text takes no reading time, so it rushes through that text instead of jumping.
-  While **Auto-Scroll** runs, a second, outlined bar marks
-  the line it thinks you are reading. **Show pace guides** (Settings → Appearance →
+  While **Auto-Scroll** runs by the reader's speed, a second, outlined bar marks
+  the line it thinks you are reading; when the clock has started, Auto-Scroll
+  follows the blue bar itself (see [Auto-scroll](#auto-scroll)). **Show pace guides** (Settings → Appearance →
   Timer display, on by default) turns this and the time left under the timer
   (next item) on or off together.
 

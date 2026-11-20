@@ -906,6 +906,11 @@ export interface Settings {
    *  `timerLeftUnderTimer` (off by default) and `paceMarker` (on by default):
    *  a stored blob that lacks this key gets it on when either was on. */
   paceGuides: boolean;
+  /** Link Auto-Scroll to the speech clock (off by default). The Auto-Scroll
+   *  button then also starts the speech clock, and stopping Auto-Scroll or
+   *  pausing the clock pauses the other. The timer's own Start button never
+   *  starts Auto-Scroll. */
+  autoScrollWithTimer: boolean;
   /** How to label the Aff / Neg prep buttons:
    *    'text'  → "A: 10:00" / "N: 10:00", no special color
    *    'color' → "10:00" / "10:00", blue + red border
@@ -2097,6 +2102,7 @@ const DEFAULTS: Settings = {
   timerSoundVolume: 70,
   timerCompact: false,
   paceGuides: true,
+  autoScrollWithTimer: false,
   timerPrepLabel: 'both',
   timerPosition: 'beside',
   jumpToDocTopOnReadModeToggle: false,
@@ -3878,6 +3884,19 @@ export const SETTING_METADATA: SettingMeta[] = [
     ],
   },
   {
+    key: 'autoScrollWithTimer',
+    label: 'Start and pause Auto-Scroll with the timer',
+    description:
+      "Off by default. When on, the Auto-Scroll button also starts the speech clock, and stopping Auto-Scroll (the button, Escape, or scrolling yourself) or pausing the clock pauses the other. The timer's own Start button still starts only the clock and the blue line, never Auto-Scroll. The clock only starts if a speech time is loaded (click a preset first). Whenever the speech clock has started and Show pace guides is on, Auto-Scroll keeps the blue line on the line you are reading and stops when the line reaches the end of the document; otherwise it paces by your reading speed as before.",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Timer display',
+    aliases: [
+      'auto scroll timer', 'autoscroll timer', 'start timer with auto scroll', 'teleprompter timer',
+      'pause timer with auto scroll', 'link auto scroll and timer',
+    ],
+  },
+  {
     key: 'timerFlashEnabled',
     label: 'Flash timer when countdown is low',
     description:
@@ -5392,6 +5411,7 @@ function sanitize(s: Settings): Settings {
         : 70,
     timerCompact: !!s.timerCompact,
     paceGuides: s.paceGuides !== false,
+    autoScrollWithTimer: s.autoScrollWithTimer === true,
     timerPrepLabel:
       s.timerPrepLabel === 'text' || s.timerPrepLabel === 'color'
         ? s.timerPrepLabel
