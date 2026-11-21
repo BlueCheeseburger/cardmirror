@@ -10,7 +10,7 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
-## Unreleased
+## 1.17.2-bcb.7 — 2026-11-21
 
 ### Added: Bulk convert takes several files at once (`bulk-convert-ui.ts`)
 

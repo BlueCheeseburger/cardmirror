@@ -8,13 +8,7 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
-## Unreleased
-
-### Fixed
-
-- **Insert Linked Copy from a File: Enter on the file now goes into it.** In that mode the palette opened the document when you pressed Enter on a file, and a file that was already open only said "Cap K is already open". Now Enter searches inside the file, like Tab, so you can pick a heading, and the hint at the bottom reads **↵ search inside**. In the normal palette Enter still opens the file.
-- **F11 with nothing selected now picks up the highlighter.** It used to do nothing unless you had selected text first. Now the pointer turns into a highlighter showing the current color, and whatever you select next is highlighted. Press **F11** again or **Esc** to put it down. With text selected, F11 works as before.
-- **A table with nothing left in it can be deleted with Backspace or Delete.** If you emptied a table down to one last empty cell, Backspace in it did nothing and the only way to remove the table was the table menu, which is hidden when **Show additional formatting buttons** is off. Backspace or Delete now removes a table whose cells are all empty when the caret is in its only cell, or when every cell is selected. A table with any text in it, or a blank table of several cells with just a caret in it, is left alone.
+## 1.17.2-bcb.7 — 2026-11-21
 
 ### Added
 
@@ -29,6 +23,12 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 - **A notice tells you when autosave pauses for a Word file with a live view or linked copy.** Word (.docx) can't hold either, so autosave skips that file, and until now the only sign was the autosave button's tooltip. Now a notice appears the first time it happens in a document, saying autosave is paused and how to resume (save by hand, or unlink; a .cmir file keeps them live and autosaves). It shows once per document, and again only if you remove them and add one back.
 - **The linked-copy and live-view picker says why a row is greyed out.** Rows that hold your cursor (your own card, its block, hat and pocket) can't be copied into themselves, and the picker used to grey them with no explanation. Now each greyed row says why when you hover it, and a short line above the list says that greyed rows hold your cursor and to move it elsewhere to pick them. Empty sections say they have nothing in them.
 - **In a pane's document list, only the speech mic is amber now.** The speech document's name in the small **v 4** list on a pane's title bar is back to the normal text colour, so it reads like the other rows, and its microphone stays amber. The other lists that name the speech document (the drag tray, **Select Speech Document** and **Switch Window**) are unchanged.
+
+### Fixed
+
+- **Insert Linked Copy from a File: Enter on the file now goes into it.** In that mode the palette opened the document when you pressed Enter on a file, and a file that was already open only said "Cap K is already open". Now Enter searches inside the file, like Tab, so you can pick a heading, and the hint at the bottom reads **↵ search inside**. In the normal palette Enter still opens the file.
+- **F11 with nothing selected now picks up the highlighter.** It used to do nothing unless you had selected text first. Now the pointer turns into a highlighter showing the current color, and whatever you select next is highlighted. Press **F11** again or **Esc** to put it down. With text selected, F11 works as before.
+- **A table with nothing left in it can be deleted with Backspace or Delete.** If you emptied a table down to one last empty cell, Backspace in it did nothing and the only way to remove the table was the table menu, which is hidden when **Show additional formatting buttons** is off. Backspace or Delete now removes a table whose cells are all empty when the caret is in its only cell, or when every cell is selected. A table with any text in it, or a blank table of several cells with just a caret in it, is left alone.
 
 ## 1.17.2-bcb.6 — 2026-11-18
 
