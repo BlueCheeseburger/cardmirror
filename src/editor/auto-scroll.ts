@@ -29,8 +29,9 @@ import {
   type ReadAloudCounts,
 } from './word-count.js';
 import { nearestScroller } from './precise-scroll.js';
-import { readingLineOffset } from './reading-line.js';
+import { readingLineOffset, scrollTopForReadingLine } from './reading-line.js';
 import { readerControllerFor, READER_EDGE_W } from './reader-view.js';
+import type { PaceBar } from './pace-marker.js';
 
 /** How far below the viewport top to sample, in CSS px. Small enough
  *  that the sampled content is always on-screen or just about to be;
@@ -70,6 +71,8 @@ interface RunningState {
   lastFrameTime: number;
   lastSampleTime: number;
   rafId: number;
+  /** True while the run is following the blue bar (see `bar`). */
+  following?: boolean;
   /** Reading view's page-flip timer (0 when scrolling). */
   timerId?: ReturnType<typeof setTimeout>;
   /** Full teardown: cancels the frame loop, removes the manual-
@@ -84,6 +87,13 @@ let running: RunningState | null = null;
 /** True while auto-scroll is actively running, on any view. */
 export function isAutoScrolling(): boolean {
   return running !== null;
+}
+
+/** True while the running Auto-Scroll is keeping the blue bar on the reading
+ *  line, rather than pacing by the reader's own speed. The pace marker draws its
+ *  outlined "line being read" bar only when it is not (the two would coincide). */
+export function isAutoScrollFollowing(): boolean {
+  return running?.following === true;
 }
 
 /** The view auto-scroll is currently running on, or null. */
@@ -163,6 +173,15 @@ export interface AutoScrollOptions {
   /** Whether the document is on the lay speaking rate right now. Asked on
    *  every sample, so flipping the toggle mid-run changes the pace at once. */
   useLay?: () => boolean;
+  /** Where the blue pace bar is for `view` (see `paceBarFor`), or null when it
+   *  would not show. Passed in rather than imported: the pace marker already
+   *  imports this module. */
+  bar?: (view: EditorView) => PaceBar | null;
+  /** Asked once, on the first frame: should this run follow the blue bar? True
+   *  when the speech clock has started and the pace guides are on. A run that
+   *  starts without the clock keeps pacing by the reader's wpm all the way
+   *  through, so starting the clock later never throws it back to the top. */
+  followClock?: () => boolean;
 }
 
 /** Keys that mean "I'm driving the scroll now" — they hand control back. */
@@ -182,12 +201,13 @@ export function startAutoScroll(
   if (!scroller) return false;
   // Reading view is paged and scrolls sideways: there is no vertical scroll to
   // pace, so it turns the pages at the pace the page in view takes to read.
-  if (readerControllerFor(view)) return startPagedAutoScroll(view, scroller, reader, onStop, lay);
+  if (readerControllerFor(view)) return startPagedAutoScroll(view, scroller, reader, onStop, lay, opts);
   const maxTop = scroller.scrollHeight - scroller.clientHeight;
   // Nothing to scroll: the document fits, or the reader is already at its end.
   if (maxTop < 2 || scroller.scrollTop >= maxTop - 1) return false;
 
   let stopped = false;
+  let follow: boolean | undefined;
   const onManualInterrupt = (): void => state.stop();
   const onKey = (e: KeyboardEvent): void => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -213,6 +233,31 @@ export function startAutoScroll(
     // so the scroll doesn't leap that far in one step.
     const dt = Math.min((t - state.lastFrameTime) / 1000, MAX_FRAME_DT_S);
     state.lastFrameTime = t;
+    // Following the clock: the blue bar already knows where the speaker should
+    // be, how fast it moves and where it stops, so the scroll just keeps it on
+    // the reading line. Where the bar is not available (a masterfile, a reset
+    // clock) the reader's own pace below takes over.
+    if (follow === undefined) follow = opts.followClock?.() ?? false;
+    const bar = follow ? (opts.bar?.(view) ?? null) : null;
+    state.following = bar !== null;
+    if (bar) {
+      const sr = scroller.getBoundingClientRect();
+      const er = view.dom.getBoundingClientRect();
+      const editorTop = er.top - sr.top - scroller.clientTop + scroller.scrollTop;
+      const to = scrollTopForReadingLine(bar.y, editorTop, sr.height);
+      state.pos = to;
+      scroller.scrollTop = to;
+      state.applied = scroller.scrollTop;
+      // The clock has run the bar out to the end of the document: done. (Not
+      // when the scroll bottoms out: the last third of the screen is still
+      // being read then.)
+      if (bar.atEnd) {
+        state.stop();
+        return;
+      }
+      state.rafId = requestAnimationFrame(tick);
+      return;
+    }
     if (t - state.lastSampleTime >= RESAMPLE_INTERVAL_MS) {
       state.velocity = sampleAutoScrollVelocity(view, scroller, reader, lay());
       state.lastSampleTime = t;
@@ -327,6 +372,7 @@ function startPagedAutoScroll(
   reader: ReaderRates,
   onStop: () => void,
   lay: () => boolean,
+  opts: AutoScrollOptions,
 ): boolean {
   const rc = readerControllerFor(view);
   if (!rc || rc.pageTotal() < 2 || rc.currentPage() >= rc.pageTotal() - 1) return false; // nothing to turn
@@ -335,10 +381,25 @@ function startPagedAutoScroll(
   const onKey = (e: KeyboardEvent): void => {
     if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', ' ', 'Home', 'End', 'Escape'].includes(e.key)) state.stop();
   };
+  let follow: boolean | undefined;
   const schedule = (): void => {
     if (stopped) return;
     if (view.isDestroyed || !readerControllerFor(view)) {
       state.stop();
+      return;
+    }
+    // Following the clock: show the page the blue bar is on, and stop when the
+    // bar reaches the end of the document.
+    if (follow === undefined) follow = opts.followClock?.() ?? false;
+    const bar = follow ? (opts.bar?.(view) ?? null) : null;
+    state.following = bar !== null;
+    if (bar) {
+      readerControllerFor(view)?.goToPos(bar.pos);
+      if (bar.atEnd) {
+        state.stop();
+        return;
+      }
+      state.timerId = setTimeout(schedule, 300);
       return;
     }
     const seconds = pageReadSeconds(view, scroller, reader, lay());

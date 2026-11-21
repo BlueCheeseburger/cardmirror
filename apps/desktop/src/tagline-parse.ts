@@ -13,7 +13,7 @@ const MAX_FILE_BYTES = 150 * 1024 * 1024;
 
 export async function parseTaglines(filePath: string): Promise<TaglineRecord> {
   const st = await fsp.stat(filePath);
-  if (st.size > MAX_FILE_BYTES) return { tags: [], cites: [] };
+  if (st.size > MAX_FILE_BYTES) return { tags: [], cites: [], authors: [], heads: { l: [], t: [], c: [] } };
   const bytes = new Uint8Array(await fsp.readFile(filePath));
   const doc = /\.docx$/i.test(filePath) ? await fromDocx(bytes) : parseNative(bytes).doc;
   return extractTaglines(doc);

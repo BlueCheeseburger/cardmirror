@@ -10,6 +10,108 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.17.2-bcb.7 — 2026-11-21
+
+### Added: Bulk convert takes several files at once (`bulk-convert-ui.ts`)
+
+**Request.** "I want to be able to select multiple files in bulk convert, under select files."
+
+**Change.** The input is now `files` (a list of picked files with their bytes) or a folder. **Choose files…** uses the host's multi-select picker (`openFiles`, falling back to one file where a host lacks it), and the same loop that converted a folder converts the list: loose files go to the destination by name, or one `Converted files.zip` (one file keeps its own `<name>.zip`). Within a batch, same-named files get ` (2)`, ` (3)` (`uniqueBatchName`), because without it the second would either overwrite in the zip or be miscounted as "already in the destination". Existing files in the destination are never overwritten (`failIfExists`), as before. A single file keeps its old status text, except that a conversion error now reads "Couldn't convert ..." (the old single-file path showed the raw error message).
+
+**Rejected.** Preserving each file's source folder in the output (picked files have no common root; a folder input still preserves its structure). Converting several folders at once.
+
+**Not verified.** The real file dialog (Ctrl/Shift multi-select) and writing to a real folder; the tests use a fake host and a stub converter.
+
+### Fixed: Enter on a file in "Insert Linked Copy from a File" opened the file (`quick-card-search-ui.ts`)
+
+**Report.** "I tried to create a linked copy and it just said 'Cap K is already open' ... I'm trying to create a linked section from there to the 1NC."
+
+**Cause.** The command opens the palette in transclude mode, but Enter on a file result still ran the normal "open this document" path, whose duplicate guard toasts "already open" for a file open in a pane or window. Only Tab dived into the file, and I had pointed the user at Tab without saying that Enter would go wrong.
+
+**Fix.** In transclude mode, outside a file, Enter on a file or on a card hit from one (`tagline`) calls `enterInFile()` like Tab; the bottom hint reads "↵ search inside". The normal palette is unchanged (test covers both). Enter on a heading inside a file still inserts the linked copy.
+
+**Not verified.** In the real app with a real file that is already open in another window; the tests use a fake file index.
+
+### Added: one-time "autosave is paused" notice for a .docx with live links (`autosave-links-notice.ts`, `index.ts`, `multi-pane-shell.ts`)
+
+**Request.** After asking whether live views and linked copies cause autosave problems in a .docx: "a .docx should show a one-time notice".
+
+**Behavior.** Autosave already skips a `.docx` that holds a live view or linked copy (it cannot show the flatten confirmation a manual save does), and only the button's tooltip said so. Both autosave paths (single-document `runAutosaveAttempt`, and panes' `runAutosaveForRecord`) now call `noteAutosavePausedByLinks(uid, views, copies)` on a skipped tick. The toast says what the file holds (live views and linked copies are counted by the same check, so one notice covers both) and how to resume. It shows once per document uid per session; a tick that runs because there are no links any more clears that document's flag, so removing the links and adding one back is news again.
+
+**Rejected.** Making autosave write the `.docx` anyway (flattening without consent); a modal (a toast fits a background event).
+
+**Not verified.** Seen only in jsdom (the helper) and by typecheck for the two call sites; not in the real app. The notice appears on the first skipped tick, about five seconds after the first edit that follows adding the link, not at the moment of inserting it.
+
+### Changed: the in-document section picker explains greyed rows (`self-ref-picker.ts`)
+
+**Report.** A screenshot of "Copy a section of this document (linked)" with the first four rows (pocket, hat, block and the first card) greyed out: "why can't I select parts of this document for a linked copy".
+
+**Cause.** Not a bug: the picker deliberately disables any section that contains the cursor (inserting a copy inside the section it copies would make it contain itself), and a section with no content or no heading text. It gave no reason, so it looked broken.
+
+**Change.** Each row now records why it is disabled (`cursor`, `empty`, `untitled`) and shows it as the row's hover note, also on favorites; and when any row is disabled because it holds the cursor, one hint line above the list says to move the cursor elsewhere. Eligibility itself is unchanged. The guard is still applied to linked copies as well as live views (shared picker); I did not check whether a linked copy needs it as strictly as a live view does.
+
+**Not verified.** Only in jsdom, with the picker's test fixtures; not seen in the real app.
+
+### Added: Auto-Scroll follows the blue pace bar; optional start/pause link with the timer (`auto-scroll.ts`, `pace-marker.ts`, `auto-scroll-timer-link.ts`, `reading-line.ts`)
+
+**Request.** Make Auto-Scroll more integrated with the blue marker and the timer. Decisions: the scroll uses the pace marker's own position, speed and rules; a setting, off by default, starts and pauses them together; the timer's Start starts the clock and blue bar only, the Auto-Scroll button starts both.
+
+**Follow.** `paceBarFor(view)` (pace marker) returns the bar's drawn position (after its smoothing, so the scroll and the bar are the same thing), the document position, and whether the clock has run it to the end. It is null whenever the bar would be hidden (pace guides off, clock not started, no reader speed, masterfile-length doc, or a view the bar does not follow). Each frame Auto-Scroll sets `scrollTop` to `scrollTopForReadingLine(bar.y, ...)`, the exact inverse of the reading line (including its ease down from the top), so the bar sits on the line the pace sampler and the old outlined bar used. The scroll's speed is therefore the bar's speed, including its capped rush through unhighlighted text. It does **not** stop when the scroll bottoms out (the last third of the screen is still being read); it stops when the bar reaches the end (`atEnd`, clock out). Reading view flips to the page holding the bar's position (`goToPos`) every 0.3 s.
+
+**When it follows.** Decided once, on the run's first frame: the speech clock has started and Show pace guides is on. A run that starts without the clock keeps pacing by the reader's wpm for its whole length, so starting the clock mid-run never throws the scroll back to the top. A following run whose bar disappears (reset, masterfile) paces by wpm until it returns. The outlined bar is not drawn while following.
+
+**The link (`autoScrollWithTimer`, off).** The Auto-Scroll button starts the speech clock first (so the run sees it on its first frame); a start that then fails (nothing to scroll) undoes it. Any stop of Auto-Scroll pauses the clock; a running to paused change of the clock stops Auto-Scroll (any window, a reset, the clock running out). Only the speech countdown is touched: with no speech time loaded (starting would begin a count-up) or a prep clock showing, the clock is left alone.
+
+**Rejected.** Timer Start also starting Auto-Scroll (asked to keep it separate); stopping the scroll when it hits the bottom of the document (would pause the clock a minute or two early); letting the follow ignore the Show pace guides switch (kept "same rules as the marker").
+
+**Not verified.** In the real app: how the scroll feels against a running clock, the one-time nudge of a few pixels as the bar passes the first line, content-visibility cards materializing under the bar, Reading view page turns, a popped-out timer pausing the scroll. Tests cover the inverse-line maths, the follow / fallback / stop logic with a scripted bar, and the link rules; the bar's own placement needs a real layout.
+
+### Fixed: F11 with a bare caret does nothing (`ribbon-commands.ts`)
+
+**Report.** "Pressing F11 should work when the user doesn't have a word selected. It should have the thing next to the cursor that symbolizes it will highlight whatever the user selects next."
+
+**Cause.** `applyHighlight` deliberately returns false on an empty selection (no word expansion). The ribbon Highlight button already arms the sticky paint mode (`color-panel.ts`, the highlighter cursor with the pen color) on a bare caret, but the keyboard route never reached it.
+
+**Fix.** The `applyHighlight` command is now `highlightOrArmPaintbrush`: the normal toggle first; if that declines, there is no selection and no shadow selection, it calls `ctx.togglePaintbrushHighlight()`, the same hook the existing "Toggle Highlight Paint Mode" command uses. So it reuses the existing cursor, Esc to disarm, strip-key pen and stroke guard, and pressing F11 again disarms. Dry runs (no dispatch) report handled without arming.
+
+**Rejected.** A second, separate pending-highlight state (stored mark) — it would not highlight a selection made by dragging, and the paint mode already does.
+
+**Not done.** Mod-Shift-F11 (background color) and Mod-F11 (white) still do nothing on a bare caret. Not verified: a real F11 keypress in the Electron app (on macOS F11 may be taken by the system unless the user enables the function keys); the new tests cover the command and its context hook only.
+
+### Fixed: Backspace could not remove an emptied table (`delete-empty-table.ts`, `index.ts`)
+
+**Report.** "When there is a table, it is impossible to delete the table if I removed everything in the table but one last cell with nothing in it. I have to navigate to the table menu, which would be hidden if the user has Show additional formatting buttons off."
+
+**Cause.** A caret in an empty table cell has nothing before it to join or delete, and prosemirror-tables only acts on Backspace / Delete for a cell *selection* (which clears the cells, never the table). So the last empty cell was a dead end; only the Delete Table command (a menu item) removed it.
+
+**Change.** `deleteEmptyTable`, first in the Backspace and Delete chains after the paragraph-selection handlers (ahead of tableEditing): when every cell of the table holds only empty paragraphs and either the caret is in a one-cell table or a cell selection covers every cell, it runs prosemirror-tables' `deleteTable`. Anything else falls through unchanged.
+
+**Rejected.** Deleting a blank multi-cell table on a caret Backspace (a freshly inserted 3 × 3 table would vanish on the first Backspace), and deleting a one-cell table that has content (that is the user's text).
+
+**Tests.** One empty cell removed in the middle, at the end and as the only block of a document (the document stays valid); a one-cell table with text, a blank multi-cell table with a caret, a partial cell selection and a selection over a table with content are left alone; the availability query does not dispatch. **Not verified:** a real keypress in the running app (the command is tested directly against the real schema).
+
+### Added: the `e` (evidence) prefix and author search (`quick-card-search-ui.ts`, `author-search.ts`, `tagline-search.ts`, `tagline-index-core.ts`, protocol / client / service)
+
+**Request.** After a mockup: one prefix for all cards (default my cards + Logos), then `q` / `g` / an author prefix to narrow it, and the bar's hints after the prefix showing only those three letters and saying it searches everything; author responses clearly labelled; "extend q" for the author search. ("This looks exactly the same as before": the mockup had not been built yet.)
+
+**Choices I made.** `e` (evidence) is the card prefix, `a` the author letter; `q ` and `g ` keep working alone as aliases but are no longer in the opening legend. The no-prefix search still leaves Logos out (a network round trip per keystroke). A lone letter after `e ` with no space yet (`e q`) is a letter still being typed, not a search for "q".
+
+**Prefix.** `parseEvidenceSub` splits the letter off after `e `; `runEvidenceSearch` dispatches: nothing typed → the two-line legend ("Searching all evidence" / "Add a letter to narrow your search · …"); `q` → `runMyCardsSearch`; `g` → `runLogosSearch`; `a` → `runAuthorSearch`; words → `runAllEvidenceSearch` (my cards at once, Logos when its debounced query lands, appended). `runMyCardsSearch` was split into `myCardsRows` so both modes share it; the Logos fetch moved into `startLogosFetch` with `logosPending` / `logosError` so a re-render never restarts it. A bug found on the way: `close()` did not clear a failed-Logos state, so a failed query stuck to the next palette session; fixed.
+
+**Author search.** `authorsFromCite` reads the surnames before the year ("Stein 21", "Stein and Lee 23", "Stein et al. 23", "O'Brien '19", "de la Cruz 21"; accents folded; an organisation is one author). The tagline index record now also holds each card's authors and every heading (level, text up to 240 characters, the card it heads); the stored file is version 2 (an older one is ignored and rebuilt once, 8,000 headings per file at most). `searchAuthors` (pure, shared by the service and tests) returns three lists: cards by the author (de-duplicated across files like `q`, newest first, narrowed by year), responses (a heading that names the author as a whole word, possessive allowed, and holds an attack word; most words first) and mentions (names the author, no attack word). The author's own cards are excluded from the second and third. The attack words come from a new setting (`authorAttackWords`, comma-separated; a short all-caps entry like AT / A2 matches only as written). The service answers a new `authorQuery` op over the same port. Rows: group titles, a `RESPONSE TO <NAME>` / `NAMES <NAME>` badge, chips for the matched words, and a line saying what Enter inserts (whole block for pocket / hat / block, the card for a tag); `findHeadingEntry` + `computeHeadingRange` cut the slice the same way a `q` card is cut.
+
+**Not done.** Card text is not searched (a response that lives only in a card's body, or never names the author in a heading, is not found). Not verified: the real desktop app and a big masterfile folder (index size and the one-time rebuild time); the 8,000-heading and 600,000-tag caps were chosen, not measured. AI re-ranking of the responses was left out.
+
+**Tests.** `author-search` (name parsing from cites, whole-word and possessive matching, attack words, year narrowing, de-duplication, the author's own cards), the index core (author query, stored version 2, an older file rebuilt), the palette (`e` legend, `e` mixed results, `e q` / `e g`, `e a` groups, chips, what Enter inserts), and the changed legend and record shape in the older tests.
+
+### Changed: the pane stack list keeps the name white; only the mic is amber (`multi-pane-shell.ts`, `style.css`)
+
+**Request.** "In the pane chooser, the text should be white; it should only be the speech doc icon that is amber." (A screenshot of the stack list, with the speech row's name amber.) This reverses the bcb.5 request that made the name amber there.
+
+**Change.** The stack list no longer puts `pmd-speech-name` on the speech row's name; the mic keeps its amber rule. Only this list changed: the drag tray, **Select Speech Document**, the palette's Switch Window and the which-window chooser still draw the speech name amber with the mic (`renderSpeechName`), since the request named the pane chooser.
+
+**Not verified.** The running desktop app; the test pins the source (no class on the name, mic kept).
+
 ## 1.17.2-bcb.6 — 2026-11-18
 
 ### Added: a notice with a reveal button after Save As (`preset-saved-notice.ts`, `platform.ts`, `index.ts`)

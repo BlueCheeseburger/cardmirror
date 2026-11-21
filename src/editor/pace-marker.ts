@@ -13,9 +13,11 @@
  *     across it; the bar follows the target at a capped speed, so it visibly
  *     rushes through that text instead of jumping. Hidden for a doc more than
  *     three minutes longer than the speech (a masterfile).
- *   - TELEPROMPTER bar (outlined): while paced Auto-Scroll runs, the line it
- *     takes to be the one being read (a third of the way down,
- *     `reading-line.ts`).
+ *   - TELEPROMPTER bar (outlined): while paced Auto-Scroll runs by the reader's
+ *     own speed, the line it takes to be the one being read (a third of the way
+ *     down, `reading-line.ts`). When Auto-Scroll follows the clock instead
+ *     (`paceBarFor`), it keeps the expected bar on that same line, so this bar
+ *     is not drawn.
  *
  * Both are plain elements inside the document's scroller, outside the
  * ProseMirror DOM. The expected bar lives in the scroller's content
@@ -32,7 +34,7 @@ import { docReadCounts, posAtReadSeconds } from './live-read-time.js';
 import { readTimeSeconds } from './word-count.js';
 import { expectedReadSec, speechClockStarted, type PaceTarget } from './timer-pace.js';
 import { getTimerState, getVisibleRemainingMs, subscribeTimer } from './timer-state.js';
-import { autoScrollingView } from './auto-scroll.js';
+import { autoScrollingView, isAutoScrollFollowing } from './auto-scroll.js';
 import { nearestScroller } from './precise-scroll.js';
 import { readingLineOffset } from './reading-line.js';
 
@@ -104,7 +106,15 @@ let resizeObserver: ResizeObserver | null = null;
 
 /** The expected bar's target (content coordinates of `scroller`) and where the
  *  bar is now. */
-let expected: { view: EditorView; scroller: HTMLElement; targetY: number } | null = null;
+let expected: {
+  view: EditorView;
+  scroller: HTMLElement;
+  targetY: number;
+  /** The document position the clock says the speaker is at, and whether that
+   *  is the end of the document (the clock has run all the way out). */
+  pos: number;
+  atEnd: boolean;
+} | null = null;
 let shownY: number | null = null;
 let shownIn: HTMLElement | null = null;
 let lastFrame = 0;
@@ -138,7 +148,7 @@ function caretRect(view: EditorView, pos: number): { top: number; bottom: number
 
 /** Where the speaker should be by the clock, as a document position; null
  *  when there is nothing to show. */
-function computeExpectedPos(): { view: EditorView; pos: number } | null {
+function computeExpectedPos(): { view: EditorView; pos: number; atEnd: boolean } | null {
   if (!settings.get('paceGuides')) return null;
   const timer = getTimerState();
   if (!speechClockStarted(timer)) return null;
@@ -155,7 +165,7 @@ function computeExpectedPos(): { view: EditorView; pos: number } | null {
   });
   if (sec === null) return null;
   const pos = posAtReadSeconds(doc, sec, reader, target.useLay);
-  return pos === null ? null : { view: target.view, pos };
+  return pos === null ? null : { view: target.view, pos, atEnd: sec >= totalSec - 0.01 };
 }
 
 /** Re-measure the expected bar's target. The vertical position slides along
@@ -177,7 +187,13 @@ function measureTarget(): void {
   }
   const frac = Math.max(0, Math.min(1, (r.left - er.left) / er.width));
   const viewportY = (r.top + r.bottom) / 2 + (frac - 0.5) * (r.bottom - r.top);
-  expected = { view: p.view, scroller, targetY: viewportY - sr.top - scroller.clientTop + scroller.scrollTop };
+  expected = {
+    view: p.view,
+    scroller,
+    targetY: viewportY - sr.top - scroller.clientTop + scroller.scrollTop,
+    pos: p.pos,
+    atEnd: p.atEnd,
+  };
 }
 
 /** One step of the expected bar: re-measure the target now and then, move the
@@ -223,7 +239,8 @@ function frame(): void {
 /** The Auto-Scroll bar is fixed on screen, so it is placed from geometry
  *  alone (cheap enough to run on every scroll event). */
 function measurePrompter(): void {
-  const view = settings.get('paceGuides') ? autoScrollingView() : null;
+  // While Auto-Scroll follows the blue bar the two bars are the same line.
+  const view = settings.get('paceGuides') && !isAutoScrollFollowing() ? autoScrollingView() : null;
   const scroller = view && view.dom.isConnected ? nearestScroller(view.dom) : null;
   if (!view || !scroller) {
     prompterMark.hide();
@@ -260,6 +277,34 @@ function update(): void {
     frameId = requestAnimationFrame(frame);
   }
   measurePrompter();
+}
+
+/** Where the blue bar is for `view`, for Auto-Scroll to follow: the bar's
+ *  centre in the scroller's content coordinates (as drawn, after its smoothing),
+ *  the document position it stands for, and whether the clock has run it to the
+ *  end. Null whenever the bar would not show for this view: pace guides off, the
+ *  speech clock not started, no reader speed, a masterfile-length document, or
+ *  `view` is not the document the bar follows. */
+export interface PaceBar {
+  y: number;
+  pos: number;
+  atEnd: boolean;
+}
+let lastOnDemand = -Infinity;
+export function paceBarFor(view: EditorView): PaceBar | null {
+  if (!getTargetFn || !settings.get('paceGuides')) return null;
+  if (!speechClockStarted(getTimerState())) return null;
+  const now = performance.now();
+  // The frame loop keeps `expected` fresh while the clock runs; measure on
+  // demand only when it has nothing yet (a clock started a moment ago).
+  if ((!expected || expected.view !== view) && now - lastOnDemand >= RETARGET_MS) {
+    lastOnDemand = now;
+    measureTarget();
+  }
+  const e = expected;
+  if (!e || e.view !== view) return null;
+  const y = shownY !== null && shownIn === e.scroller ? shownY : e.targetY;
+  return { y, pos: e.pos, atEnd: e.atEnd };
 }
 
 /** Re-place the bars now (after a lay toggle or Auto-Scroll start / stop). */

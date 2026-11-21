@@ -251,3 +251,103 @@ describe('auto-scroll behaviors found in testing', () => {
     expect(startAutoScroll(makeView(editorDom), { wpm: 200 }, vi.fn())).toBe(false);
   });
 });
+
+describe('following the blue bar', () => {
+  /** Frame callbacks captured instead of fired, so a test steps the loop by hand. */
+  function captureFrames(): Array<(t: number) => void> {
+    const frames: Array<(t: number) => void> = [];
+    vi.stubGlobal('requestAnimationFrame', (cb: (t: number) => void) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    return frames;
+  }
+  function liveScroller(): { scroller: HTMLElement; editorDom: HTMLElement } {
+    const made = makeScroller({ scrollHeight: 4000, clientHeight: 600 });
+    Object.defineProperty(made.scroller, 'scrollTop', { value: 0, writable: true, configurable: true });
+    // The editor moves up as the scroller scrolls, like the real thing.
+    made.editorDom.getBoundingClientRect = () =>
+      ({ top: -made.scroller.scrollTop, bottom: 4000, left: 0, right: 200, width: 200, height: 4000 }) as unknown as DOMRect;
+    return made;
+  }
+  const step = (frames: Array<(t: number) => void>): void => {
+    const cb = frames.shift();
+    cb?.(performance.now() + 100);
+  };
+
+  it('puts the blue bar on the reading line, and holds there while the bar holds', () => {
+    const frames = captureFrames();
+    const { scroller, editorDom } = liveScroller();
+    const view = makeView(editorDom);
+    const onStop = vi.fn();
+    expect(
+      startAutoScroll(view, { wpm: 200 }, onStop, {
+        followClock: () => true,
+        bar: () => ({ y: 500, pos: 1, atEnd: false }),
+      }),
+    ).toBe(true);
+    step(frames);
+    // Line = scrollTop + 6 + a third of the window (200) once past the top ease: 294 + 6 + 200.
+    expect(scroller.scrollTop).toBe(294);
+    step(frames);
+    expect(scroller.scrollTop).toBe(294);
+    expect(isAutoScrolling()).toBe(true);
+  });
+
+  it('moves with the bar and stops when the clock has run the bar to the end', () => {
+    const frames = captureFrames();
+    const { scroller, editorDom } = liveScroller();
+    let bar = { y: 800, pos: 1, atEnd: false };
+    const onStop = vi.fn();
+    startAutoScroll(makeView(editorDom), { wpm: 200 }, onStop, { followClock: () => true, bar: () => bar });
+    step(frames);
+    const first = scroller.scrollTop;
+    bar = { y: 1200, pos: 2, atEnd: false };
+    step(frames);
+    expect(scroller.scrollTop - first).toBe(400); // same distance the bar moved
+    // Not stopped by getting near the bottom; only by the bar's own end.
+    bar = { y: 3990, pos: 3, atEnd: true };
+    step(frames);
+    expect(onStop).toHaveBeenCalledTimes(1);
+    expect(isAutoScrolling()).toBe(false);
+  });
+
+  it('keeps pacing by the reader’s own speed when the run did not start with the clock', () => {
+    const frames = captureFrames();
+    const { scroller, editorDom } = liveScroller();
+    const bar = vi.fn(() => ({ y: 1500, pos: 1, atEnd: false }));
+    startAutoScroll(makeView(editorDom), { wpm: 200 }, vi.fn(), { followClock: () => false, bar });
+    step(frames);
+    expect(bar).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBeLessThan(20); // the 60 px/s fallback for 0.1 s, not a jump to the bar
+  });
+
+  it('falls back to the reader’s own speed while the bar is not available', () => {
+    const frames = captureFrames();
+    const { scroller, editorDom } = liveScroller();
+    startAutoScroll(makeView(editorDom), { wpm: 200 }, vi.fn(), { followClock: () => true, bar: () => null });
+    step(frames);
+    expect(scroller.scrollTop).toBeGreaterThan(0);
+    expect(scroller.scrollTop).toBeLessThan(20);
+  });
+});
+
+describe('scrollTopForReadingLine', () => {
+  it('is the inverse of where the reading line sits', async () => {
+    const { scrollTopForReadingLine, readingLineOffset } = await import('../../src/editor/reading-line.js');
+    const H = 600;
+    for (const editorTop of [0, 24]) {
+      for (const scrollTop of [editorTop + 1, editorTop + 50, editorTop + 199, editorTop + 400, editorTop + 3000]) {
+        const lineY = scrollTop + 6 + readingLineOffset(H, scrollTop - editorTop);
+        expect(scrollTopForReadingLine(lineY, editorTop, H)).toBeCloseTo(scrollTop, 6);
+      }
+    }
+  });
+
+  it('stays at the top while the bar is on the first line', async () => {
+    const { scrollTopForReadingLine } = await import('../../src/editor/reading-line.js');
+    expect(scrollTopForReadingLine(10, 24, 600)).toBe(0);
+    expect(scrollTopForReadingLine(30, 24, 600)).toBe(0);
+  });
+});

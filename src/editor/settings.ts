@@ -906,6 +906,11 @@ export interface Settings {
    *  `timerLeftUnderTimer` (off by default) and `paceMarker` (on by default):
    *  a stored blob that lacks this key gets it on when either was on. */
   paceGuides: boolean;
+  /** Link Auto-Scroll to the speech clock (off by default). The Auto-Scroll
+   *  button then also starts the speech clock, and stopping Auto-Scroll or
+   *  pausing the clock pauses the other. The timer's own Start button never
+   *  starts Auto-Scroll. */
+  autoScrollWithTimer: boolean;
   /** How to label the Aff / Neg prep buttons:
    *    'text'  → "A: 10:00" / "N: 10:00", no special color
    *    'color' → "10:00" / "10:00", blue + red border
@@ -1355,6 +1360,10 @@ export interface Settings {
    *  Absolute paths. Electron only. See `searchFiles`. */
   fileSearchHighestFolders: string[];
   fileSearchPreferredFolders: string[];
+  /** Words that make a heading naming an author read as a response to them in
+   *  the author search (`e a <name>`), comma-separated. A short all-caps entry
+   *  (AT, A2) matches as written. */
+  authorAttackWords: string;
   /** Which file formats appear in the command-palette file search:
    *  'both' (default), 'cmir' only, or 'docx' only. */
   fileSearchFormats: 'both' | 'cmir' | 'docx';
@@ -2093,6 +2102,7 @@ const DEFAULTS: Settings = {
   timerSoundVolume: 70,
   timerCompact: false,
   paceGuides: true,
+  autoScrollWithTimer: false,
   timerPrepLabel: 'both',
   timerPosition: 'beside',
   jumpToDocTopOnReadModeToggle: false,
@@ -2195,6 +2205,8 @@ const DEFAULTS: Settings = {
   fileSearchExclusions: [],
   fileSearchHighestFolders: [],
   fileSearchPreferredFolders: [],
+  authorAttackWords:
+    'AT, A2, answer to, hack, biased, bought, funded, unqualified, no qualifications, reject, ignore, discredit, debunked, retracted, indict',
   fileSearchFormats: 'both',
   fileSearchObjectTypes: ['block', 'tag'],
   fileSearchOutlineDepth: 3,
@@ -3227,6 +3239,17 @@ export const SETTING_METADATA: SettingMeta[] = [
     aliases: ['folder priority', 'prefer folder', 'boost folder', 'search ranking'],
   },
   {
+    key: 'authorAttackWords',
+    label: 'Author search: attack words',
+    description:
+      'In the author search (e a, then a last name), a heading that names the author and also holds one of these words is listed first, as a response to that author, with the word shown. Separate them with commas; a phrase like "no qualifications" is fine. A short all-caps entry such as AT or A2 matches only as written, so "look at" is not an AT.',
+    kind: 'text',
+    category: 'files',
+    section: 'File search',
+    electronOnly: true,
+    aliases: ['author search', 'responses to author', 'reject author', 'at author', 'indict'],
+  },
+  {
     key: 'fileSearchFormats',
     label: 'File search: file formats to list',
     description:
@@ -3858,6 +3881,19 @@ export const SETTING_METADATA: SettingMeta[] = [
       'time left', 'left under timer', 'remaining time timer', 'move left time',
       'pace marker', 'reading-position marker', 'blue line', 'reading line', 'where to be reading',
       'teleprompter marker', 'progress marker', 'pace under the timer',
+    ],
+  },
+  {
+    key: 'autoScrollWithTimer',
+    label: 'Start and pause Auto-Scroll with the timer',
+    description:
+      "Off by default. When on, the Auto-Scroll button also starts the speech clock, and stopping Auto-Scroll (the button, Escape, or scrolling yourself) or pausing the clock pauses the other. The timer's own Start button still starts only the clock and the blue line, never Auto-Scroll. The clock only starts if a speech time is loaded (click a preset first). Whenever the speech clock has started and Show pace guides is on, Auto-Scroll keeps the blue line on the line you are reading and stops when the line reaches the end of the document; otherwise it paces by your reading speed as before.",
+    kind: 'toggle',
+    category: 'appearance',
+    section: 'Timer display',
+    aliases: [
+      'auto scroll timer', 'autoscroll timer', 'start timer with auto scroll', 'teleprompter timer',
+      'pause timer with auto scroll', 'link auto scroll and timer',
     ],
   },
   {
@@ -5375,6 +5411,7 @@ function sanitize(s: Settings): Settings {
         : 70,
     timerCompact: !!s.timerCompact,
     paceGuides: s.paceGuides !== false,
+    autoScrollWithTimer: s.autoScrollWithTimer === true,
     timerPrepLabel:
       s.timerPrepLabel === 'text' || s.timerPrepLabel === 'color'
         ? s.timerPrepLabel
@@ -5533,6 +5570,10 @@ function sanitize(s: Settings): Settings {
     fileSearchPreferredFolders: sanitizeStringList(
       (s as { fileSearchPreferredFolders?: unknown }).fileSearchPreferredFolders,
     ),
+    authorAttackWords:
+      typeof (s as { authorAttackWords?: unknown }).authorAttackWords === 'string'
+        ? (s as { authorAttackWords: string }).authorAttackWords
+        : DEFAULTS.authorAttackWords,
     fileSearchFormats:
       s.fileSearchFormats === 'cmir'
         ? 'cmir'

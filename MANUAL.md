@@ -771,7 +771,9 @@ paintbrush mode, and F11 / Mod-Shift-F11 then *strip* the mark wherever you
 paint, until you pick a color again.
 
 - **Highlight with selected color (F11)** — toggles the active highlight
-  on the selection. Supports all 15 Word highlight colors.
+  on the selection. Supports all 15 Word highlight colors. With nothing
+  selected, F11 arms paintbrush mode (below) instead; press F11 again or
+  **Esc** to put it down.
 - **Highlight with white (Mod-F11)** — paints white over the selection
   (covering any other highlight) regardless of the selected color;
   pressing it again removes it. It stays a real highlight, so it round-trips
@@ -815,7 +817,8 @@ nothing — so a highlight sitting on plain text (from an import, or painted
 with the setting off) always comes off with the same key.
 
 **Paintbrush mode** (the way Word's highlighter works): click a main
-color button with *nothing* selected to arm it. The cursor changes, and
+color button with *nothing* selected to arm it (for highlight, **F11** does
+the same). The cursor changes, and
 every drag-select you make applies that color until you press **Esc** or
 click the button again. While a colored brush is armed, hold **Alt**
 (**⌃ Control** on macOS, where an ⌥ drag moves the window) to
@@ -856,7 +859,11 @@ color to all of them at once.
 ### Tables and images
 
 - **Insert Table** (Format menu) drops in a table; further menu items add
-  or delete rows and columns and merge or split cells. Tables round-trip
+  or delete rows and columns and merge or split cells. **(Fork)** A table with
+  nothing left in it goes away with **Backspace** or **Delete**: the caret in a
+  table of one empty cell, or every cell of an empty table selected. A table with
+  anything in it, or a blank table of several cells with just a caret, is left
+  alone, so you never lose one by accident. Tables round-trip
   to Word with their borders and background colors intact.
 - **Insert Image** (Format menu) inserts an image from a file; you can
   also paste one from the clipboard or *(fork)* drag image files in from
@@ -1207,13 +1214,12 @@ you *browse* that whole source.
 | Prefix | Searches | Enter |
 |--------|----------|-------|
 | *(none)* | Everything — cards, commands, settings, files by name, and the dropzone (if on) | Acts on the selected row |
-| **`q`** | **My cards** — your **Quick Cards** (honoring your active tag filter; badge **QUICK**) and, on desktop, the **cards inside your indexed files** (badge **CARD**) **(fork)** | Inserts the card at your cursor; the bar stays open for the next one |
+| **`e`** | **Evidence** — all the cards at once: **my cards** first, then **Logos**; one more letter after it narrows it (`e q`, `e g`, `e a`) **(fork)** | Inserts the card at your cursor; the bar stays open for the next one |
 | **`d`** | The **dropzone** (only when it's turned on) | Inserts the item at your cursor; the bar stays open for the next one |
 | **`c`** | Ribbon **commands** — each row shows its current shortcut | Runs the command |
 | **`s`** | **Settings** — both the section tabs and individual settings | Opens that tab and scrolls to the setting |
 | **`f`** | Your **files** by filename *(desktop only)* | Opens the file |
 | **`/`** | Your **file-search folders**, to browse *(desktop only)*; `/c` starts in the current document's folder | Steps into a folder, or opens the file |
-| **`g`** | **Logos** — cards from the round docs teams open-source on opencaselist, college and high school policy **(fork)** | Inserts the full card at your cursor; the bar stays open for the next one |
 | **`w`** | Your other open **CardMirror windows**, most recently used first *(desktop only)* | Brings that window to the front |
 
 Searching **version** (or "about this install") shows the running app
@@ -1229,10 +1235,42 @@ at your cursor (the same insertion the send-to-speech and Quick Card
 buttons use). If your cursor is in the middle of a paragraph, the insertion
 will drop at the nearest valid target. 
 
-**My cards (`q`, fork).** `q` searches the cards you already own: your Quick
+**Evidence (`e`, fork).** `e` and a space is the one prefix for cards. Typed
+alone, the bar says **Searching all evidence** and lists the letters that can
+follow it, **Add a letter to narrow your search · q my cards · g Logos · a
+authors**, and nothing else (the other prefixes are not offered there). With
+words after it (`e heg bad`) it searches **my cards and Logos together**: your
+own cards first, the Logos cards after them when they arrive. A letter and a
+space after `e` narrows it to one source: **`e q`** my cards only, **`e g`**
+Logos only, **`e a`** the author search below. The old **`q `** and **`g `**
+prefixes still work on their own, so nothing you have typed from habit breaks;
+they are just no longer listed in the bar. The no-prefix search still leaves
+Logos out, since every Logos search is a slow request over the network.
+
+**Author search (`e a`, fork, desktop).** `e a stein` lists, in groups with
+their own titles, **Cards by Stein** (cards whose cite names that author: "Stein
+21", "Stein and Lee 23", "Stein et al. 23") and then **Responses to Stein**:
+headings in your files that name the author *and* hold an attack word, such as
+**AT: Stein**, **Stein is a hack** or **Reject Stein**, each labelled **RESPONSE
+TO STEIN** with the word that matched shown beside it (**hack**, **funded**, **AT**), the
+ones with the most such words first. Headings that name the author with no
+attack word follow in a third group, **Headings that name Stein**. Add a year to
+narrow a common name (`e a smith 19`). Enter on a response that is a **Block**,
+**Hat** or **Pocket** inserts the whole thing, so `AT: Stein` brings all the
+answers under it; Enter on a tag inserts just that card. The author's own cards
+are never listed as responses to them, and a short name matches whole words only
+("Lee" is not "Leech"). **It is wording, not understanding:** it finds the headings
+that say the author's name, so a response that never names them in a heading is
+not found, and card text is not searched. It reads the same index as `e q`, built
+in the background from the folders under Settings → Files → File search (the first
+launch after this update re-reads them once, since the index now also keeps each
+card's authors and every heading). Change the attack words in **Settings → Files →
+File search → Author search: attack words**.
+
+**My cards (`e q`, fork; also `q`).** `e q` searches the cards you already own: your Quick
 Cards first (badge **QUICK**), then, on desktop, the **taglines of the cards
 inside the files in your file-search folders** (badge **CARD**). It is "my
-cards" to set it apart from `g`, Logos, whose cards come from the web. Every
+cards" to set it apart from Logos, whose cards come from the web. Every
 word you type has to appear in the tagline, in any order, and a card's cite
 counts as a weaker match. A file card's row is its tagline with the cite
 underneath and the file it came from on the right; a card that appears in
@@ -1263,7 +1301,7 @@ it into a document you can't see: a new window on desktop, a slot of the current
 window in three-pane mode, or the current tab in a plain browser. The card
 preview's button says "Open in new document" in that case.
 
-**Searching Logos (`g`, fork).** `g` and a space searches
+**Searching Logos (`e g`, fork; also `g`).** `e g` (or just `g`) and a space searches
 [Logos](https://logos-debate.netlify.app), a card search engine run by
 someone else. It covers cards from the round docs teams open-source on
 opencaselist, for college and high school policy only. It doesn't include
@@ -1278,7 +1316,7 @@ clipboard** and **Close**, and closing it (or pressing Esc) returns you to
 your results. To condense or shrink it
 automatically, or to pick its highlight color, see **Cards from Logos** in
 Settings → Editing. You need an internet connection, and the source isn't
-available in CardMirror Lite. It isn't part of the no-prefix search.
+available in CardMirror Lite. It isn't part of the no-prefix search, but `e` searches it along with your own cards.
 
 **Diving into a file (`f`, desktop only).** Press **Tab** on a selected file
 — or right-click any file — to dive *into* it without leaving the palette.
@@ -1430,7 +1468,7 @@ workspace while another shows a single document.
   **Comparing documents** pill and can't be dropped on. When the document arrives, the other window shows **Moved … here from …** with a **Go back** button.
 - **(fork)** The pane holding your speech document stays tinted amber even
   while it's the focused pane, so you can always see which one it is. In a pane's stack list (the ▾ next to the document count), the speech
-  document's row has the speech mic icon at its left and its name in amber (names show
+  document's row has the speech mic icon, in amber, at its left (the name stays white; names show
   without .docx / .cmir), and the ▾ button itself
   turns amber whenever the speech document is somewhere in that stack, even
   with another document showing.
@@ -1641,7 +1679,23 @@ teleprompter for practicing a speech. Any manual scroll, wheel, touch,
 or click hands control straight back to you and stops it; running out
 of document does too. In **Reading view** (the book) there is nothing to scroll, so it turns the pages
 instead, giving each page as long as it takes to read aloud at your first reader's
-rate; flipping a page yourself stops it. Escape, Page Up/Down, Home, End and the up/down arrows
+rate; flipping a page yourself stops it.
+
+**(Fork)** **With the speech clock.** Once the speech clock has started (and
+**Show pace guides** is on), Auto-Scroll follows the
+[reading-position marker](#the-speech-and-prep-timer) instead of pacing by the reader's
+rate: it keeps the blue bar on the reading line, at the bar's own pace and by its own
+rules, and stops when the bar reaches the end of the document (in Reading view it turns
+to the page the bar is on). The outlined bar isn't drawn then, since it would sit on the
+blue one. With the clock not started, or the bar hidden (a masterfile, no reader speed),
+it paces by the reader's rate as above. The mode is chosen when Auto-Scroll starts, so
+starting the clock later does not move a running scroll.
+
+**(Fork)** **Start and pause together** (Settings → Appearance → Timer display →
+*Start and pause Auto-Scroll with the timer*, off by default). The Auto-Scroll button
+then also starts the speech clock (a speech time must be loaded; a prep clock is never
+touched), stopping Auto-Scroll pauses the clock, and pausing the clock stops
+Auto-Scroll. The timer's own Start button starts only the clock and the blue bar. Escape, Page Up/Down, Home, End and the up/down arrows
 stop it as well. Switching focus to another pane (in the
 multi-doc workspace) also stops it — it never keeps scrolling somewhere
 you're not looking.
@@ -1802,8 +1856,9 @@ display**, **Start / Pause** (▶), three **speech preset** buttons, and the
   document is more than three minutes longer than the speech, which is probably a
   masterfile. The bar glides down smoothly rather than line by line; unhighlighted
   text takes no reading time, so it rushes through that text instead of jumping.
-  While **Auto-Scroll** runs, a second, outlined bar marks
-  the line it thinks you are reading. **Show pace guides** (Settings → Appearance →
+  While **Auto-Scroll** runs by the reader's speed, a second, outlined bar marks
+  the line it thinks you are reading; when the clock has started, Auto-Scroll
+  follows the blue bar itself (see [Auto-scroll](#auto-scroll)). **Show pace guides** (Settings → Appearance →
   Timer display, on by default) turns this and the time left under the timer
   (next item) on or off together.
 
@@ -2287,8 +2342,9 @@ connected to its source. There are two flavors, and the difference is simple —
   Favorites are remembered per file on this computer; a document that hasn't
   been saved yet keeps them until it is closed.
 - **Insert Linked Copy from a File** — open the Search Everything palette, dive
-  into the source file, land on a heading — or on a card's tag, to copy just
-  that one card — and press **Mod-Enter**. The source
+  into the source file (**Enter** or **Tab** on it), land on a heading — or on a
+  card's tag, to copy just that one card — and press **Enter**. (From the
+  ordinary palette, dive in with **Tab** and press **Mod-Enter** on the heading.) The source
   can be a `.cmir` or a Word `.docx`; for a Word file CardMirror adds a small,
   invisible bookmark so it can find the section again (nothing else changes), and
   declines if it can't. *(Making and refreshing a copy from a file is
@@ -2342,7 +2398,8 @@ connected in CardMirror's own `.cmir` format. **Saving to Word flattens every
 view and copy to plain cards and drops the link** — the content stays, but it
 stops being connected, and re-opening that `.docx` won't bring the links back.
 CardMirror warns you before any `.docx` save that would do this — including
-when you save while closing a document. Keep the working copy as `.cmir` if
+when you save while closing a document. Autosave for such a file pauses
+(its button's tooltip says so), and a notice tells you the first time. Keep the working copy as `.cmir` if
 you want them live; export to `.docx` only for a hand-off.
 
 ---
@@ -4133,7 +4190,7 @@ these to extend the selection.
 |----------|--------|
 | Mod-F / Mod-H | Find / Find and Replace |
 | Alt-F | Find without grouping |
-| Mod-Shift-Space | Search Everything palette (files `f`, folders `/`, my cards `q`) |
+| Mod-Shift-Space | Search Everything palette (files `f`, folders `/`, cards `e`) |
 
 ### Speech, comments, and AI
 | Shortcut | Action |

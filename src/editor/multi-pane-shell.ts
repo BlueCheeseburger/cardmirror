@@ -124,6 +124,7 @@ import {
   captureFocusForDialog,
 } from './text-prompt.js';
 import { showToast } from './toast.js';
+import { clearAutosavePausedNotice, noteAutosavePausedByLinks } from './autosave-links-notice.js';
 import { jumpRevealNeeded, jumpRevealToast } from './jump-reveal.js';
 import { recordRecent } from './recents-store.js';
 import { reportWindowWorkspace, type WorkspaceDoc } from './workspace-store.js';
@@ -411,8 +412,11 @@ async function runAutosaveForRecord(record: DocRecord): Promise<void> {
     // stale until the next successful save. Every pane's chip always
     // reflects its own doc, regardless of which pane is focused.
     record.owner.refreshChipSaveState();
+    const { views, copies } = docLiveLinkCounts(state.doc);
+    noteAutosavePausedByLinks(record.uid, views, copies);
     return;
   }
+  if (record.format === 'docx') clearAutosavePausedNotice(record.uid);
   // A recovered draft may only be written by a MANUAL save until its first
   // one lands — the stale-overwrite confirmation lives on the manual path,
   // and `buildDocRecord` re-arms autosave from the per-path preference, so
@@ -1828,8 +1832,8 @@ class Slot {
       const name = document.createElement('span');
       name.className = 'pmd-pane-chip-dropdown-name';
       name.textContent = rowNames[rowIndex] ?? displayFilename(rec.filename);
-      // The speech doc's name is amber, beside its mic.
-      if (getSpeechDocResolver().isSpeechByUid(rec.uid)) name.classList.add('pmd-speech-name');
+      // The speech doc's row is marked by its amber mic alone; its name stays
+      // the normal text colour.
       name.addEventListener('click', () => {
         closeOpenStackDropdown();
         this.showRecord(rec);

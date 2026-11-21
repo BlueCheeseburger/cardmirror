@@ -29,6 +29,22 @@ export function readingLineOffset(viewportH: number, scrolledPx: number): number
   return Math.max(0, Math.min(viewportH * READING_LINE_FRACTION, scrolledPx));
 }
 
+/** The inverse of the reading line: the `scrollTop` that puts the reading line
+ *  on content coordinate `lineY` (px from the top of the scroller's content).
+ *  `editorTop` is where the editor starts in that same space and `viewportH`
+ *  the window's height. Mirrors `readingLineOffset` and the 6 px inset the
+ *  callers add, including the ease down from the top, so a thing that sits on
+ *  the reading line (the blue bar) lands exactly where the scroll puts it. */
+export function scrollTopForReadingLine(lineY: number, editorTop: number, viewportH: number): number {
+  const e = Math.max(0, editorTop);
+  const rel = lineY - e - 6;
+  if (rel <= 0) return 0;
+  const third = viewportH * READING_LINE_FRACTION;
+  // Line = scrollTop + 6 + min(third, scrollTop - e): twice as slow while it eases down.
+  const past = rel < 2 * third ? rel / 2 : rel - third;
+  return e + past;
+}
+
 /** The document position of the line a speaker is reading in `view`: about a
  *  third of the way down the visible document (see `reading-line.ts`), not its
  *  top edge. In Reading view (paged, scrolled sideways) it is the first column

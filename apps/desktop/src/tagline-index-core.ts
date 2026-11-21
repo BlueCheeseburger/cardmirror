@@ -31,6 +31,7 @@ import {
   type TaglineRecord,
   type TaglineRow,
 } from '../../../src/editor/tagline-search.js';
+import { searchAuthors, type AuthorResult } from '../../../src/editor/author-search.js';
 
 /** A file the crawler may index — the visible slice of the file index. */
 export interface TaglineSourceFile {
@@ -63,8 +64,16 @@ export interface TaglineQueryResult {
   status: TaglineStatus;
 }
 
+export interface AuthorQueryResult extends AuthorResult {
+  status: TaglineStatus;
+}
+
 export interface TaglineIndex {
   query(args: TaglineScope & { query: string; limit: number }): Promise<TaglineQueryResult>;
+  /** `e a <name>`: the author's cards, and the headings that answer them. */
+  authorQuery(
+    args: TaglineScope & { query: string; limit: number; attackWords: string[] },
+  ): Promise<AuthorQueryResult>;
   /** The file listing changed (or the app started): bring an already-built
    *  index up to date. A no-op until the index has been wanted once (a search,
    *  or `start`). */
@@ -81,11 +90,20 @@ export interface TaglineIndex {
 export const MAX_TAGLINES = 600_000;
 /** Cap per file — a pasted-together mega file shouldn't crowd out the rest. */
 const MAX_TAGS_PER_FILE = 5000;
+/** The same, for the headings kept for author search. */
+const MAX_HEADS_PER_FILE = 8000;
+/** The stored file's layout. 2 added each card's authors and every heading; an
+ *  older file is ignored and rebuilt in the background. */
+const INDEX_VERSION = 2;
 
 interface Stored {
   m: number;
   t: string[];
   c: string[];
+  /** Authors of each card. */
+  a?: string[][];
+  /** Every heading: level, text, and the card it heads. */
+  h?: { l: number[]; t: string[]; c: number[] };
 }
 
 export function createTaglineIndex(opts: {
@@ -130,7 +148,7 @@ export function createTaglineIndex(opts: {
           scope?: TaglineScope;
           files?: Record<string, Stored>;
         };
-        if (parsed.version === 1 && parsed.files) {
+        if (parsed.version === INDEX_VERSION && parsed.files) {
           for (const [p, s] of Object.entries(parsed.files)) {
             if (!Array.isArray(s.t) || !Array.isArray(s.c)) continue;
             files.set(p, {
@@ -138,7 +156,7 @@ export function createTaglineIndex(opts: {
               relPath: '',
               name: '',
               mtimeMs: s.m,
-              record: { tags: s.t, cites: s.c },
+              record: { tags: s.t, cites: s.c, ...(s.a ? { authors: s.a } : {}), ...(s.h ? { heads: s.h } : {}) },
             });
             total += s.t.length;
           }
@@ -159,8 +177,16 @@ export function createTaglineIndex(opts: {
   function persist(): Promise<void> {
     lastPersist = Date.now();
     const snapshot: Record<string, Stored> = {};
-    for (const [p, f] of files) snapshot[p] = { m: f.mtimeMs, t: f.record.tags, c: f.record.cites };
-    const body = JSON.stringify({ version: 1, scope, files: snapshot });
+    for (const [p, f] of files) {
+      snapshot[p] = {
+        m: f.mtimeMs,
+        t: f.record.tags,
+        c: f.record.cites,
+        ...(f.record.authors ? { a: f.record.authors } : {}),
+        ...(f.record.heads ? { h: f.record.heads } : {}),
+      };
+    }
+    const body = JSON.stringify({ version: INDEX_VERSION, scope, files: snapshot });
     writeTail = writeTail
       .catch(() => {})
       .then(async () => {
@@ -232,8 +258,20 @@ export function createTaglineIndex(opts: {
         }
         if (record.tags.length > MAX_TAGS_PER_FILE) {
           record = {
+            ...record,
             tags: record.tags.slice(0, MAX_TAGS_PER_FILE),
             cites: record.cites.slice(0, MAX_TAGS_PER_FILE),
+            ...(record.authors ? { authors: record.authors.slice(0, MAX_TAGS_PER_FILE) } : {}),
+          };
+        }
+        if (record.heads && record.heads.t.length > MAX_HEADS_PER_FILE) {
+          record = {
+            ...record,
+            heads: {
+              l: record.heads.l.slice(0, MAX_HEADS_PER_FILE),
+              t: record.heads.t.slice(0, MAX_HEADS_PER_FILE),
+              c: record.heads.c.slice(0, MAX_HEADS_PER_FILE),
+            },
           };
         }
         if (have) total -= have.record.tags.length;
@@ -297,6 +335,27 @@ export function createTaglineIndex(opts: {
       }
       const { rows, total: matches } = searchTaglines(visible, args.query, args.limit);
       return { rows, total: matches, status: statusFor(next) };
+    },
+
+    async authorQuery(args): Promise<AuthorQueryResult> {
+      await ensureLoaded();
+      const next: TaglineScope = {
+        roots: args.roots,
+        exclusions: args.exclusions,
+        formats: args.formats,
+      };
+      const changed = !scope || !sameScope(scope, next);
+      scope = next;
+      wanted = true;
+      if (changed) fresh = false;
+      if (!fresh) kick();
+      const visible: TaglineFile[] = [];
+      for (const e of opts.listFiles(next)) {
+        const f = adopt(e);
+        if (f) visible.push(f);
+      }
+      const result = searchAuthors(visible, args.query, { attackWords: args.attackWords, limit: args.limit });
+      return { ...result, status: statusFor(next) };
     },
 
     async start(args): Promise<void> {

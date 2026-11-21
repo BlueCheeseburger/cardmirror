@@ -131,9 +131,12 @@ describe('palette Logos source (g prefix)', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('is listed in the no-prefix hint', () => {
+  it('is reached through the e (evidence) prefix, listed after it', () => {
     openPalette();
     type('');
+    expect(emptyText()).toContain('e evidence');
+    expect(emptyText()).not.toContain('g Logos');
+    type('e ');
     expect(emptyText()).toContain('g Logos');
   });
 

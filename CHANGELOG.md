@@ -8,6 +8,28 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.17.2-bcb.7 — 2026-11-21
+
+### Added
+
+- **Bulk convert can take several files at once.** The **Choose file…** button is now **Choose files…** and lets you select as many `.docx` or `.cmir` files as you like (Ctrl or Shift-click). They're all converted into the destination, or into one **Converted files.zip** if you pick the zip output. Two files with the same name are kept apart (**Neg.docx**, **Neg (2).docx**), and a file already in the destination is left alone and counted as skipped.
+- **Auto-Scroll now follows the blue line.** When the speech clock has started, Auto-Scroll keeps the blue line on the line you're reading, at the line's own pace and with its own rules, and stops when the line reaches the end of the document. In Reading view it turns to the page the line is on. If the clock hasn't started (or the blue line can't show, for example for a masterfile), it paces by your reading speed as before. The outlined bar isn't drawn while it follows, since it would sit on the blue one.
+- **Start and pause Auto-Scroll with the timer (off by default).** Turn on **Settings → Appearance → Timer display → Start and pause Auto-Scroll with the timer**. Then the **Auto-Scroll** button also starts the speech clock (load a speech time first), and stopping Auto-Scroll, by the button, **Escape** or scrolling yourself, pauses the clock. Pausing the clock stops Auto-Scroll. The timer's own **Start** button still starts only the clock and the blue line.
+- **One prefix for cards in Search Everything: `e`, with `q`, `g` and `a` to narrow it.** Type **e** and a space and the bar says **Searching all evidence**, with **Add a letter to narrow your search · q my cards · g Logos · a authors** under it and nothing else. With words after it (`e heg bad`) it searches your own cards and Logos together, your cards first. **e q** searches only your cards, **e g** only Logos. The bar's opening list now shows **e evidence** instead of **q** and **g**, but typing `q ` or `g ` on its own still works as before.
+- **Author search: `e a stein`.** It lists the cards by that author, then the responses to them: headings in your files that name the author, such as **AT: Stein**, **Stein is a hack** or **Reject Stein**. Each is labelled **RESPONSE TO STEIN** with the word that matched shown beside it (**hack**, **funded**, **AT**), the strongest first, and headings that only name the author come last under their own title. A block, hat or pocket inserts whole, so `AT: Stein` brings all the answers under it; a tag inserts just that card. Add a year to narrow a common name (`e a smith 19`). It finds responses by the wording of the headings, not by understanding them, so a response that never names the author in a heading is not found. Edit the attack words in **Settings → Files → File search → Author search: attack words**. The first launch after this update re-reads your search folders once to add the authors and headings to the card index.
+
+### Changed
+
+- **A notice tells you when autosave pauses for a Word file with a live view or linked copy.** Word (.docx) can't hold either, so autosave skips that file, and until now the only sign was the autosave button's tooltip. Now a notice appears the first time it happens in a document, saying autosave is paused and how to resume (save by hand, or unlink; a .cmir file keeps them live and autosaves). It shows once per document, and again only if you remove them and add one back.
+- **The linked-copy and live-view picker says why a row is greyed out.** Rows that hold your cursor (your own card, its block, hat and pocket) can't be copied into themselves, and the picker used to grey them with no explanation. Now each greyed row says why when you hover it, and a short line above the list says that greyed rows hold your cursor and to move it elsewhere to pick them. Empty sections say they have nothing in them.
+- **In a pane's document list, only the speech mic is amber now.** The speech document's name in the small **v 4** list on a pane's title bar is back to the normal text colour, so it reads like the other rows, and its microphone stays amber. The other lists that name the speech document (the drag tray, **Select Speech Document** and **Switch Window**) are unchanged.
+
+### Fixed
+
+- **Insert Linked Copy from a File: Enter on the file now goes into it.** In that mode the palette opened the document when you pressed Enter on a file, and a file that was already open only said "Cap K is already open". Now Enter searches inside the file, like Tab, so you can pick a heading, and the hint at the bottom reads **↵ search inside**. In the normal palette Enter still opens the file.
+- **F11 with nothing selected now picks up the highlighter.** It used to do nothing unless you had selected text first. Now the pointer turns into a highlighter showing the current color, and whatever you select next is highlighted. Press **F11** again or **Esc** to put it down. With text selected, F11 works as before.
+- **A table with nothing left in it can be deleted with Backspace or Delete.** If you emptied a table down to one last empty cell, Backspace in it did nothing and the only way to remove the table was the table menu, which is hidden when **Show additional formatting buttons** is off. Backspace or Delete now removes a table whose cells are all empty when the caret is in its only cell, or when every cell is selected. A table with any text in it, or a blank table of several cells with just a caret in it, is left alone.
+
 ## 1.17.2-bcb.6 — 2026-11-18
 
 ### Added
