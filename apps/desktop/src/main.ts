@@ -37,7 +37,9 @@ import { existsSync } from 'node:fs';
 import { autoUpdater } from 'electron-updater';
 import { bundlePathFromExe, launchSwapHelper, macBundleSelfUpdatable } from './mac-swap-update.js';
 import {
+  externalOpenMessage,
   lastViewedWindowId,
+  pickFilesFromArgv,
   readChooserResponse,
   sortChooserEntries,
   windowPillKinds,
@@ -320,20 +322,7 @@ let firstWindowId: number | null = null;
  *  double-clicks a registered .docx/.cmir, so we stash the
  *  path here and consume it inside the `whenReady` handler
  *  instead of dropping it on the floor. Cleared once consumed. */
-let pendingLaunchFile: string | null = null;
-
-/** Pick the first argv element that looks like one of our
- *  associated file types. Used for Windows / Linux launches —
- *  the OS passes the clicked file as a regular CLI argument
- *  rather than firing a dedicated event the way macOS does. */
-function pickFileFromArgv(argv: readonly string[]): string | null {
-  for (const a of argv) {
-    if (typeof a !== 'string') continue;
-    const lower = a.toLowerCase();
-    if (lower.endsWith('.cmir') || lower.endsWith('.docx')) return a;
-  }
-  return null;
-}
+let pendingLaunchFiles: string[] = [];
 
 /** Window ids whose renderer is in multi-pane (3-slot workspace)
  *  mode. Populated/cleared by the renderer at boot via
@@ -565,47 +554,82 @@ async function isEmptyOnDisk(filePath: string, bytes: Buffer): Promise<boolean> 
   }
 }
 
-/** Open a file the OS handed us (macOS `open-file`, Windows / Linux
+/** How long the OS-open path waits for more files before asking which window.
+ *  macOS fires one `open-file` per selected file, a moment apart; collecting
+ *  them lets the chooser ask once for the whole set. */
+const EXTERNAL_OPEN_BATCH_MS = 250;
+let externalOpenQueue: string[] = [];
+let externalOpenTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Queue files the OS handed us and open them together once no more arrive. */
+function queueExternalOpen(paths: readonly string[]): void {
+  for (const p of paths) if (!externalOpenQueue.includes(p)) externalOpenQueue.push(p);
+  if (externalOpenTimer) clearTimeout(externalOpenTimer);
+  externalOpenTimer = setTimeout(() => {
+    externalOpenTimer = null;
+    const batch = externalOpenQueue;
+    externalOpenQueue = [];
+    void openExternalFiles(batch);
+  }, EXTERNAL_OPEN_BATCH_MS);
+}
+
+/** Open files the OS handed us (macOS `open-file`, Windows / Linux
  *  argv at launch or second-instance — e.g. "Open with… CardMirror").
  *  Multi-pane reuses an open window (asking which one first if more
- *  than one is open — see `pickMultiPaneTarget`) and routes the file
+ *  than one is open — see `pickMultiPaneTarget`) and routes each file
  *  through its slot picker; single-pane / cold launch spawns a fresh
  *  window with the file as its initial doc (VS Code / Word-like, and
- *  the single-pane behavior is unchanged). */
-async function openExternalFile(filePath: string): Promise<void> {
-  const ext = path.extname(filePath).toLowerCase();
-  const format: 'cmir' | 'docx' | null =
-    ext === '.cmir' ? 'cmir' : ext === '.docx' ? 'docx' : null;
-  if (!format) return;
-  grantReadPath(filePath); // OS handed it to us → the user opened it
-  // Duplicate-open guard for the OS-open path. The in-app Open dialog
-  // gets this via `host:open-path-check`; Finder / Dock / "Open with…"
-  // double-clicks arrive here and must run the same check, or a file
-  // already open in another window opens a second, conflicting copy
-  // (whichever copy closes first then releases the shared claim).
-  if (focusExistingOwner(filePath)) return;
-  const choice = await pickMultiPaneTarget(`Open "${path.basename(filePath)}" in:`);
+ *  the single-pane behavior is unchanged).
+ *
+ *  Several files at once ask which window ONCE ("Open "A" + 2 more docs
+ *  in:"). In the chosen window each file is still routed on its own, so each
+ *  gets its own pane chooser. "New window" opens one window per file, as it
+ *  did when each file asked separately. */
+async function openExternalFiles(paths: readonly string[]): Promise<void> {
+  const fresh: string[] = [];
+  for (const filePath of paths) {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext !== '.cmir' && ext !== '.docx') continue;
+    grantReadPath(filePath); // OS handed it to us → the user opened it
+    // Duplicate-open guard for the OS-open path. The in-app Open dialog
+    // gets this via `host:open-path-check`; Finder / Dock / "Open with…"
+    // double-clicks arrive here and must run the same check, or a file
+    // already open in another window opens a second, conflicting copy
+    // (whichever copy closes first then releases the shared claim).
+    if (focusExistingOwner(filePath)) continue;
+    if (!fresh.includes(filePath)) fresh.push(filePath);
+  }
+  if (fresh.length === 0) return;
+  const choice = await pickMultiPaneTarget(externalOpenMessage(fresh.map((f) => path.basename(f))));
   // Esc / ✕ on the chooser: the user changed their mind.
   if (choice.kind === 'cancel') return;
-  // Hand off to the existing workspace — it reads the path and shows
-  // its slot picker. Bring it forward so the picker is visible. A
-  // window that closed while the chooser was up falls through to the
-  // spawn below rather than dropping the file.
-  if (choice.kind === 'window' && handOffToWindow(choice.win, 'host:external-open', { path: filePath })) {
-    return;
+  let rest = fresh;
+  if (choice.kind === 'window') {
+    // Hand off to the existing workspace — it reads each path and shows its
+    // slot picker. Bring it forward so the picker is visible. A window that
+    // closed while the chooser was up falls through to the spawn below rather
+    // than dropping the files.
+    let handed = 0;
+    while (handed < fresh.length && handOffToWindow(choice.win, 'host:external-open', { path: fresh[handed]! })) {
+      handed++;
+    }
+    rest = fresh.slice(handed);
   }
-  try {
-    const buf = await readDocumentBytes(filePath);
-    createWindow({
-      filename: path.basename(filePath),
-      bytes: new Uint8Array(buf),
-      handle: filePath,
-      format,
-      uid: null,
-      emptyOnDisk: await isEmptyOnDisk(filePath, buf),
-    });
-  } catch (err) {
-    console.warn('Failed to open external file:', filePath, err);
+  for (const filePath of rest) {
+    const format: 'cmir' | 'docx' = path.extname(filePath).toLowerCase() === '.cmir' ? 'cmir' : 'docx';
+    try {
+      const buf = await readDocumentBytes(filePath);
+      createWindow({
+        filename: path.basename(filePath),
+        bytes: new Uint8Array(buf),
+        handle: filePath,
+        format,
+        uid: null,
+        emptyOnDisk: await isEmptyOnDisk(filePath, buf),
+      });
+    } catch (err) {
+      console.warn('Failed to open external file:', filePath, err);
+    }
   }
 }
 
@@ -2782,7 +2806,7 @@ function canonicalOpenPath(p: string): string {
  *  return true. A stale entry (owner window gone) is cleaned up and
  *  the function returns false. Shared by the renderer-driven pre-open
  *  check (`host:open-path-check`) and the OS-open path
- *  (`openExternalFile`) so Finder / Dock / "Open with…" double-clicks
+ *  (`openExternalFiles`) so Finder / Dock / "Open with…" double-clicks
  *  get the SAME duplicate-open guard the in-app Open dialog does.
  *  `excludeWinId` lets a caller treat "already owned by me" as "free." */
 function focusExistingOwner(p: string, excludeWinId?: number): boolean {
@@ -4649,8 +4673,8 @@ if (!gotLock) {
   // command line; mine the file path out of it and open it in a
   // new window of the existing app.
   app.on('second-instance', (_event, argv) => {
-    const filePath = pickFileFromArgv(argv);
-    if (filePath) void openExternalFile(filePath);
+    const files = pickFilesFromArgv(argv);
+    if (files.length > 0) queueExternalOpen(files);
     // Pull the user's attention back to a window so they see the
     // newly-opened doc (or at least the existing app) on top.
     const win = mainWindow ?? BrowserWindow.getAllWindows()[0];
@@ -4667,9 +4691,9 @@ if (!gotLock) {
 app.on('open-file', (event, filePath) => {
   event.preventDefault();
   if (app.isReady()) {
-    void openExternalFile(filePath);
-  } else {
-    pendingLaunchFile = filePath;
+    queueExternalOpen([filePath]);
+  } else if (!pendingLaunchFiles.includes(filePath)) {
+    pendingLaunchFiles.push(filePath);
   }
 });
 
@@ -4707,10 +4731,12 @@ void app.whenReady().then(() => {
   //   - macOS `open-file` already arrived → that file
   //   - Win / Linux: scan argv for a file path → that file
   //   - Otherwise: empty starter window
-  const launchFile = pendingLaunchFile ?? pickFileFromArgv(process.argv);
-  pendingLaunchFile = null;
-  if (launchFile) {
-    void openExternalFile(launchFile);
+  const launchFiles = [...pendingLaunchFiles];
+  for (const f of pickFilesFromArgv(process.argv)) if (!launchFiles.includes(f)) launchFiles.push(f);
+  pendingLaunchFiles = [];
+  if (launchFiles.length > 0) {
+    // More may still arrive (macOS sends one event per file): batch them.
+    queueExternalOpen(launchFiles);
   } else {
     createWindow();
   }

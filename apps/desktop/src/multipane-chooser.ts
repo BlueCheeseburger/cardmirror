@@ -127,3 +127,26 @@ export function sortChooserEntries<T extends { label: string; id: number }>(
   }));
   return normalized.sort((a, b) => collator.compare(a.label, b.label) || a.id - b.id);
 }
+
+/** The heading of the "which window?" chooser for files the OS handed us. One
+ *  file names it; several name the first and count the rest, so the user picks
+ *  a window once for the whole batch (each file still gets its own pane chooser
+ *  there). */
+export function externalOpenMessage(names: readonly string[]): string {
+  const first = names[0] ?? '';
+  const more = names.length - 1;
+  if (more <= 0) return `Open "${first}" in:`;
+  return `Open "${first}" + ${more} more ${more === 1 ? 'doc' : 'docs'} in:`;
+}
+
+/** Every CardMirror document path in a command line (Windows / Linux hand the
+ *  clicked files over as plain arguments), in order, without repeats. */
+export function pickFilesFromArgv(argv: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const a of argv) {
+    if (typeof a !== 'string') continue;
+    const lower = a.toLowerCase();
+    if ((lower.endsWith('.cmir') || lower.endsWith('.docx')) && !out.includes(a)) out.push(a);
+  }
+  return out;
+}

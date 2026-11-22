@@ -9,7 +9,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildChooserPrompt,
+  externalOpenMessage,
   lastViewedWindowId,
+  pickFilesFromArgv,
   readChooserResponse,
   sortChooserEntries,
   windowPillKinds,
@@ -115,5 +117,25 @@ describe('window pills', () => {
     const { lastViewed: _h, ...sharedHint } = WINDOW_PILL_HINT;
     expect(sharedText).toEqual(rendererPills.WINDOW_PILL_TEXT);
     expect(sharedHint).toEqual(rendererPills.WINDOW_PILL_HINT);
+  });
+});
+
+describe('externalOpenMessage', () => {
+  it('names one file plainly', () => {
+    expect(externalOpenMessage(['T---ASPEC.cmir'])).toBe('Open "T---ASPEC.cmir" in:');
+  });
+
+  it('names the first of several and counts the rest', () => {
+    expect(externalOpenMessage(['T---ASPEC.cmir', 'UQ.cmir'])).toBe('Open "T---ASPEC.cmir" + 1 more doc in:');
+    expect(externalOpenMessage(['A.cmir', 'B.docx', 'C.cmir'])).toBe('Open "A.cmir" + 2 more docs in:');
+  });
+});
+
+describe('pickFilesFromArgv', () => {
+  it('returns every document path, in order, ignoring other arguments and repeats', () => {
+    expect(
+      pickFilesFromArgv(['/app/CardMirror', '--flag', '/a/One.cmir', '/a/Two.DOCX', '/a/One.cmir', '/a/notes.txt']),
+    ).toEqual(['/a/One.cmir', '/a/Two.DOCX']);
+    expect(pickFilesFromArgv(['/app/CardMirror'])).toEqual([]);
   });
 });

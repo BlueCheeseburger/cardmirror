@@ -10,6 +10,18 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Changed: one window chooser for several files opened from the OS (`main.ts`, `multipane-chooser.ts`, `index.ts`)
+
+**Request.** From a screenshot of "Open "T---ASPEC.cmir" in:": "when there are multiple docs being opened, the dialog should say 'open x + x more docs in [window selection]', but the pane chooser should still be individual."
+
+**Cause.** `openExternalFile` handled one path and asked which window for each. macOS sends one `open-file` per selected file, and Windows / Linux argv handling picked only the first path.
+
+**Change.** OS-open requests now go through `queueExternalOpen`, which waits 250 ms for more and then calls `openExternalFiles` once: the duplicate-open guard per file, one `pickMultiPaneTarget` with `externalOpenMessage` (`Open "A" + 2 more docs in:`), then one `host:external-open` per file to the chosen window. The renderer now runs those through a promise chain, so each file's own pane chooser appears in turn instead of stacking. Launch-time files (macOS `open-file` before ready, every path in argv, second-instance argv) are collected the same way instead of keeping only one. If the chosen window closed part-way, the remaining files spawn windows rather than being dropped. **New window** opens one window per file, as when each file asked separately; I did not make several documents share one new window.
+
+**Not verified.** Electron's `open-file` timing on macOS (the 250 ms collection window was chosen, not measured), and the real chooser and pane choosers in sequence. Only the heading text and argv parsing are unit-tested; the main-process wiring has no test.
+
 ## 1.17.2-bcb.7 — 2026-11-21
 
 ### Added: Bulk convert takes several files at once (`bulk-convert-ui.ts`)

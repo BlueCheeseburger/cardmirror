@@ -8420,8 +8420,14 @@ getElectronHost()?.onFocusAnchor(({ descriptor }) => {
 function installExternalOpenListener(): void {
   const electron = getElectronHost();
   if (!electron) return;
+  // Several files can arrive together (main asked which window once for the
+  // lot). Each still gets its own pane chooser, one after another: queue them
+  // so the choosers don't stack on top of each other.
+  let externalOpenChain: Promise<void> = Promise.resolve();
   electron.onExternalOpen(({ path }) => {
-    void openFileByPath(path, path.replace(/^.*[\\/]/, ''));
+    externalOpenChain = externalOpenChain
+      .then(() => openFileByPath(path, path.replace(/^.*[\\/]/, '')))
+      .catch((err) => console.error('External open failed:', err));
   });
   // New Document routed here by main's window chooser. Goes straight to
   // the LOCAL path — re-entering onNewDocClicked would ask main which

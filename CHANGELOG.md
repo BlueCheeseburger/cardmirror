@@ -8,6 +8,12 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Changed
+
+- **Opening several documents at once asks which window once.** Selecting a few files in Finder or Explorer and choosing **Open With** CardMirror used to ask "Open … in:" for every file. Now one window chooser covers the lot, headed **Open "T---ASPEC.cmir" + 2 more docs in:**, and the chosen window then shows its pane chooser for each document in turn, as before. Choosing **New window** opens one window per document.
+
 ## 1.17.2-bcb.7 — 2026-11-21
 
 ### Added
