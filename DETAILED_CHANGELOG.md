@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: file paths in Compare documents (`doc-diff-ui.ts`, `disk-conflict.ts`, `style.css`)
+
+**Request.** "In the compare docs ui, it should say somewhere the file paths. Show me where you will put it in a mockup, then implement it."
+
+**Where.** (1) Picker: under each chosen file's name, its folder (not the file name, which is already above it). (2) Results: under the "A → B" names, one line per file with its full path, prefixed by a red `−` / green `+` in the same colours as the names, so the first file's path is the red one. These two lines matter most when both files have the same name. (3) The two outline titles carry the full path as a tooltip. A document without a path (the web edition, a window's unsaved content) gets no path line in the picker and "Not saved to a file" in the results header.
+
+**How.** `PickedFile` gains an optional `path` (the picker's `handle` when it is a string; the disk-conflict caller passes the on-disk path and the window's own path). The path is rendered by `pathEl`: one line, cut from the LEFT with an ellipsis (an RTL box around an LTR `bdi`) so the folder and file name stay visible; the full path is the tooltip.
+
+**Not verified.** Windows paths in the real app, and the disk-conflict screens beyond the code change (the screenshots show the file-picker route). The two Compare screens were rendered in a browser with example paths; the tests use a stub host.
+
 ### Fixed: a search folder inside an excluded folder is searched (`file-search.ts`, `file-index-core.ts`)
 
 **Request.** "If I have an exclusion but also add a folder within that exclusion dir to the list of folders to look through, it should not look through every folder in that dir but it should look through the folder I gave it permission to. And there should be a pop up to the user."

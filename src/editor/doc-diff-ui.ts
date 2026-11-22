@@ -70,6 +70,10 @@ async function parseDiffDoc(bytes: Uint8Array): Promise<PMNode> {
 
 interface PickedFile {
   name: string;
+  /** Where the file lives on disk (desktop only; absent for the web edition or a
+   *  document that has no file). Shown so two files with the same name can be
+   *  told apart. */
+  path?: string;
   /** The file's bytes, parsed when Compare runs. */
   bytes?: Uint8Array;
   /** A document that is already parsed (a window's live content), used instead of `bytes`. */
@@ -78,6 +82,31 @@ interface PickedFile {
 
 /** One side handed to `openDocDiff` ready-made, so the dialog skips its file pickers. */
 export type DiffSide = PickedFile;
+
+/** The folder part of a path, without the trailing separator ("" when there is none). */
+export function folderOfPath(p: string): string {
+  const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+  return i > 0 ? p.slice(0, i) : '';
+}
+
+/** A one-line path that keeps its END when it does not fit (the part that tells
+ *  files apart), cutting from the left with an ellipsis. The full path is the tooltip. */
+function pathEl(p: string, className = 'pmd-doc-diff-path'): HTMLElement {
+  const el = document.createElement('span');
+  el.className = className;
+  el.title = p;
+  const inner = document.createElement('bdi');
+  inner.textContent = p;
+  el.appendChild(inner);
+  return el;
+}
+
+function unsavedEl(): HTMLElement {
+  const el = document.createElement('span');
+  el.className = 'pmd-doc-diff-path pmd-doc-diff-path-none';
+  el.textContent = 'Not saved to a file';
+  return el;
+}
 
 async function docOf(side: PickedFile): Promise<PMNode> {
   if (side.doc) return side.doc;
@@ -183,7 +212,7 @@ class DocDiffModal {
    *  fills the row you clicked, and a third or later one is left out. */
   private async pick(side: 'a' | 'b'): Promise<void> {
     const host = getHost();
-    let opened: Array<{ name: string; bytes: Uint8Array }>;
+    let opened: Array<{ name: string; bytes: Uint8Array; handle?: unknown }>;
     try {
       if (host.openFiles) {
         opened = await host.openFiles({ filters: DOC_FILTERS });
@@ -196,7 +225,11 @@ class DocDiffModal {
       return;
     }
     if (opened.length === 0) return;
-    const toPicked = (f: { name: string; bytes: Uint8Array }): PickedFile => ({ name: f.name, bytes: f.bytes });
+    const toPicked = (f: { name: string; bytes: Uint8Array; handle?: unknown }): PickedFile => ({
+      name: f.name,
+      bytes: f.bytes,
+      ...(typeof f.handle === 'string' && f.handle ? { path: f.handle } : {}),
+    });
     if (opened.length === 1) {
       if (side === 'a') this.a = toPicked(opened[0]!);
       else this.b = toPicked(opened[0]!);
@@ -269,12 +302,18 @@ class DocDiffModal {
     const labelEl = document.createElement('span');
     labelEl.className = 'pmd-doc-diff-picker-label';
     labelEl.textContent = label;
+    const main = document.createElement('div');
+    main.className = 'pmd-doc-diff-picker-main';
     const nameEl = document.createElement('span');
     nameEl.className = 'pmd-doc-diff-picker-name';
     nameEl.textContent = picked ? picked.name : 'No file chosen';
     if (!picked) nameEl.classList.add('pmd-doc-diff-picker-name-empty');
+    main.appendChild(nameEl);
+    // Where it lives: the folder, so two files with one name can be told apart.
+    const folder = picked?.path ? folderOfPath(picked.path) : '';
+    if (picked?.path && folder) main.appendChild(pathEl(folder));
     const btn = this.button(picked ? 'Change…' : 'Choose…', false, onPick);
-    row.append(labelEl, nameEl, btn);
+    row.append(labelEl, main, btn);
     return row;
   }
 
@@ -464,6 +503,26 @@ class DocDiffModal {
     nameBEl.textContent = nameB;
     names.append(nameAEl, vs, nameBEl);
     info.appendChild(names);
+    // The full path of each file under its name (when the file has one): the
+    // same colours as the names, so it is clear which path belongs to which side.
+    const pathA = this.a?.path;
+    const pathB = this.b?.path;
+    if (pathA || pathB) {
+      const paths = document.createElement('div');
+      paths.className = 'pmd-doc-diff-paths';
+      const line = (sign: string, cls: string, p: string | undefined): void => {
+        const row = document.createElement('div');
+        row.className = 'pmd-doc-diff-path-row';
+        const mark = document.createElement('span');
+        mark.className = `pmd-doc-diff-path-mark ${cls}`;
+        mark.textContent = sign;
+        row.append(mark, p ? pathEl(p) : unsavedEl());
+        paths.appendChild(row);
+      };
+      line('\u2212', 'pmd-doc-diff-name-remove', pathA);
+      line('+', 'pmd-doc-diff-name-add', pathB);
+      info.appendChild(paths);
+    }
 
     const { added, removed, unchanged } = summarize(lines);
     const summary = document.createElement('div');
@@ -595,6 +654,8 @@ class DocDiffModal {
     const title = document.createElement('div');
     title.className = 'pmd-doc-diff-outline-title';
     title.textContent = name;
+    const outlinePath = side === 'left' ? this.a?.path : this.b?.path;
+    if (outlinePath) title.title = outlinePath;
     rail.appendChild(title);
     const legend = document.createElement('div');
     legend.className = 'pmd-doc-diff-outline-legend';

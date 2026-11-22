@@ -10,6 +10,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Added
+
+- **Compare documents shows where each file is.** On the picker, each chosen file has its folder under its name. On the results screen, the full path of each file sits under the two names (a red **−** line for the first file, a green **+** line for the second), and hovering an outline's title shows it too. A long path is cut from the left so the end, the folder and file name, stays visible, and hovering shows all of it. This makes it clear which copy is which when two files have the same name. A document that has no file yet shows "Not saved to a file". The sync-conflict **See what changed** screens show the paths as well.
+
 ### Fixed
 
 - **A search folder inside an excluded folder is searched.** If you excluded a folder from file search but also added one of its subfolders to **File search folders**, the exclusion used to hide that subfolder as well. Now the more specific choice wins: the subfolder (and what's under it) is searched, and the rest of the excluded folder stays hidden. A folder that is both excluded and a search folder stays excluded, and an exclusion inside the search folder still hides what it covers.

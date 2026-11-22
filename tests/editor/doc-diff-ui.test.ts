@@ -125,6 +125,28 @@ describe('Compare documents — the picker step', () => {
     expect(qa('.pmd-doc-diff-picker-name').map((e) => e.textContent)).toEqual(['No file chosen', 'only.cmir']);
   });
 
+  it('shows the folder of each picked file under its name, and the full path on hover', async () => {
+    multiPicker = true;
+    openFilesMock.mockResolvedValueOnce([
+      { name: 'Shell.cmir', bytes: cardBytes('Tag', 'Body'), handle: '/Users/sam/Dropbox/Round 3/Shell.cmir' },
+      { name: 'Shell.cmir', bytes: cardBytes('Tag', 'Body 2'), handle: 'C:\\debate\\old\\Shell.cmir' },
+    ]);
+    openDocDiff();
+    pickerButtons()[0]!.click();
+    await flush();
+    const paths = qa('.pmd-doc-diff-picker-row .pmd-doc-diff-path');
+    expect(paths.map((e) => e.textContent)).toEqual(['/Users/sam/Dropbox/Round 3', 'C:\\debate\\old']);
+    expect((paths[0] as HTMLElement).title).toBe('/Users/sam/Dropbox/Round 3');
+  });
+
+  it('shows no path line for a file that has no path (the web edition)', async () => {
+    openFileMock.mockResolvedValueOnce({ name: 'a.cmir', bytes: cardBytes('Tag', 'Body') });
+    openDocDiff();
+    pickerButtons()[0]!.click();
+    await flush();
+    expect(qa('.pmd-doc-diff-path')).toHaveLength(0);
+  });
+
   it('Cancel closes the dialog', () => {
     openDocDiff();
     const cancel = qa('.pmd-doc-diff-topbar-actions .pmd-doc-diff-btn').find((b) => b.textContent === 'Cancel');
@@ -176,6 +198,23 @@ describe('Compare documents — the results step', () => {
     expect(equalRow!.querySelector('.pmd-doc-diff-cell-right .pmd-doc-diff-text')?.textContent).toBe('Tag');
     expect(changedRow!.querySelector('.pmd-doc-diff-cell-remove .pmd-doc-diff-text')?.textContent).toBe('Old body');
     expect(changedRow!.querySelector('.pmd-doc-diff-cell-add .pmd-doc-diff-text')?.textContent).toBe('New body');
+  });
+
+  it('the results screen lists each file\u2019s full path under the names, remove then add', async () => {
+    multiPicker = true;
+    openFilesMock.mockResolvedValueOnce([
+      { name: 'Shell.cmir', bytes: cardBytes('Tag', 'Old body'), handle: '/a/Old/Shell.cmir' },
+      { name: 'Shell.cmir', bytes: cardBytes('Tag', 'New body'), handle: '/a/New/Shell.cmir' },
+    ]);
+    openDocDiff();
+    pickerButtons()[0]!.click();
+    await flush();
+    compareBtn().click();
+    await waitForResults();
+    const rows = qa('.pmd-doc-diff-path-row');
+    expect(rows.map((r) => r.textContent)).toEqual(['\u2212/a/Old/Shell.cmir', '+/a/New/Shell.cmir']);
+    // The outline titles carry the path as a tooltip too.
+    expect((q('.pmd-doc-diff-outline-left .pmd-doc-diff-outline-title') as HTMLElement).title).toBe('/a/Old/Shell.cmir');
   });
 
   it('an edited line marks its changed words: struck through on the left, underlined on the right', async () => {

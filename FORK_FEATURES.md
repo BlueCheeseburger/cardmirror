@@ -144,6 +144,8 @@ season's, your partner's edit against yours, or a file before and after cutting.
 4. Click **Merge** to combine the two into one new document. Lines both files share
    are kept once; for an edited line you pick the first version, the second, or both.
 
+The full path of each file is shown under its name (and the folder on the picker), so two files with the same name can be told apart.
+
 Neither file is opened or changed by comparing them.
 
 **From a sync conflict:** when a Dropbox, OneDrive or similar file changes under
