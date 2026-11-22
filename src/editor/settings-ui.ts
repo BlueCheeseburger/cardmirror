@@ -7,6 +7,7 @@
  * settings store immediately.
  */
 
+import { confirmExclusion, confirmSearchFolder } from './exclusion-notices.js';
 import { WORD_COUNT_ORDERS, type WordCountOrder } from './word-count-order.js';
 import { confirmDialog, promptForRouteChoice } from './text-prompt.js';
 import { requestVoiceCalibration } from './voice/hooks.js';
@@ -1382,6 +1383,7 @@ class SettingsModal {
                 // can change under an open picker (see folder-list-repoint).
                 const next = repointFolderRoot(getRoots(), rootPath, picked);
                 if (next === null) return;
+                if (meta.key === 'fileSearchRoots' && !(await confirmSearchFolder(picked))) return;
                 settings.set(meta.key, next as never);
                 render();
               })();
@@ -1411,7 +1413,9 @@ class SettingsModal {
             if (picked == null) return;
             const roots = getRoots();
             if (!roots.includes(picked)) {
-              settings.set(meta.key, [...roots, picked] as never);
+              // A folder inside an excluded folder: say so, and let the user back out.
+              if (meta.key === 'fileSearchRoots' && !(await confirmSearchFolder(picked))) return;
+              settings.set(meta.key, [...getRoots(), picked] as never);
               render();
             }
           })();
@@ -1470,6 +1474,7 @@ class SettingsModal {
                 // can change under an open picker (see folder-list-repoint).
                 const next = repointFolderRoot(getPaths(), entryPath, picked);
                 if (next === null) return;
+                if (meta.key === 'fileSearchExclusions' && !(await confirmExclusion(picked))) return;
                 settings.set(meta.key, next as never);
                 render();
               })();
@@ -1487,11 +1492,12 @@ class SettingsModal {
             wrap.appendChild(rowEl);
           });
         }
-        const addTo = (picked: string | null | undefined): void => {
+        const addTo = async (picked: string | null | undefined): Promise<void> => {
           if (picked == null) return;
-          const paths = getPaths();
-          if (!paths.includes(picked)) {
-            settings.set(meta.key, [...paths, picked] as never);
+          if (!getPaths().includes(picked)) {
+            // An exclusion around a search folder: say so, and let the user back out.
+            if (meta.key === 'fileSearchExclusions' && !(await confirmExclusion(picked))) return;
+            settings.set(meta.key, [...getPaths(), picked] as never);
             render();
           }
         };
@@ -1507,7 +1513,7 @@ class SettingsModal {
           void (async (): Promise<void> => {
             const electron = getElectronHost();
             if (!electron) return;
-            addTo(await electron.pickDirectory({ title: meta.label }));
+            await addTo(await electron.pickDirectory({ title: meta.label }));
           })();
         });
         addRow.appendChild(addFolderBtn);
@@ -1520,7 +1526,7 @@ class SettingsModal {
             void (async (): Promise<void> => {
               const electron = getElectronHost();
               if (!electron?.pickFile) return;
-              addTo(
+              await addTo(
                 await electron.pickFile({
                   title: meta.label,
                   filters: [{ name: 'Documents', extensions: ['cmir', 'docx'] }],

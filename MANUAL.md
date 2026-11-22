@@ -1363,7 +1363,9 @@ file search everywhere, after a confirmation — useful for templates,
 archives, or anything that keeps outranking what you actually want.
 Manage the list (folders too — an excluded folder hides its whole
 subtree, except a folder you have also added to **File search folders**,
-which is still searched) under **Settings → Files → File search: exclusions**. Excluding
+which is still searched) under **Settings → Files → File search: exclusions**. CardMirror asks before you add a search folder inside an
+excluded folder, or an exclusion that contains one of your search folders, and
+says what will and won't be searched. Excluding
 a pinned file keeps the pin dormant; remove the exclusion and the star
 comes back.
 

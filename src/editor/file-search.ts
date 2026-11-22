@@ -193,6 +193,21 @@ export interface FolderPriority {
 /** 0 normal · 1 preferred · 2 highest. */
 export type PriorityLevel = 0 | 1 | 2;
 
+/** The search folders that sit strictly INSIDE `exclusion` (not the same folder).
+ *  Used to tell the user, when they add an exclusion, which search folders it
+ *  contains (and that those are still searched). */
+export function searchFoldersInside(
+  exclusion: string,
+  roots: readonly string[],
+): string[] {
+  const ex = exclusion.replace(/[\\/]+$/, '');
+  if (!ex) return [];
+  return roots.filter((r) => {
+    const dir = r.replace(/[\\/]+$/, '');
+    return dir !== ex && isAtOrUnder(dir, ex);
+  });
+}
+
 /** True when `path` is `dir` or lives beneath it (separator-aware, both
  *  `/` and `\`; a trailing separator on `dir` is tolerated). */
 function isAtOrUnder(path: string, dir: string): boolean {
