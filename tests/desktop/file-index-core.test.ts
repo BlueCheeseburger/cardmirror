@@ -86,6 +86,24 @@ describe('file-index core', () => {
     expect(res.total).toBe(2);
   });
 
+  it('searches a search folder that sits inside an excluded folder, and nothing else in it', async () => {
+    write(path.join(rootA, 'Old', 'Hidden Old.cmir'));
+    write(path.join(rootA, 'Old', 'Keepers', 'Kept Card.cmir'));
+    const keepers = path.join(rootA, 'Old', 'Keepers');
+    const core = makeCore();
+    await core.configure([rootA, keepers]);
+    await core.idle();
+    const rows = await core.query(
+      q({ roots: [rootA, keepers], exclusions: [path.join(rootA, 'Old')] }),
+    );
+    const names = rows.rows.map((r) => r.name);
+    expect(names).toContain('Kept Card');
+    expect(names).not.toContain('Hidden Old');
+    // The same exclusion with no search folder inside it hides all of it.
+    const plain = await core.query(q({ roots: [rootA], exclusions: [path.join(rootA, 'Old')] }));
+    expect(plain.rows.map((r) => r.name)).not.toContain('Kept Card');
+  });
+
   it('filters exclusions and formats service-side', async () => {
     const core = makeCore();
     await core.configure([rootA]);

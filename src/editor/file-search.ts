@@ -119,9 +119,51 @@ export interface OutlineEntry {
  *  folder. Separator-aware prefixing: excluding `/a/b` covers
  *  `/a/b/x.cmir` but never `/a/bc/x.cmir` (both `/` and `\`). Exact
  *  string compare — exclusions and listings come from the same native
- *  pickers/scans, so their casing and shape agree. */
-export function isPathExcluded(path: string, exclusions: readonly string[]): boolean {
-  return exclusions.some((ex) => isAtOrUnder(path, ex));
+ *  pickers/scans, so their casing and shape agree.
+ *
+ *  The more specific entry wins. A search folder (`roots`) that sits INSIDE an
+ *  excluded folder is searched anyway: the exclusion keeps hiding the rest of
+ *  that folder, but not the folder the user explicitly asked to search. An
+ *  exclusion deeper than such a search folder still wins for what it covers,
+ *  and a folder that is both excluded and a search folder stays excluded. */
+export function isPathExcluded(
+  path: string,
+  exclusions: readonly string[],
+  roots: readonly string[] = [],
+): boolean {
+  let excludedBy = -1;
+  for (const ex of exclusions) {
+    if (isAtOrUnder(path, ex)) excludedBy = Math.max(excludedBy, trimmedLength(ex));
+  }
+  if (excludedBy < 0) return false;
+  for (const root of roots) {
+    // A longer matching prefix is a more specific (deeper) folder.
+    if (isAtOrUnder(path, root) && trimmedLength(root) > excludedBy) return false;
+  }
+  return true;
+}
+
+/** Length of a folder path without trailing separators. */
+function trimmedLength(dir: string): number {
+  return dir.replace(/[\\/]+$/, '').length;
+}
+
+/** The excluded folder (or file) that a candidate search folder sits inside, or
+ *  null. Used to tell the user, when they add a search folder, that it lives
+ *  under an exclusion (and will be searched anyway). A folder that IS an
+ *  exclusion is not "inside" one. */
+export function exclusionContaining(
+  folder: string,
+  exclusions: readonly string[],
+): string | null {
+  const dir = folder.replace(/[\\/]+$/, '');
+  let best: string | null = null;
+  for (const ex of exclusions) {
+    const e = ex.replace(/[\\/]+$/, '');
+    if (!e || e === dir) continue;
+    if (isAtOrUnder(dir, e) && (best === null || e.length > best.length)) best = ex;
+  }
+  return best;
 }
 
 /** Drop excluded entries from a listing. The ONE choke point for the
@@ -132,9 +174,10 @@ export function isPathExcluded(path: string, exclusions: readonly string[]): boo
 export function filterExcludedFiles(
   files: readonly FileEntry[],
   exclusions: readonly string[],
+  roots: readonly string[] = [],
 ): FileEntry[] {
   if (exclusions.length === 0) return [...files];
-  return files.filter((f) => !isPathExcluded(f.path, exclusions));
+  return files.filter((f) => !isPathExcluded(f.path, exclusions, roots));
 }
 
 /** Folder priority sections for the file search (Settings → File search).

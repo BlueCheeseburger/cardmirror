@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Fixed: a search folder inside an excluded folder is searched (`file-search.ts`, `file-index-core.ts`)
+
+**Request.** "If I have an exclusion but also add a folder within that exclusion dir to the list of folders to look through, it should not look through every folder in that dir but it should look through the folder I gave it permission to. And there should be a pop up to the user."
+
+**Cause.** `isPathExcluded` treated any path under an excluded folder as excluded, whatever the search folders were.
+
+**Change.** `isPathExcluded(path, exclusions, roots)` now lets the more specific entry win (the longer matching prefix): a search folder deeper than the exclusion that covers the path un-excludes it; an exclusion deeper than the search folder, or the same folder, still excludes. The index service passes every configured search folder (`visibleEntries`' `allRoots`, also for the per-root browse and for `locateCurrentFile`), so the listing, the card index and browse agree. `exclusionContaining(folder, exclusions)` names the excluded folder a candidate search folder sits in, for the popup. Nothing in the UI uses it yet.
+
+**Not done.** The popup is not built: it is waiting on the mockup (a confirm dialog when a folder inside an exclusion is added under File search folders). Not verified in the real app; the service test uses real temp folders.
+
 ### Changed: one window chooser for several files opened from the OS (`main.ts`, `multipane-chooser.ts`, `index.ts`)
 
 **Request.** From a screenshot of "Open "T---ASPEC.cmir" in:": "when there are multiple docs being opened, the dialog should say 'open x + x more docs in [window selection]', but the pane chooser should still be individual."

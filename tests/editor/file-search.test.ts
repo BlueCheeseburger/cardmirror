@@ -18,7 +18,7 @@ import {
   type FileObject,
   type FileObjectKind,
 } from '../../src/editor/file-search.js';
-import { isPathExcluded, filterExcludedFiles } from '../../src/editor/file-search.js';
+import { isPathExcluded, filterExcludedFiles, exclusionContaining } from '../../src/editor/file-search.js';
 
 describe('exclusions', () => {
   it('matches an excluded file exactly', () => {
@@ -42,6 +42,51 @@ describe('exclusions', () => {
     expect(isPathExcluded('C:\\camp\\b\\x.cmir', ['C:\\camp\\b'])).toBe(true);
     expect(isPathExcluded('C:\\camp\\b\\x.cmir', ['C:\\camp\\b\\'])).toBe(true);
     expect(isPathExcluded('C:\\camp\\bc\\x.cmir', ['C:\\camp\\b'])).toBe(false);
+  });
+
+  it('a search folder inside an excluded folder is still searched; the rest of the excluded folder is not', () => {
+    const exclusions = ['/Debate/Old'];
+    const roots = ['/Debate', '/Debate/Old/Keepers'];
+    expect(isPathExcluded('/Debate/Old/Keepers/a.cmir', exclusions, roots)).toBe(false);
+    expect(isPathExcluded('/Debate/Old/Keepers/deep/b.cmir', exclusions, roots)).toBe(false);
+    // Everything else under the exclusion stays hidden, even though /Debate is a search folder.
+    expect(isPathExcluded('/Debate/Old/c.cmir', exclusions, roots)).toBe(true);
+    expect(isPathExcluded('/Debate/Old/Other/d.cmir', exclusions, roots)).toBe(true);
+    // Without the search folder the whole exclusion applies, as before.
+    expect(isPathExcluded('/Debate/Old/Keepers/a.cmir', exclusions, ['/Debate'])).toBe(true);
+    expect(isPathExcluded('/Debate/Old/Keepers/a.cmir', exclusions)).toBe(true);
+  });
+
+  it('an exclusion deeper than the search folder still wins for what it covers', () => {
+    const exclusions = ['/Debate/Old', '/Debate/Old/Keepers/Drafts'];
+    const roots = ['/Debate/Old/Keepers'];
+    expect(isPathExcluded('/Debate/Old/Keepers/a.cmir', exclusions, roots)).toBe(false);
+    expect(isPathExcluded('/Debate/Old/Keepers/Drafts/x.cmir', exclusions, roots)).toBe(true);
+  });
+
+  it('a folder that is both excluded and a search folder stays excluded', () => {
+    expect(isPathExcluded('/Debate/Old/a.cmir', ['/Debate/Old'], ['/Debate/Old'])).toBe(true);
+    expect(isPathExcluded('/Debate/Old/a.cmir', ['/Debate/Old/'], ['/Debate/Old'])).toBe(true);
+  });
+
+  it('exclusionContaining names the excluded folder a search folder sits inside', () => {
+    expect(exclusionContaining('/Debate/Old/Keepers', ['/Debate/Old'])).toBe('/Debate/Old');
+    expect(exclusionContaining('/Debate/Old/Keepers/', ['/Debate/Old/'])).toBe('/Debate/Old/');
+    // The deepest one when several nest.
+    expect(exclusionContaining('/a/b/c/d', ['/a', '/a/b'])).toBe('/a/b');
+    // Not inside: the same folder, a sibling, or a name that merely starts the same.
+    expect(exclusionContaining('/Debate/Old', ['/Debate/Old'])).toBeNull();
+    expect(exclusionContaining('/Debate/Older', ['/Debate/Old'])).toBeNull();
+    expect(exclusionContaining('/Debate/New', ['/Debate/Old'])).toBeNull();
+    expect(exclusionContaining('C:\\camp\\b\\c', ['C:\\camp\\b'])).toBe('C:\\camp\\b');
+  });
+
+  it('filterExcludedFiles keeps a search folder inside an exclusion', () => {
+    const files = [
+      makeFileEntry('/x/Old/Keep/a.cmir', 'Old/Keep/a.cmir', 1),
+      makeFileEntry('/x/Old/b.cmir', 'Old/b.cmir', 2),
+    ];
+    expect(filterExcludedFiles(files, ['/x/Old'], ['/x', '/x/Old/Keep']).map((f) => f.path)).toEqual(['/x/Old/Keep/a.cmir']);
   });
 
   it('filterExcludedFiles drops excluded entries and keeps the rest', () => {

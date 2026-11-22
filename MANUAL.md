@@ -1362,7 +1362,8 @@ folder is missing on disk (a disconnected drive keeps its last listing).
 file search everywhere, after a confirmation — useful for templates,
 archives, or anything that keeps outranking what you actually want.
 Manage the list (folders too — an excluded folder hides its whole
-subtree) under **Settings → Files → File search: exclusions**. Excluding
+subtree, except a folder you have also added to **File search folders**,
+which is still searched) under **Settings → Files → File search: exclusions**. Excluding
 a pinned file keeps the pin dormant; remove the exclusion and the star
 comes back.
 

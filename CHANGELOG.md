@@ -10,6 +10,10 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ## Unreleased
 
+### Fixed
+
+- **A search folder inside an excluded folder is searched.** If you excluded a folder from file search but also added one of its subfolders to **File search folders**, the exclusion used to hide that subfolder as well. Now the more specific choice wins: the subfolder (and what's under it) is searched, and the rest of the excluded folder stays hidden. A folder that is both excluded and a search folder stays excluded, and an exclusion inside the search folder still hides what it covers.
+
 ### Changed
 
 - **Opening several documents at once asks which window once.** Selecting a few files in Finder or Explorer and choosing **Open With** CardMirror used to ask "Open … in:" for every file. Now one window chooser covers the lot, headed **Open "T---ASPEC.cmir" + 2 more docs in:**, and the chosen window then shows its pane chooser for each document in turn, as before. Choosing **New window** opens one window per document.
