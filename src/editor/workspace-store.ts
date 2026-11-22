@@ -41,6 +41,12 @@
  * pinned or not; pinning protects against erasure, it doesn't freeze
  * the row.
  *
+ * A third record, the SAVED LAYOUT (`pmd-saved-layout`), is written only by the
+ * explicit Save Current Layout action (the ribbon right-click menu): every window
+ * open right now, kept apart like the snapshot below. Nothing else touches it,
+ * so no quit, roll-over or empty session erases it; only Forget does. The Home
+ * screen lists it under Last workspace.
+ *
  * The snapshot keeps the WINDOWS apart: one entry per window, in the
  * order the windows were opened, each with its own documents, its mode
  * (`panes` / `windows`, so a restore honours slot assignments only when
@@ -57,6 +63,8 @@ const LIVE_KEY = 'pmd-live-workspace';
 /** One key per window: `LIVE_PREFIX + windowId` holds that window's entry. */
 const LIVE_PREFIX = 'pmd-live-workspace:';
 const LAST_KEY = 'pmd-last-workspace';
+/** The layout the user saved on purpose. Written only by `saveLayoutNow`. */
+const SAVED_LAYOUT_KEY = 'pmd-saved-layout';
 /** Set (to '1') once any window of this session has reported a document.
  *  Tells "the session never held a document" (a launch that was only a look
  *  at the home screen) from "every document was closed on purpose": the first
@@ -409,7 +417,11 @@ export function installWindowCloseForget(isAppQuitting: () => boolean): () => vo
  *  the feature is off — the section then never renders). */
 export function lastWorkspace(): WorkspaceSnapshot | null {
   if (!settings.get('lastWorkspaceEnabled')) return null;
-  const parsed = readJson(LAST_KEY);
+  return parseSnapshot(readJson(LAST_KEY));
+}
+
+/** A stored snapshot, validated and normalised; null when it is unusable. */
+function parseSnapshot(parsed: unknown): WorkspaceSnapshot | null {
   if (!parsed || typeof parsed !== 'object') return null;
   const s = parsed as {
     savedAt?: unknown;
@@ -440,6 +452,31 @@ export function lastWorkspace(): WorkspaceSnapshot | null {
     return null;
   }
   return buildSnapshot(windows, s.savedAt, s.pinned === true);
+}
+
+/** The layout the user saved on purpose, or null (none, or the Last workspace
+ *  master switch is off, which also stops windows reporting what they hold). */
+export function savedLayout(): WorkspaceSnapshot | null {
+  if (!settings.get('lastWorkspaceEnabled')) return null;
+  return parseSnapshot(readJson(SAVED_LAYOUT_KEY));
+}
+
+/** Save Current Layout: every window open RIGHT NOW (all of them, not just this
+ *  one), kept apart with their documents, modes and names. Replaces the standing
+ *  saved layout. Returns it, or null when nothing reopenable is open. */
+export function saveLayoutNow(): WorkspaceSnapshot | null {
+  if (!settings.get('lastWorkspaceEnabled')) return null;
+  const folded = foldLive(readLive(), false);
+  if (!folded) return null;
+  const saved: WorkspaceSnapshot = { ...folded, pinned: true };
+  writeJson(SAVED_LAYOUT_KEY, saved);
+  publish(lastWorkspace());
+  return saved;
+}
+
+export function clearSavedLayout(): void {
+  writeJson(SAVED_LAYOUT_KEY, null);
+  publish(lastWorkspace());
 }
 
 function publish(snapshot: WorkspaceSnapshot | null): void {
@@ -506,7 +543,7 @@ export function subscribeLastWorkspace(fn: Listener): () => void {
 // screen sitting visible in one window current when another saves.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
-    if (e.key === LAST_KEY || e.key === null) publish(lastWorkspace());
+    if (e.key === LAST_KEY || e.key === SAVED_LAYOUT_KEY || e.key === null) publish(lastWorkspace());
   });
 }
 // The master switch flips what `lastWorkspace()` answers, so a Home

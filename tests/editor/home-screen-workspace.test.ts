@@ -173,3 +173,81 @@ describe('home screen — last workspace', () => {
     expect(section().hidden).toBe(true);
   });
 });
+
+describe('home screen — saved layout', () => {
+  let cb: ReturnType<typeof makeCallbacks>;
+  const LAYOUT_KEY = 'pmd-saved-layout';
+
+  function seedLayout(windows: Array<{ name?: string | null; paths: string[] }>): void {
+    const wins: WorkspaceWindow[] = windows.map((w) => ({
+      name: w.name ?? null,
+      mode: 'panes',
+      docs: w.paths.map((p) => doc(p)),
+    }));
+    localStorage.setItem(
+      LAYOUT_KEY,
+      JSON.stringify({ savedAt: ++savedAtCounter, windows: wins, docs: wins.flatMap((w) => w.docs), pinned: true }),
+    );
+  }
+  const layoutBlock = (): HTMLElement | null => section().querySelector<HTMLElement>('.pmd-home-layout');
+  const layoutRows = (): HTMLElement[] =>
+    Array.from(layoutBlock()?.querySelectorAll<HTMLElement>('.pmd-home-ws-window') ?? []);
+
+  beforeEach(() => {
+    localStorage.clear();
+    settings.set('lastWorkspaceEnabled', true);
+    document.body.innerHTML = '';
+    cb = makeCallbacks();
+  });
+  afterEach(() => {
+    homeScreen.hide();
+  });
+
+  function show(): void {
+    homeScreen.mount(document.body, cb);
+    homeScreen.show();
+  }
+
+  it('lists the saved layout under the actual last workspace, with every window', () => {
+    seedWindows([{ paths: ['/w/Last1.docx'] }]);
+    seedLayout([{ name: 'Round 4', paths: ['/w/A.docx', '/w/B.docx'] }, { paths: ['/w/C.docx'] }]);
+    show();
+    const children = Array.from(section().children);
+    const last = section().querySelector('.pmd-home-workspace:not(.pmd-home-layout)')!;
+    expect(children.indexOf(layoutBlock()!)).toBeGreaterThan(children.indexOf(last));
+    expect(layoutBlock()!.querySelector('.pmd-home-layout-title')!.textContent).toBe('Saved layout');
+    expect(layoutRows().map(titleOf)).toEqual(['Round 4', '1 doc']);
+    expect(layoutRows().map((r) => boxOf(r).checked)).toEqual([true, true]);
+    // The last workspace above it is untouched.
+    expect(Array.from(last.querySelectorAll('.pmd-home-ws-window'))).toHaveLength(1);
+  });
+
+  it('shows by itself, with its own heading, when there is no last workspace', () => {
+    seedLayout([{ paths: ['/w/A.docx'] }]);
+    show();
+    expect(section().hidden).toBe(false);
+    expect(section().querySelector<HTMLElement>('.pmd-home-recents-header')!.hidden).toBe(true);
+    expect(layoutRows().map(titleOf)).toEqual(['1 doc']);
+  });
+
+  it('Open reopens only the ticked windows of the layout', () => {
+    seedLayout([{ paths: ['/w/A.docx'] }, { paths: ['/w/B.docx'] }]);
+    show();
+    tick(layoutRows()[0]!, false);
+    const open = layoutBlock()!.querySelector<HTMLButtonElement>('.pmd-home-ws-open')!;
+    expect(open.textContent).toBe('Open 1 window');
+    open.click();
+    expect(cb.reopenWorkspaceWindows).toHaveBeenCalledTimes(1);
+    expect(cb.reopenWorkspaceWindows.mock.calls[0]![0].map((w: WorkspaceWindow) => w.docs[0]!.path)).toEqual(['/w/B.docx']);
+  });
+
+  it('Forget removes the layout and leaves the last workspace alone', () => {
+    seedWindows([{ paths: ['/w/Last1.docx'] }]);
+    seedLayout([{ paths: ['/w/A.docx'] }]);
+    show();
+    layoutBlock()!.querySelector<HTMLButtonElement>('.pmd-home-recents-clear')!.click();
+    expect(localStorage.getItem(LAYOUT_KEY)).toBeNull();
+    expect(layoutBlock()!.hidden).toBe(true);
+    expect(section().hidden).toBe(false);
+  });
+});

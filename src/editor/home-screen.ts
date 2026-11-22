@@ -26,8 +26,11 @@ import {
 } from './recents-store.js';
 import {
   lastWorkspace,
+  savedLayout,
+  clearSavedLayout,
   subscribeLastWorkspace,
   clearLastWorkspace,
+  type WorkspaceSnapshot,
   type WorkspaceWindow,
 } from './workspace-store.js';
 import {
@@ -107,13 +110,16 @@ class HomeScreen {
   private root!: HTMLDivElement;
   private recentsEl!: HTMLDivElement;
   private workspaceSection!: HTMLElement;
+  private workspaceHeader!: HTMLElement;
   private workspaceEl!: HTMLDivElement;
+  /** The saved layout, under the actual last workspace in the same section. */
+  private layoutEl!: HTMLDivElement;
   /** Which windows of the Last workspace are ticked (indexes into the
    *  snapshot's windows). Lives on the screen, not in the store: it starts
-   *  all ticked for every new snapshot (`workspaceTickedFor`) and survives a
-   *  re-render of the same one. */
-  private workspaceTicked = new Set<number>();
-  private workspaceTickedFor: number | null = null;
+   *  all ticked for every new snapshot (`for`) and survives a re-render of the
+   *  same one. The saved layout keeps its own. */
+  private workspaceTicks: { ticked: Set<number>; for: number | null } = { ticked: new Set(), for: null };
+  private layoutTicks: { ticked: Set<number>; for: number | null } = { ticked: new Set(), for: null };
   private sessionsSection!: HTMLElement;
   private sessionsEl!: HTMLDivElement;
   private learnEl!: HTMLDivElement;
@@ -273,10 +279,17 @@ class HomeScreen {
     wsForget.title = 'Forget the saved workspace';
     wsForget.addEventListener('click', () => clearLastWorkspace());
     wsHeader.appendChild(wsForget);
+    this.workspaceHeader = wsHeader;
     this.workspaceSection.appendChild(wsHeader);
     this.workspaceEl = document.createElement('div');
     this.workspaceEl.className = 'pmd-home-workspace';
     this.workspaceSection.appendChild(this.workspaceEl);
+    // The layout the user saved on purpose (Save Current Layout in the ribbon's
+    // right-click menu): always listed, at the bottom, under the actual last workspace.
+    this.layoutEl = document.createElement('div');
+    this.layoutEl.className = 'pmd-home-workspace pmd-home-layout';
+    this.layoutEl.hidden = true;
+    this.workspaceSection.appendChild(this.layoutEl);
     inner.appendChild(this.workspaceSection);
 
     // Recent — unified list of recently opened single files AND recently
@@ -820,17 +833,58 @@ class HomeScreen {
    *  workspace can't push the rest of the home screen off the page. */
   private renderWorkspace(): void {
     if (!this.workspaceSection) return;
-    const snapshot = this.callbacks?.reopenWorkspaceWindows ? lastWorkspace() : null;
-    this.workspaceSection.hidden = snapshot === null;
+    const canReopen = !!this.callbacks?.reopenWorkspaceWindows;
+    const last = canReopen ? lastWorkspace() : null;
+    const layout = canReopen ? savedLayout() : null;
+    this.workspaceSection.hidden = last === null && layout === null;
+    // With no last workspace the section's own title would sit over nothing;
+    // the saved layout then carries its own heading.
+    this.workspaceHeader.hidden = last === null;
     this.workspaceEl.replaceChildren();
-    if (!snapshot) return;
+    this.layoutEl.replaceChildren();
+    this.layoutEl.hidden = layout === null;
+    if (last) this.fillSnapshot(this.workspaceEl, last, this.workspaceTicks, null);
+    if (layout) {
+      this.fillSnapshot(this.layoutEl, layout, this.layoutTicks, {
+        title: 'Saved layout',
+        forgetTitle: 'Forget the saved layout',
+        onForget: () => clearSavedLayout(),
+      });
+    }
+  }
+
+  /** One snapshot's block: an Open button over a row per window (tick box, name
+   *  or doc count, the documents under it). `heading` adds a small title row with
+   *  its own Forget, for the saved layout. */
+  private fillSnapshot(
+    host: HTMLElement,
+    snapshot: WorkspaceSnapshot,
+    ticks: { ticked: Set<number>; for: number | null },
+    heading: { title: string; forgetTitle: string; onForget: () => void } | null,
+  ): void {
     // A new snapshot starts with every window ticked; the same one keeps
     // the ticks the user has made.
-    if (this.workspaceTickedFor !== snapshot.savedAt) {
-      this.workspaceTickedFor = snapshot.savedAt;
-      this.workspaceTicked = new Set(snapshot.windows.map((_, i) => i));
+    if (ticks.for !== snapshot.savedAt) {
+      ticks.for = snapshot.savedAt;
+      ticks.ticked = new Set(snapshot.windows.map((_, i) => i));
     }
-    const ticked = this.workspaceTicked;
+    const ticked = ticks.ticked;
+
+    if (heading) {
+      const head = document.createElement('div');
+      head.className = 'pmd-home-layout-header';
+      const title = document.createElement('h3');
+      title.className = 'pmd-home-layout-title';
+      title.textContent = heading.title;
+      const forget = document.createElement('button');
+      forget.type = 'button';
+      forget.className = 'pmd-home-recents-clear';
+      forget.textContent = 'Forget';
+      forget.title = heading.forgetTitle;
+      forget.addEventListener('click', () => heading.onForget());
+      head.append(title, forget);
+      host.appendChild(head);
+    }
 
     const openBtn = document.createElement('button');
     openBtn.type = 'button';
@@ -858,7 +912,7 @@ class HomeScreen {
         }),
       );
     });
-    this.workspaceEl.append(openBtn, list);
+    host.append(openBtn, list);
   }
 
   private workspaceWindowRow(win: WorkspaceWindow, ticked: boolean, onTick: (on: boolean) => void): HTMLDivElement {

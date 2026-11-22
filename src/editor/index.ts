@@ -166,7 +166,7 @@ import {
   reportWindowWorkspace,
   rolloverLastWorkspace,
   lastWorkspace,
-  saveWorkspaceNow,
+  saveLayoutNow,
   setWindowWorkspaceName,
   installWindowCloseForget,
   type WorkspaceDoc,
@@ -1966,26 +1966,7 @@ const ribbonContext: RibbonContext = {
     if (view) openWordCount(view);
   },
   toggleReaderView: () => toggleReaderViewCommand(),
-  saveWorkspace: () => {
-    if (!getElectronHost()) {
-      showToast('Saving a workspace requires the desktop edition.');
-      return;
-    }
-    if (!settings.get('lastWorkspaceEnabled')) {
-      showToast(LAST_WORKSPACE_OFF_MESSAGE);
-      return;
-    }
-    const saved = saveWorkspaceNow();
-    if (!saved) {
-      showToast('Nothing to save — no saved documents are open.');
-      return;
-    }
-    showToast(
-      saved.docs.length === 1
-        ? 'Workspace saved (1 document).'
-        : `Workspace saved (${saved.docs.length} documents).`,
-    );
-  },
+  saveWorkspace: () => saveCurrentLayout(),
   arrangeWindows: () => {
     const side = settings.get('arrangeSpeechSide');
     const speechPct = settings.get('arrangeSpeechPct');
@@ -4764,15 +4745,45 @@ async function renameWindowPrompt(): Promise<void> {
   await setWindowName(trimmed || null);
 }
 
+/** Save Current Layout (ribbon right-click menu, and the Save Workspace command):
+ *  remember every window that is open now, so the Home screen lists it, always,
+ *  under Last workspace. Saving again replaces it. */
+function saveCurrentLayout(): void {
+  if (!getElectronHost()) {
+    showToast('Saving a layout requires the desktop edition.');
+    return;
+  }
+  if (!settings.get('lastWorkspaceEnabled')) {
+    showToast(LAST_WORKSPACE_OFF_MESSAGE);
+    return;
+  }
+  const saved = saveLayoutNow();
+  if (!saved) {
+    showToast('Nothing to save — no saved documents are open.');
+    return;
+  }
+  const w = saved.windows.length;
+  const d = saved.docs.length;
+  showToast(`Layout saved: ${w} ${w === 1 ? 'window' : 'windows'}, ${d} ${d === 1 ? 'document' : 'documents'}.`, {
+    detail: 'It stays on the Home screen under Last workspace.',
+  });
+}
+
 function openRibbonContextMenu(x: number, y: number): void {
   closeRibbonContextMenu();
 
+  const saveLayoutItem: RibbonContextMenuItem = {
+    label: 'Save Current Layout',
+    title: 'Keep every open window and its documents on the Home screen, under Last workspace',
+    action: () => saveCurrentLayout(),
+  };
   const items: RibbonContextMenuItem[] = currentWindowName
     ? [
         { label: 'Rename Window…', action: () => { void renameWindowPrompt(); } },
         { label: 'Clear Window Name', action: () => { void setWindowName(null); } },
+        saveLayoutItem,
       ]
-    : [{ label: 'Name This Window…', action: () => { void renameWindowPrompt(); } }];
+    : [{ label: 'Name This Window…', action: () => { void renameWindowPrompt(); } }, saveLayoutItem];
 
   const menu = document.createElement('div');
   menu.className = 'pmd-nav-context-menu';

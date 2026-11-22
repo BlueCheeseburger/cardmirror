@@ -12,6 +12,8 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **Save Current Layout: keep a window arrangement on the Home screen for good.** Right-click the ribbon (where **Name This Window…** is) and choose **Save Current Layout**. It remembers every window that is open right now, with each window's name and documents. The Home screen lists it under **Last workspace**, below the actual last workspace, as **Saved layout**, with the same tick boxes and **Open** button. Quitting or closing everything never removes it; saving again replaces it, and its **Forget** drops it. The **Save Workspace** command is now **Save Current Layout** and does the same.
+
 - **Compare documents shows where each file is.** On the picker, each chosen file has its folder under its name. On the results screen, the full path of each file sits under the two names (a red **−** line for the first file, a green **+** line for the second), and hovering an outline's title shows it too. A long path is cut from the left so the end, the folder and file name, stays visible, and hovering shows all of it. This makes it clear which copy is which when two files have the same name. A document that has no file yet shows "Not saved to a file". The sync-conflict **See what changed** screens show the paths as well.
 
 ### Fixed

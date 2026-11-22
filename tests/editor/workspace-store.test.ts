@@ -18,6 +18,9 @@ import {
   rolloverLastWorkspace,
   lastWorkspace,
   saveWorkspaceNow,
+  saveLayoutNow,
+  savedLayout,
+  clearSavedLayout,
   clearLastWorkspace,
   subscribeLastWorkspace,
   setWindowWorkspaceName,
@@ -475,5 +478,79 @@ describe('workspace store: one key per window', () => {
     expect(Object.keys(map)).toHaveLength(2);
     expect(map['other']!['closedAt']).toBeUndefined();
     expect(typeof Object.values(map).find((e) => e['closedAt'] !== undefined)?.['closedAt']).toBe('number');
+  });
+});
+
+describe('the saved layout (Save Current Layout)', () => {
+  it('keeps every open window apart, with names, modes and documents, in the order they were opened', () => {
+    const now = Date.now();
+    seedLive('a', now - 20_000, ['/w/1.cmir', '/w/2.cmir'], 'panes', { name: 'Speech', openedAt: now - 30_000 });
+    seedLive('b', now - 10_000, ['/w/3.cmir'], 'windows', { openedAt: now - 20_000 });
+    seedLive('c', now - 5_000, ['/w/4.cmir', '/w/5.cmir'], 'panes', { openedAt: now - 10_000 });
+    const saved = saveLayoutNow()!;
+    expect(saved.windows.map((w) => ({ name: w.name, mode: w.mode, docs: w.docs.map((d) => d.path) }))).toEqual([
+      { name: 'Speech', mode: 'panes', docs: ['/w/1.cmir', '/w/2.cmir'] },
+      { name: null, mode: 'windows', docs: ['/w/3.cmir'] },
+      { name: null, mode: 'panes', docs: ['/w/4.cmir', '/w/5.cmir'] },
+    ]);
+    expect(savedLayout()?.windows).toHaveLength(3);
+  });
+
+  it('is separate from the last workspace and survives a session that ends with nothing open', () => {
+    report(['/w/a.cmir']);
+    saveLayoutNow();
+    // A session that held documents and ended with none clears the last workspace...
+    rolloverLastWorkspace();
+    forgetWindowWorkspace();
+    localStorage.setItem('pmd-live-session-had-docs', JSON.stringify('1'));
+    rolloverLastWorkspace();
+    expect(lastWorkspace()).toBeNull();
+    // ...but never the layout the user saved on purpose.
+    expect(savedLayout()?.docs.map((d) => d.path)).toEqual(['/w/a.cmir']);
+  });
+
+  it('is not replaced by the end-of-session snapshot', () => {
+    report(['/w/saved.cmir']);
+    saveLayoutNow();
+    forgetWindowWorkspace();
+    report(['/w/other.cmir']);
+    expect(rolloverLastWorkspace()?.docs.map((d) => d.path)).toEqual(['/w/other.cmir']);
+    expect(savedLayout()?.docs.map((d) => d.path)).toEqual(['/w/saved.cmir']);
+  });
+
+  it('saving again replaces it, and Forget removes it', () => {
+    report(['/w/a.cmir']);
+    saveLayoutNow();
+    report(['/w/b.cmir']);
+    saveLayoutNow();
+    expect(savedLayout()?.docs.map((d) => d.path)).toEqual(['/w/b.cmir']);
+    clearSavedLayout();
+    expect(savedLayout()).toBeNull();
+  });
+
+  it('leaves a closed window out, like Save Workspace', () => {
+    const now = Date.now();
+    seedLive('closed', now - 60_000, ['/w/closed.cmir']);
+    seedClosed('closed', now - 30_000);
+    seedLive('open', now - 5_000, ['/w/open.cmir']);
+    expect(saveLayoutNow()?.docs.map((d) => d.path)).toEqual(['/w/open.cmir']);
+  });
+
+  it('saves nothing when no saved document is open, and does nothing with the setting off', () => {
+    expect(saveLayoutNow()).toBeNull();
+    report(['/w/a.cmir']);
+    settings.set('lastWorkspaceEnabled', false);
+    expect(saveLayoutNow()).toBeNull();
+    expect(savedLayout()).toBeNull();
+  });
+
+  it('tells listeners (an open Home screen) when it is saved or forgotten', () => {
+    report(['/w/a.cmir']);
+    let calls = 0;
+    const off = subscribeLastWorkspace(() => calls++);
+    saveLayoutNow();
+    clearSavedLayout();
+    off();
+    expect(calls).toBe(2);
   });
 });

@@ -12,6 +12,16 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Added: Save Current Layout, a saved layout under Last workspace (`workspace-store.ts`, `home-screen.ts`, `index.ts`)
+
+**Request.** "What if in the same right click menu where you can rename window, there is an option to save the current layout, and what it does is that makes sure the current layout always shows on the home screen under last workspace, at the bottom, under the actual last workspace. Also, if there were multiple windows there upon closing, all the windows should show under last workspace."
+
+**Change.** A third stored record, `pmd-saved-layout`, written only by `saveLayoutNow()`: every window open now (`foldLive(readLive(), false)`, so all windows, not just the clicked one; closed windows left out like before), kept apart with name, mode and documents. Nothing else writes it, so the quit roll-over, an empty session and the pinned-snapshot rules never touch it; `clearSavedLayout()` (its own Forget) removes it. The Home screen's Last workspace section gets a second block under the first (`fillSnapshot`, the same window rows, tick boxes and Open button, with its own tick state and a "Saved layout" heading). The section shows when either exists; with no last workspace, the block stands alone under its own heading. The ribbon right-click menu gets **Save Current Layout** (with and without a window name). The `saveWorkspace` command now does the same thing and is labelled Save Current Layout (searchable as "save workspace" / "save layout"); it no longer pins the last workspace. Gated on the same **Remember my last workspace** setting, because windows only report what they hold while it is on.
+
+**About "all the windows should show".** Last workspace already lists every window that was open at quit (a fix from 1.17.2-bcb.6); the saved layout holds every window by construction. If a quit still loses windows, that is a bug I have not reproduced.
+
+**Not verified.** In the real app: saving from a second window, the reopen of a multi-window layout, and the right-click menu itself (the Home block was rendered in a browser; the store and Home logic are unit-tested).
+
 ### Added: file paths in Compare documents (`doc-diff-ui.ts`, `disk-conflict.ts`, `style.css`)
 
 **Request.** "In the compare docs ui, it should say somewhere the file paths. Show me where you will put it in a mockup, then implement it."

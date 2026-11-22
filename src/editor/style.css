@@ -4845,6 +4845,28 @@ html.pmd-home-active #status-bar {
 .pmd-home-workspace > .pmd-home-ws-open {
   flex: 0 0 auto;
 }
+/* The saved layout: a second block at the bottom of the same section, under the
+   actual last workspace, with a small title of its own. */
+.pmd-home-layout {
+  margin-top: 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--pmd-c-divider);
+}
+.pmd-home-layout[hidden] { display: none; }
+.pmd-home-layout-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.pmd-home-layout-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pmd-c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
 .pmd-home-ws-head {
   cursor: pointer;
 }
