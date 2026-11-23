@@ -162,6 +162,24 @@ describe('startAutoScroll / stopAutoScroll (lifecycle)', () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
+  it('tells onStop whether the reader took over: scroll input yes, the button and Escape no', () => {
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    const { scroller, editorDom } = makeScroller({ scrollHeight: 2000, clientHeight: 500 });
+    const run = (stop: () => void): unknown => {
+      __resetAutoScrollForTests();
+      const onStop = vi.fn();
+      startAutoScroll(makeView(editorDom), { wpm: 200 }, onStop);
+      stop();
+      expect(onStop).toHaveBeenCalledTimes(1);
+      return onStop.mock.calls[0]?.[0];
+    };
+    expect(run(() => scroller.dispatchEvent(new Event('wheel')))).toBe(true);
+    expect(run(() => scroller.dispatchEvent(new Event('pointerdown')))).toBe(true);
+    expect(run(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true })))).toBe(true);
+    expect(run(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))).toBeFalsy();
+    expect(run(() => stopAutoScroll())).toBeFalsy();
+  });
+
   it('stopAutoScrollIfOtherView leaves the same view running, stops a different one', () => {
     vi.stubGlobal('requestAnimationFrame', () => 0);
     const { editorDom } = makeScroller({ scrollHeight: 2000, clientHeight: 500 });

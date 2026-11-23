@@ -2073,9 +2073,12 @@ const ribbonContext: RibbonContext = {
     // starts first, so the run (which looks at the clock on its first frame)
     // follows the blue bar.
     const clockStarted = startClockWithAutoScroll();
-    const started = startAutoScroll(view, reader, () => {
+    const started = startAutoScroll(view, reader, (byUser) => {
       refreshAutoScrollBtn();
-      pauseClockWithAutoScroll();
+      // Scrolling by hand only takes over the scrolling: the clock keeps
+      // running. The Auto-Scroll button, Escape and the end of the document
+      // still pause it.
+      if (!byUser) pauseClockWithAutoScroll();
     }, {
       // Follow the blue bar whenever it would show; otherwise pace by wpm.
       bar: paceBarFor,

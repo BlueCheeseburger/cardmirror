@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Manual scroll no longer pauses the linked clock
+
+`startAutoScroll`'s `onStop` now receives `byUser` (true for wheel, touch, pointerdown and the scroll keys; false for the button, Escape, the end of the document and `stopAutoScroll()`). `toggleAutoScroll` skips `pauseClockWithAutoScroll()` when `byUser` is true. Rejected: restarting Auto-Scroll after a manual scroll ends (it would fight the reader, and the blue bar already shows the place). Escape keeps pausing, as the explicit stop. Not verified in the real app: only the callback argument is tested, not the index.ts wiring.
+
 ### Added: Save Current Layout, a saved layout under Last workspace (`workspace-store.ts`, `home-screen.ts`, `index.ts`)
 
 **Request.** "What if in the same right click menu where you can rename window, there is an option to save the current layout, and what it does is that makes sure the current layout always shows on the home screen under last workspace, at the bottom, under the actual last workspace. Also, if there were multiple windows there upon closing, all the windows should show under last workspace."

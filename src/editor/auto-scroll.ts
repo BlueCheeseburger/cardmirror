@@ -79,7 +79,7 @@ interface RunningState {
    *  interrupt listeners, clears `running`, and fires `onStop` —
    *  idempotent, so both the interrupt listeners and an explicit
    *  `stopAutoScroll()` call can each call it safely. */
-  stop: () => void;
+  stop: (byUser?: boolean) => void;
 }
 
 let running: RunningState | null = null;
@@ -167,7 +167,10 @@ export function sampleAutoScrollVelocity(
  * `onStop` fires exactly once, however the run ends — reaching the
  * bottom, a manual scroll/touch/click interrupt, or an explicit
  * `stopAutoScroll()` call — so callers can reset a toggle button's
- * pressed state without tracking the reason themselves.
+ * pressed state without tracking the reason themselves. `onStop(true)` means
+ * the reader took over the scrolling (wheel, touch, click, a scroll key): the
+ * clock they are reading to is still theirs to run, so the timer link leaves it
+ * going.
  */
 export interface AutoScrollOptions {
   /** Whether the document is on the lay speaking rate right now. Asked on
@@ -192,7 +195,7 @@ const SCROLL_INTERRUPT_KEYS = new Set([
 export function startAutoScroll(
   view: EditorView,
   reader: ReaderRates,
-  onStop: () => void,
+  onStop: (byUser?: boolean) => void,
   opts: AutoScrollOptions = {},
 ): boolean {
   const lay = (): boolean => opts.useLay?.() ?? false;
@@ -208,10 +211,11 @@ export function startAutoScroll(
 
   let stopped = false;
   let follow: boolean | undefined;
-  const onManualInterrupt = (): void => state.stop();
+  const onManualInterrupt = (): void => state.stop(true);
   const onKey = (e: KeyboardEvent): void => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (SCROLL_INTERRUPT_KEYS.has(e.key)) state.stop();
+    // Escape is "stop everything"; the other keys just take over the scrolling.
+    if (SCROLL_INTERRUPT_KEYS.has(e.key)) state.stop(e.key !== 'Escape');
   };
 
   const tick = (t: number): void => {
@@ -286,7 +290,7 @@ export function startAutoScroll(
     lastFrameTime: performance.now(),
     lastSampleTime: 0, // forces an immediate sample on the first frame
     rafId: 0,
-    stop: () => {
+    stop: (byUser = false) => {
       if (stopped) return;
       stopped = true;
       cancelAnimationFrame(state.rafId);
@@ -295,7 +299,7 @@ export function startAutoScroll(
       scroller.removeEventListener('pointerdown', onManualInterrupt);
       document.removeEventListener('keydown', onKey, true);
       if (running === state) running = null;
-      onStop();
+      onStop(byUser);
     },
   };
   running = state;
@@ -370,16 +374,18 @@ function startPagedAutoScroll(
   view: EditorView,
   scroller: HTMLElement,
   reader: ReaderRates,
-  onStop: () => void,
+  onStop: (byUser?: boolean) => void,
   lay: () => boolean,
   opts: AutoScrollOptions,
 ): boolean {
   const rc = readerControllerFor(view);
   if (!rc || rc.pageTotal() < 2 || rc.currentPage() >= rc.pageTotal() - 1) return false; // nothing to turn
   let stopped = false;
-  const onManualInterrupt = (): void => state.stop();
+  const onManualInterrupt = (): void => state.stop(true);
   const onKey = (e: KeyboardEvent): void => {
-    if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', ' ', 'Home', 'End', 'Escape'].includes(e.key)) state.stop();
+    if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', ' ', 'Home', 'End', 'Escape'].includes(e.key)) {
+      state.stop(e.key !== 'Escape');
+    }
   };
   let follow: boolean | undefined;
   const schedule = (): void => {
@@ -423,7 +429,7 @@ function startPagedAutoScroll(
     lastFrameTime: 0,
     lastSampleTime: 0,
     rafId: 0,
-    stop: () => {
+    stop: (byUser = false) => {
       if (stopped) return;
       stopped = true;
       if (state.timerId !== undefined) clearTimeout(state.timerId);
@@ -432,7 +438,7 @@ function startPagedAutoScroll(
       scroller.removeEventListener('pointerdown', onManualInterrupt);
       document.removeEventListener('keydown', onKey, true);
       if (running === state) running = null;
-      onStop();
+      onStop(byUser);
     },
   };
   running = state;
