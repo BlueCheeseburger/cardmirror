@@ -1744,7 +1744,8 @@ analytics, and cites** — most people deliver those faster than
 highlighted card bodies. Leave it blank ("same") and the main rate
 covers everything; set it, and every readout splits the math (the Word
 Count dialog shows both, e.g. "200 / 260"). The **first two** readers appear live in the status bar; the
-numbers update as you highlight and trim.
+numbers update as you highlight and trim. Words you un-bold inside a
+tagline are left out, since a tagline is read in bold **(fork)**.
 
 **Lay-speaking times** **(fork)**. A reader can also have a **lay-speaking**
 rate, a slower pace for a lay judge. The readers editor has two parts split

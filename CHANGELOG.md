@@ -20,6 +20,8 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Fixed
 
+- **Un-bolded words in a tagline aren't timed.** A tagline is read in bold, so if part of one isn't bold (like "and existential" after a bold "Capital is unsustainable"), those words used to be counted in the read time, the time left and the blue pace bar even though they aren't spoken. They are now left out everywhere the clock counts.
+
 - **Scrolling by hand no longer stops the timer when Auto-Scroll is linked to it.** With **Start and pause Auto-Scroll with the timer** on, scrolling the document, clicking in it or pressing a scroll key (arrows, Page Up/Down, Home, End) stopped Auto-Scroll and so paused the clock too. Now those only take over the scrolling and the clock keeps running with its blue bar. The Auto-Scroll button, **Esc** and reaching the end of the document still pause it.
 
 - **A search folder inside an excluded folder is searched.** If you excluded a folder from file search but also added one of its subfolders to **File search folders**, the exclusion used to hide that subfolder as well. Now the more specific choice wins: the subfolder (and what's under it) is searched, and the rest of the excluded folder stays hidden. A folder that is both excluded and a search folder stays excluded, and an exclusion inside the search folder still hides what it covers.

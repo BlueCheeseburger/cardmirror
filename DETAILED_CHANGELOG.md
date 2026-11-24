@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Tagline words with bold turned off aren't counted
+
+`readAloudBucket` returns null for text inside a `tag` that carries `bold_off` (a tag renders bold by style, so un-bolding is an explicit mark, which the docx importer sets from `<w:b w:val="0"/>`). Every consumer shares the one counter: status bar, word count dialog, pace bar, auto-scroll pace. Not changed: analytics and the pocket/hat/block headings, which can be un-bolded the same way but weren't asked about; they still count in full. A tag run that is regular weight only because it was pasted from somewhere without bold isn't a `bold_off` mark and still counts. Not verified on a real .docx.
+
 ### Manual scroll no longer pauses the linked clock
 
 `startAutoScroll`'s `onStop` now receives `byUser` (true for wheel, touch, pointerdown and the scroll keys; false for the button, Escape, the end of the document and `stopAutoScroll()`). `toggleAutoScroll` skips `pauseClockWithAutoScroll()` when `byUser` is true. Rejected: restarting Auto-Scroll after a manual scroll ends (it would fight the reader, and the blue bar already shows the place). Escape keeps pausing, as the explicit stop. Not verified in the real app: only the callback argument is tested, not the index.ts wiring.
