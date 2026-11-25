@@ -4845,6 +4845,28 @@ html.pmd-home-active #status-bar {
 .pmd-home-workspace > .pmd-home-ws-open {
   flex: 0 0 auto;
 }
+/* The saved layout: a second block at the bottom of the same section, under the
+   actual last workspace, with a small title of its own. */
+.pmd-home-layout {
+  margin-top: 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--pmd-c-divider);
+}
+.pmd-home-layout[hidden] { display: none; }
+.pmd-home-layout-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.pmd-home-layout-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pmd-c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
 .pmd-home-ws-head {
   cursor: pointer;
 }
@@ -18636,6 +18658,50 @@ body.pmd-multi-doc #collab-chip {
   white-space: nowrap;
   font-size: 0.88rem;
 }
+.pmd-doc-diff-picker-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+/* A file path on one line, cut from the LEFT when it does not fit so the end
+   (the folder and file name that tell files apart) stays visible. The inner
+   bdi keeps the text itself left-to-right. */
+.pmd-doc-diff-path {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--pmd-c-text-faint);
+}
+.pmd-doc-diff-path bdi { unicode-bidi: isolate; direction: ltr; }
+.pmd-doc-diff-path-none { direction: ltr; font-style: italic; }
+.pmd-doc-diff-paths {
+  margin-top: 0.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+.pmd-doc-diff-path-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.pmd-doc-diff-path-row .pmd-doc-diff-path { flex: 1 1 auto; }
+.pmd-doc-diff-path-mark {
+  flex: 0 0 auto;
+  width: 0.8rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
 .pmd-doc-diff-picker-name-empty {
   color: var(--pmd-c-text-faint);
   font-style: italic;
@@ -19534,3 +19600,79 @@ body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
 }
 .pmd-link-open-btn[hidden] { display: none; }
 .pmd-link-open-btn:hover { background: var(--pmd-c-surface-alt, #eee); }
+
+/* ---- Auto-Scroll speed popup ---- */
+.pmd-as-popup {
+  position: fixed;
+  right: 20px;
+  bottom: 44px;
+  z-index: 1500;
+  width: 232px;
+  padding: 8px 10px 10px;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22);
+  font-size: 0.8rem;
+  user-select: none;
+}
+.pmd-as-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  cursor: grab;
+  touch-action: none;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-as-head:active { cursor: grabbing; }
+.pmd-as-head b { color: var(--pmd-c-text); font-weight: 600; }
+.pmd-as-note { text-transform: none; letter-spacing: 0; font-size: 0.7rem; }
+.pmd-as-row { display: flex; align-items: center; gap: 8px; }
+.pmd-as-arrow {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 0.95rem;
+  color: var(--pmd-c-text);
+  background: var(--pmd-c-surface);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.pmd-as-arrow:hover { background: var(--pmd-c-surface-alt); }
+.pmd-as-arrow:focus-visible, .pmd-as-stop:focus-visible { outline: 2px solid var(--pmd-c-accent); outline-offset: 1px; }
+.pmd-as-val { flex: 1; text-align: center; }
+.pmd-as-val big {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.pmd-as-val small { font-size: 0.68rem; color: var(--pmd-c-text-muted); }
+.pmd-as-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.68rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-as-stop {
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  color: var(--pmd-c-text);
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.pmd-as-stop:hover { background: var(--pmd-c-surface); }

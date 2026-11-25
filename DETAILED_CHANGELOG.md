@@ -10,6 +10,60 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## 1.17.2-bcb.8 — 2026-11-25
+
+### Auto-Scroll speed card
+
+`auto-scroll.ts` keeps a per-run `factor` (the reader's rate times it), `released` (set by the first speed press, which ends follow-the-blue-bar for that run) and `baseWpm()` (the lay rate on lay speaking, else the reader's rate); `adjustAutoScrollSpeed`, `autoScrollSpeed` and `onAutoScrollSpeedChange` expose it. The card (`auto-scroll-speed-popup.ts`) is one fixed element in the page, shown while a run exists, dragged by its title, position kept in localStorage (clamped to the window). Chosen by the user: the wpm readout in every case, no nudge against the blue bar, buttons effective with the clock running. Rejected: binding the left/right arrow keys (they move the caret). Reading view: the page timer restarts at the new speed. Not verified: Reading view, the card in a multi-window setup, and a long real run with the clock; checked in a browser build only that it appears, steps the number and drags.
+
+### Tagline words with bold turned off aren't counted
+
+`readAloudBucket` returns null for text inside a `tag` that carries `bold_off` (a tag renders bold by style, so un-bolding is an explicit mark, which the docx importer sets from `<w:b w:val="0"/>`). Every consumer shares the one counter: status bar, word count dialog, pace bar, auto-scroll pace. Not changed: analytics and the pocket/hat/block headings, which can be un-bolded the same way but weren't asked about; they still count in full. A tag run that is regular weight only because it was pasted from somewhere without bold isn't a `bold_off` mark and still counts. Not verified on a real .docx.
+
+### Manual scroll no longer pauses the linked clock
+
+`startAutoScroll`'s `onStop` now receives `byUser` (true for wheel, touch, pointerdown and the scroll keys; false for the button, Escape, the end of the document and `stopAutoScroll()`). `toggleAutoScroll` skips `pauseClockWithAutoScroll()` when `byUser` is true. Rejected: restarting Auto-Scroll after a manual scroll ends (it would fight the reader, and the blue bar already shows the place). Escape keeps pausing, as the explicit stop. Not verified in the real app: only the callback argument is tested, not the index.ts wiring.
+
+### Added: Save Current Layout, a saved layout under Last workspace (`workspace-store.ts`, `home-screen.ts`, `index.ts`)
+
+**Request.** "What if in the same right click menu where you can rename window, there is an option to save the current layout, and what it does is that makes sure the current layout always shows on the home screen under last workspace, at the bottom, under the actual last workspace. Also, if there were multiple windows there upon closing, all the windows should show under last workspace."
+
+**Change.** A third stored record, `pmd-saved-layout`, written only by `saveLayoutNow()`: every window open now (`foldLive(readLive(), false)`, so all windows, not just the clicked one; closed windows left out like before), kept apart with name, mode and documents. Nothing else writes it, so the quit roll-over, an empty session and the pinned-snapshot rules never touch it; `clearSavedLayout()` (its own Forget) removes it. The Home screen's Last workspace section gets a second block under the first (`fillSnapshot`, the same window rows, tick boxes and Open button, with its own tick state and a "Saved layout" heading). The section shows when either exists; with no last workspace, the block stands alone under its own heading. The ribbon right-click menu gets **Save Current Layout** (with and without a window name). The `saveWorkspace` command now does the same thing and is labelled Save Current Layout (searchable as "save workspace" / "save layout"); it no longer pins the last workspace. Gated on the same **Remember my last workspace** setting, because windows only report what they hold while it is on.
+
+**About "all the windows should show".** Last workspace already lists every window that was open at quit (a fix from 1.17.2-bcb.6); the saved layout holds every window by construction. If a quit still loses windows, that is a bug I have not reproduced.
+
+**Not verified.** In the real app: saving from a second window, the reopen of a multi-window layout, and the right-click menu itself (the Home block was rendered in a browser; the store and Home logic are unit-tested).
+
+### Added: file paths in Compare documents (`doc-diff-ui.ts`, `disk-conflict.ts`, `style.css`)
+
+**Request.** "In the compare docs ui, it should say somewhere the file paths. Show me where you will put it in a mockup, then implement it."
+
+**Where.** (1) Picker: under each chosen file's name, its folder (not the file name, which is already above it). (2) Results: under the "A → B" names, one line per file with its full path, prefixed by a red `−` / green `+` in the same colours as the names, so the first file's path is the red one. These two lines matter most when both files have the same name. (3) The two outline titles carry the full path as a tooltip. A document without a path (the web edition, a window's unsaved content) gets no path line in the picker and "Not saved to a file" in the results header.
+
+**How.** `PickedFile` gains an optional `path` (the picker's `handle` when it is a string; the disk-conflict caller passes the on-disk path and the window's own path). The path is rendered by `pathEl`: one line, cut from the LEFT with an ellipsis (an RTL box around an LTR `bdi`) so the folder and file name stay visible; the full path is the tooltip.
+
+**Not verified.** Windows paths in the real app, and the disk-conflict screens beyond the code change (the screenshots show the file-picker route). The two Compare screens were rendered in a browser with example paths; the tests use a stub host.
+
+### Fixed: a search folder inside an excluded folder is searched (`file-search.ts`, `file-index-core.ts`)
+
+**Request.** "If I have an exclusion but also add a folder within that exclusion dir to the list of folders to look through, it should not look through every folder in that dir but it should look through the folder I gave it permission to. And there should be a pop up to the user."
+
+**Cause.** `isPathExcluded` treated any path under an excluded folder as excluded, whatever the search folders were.
+
+**Change.** `isPathExcluded(path, exclusions, roots)` now lets the more specific entry win (the longer matching prefix): a search folder deeper than the exclusion that covers the path un-excludes it; an exclusion deeper than the search folder, or the same folder, still excludes. The index service passes every configured search folder (`visibleEntries`' `allRoots`, also for the per-root browse and for `locateCurrentFile`), so the listing, the card index and browse agree. `exclusionContaining(folder, exclusions)` names the excluded folder a candidate search folder sits in, for the popup. Nothing in the UI uses it yet.
+
+**The popups (added after the user approved the mockup and asked for the second one).** `exclusion-notices.ts`: `confirmSearchFolder` (a search folder added, or re-pointed with Browse…, inside an exclusion: "This folder is inside an excluded folder", **Search this folder** / **Don't add**) and `confirmExclusion` (an exclusion added or re-pointed that contains search folders, found with `searchFoldersInside`: "This folder contains a search folder", naming up to three, **Exclude** / **Cancel**). Both use the in-app confirm dialog and are wired into the two settings lists only (`fileSearchRoots`, `fileSearchExclusions`). Not covered: an exclusion identical to a search folder (it simply excludes it, no popup), and the ⊘ button on a file result (a file cannot contain a folder). Not verified in the real app; the service test uses real temp folders and the dialogs were rendered in a browser.
+
+### Changed: one window chooser for several files opened from the OS (`main.ts`, `multipane-chooser.ts`, `index.ts`)
+
+**Request.** From a screenshot of "Open "T---ASPEC.cmir" in:": "when there are multiple docs being opened, the dialog should say 'open x + x more docs in [window selection]', but the pane chooser should still be individual."
+
+**Cause.** `openExternalFile` handled one path and asked which window for each. macOS sends one `open-file` per selected file, and Windows / Linux argv handling picked only the first path.
+
+**Change.** OS-open requests now go through `queueExternalOpen`, which waits 250 ms for more and then calls `openExternalFiles` once: the duplicate-open guard per file, one `pickMultiPaneTarget` with `externalOpenMessage` (`Open "A" + 2 more docs in:`), then one `host:external-open` per file to the chosen window. The renderer now runs those through a promise chain, so each file's own pane chooser appears in turn instead of stacking. Launch-time files (macOS `open-file` before ready, every path in argv, second-instance argv) are collected the same way instead of keeping only one. If the chosen window closed part-way, the remaining files spawn windows rather than being dropped. **New window** opens one window per file, as when each file asked separately; I did not make several documents share one new window.
+
+**Not verified.** Electron's `open-file` timing on macOS (the 250 ms collection window was chosen, not measured), and the real chooser and pane choosers in sequence. Only the heading text and argv parsing are unit-tested; the main-process wiring has no test.
+
 ## 1.17.2-bcb.7 — 2026-11-21
 
 ### Added: Bulk convert takes several files at once (`bulk-convert-ui.ts`)

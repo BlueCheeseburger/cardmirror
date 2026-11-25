@@ -307,7 +307,14 @@ export function createFileIndexCore(opts: {
 
   /** Merged, de-duplicated (by path), exclusion- and format-filtered
    *  search entries for the requested roots. */
-  function visibleEntries(roots: string[], exclusions: string[], formats: FileIndexQuery['formats']): FileEntry[] {
+  function visibleEntries(
+    roots: string[],
+    exclusions: string[],
+    formats: FileIndexQuery['formats'],
+    /** Every configured search folder, for the exclusion rule: a search folder
+     *  inside an excluded folder is still searched (see `isPathExcluded`). */
+    allRoots: string[] = roots,
+  ): FileEntry[] {
     const byPath = new Map<string, FileEntry>();
     for (const root of roots) {
       const list = derived.get(root);
@@ -318,7 +325,7 @@ export function createFileIndexCore(opts: {
     }
     const out: FileEntry[] = [];
     for (const f of byPath.values()) {
-      if (exclusions.length > 0 && isPathExcluded(f.path, exclusions)) continue;
+      if (exclusions.length > 0 && isPathExcluded(f.path, exclusions, allRoots)) continue;
       if (formats !== 'both' && fileFormat(f.path) !== formats) continue;
       out.push(f);
     }
@@ -391,7 +398,7 @@ export function createFileIndexCore(opts: {
     async browse(q: FileBrowseParams): Promise<FileBrowseResult> {
       await ensureLoaded();
       if (q.location === null) {
-        return deriveBrowseAcrossRoots(q.roots, (root) => visibleEntries([root], q.exclusions, q.formats), {
+        return deriveBrowseAcrossRoots(q.roots, (root) => visibleEntries([root], q.exclusions, q.formats, q.roots), {
           query: q.query,
           sep: path.sep,
           tiebreak: q.tiebreak,
@@ -404,7 +411,7 @@ export function createFileIndexCore(opts: {
       const relDir = normalizeRelativeDirectory(q.location.relativeDirectory, path.sep);
       if (!q.roots.includes(root) || relDir === null) return { rows: [], total: 0, valid: false };
       return deriveBrowse({
-        entries: visibleEntries([root], q.exclusions, q.formats),
+        entries: visibleEntries([root], q.exclusions, q.formats, q.roots),
         relDir,
         query: q.query,
         sep: path.sep,
@@ -419,7 +426,7 @@ export function createFileIndexCore(opts: {
       await ensureLoaded();
       const located = locateInRoots(args.filePath, args.roots, path.sep);
       if (!located) return { ok: false, reason: 'outside-roots' };
-      if (isPathExcluded(args.filePath, args.exclusions)) return { ok: false, reason: 'excluded' };
+      if (isPathExcluded(args.filePath, args.exclusions, args.roots)) return { ok: false, reason: 'excluded' };
       return { ok: true, location: located };
     },
 

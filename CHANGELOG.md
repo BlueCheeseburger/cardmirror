@@ -8,6 +8,30 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## 1.17.2-bcb.8 — 2026-11-25
+
+### Added
+
+- **A speed card while Auto-Scroll runs.** A small card shows the pace in words per minute with **◀** and **▶** buttons to slow down or speed up (10 wpm a press, **Shift**-click for 50), and a **Stop** button. Drag it by its title to move it; it stays where you leave it. The buttons change only this run, and they work while the speech clock is running too: the first press lets Auto-Scroll go of the blue bar and pace by your adjusted reading speed, while the clock and the bar carry on.
+
+- **A popup when a search folder and an exclusion overlap.** Adding a folder to **File search folders** that sits inside an excluded folder now asks first: it says the rest of the excluded folder stays hidden but this folder and its subfolders will be searched, with **Search this folder** or **Don't add**. Adding an exclusion that contains one of your search folders asks too, naming the search folders and saying they will still be searched, with **Exclude** or **Cancel**. Choosing a different folder with **Browse…** asks the same way.
+
+- **Save Current Layout: keep a window arrangement on the Home screen for good.** Right-click the ribbon (where **Name This Window…** is) and choose **Save Current Layout**. It remembers every window that is open right now, with each window's name and documents. The Home screen lists it under **Last workspace**, below the actual last workspace, as **Saved layout**, with the same tick boxes and **Open** button. Quitting or closing everything never removes it; saving again replaces it, and its **Forget** drops it. The **Save Workspace** command is now **Save Current Layout** and does the same.
+
+- **Compare documents shows where each file is.** On the picker, each chosen file has its folder under its name. On the results screen, the full path of each file sits under the two names (a red **−** line for the first file, a green **+** line for the second), and hovering an outline's title shows it too. A long path is cut from the left so the end, the folder and file name, stays visible, and hovering shows all of it. This makes it clear which copy is which when two files have the same name. A document that has no file yet shows "Not saved to a file". The sync-conflict **See what changed** screens show the paths as well.
+
+### Fixed
+
+- **Un-bolded words in a tagline aren't timed.** A tagline is read in bold, so if part of one isn't bold (like "and existential" after a bold "Capital is unsustainable"), those words used to be counted in the read time, the time left and the blue pace bar even though they aren't spoken. They are now left out everywhere the clock counts.
+
+- **Scrolling by hand no longer stops the timer when Auto-Scroll is linked to it.** With **Start and pause Auto-Scroll with the timer** on, scrolling the document, clicking in it or pressing a scroll key (arrows, Page Up/Down, Home, End) stopped Auto-Scroll and so paused the clock too. Now those only take over the scrolling and the clock keeps running with its blue bar. The Auto-Scroll button, **Esc** and reaching the end of the document still pause it.
+
+- **A search folder inside an excluded folder is searched.** If you excluded a folder from file search but also added one of its subfolders to **File search folders**, the exclusion used to hide that subfolder as well. Now the more specific choice wins: the subfolder (and what's under it) is searched, and the rest of the excluded folder stays hidden. A folder that is both excluded and a search folder stays excluded, and an exclusion inside the search folder still hides what it covers.
+
+### Changed
+
+- **Opening several documents at once asks which window once.** Selecting a few files in Finder or Explorer and choosing **Open With** CardMirror used to ask "Open … in:" for every file. Now one window chooser covers the lot, headed **Open "T---ASPEC.cmir" + 2 more docs in:**, and the chosen window then shows its pane chooser for each document in turn, as before. Choosing **New window** opens one window per document.
+
 ## 1.17.2-bcb.7 — 2026-11-21
 
 ### Added

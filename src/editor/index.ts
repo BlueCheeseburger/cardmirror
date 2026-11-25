@@ -36,6 +36,7 @@ import {
   pauseClockWithAutoScroll,
   startClockWithAutoScroll,
 } from './auto-scroll-timer-link.js';
+import { mountAutoScrollSpeedPopup } from './auto-scroll-speed-popup.js';
 import { initTimerAudio } from './timer-audio.js';
 import {
   getTimerState as getTimerStateNow,
@@ -166,7 +167,7 @@ import {
   reportWindowWorkspace,
   rolloverLastWorkspace,
   lastWorkspace,
-  saveWorkspaceNow,
+  saveLayoutNow,
   setWindowWorkspaceName,
   installWindowCloseForget,
   type WorkspaceDoc,
@@ -1966,26 +1967,7 @@ const ribbonContext: RibbonContext = {
     if (view) openWordCount(view);
   },
   toggleReaderView: () => toggleReaderViewCommand(),
-  saveWorkspace: () => {
-    if (!getElectronHost()) {
-      showToast('Saving a workspace requires the desktop edition.');
-      return;
-    }
-    if (!settings.get('lastWorkspaceEnabled')) {
-      showToast(LAST_WORKSPACE_OFF_MESSAGE);
-      return;
-    }
-    const saved = saveWorkspaceNow();
-    if (!saved) {
-      showToast('Nothing to save — no saved documents are open.');
-      return;
-    }
-    showToast(
-      saved.docs.length === 1
-        ? 'Workspace saved (1 document).'
-        : `Workspace saved (${saved.docs.length} documents).`,
-    );
-  },
+  saveWorkspace: () => saveCurrentLayout(),
   arrangeWindows: () => {
     const side = settings.get('arrangeSpeechSide');
     const speechPct = settings.get('arrangeSpeechPct');
@@ -2092,9 +2074,12 @@ const ribbonContext: RibbonContext = {
     // starts first, so the run (which looks at the clock on its first frame)
     // follows the blue bar.
     const clockStarted = startClockWithAutoScroll();
-    const started = startAutoScroll(view, reader, () => {
+    const started = startAutoScroll(view, reader, (byUser) => {
       refreshAutoScrollBtn();
-      pauseClockWithAutoScroll();
+      // Scrolling by hand only takes over the scrolling: the clock keeps
+      // running. The Auto-Scroll button, Escape and the end of the document
+      // still pause it.
+      if (!byUser) pauseClockWithAutoScroll();
     }, {
       // Follow the blue bar whenever it would show; otherwise pace by wpm.
       bar: paceBarFor,
@@ -4764,15 +4749,45 @@ async function renameWindowPrompt(): Promise<void> {
   await setWindowName(trimmed || null);
 }
 
+/** Save Current Layout (ribbon right-click menu, and the Save Workspace command):
+ *  remember every window that is open now, so the Home screen lists it, always,
+ *  under Last workspace. Saving again replaces it. */
+function saveCurrentLayout(): void {
+  if (!getElectronHost()) {
+    showToast('Saving a layout requires the desktop edition.');
+    return;
+  }
+  if (!settings.get('lastWorkspaceEnabled')) {
+    showToast(LAST_WORKSPACE_OFF_MESSAGE);
+    return;
+  }
+  const saved = saveLayoutNow();
+  if (!saved) {
+    showToast('Nothing to save — no saved documents are open.');
+    return;
+  }
+  const w = saved.windows.length;
+  const d = saved.docs.length;
+  showToast(`Layout saved: ${w} ${w === 1 ? 'window' : 'windows'}, ${d} ${d === 1 ? 'document' : 'documents'}.`, {
+    detail: 'It stays on the Home screen under Last workspace.',
+  });
+}
+
 function openRibbonContextMenu(x: number, y: number): void {
   closeRibbonContextMenu();
 
+  const saveLayoutItem: RibbonContextMenuItem = {
+    label: 'Save Current Layout',
+    title: 'Keep every open window and its documents on the Home screen, under Last workspace',
+    action: () => saveCurrentLayout(),
+  };
   const items: RibbonContextMenuItem[] = currentWindowName
     ? [
         { label: 'Rename Window…', action: () => { void renameWindowPrompt(); } },
         { label: 'Clear Window Name', action: () => { void setWindowName(null); } },
+        saveLayoutItem,
       ]
-    : [{ label: 'Name This Window…', action: () => { void renameWindowPrompt(); } }];
+    : [{ label: 'Name This Window…', action: () => { void renameWindowPrompt(); } }, saveLayoutItem];
 
   const menu = document.createElement('div');
   menu.className = 'pmd-nav-context-menu';
@@ -4851,6 +4866,7 @@ const paceTarget = (): { view: EditorView; useLay: boolean } | null => {
 mountTimerPace(paceTarget);
 mountPaceMarker(paceTarget);
 mountAutoScrollTimerLink();
+mountAutoScrollSpeedPopup();
 // The bottom bar's "Left" readout moves under the ribbon timer (and back)
 // as the timer is shown, hidden or popped out.
 subscribeTimer(() => {
@@ -8420,8 +8436,14 @@ getElectronHost()?.onFocusAnchor(({ descriptor }) => {
 function installExternalOpenListener(): void {
   const electron = getElectronHost();
   if (!electron) return;
+  // Several files can arrive together (main asked which window once for the
+  // lot). Each still gets its own pane chooser, one after another: queue them
+  // so the choosers don't stack on top of each other.
+  let externalOpenChain: Promise<void> = Promise.resolve();
   electron.onExternalOpen(({ path }) => {
-    void openFileByPath(path, path.replace(/^.*[\\/]/, ''));
+    externalOpenChain = externalOpenChain
+      .then(() => openFileByPath(path, path.replace(/^.*[\\/]/, '')))
+      .catch((err) => console.error('External open failed:', err));
   });
   // New Document routed here by main's window chooser. Goes straight to
   // the LOCAL path — re-entering onNewDocClicked would ask main which

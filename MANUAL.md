@@ -1362,7 +1362,10 @@ folder is missing on disk (a disconnected drive keeps its last listing).
 file search everywhere, after a confirmation — useful for templates,
 archives, or anything that keeps outranking what you actually want.
 Manage the list (folders too — an excluded folder hides its whole
-subtree) under **Settings → Files → File search: exclusions**. Excluding
+subtree, except a folder you have also added to **File search folders**,
+which is still searched) under **Settings → Files → File search: exclusions**. CardMirror asks before you add a search folder inside an
+excluded folder, or an exclusion that contains one of your search folders, and
+says what will and won't be searched. Excluding
 a pinned file keeps the pin dormant; remove the exclusion and the star
 comes back.
 
@@ -1696,7 +1699,11 @@ starting the clock later does not move a running scroll.
 then also starts the speech clock (a speech time must be loaded; a prep clock is never
 touched), stopping Auto-Scroll pauses the clock, and pausing the clock stops
 Auto-Scroll. The timer's own Start button starts only the clock and the blue bar. Escape, Page Up/Down, Home, End and the up/down arrows
-stop it as well. Switching focus to another pane (in the
+stop it as well. **(Fork)** While it runs, a small **Auto-Scroll** card shows the pace in
+words per minute with **◀** and **▶** buttons (**Shift**-click for bigger steps) and a
+**Stop** button; drag it by its title to move it. The buttons change the pace for this run
+only and work even while the clock is running: the first press lets go of the blue bar
+and paces by the adjusted reading speed (the clock and its bar carry on). Switching focus to another pane (in the
 multi-doc workspace) also stops it — it never keeps scrolling somewhere
 you're not looking.
 
@@ -1741,7 +1748,8 @@ analytics, and cites** — most people deliver those faster than
 highlighted card bodies. Leave it blank ("same") and the main rate
 covers everything; set it, and every readout splits the math (the Word
 Count dialog shows both, e.g. "200 / 260"). The **first two** readers appear live in the status bar; the
-numbers update as you highlight and trim.
+numbers update as you highlight and trim. Words you un-bold inside a
+tagline are left out, since a tagline is read in bold **(fork)**.
 
 **Lay-speaking times** **(fork)**. A reader can also have a **lay-speaking**
 rate, a slower pace for a lay judge. The readers editor has two parts split
@@ -2925,11 +2933,18 @@ Close every document (or its window) before you quit and there's nothing to
 offer, so the section disappears — a clean quit means a clean start. A visit
 where you never opened a document at all (you launched, glanced at the Home
 screen and quit, or restarted to update) doesn't count: the list stays on offer.
-It keeps every window of a big session, up to 120 documents. To keep a particular
-working set regardless, run **Save Workspace** (command bar — try "save
-session"): a saved set survives quitting with nothing open, and stays on offer
-until you open other documents and quit with those. **Reopen Last Workspace**
-restores every window in it without going via the Home screen, and **Forget** drops it.
+It keeps every window of a big session, up to 120 documents, and every window
+that was open when you quit appears, each as its own row.
+
+**Saving a layout.** To keep a particular arrangement for good, right-click the
+ribbon and choose **Save Current Layout** (also a command: *Save Current
+Layout*, or search "save workspace"). It remembers **every window open right
+now**, not just the one you clicked in: each window with its name, its mode, and
+its documents in their panes. The Home screen then lists it, always, under **Last
+workspace** as **Saved layout**, with the same tick boxes and **Open** button.
+Quitting, closing everything, or a new session never changes or removes it; saving again
+replaces it, and its own **Forget** drops it. **Reopen Last Workspace** restores the last
+workspace as before, without going via the Home screen.
 Documents that have never been saved aren't included — there's no file to
 reopen — and one that has moved or been deleted is skipped with a note.
 

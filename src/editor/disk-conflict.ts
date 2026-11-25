@@ -509,8 +509,8 @@ async function compareWithFile(
   }
   const { openDocDiff } = await import('./doc-diff-ui.js');
   await openDocDiff({
-    a: { name: labels.other, bytes: file.bytes },
-    b: { name: labels.mine, doc },
+    a: { name: labels.other, bytes: file.bytes, path: otherPath },
+    b: { name: labels.mine, doc, path: handle },
   });
   return true;
 }

@@ -86,6 +86,28 @@ describe('highlight over shading', () => {
 });
 
 describe('countReadAloudSplit', () => {
+  it('leaves un-bolded words in a tagline out of the count', () => {
+    const doc = n['doc']!.create(null, [
+      n['card']!.create(null, [
+        n['tag']!.create({ id: 'T' }, [
+          schema.text('Capital is '),
+          schema.text('unsustainable', [m['underline_direct']!.create()]),
+          schema.text(' and ', [m['bold_off']!.create()]),
+          schema.text('existential', [m['bold_off']!.create(), m['underline_direct']!.create()]),
+        ]),
+      ]),
+    ]);
+    // Capital is unsustainable = 3 words; " and existential" is un-bolded.
+    expect(countReadAloudSplit(doc)).toEqual({ body: 0, other: 3 });
+    // An explicitly bold word still counts, and so does a range sum.
+    const bold = n['doc']!.create(null, [
+      n['card']!.create(null, [
+        n['tag']!.create({ id: 'T' }, [schema.text('Read this', [m['bold']!.create()]), schema.text(' skip this', [m['bold_off']!.create()])]),
+      ]),
+    ]);
+    expect(countReadAloudWords(bold)).toBe(2);
+  });
+
   it('buckets tags, analytics, and cites as `other`; highlighted text as `body`', () => {
     const counts = countReadAloudSplit(fixtureDoc());
     // body: 4 highlighted body words + 3 highlighted-in-cite words.

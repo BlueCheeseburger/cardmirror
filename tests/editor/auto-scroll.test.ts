@@ -22,6 +22,11 @@ import {
   isAutoScrolling,
   autoScrollingView,
   stopAutoScrollIfOtherView,
+  adjustAutoScrollSpeed,
+  autoScrollSpeed,
+  onAutoScrollSpeedChange,
+  AUTO_SCROLL_MIN_WPM,
+  AUTO_SCROLL_MAX_WPM,
   __resetAutoScrollForTests,
 } from '../../src/editor/auto-scroll.js';
 import type { ReadAloudCounts } from '../../src/editor/word-count.js';
@@ -160,6 +165,24 @@ describe('startAutoScroll / stopAutoScroll (lifecycle)', () => {
     scroller.dispatchEvent(new Event('wheel'));
     expect(isAutoScrolling()).toBe(false);
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells onStop whether the reader took over: scroll input yes, the button and Escape no', () => {
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    const { scroller, editorDom } = makeScroller({ scrollHeight: 2000, clientHeight: 500 });
+    const run = (stop: () => void): unknown => {
+      __resetAutoScrollForTests();
+      const onStop = vi.fn();
+      startAutoScroll(makeView(editorDom), { wpm: 200 }, onStop);
+      stop();
+      expect(onStop).toHaveBeenCalledTimes(1);
+      return onStop.mock.calls[0]?.[0];
+    };
+    expect(run(() => scroller.dispatchEvent(new Event('wheel')))).toBe(true);
+    expect(run(() => scroller.dispatchEvent(new Event('pointerdown')))).toBe(true);
+    expect(run(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', bubbles: true })))).toBe(true);
+    expect(run(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))).toBeFalsy();
+    expect(run(() => stopAutoScroll())).toBeFalsy();
   });
 
   it('stopAutoScrollIfOtherView leaves the same view running, stops a different one', () => {
@@ -330,6 +353,113 @@ describe('following the blue bar', () => {
     step(frames);
     expect(scroller.scrollTop).toBeGreaterThan(0);
     expect(scroller.scrollTop).toBeLessThan(20);
+  });
+});
+
+describe('speed buttons', () => {
+  function frames(): { run: (n?: number) => void } {
+    const queue: Array<(t: number) => void> = [];
+    vi.stubGlobal('requestAnimationFrame', (cb: (t: number) => void) => {
+      queue.push(cb);
+      return queue.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    let t = performance.now();
+    return {
+      run: (n = 1) => {
+        for (let i = 0; i < n; i++) {
+          t += 100;
+          queue.shift()?.(t);
+        }
+      },
+    };
+  }
+  function live(): { scroller: HTMLElement; editorDom: HTMLElement } {
+    const made = makeScroller({ scrollHeight: 4000, clientHeight: 600 });
+    Object.defineProperty(made.scroller, 'scrollTop', { value: 0, writable: true, configurable: true });
+    made.editorDom.getBoundingClientRect = () =>
+      ({ top: -made.scroller.scrollTop, bottom: 4000, left: 0, right: 200, width: 200, height: 4000 }) as unknown as DOMRect;
+    return made;
+  }
+
+  it('reports the reader’s pace, and nothing when not running', () => {
+    expect(autoScrollSpeed()).toBeNull();
+    frames();
+    const { editorDom } = live();
+    startAutoScroll(makeView(editorDom), { wpm: 240 }, vi.fn());
+    expect(autoScrollSpeed()).toEqual({ wpm: 240, following: false });
+    adjustAutoScrollSpeed(10);
+    expect(autoScrollSpeed()?.wpm).toBe(250);
+    adjustAutoScrollSpeed(-50);
+    expect(autoScrollSpeed()?.wpm).toBe(200);
+  });
+
+  it('scrolls faster after speeding up, in proportion', () => {
+    const f = frames();
+    const { scroller, editorDom } = live();
+    startAutoScroll(makeView(editorDom), { wpm: 200 }, vi.fn());
+    f.run(); // 60 px/s fallback for 0.1 s
+    const first = scroller.scrollTop;
+    expect(first).toBeGreaterThan(5);
+    expect(first).toBeLessThan(6.01);
+    adjustAutoScrollSpeed(200); // 200 → 400 wpm: twice as fast
+    f.run();
+    expect(scroller.scrollTop - first).toBeCloseTo(12, 5);
+  });
+
+  it('keeps the pace in step with the lay rate when the document is on lay speaking', () => {
+    frames();
+    const { editorDom } = live();
+    let lay = false;
+    startAutoScroll(makeView(editorDom), { wpm: 200, layWpm: 120 }, vi.fn(), { useLay: () => lay });
+    expect(autoScrollSpeed()?.wpm).toBe(200);
+    lay = true;
+    expect(autoScrollSpeed()?.wpm).toBe(120);
+  });
+
+  it('works while following the clock: it lets go of the blue bar and paces by speed', () => {
+    const f = frames();
+    const { scroller, editorDom } = live();
+    const bar = vi.fn(() => ({ y: 900, pos: 1, atEnd: false }));
+    startAutoScroll(makeView(editorDom), { wpm: 200 }, vi.fn(), { followClock: () => true, bar });
+    f.run();
+    expect(autoScrollSpeed()?.following).toBe(true);
+    const onBar = scroller.scrollTop;
+    expect(onBar).toBeGreaterThan(300); // put on the bar
+    const calls = bar.mock.calls.length;
+    adjustAutoScrollSpeed(10);
+    expect(autoScrollSpeed()).toEqual({ wpm: 210, following: false });
+    f.run(2);
+    expect(bar.mock.calls.length).toBe(calls); // no longer asking the bar
+    expect(scroller.scrollTop).toBeGreaterThan(onBar); // still scrolling, on from where it was
+    expect(scroller.scrollTop - onBar).toBeLessThan(40);
+    expect(isAutoScrolling()).toBe(true);
+  });
+
+  it('stays between the slowest and fastest pace', () => {
+    frames();
+    const { editorDom } = live();
+    startAutoScroll(makeView(editorDom), { wpm: 200 }, vi.fn());
+    adjustAutoScrollSpeed(-100000);
+    expect(autoScrollSpeed()?.wpm).toBe(AUTO_SCROLL_MIN_WPM);
+    adjustAutoScrollSpeed(100000);
+    expect(autoScrollSpeed()?.wpm).toBe(AUTO_SCROLL_MAX_WPM);
+  });
+
+  it('tells listeners when a run starts, changes pace and stops', () => {
+    frames();
+    const { editorDom } = live();
+    const seen: Array<number | null> = [];
+    const off = onAutoScrollSpeedChange(() => seen.push(autoScrollSpeed()?.wpm ?? null));
+    startAutoScroll(makeView(editorDom), { wpm: 200 }, vi.fn());
+    adjustAutoScrollSpeed(10);
+    stopAutoScroll();
+    off();
+    expect(seen).toEqual([200, 210, null]);
+  });
+
+  it('is a no-op when nothing is running', () => {
+    expect(() => adjustAutoScrollSpeed(10)).not.toThrow();
   });
 });
 

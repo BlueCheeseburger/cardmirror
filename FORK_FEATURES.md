@@ -111,8 +111,14 @@ Auto-Scroll. The timer's own **Start** button still starts only the clock and th
 Load a speech time first. **Settings → Appearance → Timer display → Start and pause
 Auto-Scroll with the timer**.
 
+While it runs, a small **Auto-Scroll** card shows the pace in words per minute. **◀** and
+**▶** slow it down or speed it up by 10 wpm (**Shift**-click: 50), for this run only. They work
+even while the clock is running: the first press lets go of the blue line and paces by your
+adjusted reading speed, while the clock and the line carry on. Drag the card by its title to
+move it; it also has a **Stop** button.
+
 Press **Escape**, any scroll key (PageUp, PageDown, Home, End, the arrow keys), or
-scroll yourself to stop it.
+scroll yourself to stop it. Scrolling yourself leaves a running clock alone.
 
 ## 4. Flow and lay read times
 
@@ -143,6 +149,8 @@ season's, your partner's edit against yours, or a file before and after cutting.
    heading you are at as you scroll, like the outline in a document you are editing.
 4. Click **Merge** to combine the two into one new document. Lines both files share
    are kept once; for an edited line you pick the first version, the second, or both.
+
+The full path of each file is shown under its name (and the folder on the picker), so two files with the same name can be told apart.
 
 Neither file is opened or changed by comparing them.
 

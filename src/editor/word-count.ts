@@ -4,7 +4,8 @@
  * The "read-aloud" predicate, split into the two speeds a reader
  * actually has (2026-07-29):
  *   - `other` — the structural read:
- *       · All text inside a `tag` paragraph
+ *       · All text inside a `tag` paragraph, except words un-bolded
+ *         there (`bold_off`): those aren't spoken
  *       · All text inside an `analytic` paragraph
  *       · All text inside a `pocket`, `hat` or `block` heading (the
  *         speaker says the titles; added 2026-10-19)
@@ -128,6 +129,10 @@ export function countCards(doc: PMNode, from?: number, to?: number): number {
 
 function readAloudBucket(node: PMNode, parent: PMNode): 'body' | 'other' | null {
   const parentType = parent.type.name;
+  // A tagline is read in bold: a stretch the author un-bolded inside it ("and
+  // existential" in a tag whose other words are bold) is left out of the
+  // delivery, so it isn't timed.
+  if (parentType === 'tag' && node.marks.some((m) => m.type.name === 'bold_off')) return null;
   // Headings are read aloud too (the speaker says the pocket, hat and block
   // titles), at the structural read speed like tags.
   if (
