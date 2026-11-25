@@ -3,7 +3,7 @@
 // only serves paths the user put in play. See read-scope.ts for the
 // grant sources and the honest threat model (defense against QUIET bulk
 // reads, not a renderer sandbox).
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -29,6 +29,15 @@ afterEach(async () => {
   resetReadScopeForTests();
   await fs.rm(dir, { recursive: true, force: true });
 });
+
+// The journal save is debounced (1s) and then hits the disk. Wait for the
+// file itself rather than a fixed sleep: a slow Windows runner once spent
+// over 5s on this (run 45556499112), so a 1.3s guess plus the default 5s
+// test timeout is a flake, not a check.
+const JOURNAL_WAIT = { timeout: 15_000, interval: 50 };
+const SLOW_DISK_TEST = 20_000;
+const journalLanded = (): Promise<void> =>
+  vi.waitFor(() => fs.access(path.join(dir, 'granted-reads.json')), JOURNAL_WAIT);
 
 const touch = async (p: string): Promise<string> => {
   await fs.mkdir(path.dirname(p), { recursive: true });
@@ -81,18 +90,17 @@ describe('isReadAllowed', () => {
     const f = await touch(path.join(dir, 'picked.docx'));
     grantReadPath(f);
     expect(await isReadAllowed(f)).toBe(true);
-    // The journal save is debounced (1s) — wait it out.
-    await new Promise((r) => setTimeout(r, 1300));
+    await journalLanded();
     resetReadScopeForTests(); // fresh process state, same userData
     expect(await isReadAllowed(f)).toBe(true); // re-loaded from the journal
-  });
+  }, SLOW_DISK_TEST);
 });
 
 describe('grantLegacyRecents (one-shot import)', () => {
   it('imports once, then the channel is dead', async () => {
     const f = await touch(path.join(dir, 'old-recent.cmir'));
     expect(await grantLegacyRecents([f])).toBe(true);
-    await new Promise((r) => setTimeout(r, 1300)); // journal write lands
+    await journalLanded();
     resetReadScopeForTests();
     expect(await isReadAllowed(f)).toBe(true);
     // Second import attempt (journal now exists) must refuse — this is
@@ -100,7 +108,7 @@ describe('grantLegacyRecents (one-shot import)', () => {
     const g = await touch(path.join(dir, 'sneaky.cmir'));
     expect(await grantLegacyRecents([g])).toBe(false);
     expect(await isReadAllowed(g)).toBe(false);
-  });
+  }, SLOW_DISK_TEST);
 });
 
 describe('write scope (host:write-file-at-path)', () => {

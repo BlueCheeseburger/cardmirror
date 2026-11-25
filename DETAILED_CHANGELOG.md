@@ -10,6 +10,12 @@ For a user-friendly guide to this fork's own features, see
 Upstream release details are in the sections below under
 [Upstream Releases](#upstream-releases).
 
+## Unreleased
+
+### Windows CI: read-scope journal tests wait for the file, not a fixed 1.3s
+
+The `1.17.2-bcb.8` push failed the Windows leg of CI on one test, `read-scope.test.ts` › "grantLegacyRecents (one-shot import) › imports once, then the channel is dead", with "Test timed out in 5000ms". Nothing in the code under test changed in that push (it only bumped the version), and the same tree passed on the PR branch minutes earlier, where this test takes about 1.3s. On the failing runner everything was slow (vitest's setup phase took 3.86s instead of the usual ~0.1s), and the test's fixed 1300ms sleep plus several real disk reads and writes ran past the default 5s timeout. Both journal tests (this one and "grants persist to the journal and survive a state reset") now poll for `granted-reads.json` with `vi.waitFor` (50ms interval, 15s cap) and carry a 20s test timeout, so they finish as soon as the debounced save lands and only fail if it never does. Test-only change; `read-scope.ts` is untouched. Rejected: raising `testTimeout` for the whole suite (it would hide real hangs elsewhere). Not verified locally on Windows; the PR's Windows CI leg is the check.
+
 ## 1.17.2-bcb.8 — 2026-11-25
 
 ### Auto-Scroll speed card
