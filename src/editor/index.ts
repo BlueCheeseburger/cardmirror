@@ -36,6 +36,7 @@ import {
   pauseClockWithAutoScroll,
   startClockWithAutoScroll,
 } from './auto-scroll-timer-link.js';
+import { mountAutoScrollSpeedPopup } from './auto-scroll-speed-popup.js';
 import { initTimerAudio } from './timer-audio.js';
 import {
   getTimerState as getTimerStateNow,
@@ -4865,6 +4866,7 @@ const paceTarget = (): { view: EditorView; useLay: boolean } | null => {
 mountTimerPace(paceTarget);
 mountPaceMarker(paceTarget);
 mountAutoScrollTimerLink();
+mountAutoScrollSpeedPopup();
 // The bottom bar's "Left" readout moves under the ribbon timer (and back)
 // as the timer is shown, hidden or popped out.
 subscribeTimer(() => {

@@ -75,6 +75,16 @@ interface RunningState {
   following?: boolean;
   /** Reading view's page-flip timer (0 when scrolling). */
   timerId?: ReturnType<typeof setTimeout>;
+  /** The reader's own speed times this: 1 until the speed buttons are used. */
+  factor: number;
+  /** The speed buttons were used: the run stops following the blue bar and
+   *  paces by the (adjusted) reading speed from then on. */
+  released: boolean;
+  /** The words-per-minute the speed readout starts from, right now (the lay
+   *  rate while the document is on lay speaking). */
+  baseWpm: () => number;
+  /** Reading view: start the current page's timer over at the new speed. */
+  reschedule?: () => void;
   /** Full teardown: cancels the frame loop, removes the manual-
    *  interrupt listeners, clears `running`, and fires `onStop` —
    *  idempotent, so both the interrupt listeners and an explicit
@@ -94,6 +104,62 @@ export function isAutoScrolling(): boolean {
  *  outlined "line being read" bar only when it is not (the two would coincide). */
 export function isAutoScrollFollowing(): boolean {
   return running?.following === true;
+}
+
+/** What the speed popup shows: the pace in words per minute, and whether the
+ *  run is still following the blue bar. Null when nothing is running. */
+export interface AutoScrollSpeedInfo {
+  wpm: number;
+  following: boolean;
+}
+
+/** Slowest and fastest pace the speed buttons reach, in words per minute. */
+export const AUTO_SCROLL_MIN_WPM = 30;
+export const AUTO_SCROLL_MAX_WPM = 1000;
+
+const speedListeners = new Set<() => void>();
+
+function emitSpeed(): void {
+  for (const fn of [...speedListeners]) {
+    try {
+      fn();
+    } catch {
+      /* a listener's failure must not break the scroll */
+    }
+  }
+}
+
+/** Call `fn` whenever a run starts or stops or its pace changes. Returns the
+ *  unsubscribe. */
+export function onAutoScrollSpeedChange(fn: () => void): () => void {
+  speedListeners.add(fn);
+  return () => speedListeners.delete(fn);
+}
+
+export function autoScrollSpeed(): AutoScrollSpeedInfo | null {
+  if (!running) return null;
+  return {
+    wpm: Math.round(running.baseWpm() * running.factor),
+    following: running.following === true && !running.released,
+  };
+}
+
+/** Speed the running Auto-Scroll up (positive) or down (negative) by
+ *  `deltaWpm` words per minute, for this run only. It works whether or not the
+ *  speech clock is running: a run that was following the blue bar lets go of it
+ *  and paces by the adjusted reading speed from then on (the clock and its bar
+ *  carry on regardless). No-op when nothing is running. */
+export function adjustAutoScrollSpeed(deltaWpm: number): void {
+  const s = running;
+  if (!s) return;
+  const base = s.baseWpm();
+  const shown = Math.round(base * s.factor);
+  s.factor = clamp(shown + deltaWpm, AUTO_SCROLL_MIN_WPM, AUTO_SCROLL_MAX_WPM) / base;
+  s.released = true;
+  s.following = false;
+  s.lastSampleTime = 0; // measure the pace afresh on the next frame
+  s.reschedule?.();
+  emitSpeed();
 }
 
 /** The view auto-scroll is currently running on, or null. */
@@ -242,7 +308,7 @@ export function startAutoScroll(
     // the reading line. Where the bar is not available (a masterfile, a reset
     // clock) the reader's own pace below takes over.
     if (follow === undefined) follow = opts.followClock?.() ?? false;
-    const bar = follow ? (opts.bar?.(view) ?? null) : null;
+    const bar = follow && !state.released ? (opts.bar?.(view) ?? null) : null;
     state.following = bar !== null;
     if (bar) {
       const sr = scroller.getBoundingClientRect();
@@ -272,7 +338,7 @@ export function startAutoScroll(
     // scroll silently stalled. If something else moved the scroller (layout
     // shift, cv:auto cards materializing) adopt its position instead.
     if (Math.abs(scroller.scrollTop - state.applied) > 1.5) state.pos = scroller.scrollTop;
-    state.pos += state.velocity * dt;
+    state.pos += state.velocity * state.factor * dt;
     scroller.scrollTop = state.pos;
     state.applied = scroller.scrollTop;
     if (scroller.scrollTop >= scroller.scrollHeight - scroller.clientHeight - 1) {
@@ -290,6 +356,9 @@ export function startAutoScroll(
     lastFrameTime: performance.now(),
     lastSampleTime: 0, // forces an immediate sample on the first frame
     rafId: 0,
+    factor: 1,
+    released: false,
+    baseWpm: () => baseWpmOf(reader, lay()),
     stop: (byUser = false) => {
       if (stopped) return;
       stopped = true;
@@ -300,6 +369,7 @@ export function startAutoScroll(
       document.removeEventListener('keydown', onKey, true);
       if (running === state) running = null;
       onStop(byUser);
+      emitSpeed();
     },
   };
   running = state;
@@ -310,7 +380,14 @@ export function startAutoScroll(
   scroller.addEventListener('touchstart', onManualInterrupt, { passive: true });
   scroller.addEventListener('pointerdown', onManualInterrupt, { passive: true });
   state.rafId = requestAnimationFrame(tick);
+  emitSpeed();
   return true;
+}
+
+function baseWpmOf(reader: ReaderRates, useLay: boolean): number {
+  const l = reader.layWpm;
+  if (useLay && l != null && Number.isFinite(l) && l > 0) return l;
+  return reader.wpm > 0 ? reader.wpm : 200;
 }
 
 /** Seconds the page in view takes to read aloud: the read-aloud words between
@@ -397,7 +474,7 @@ function startPagedAutoScroll(
     // Following the clock: show the page the blue bar is on, and stop when the
     // bar reaches the end of the document.
     if (follow === undefined) follow = opts.followClock?.() ?? false;
-    const bar = follow ? (opts.bar?.(view) ?? null) : null;
+    const bar = follow && !state.released ? (opts.bar?.(view) ?? null) : null;
     state.following = bar !== null;
     if (bar) {
       readerControllerFor(view)?.goToPos(bar.pos);
@@ -408,7 +485,7 @@ function startPagedAutoScroll(
       state.timerId = setTimeout(schedule, 300);
       return;
     }
-    const seconds = pageReadSeconds(view, scroller, reader, lay());
+    const seconds = pageReadSeconds(view, scroller, reader, lay()) / state.factor;
     state.timerId = setTimeout(() => {
       if (stopped) return;
       const ctl = readerControllerFor(view);
@@ -429,6 +506,14 @@ function startPagedAutoScroll(
     lastFrameTime: 0,
     lastSampleTime: 0,
     rafId: 0,
+    factor: 1,
+    released: false,
+    baseWpm: () => baseWpmOf(reader, lay()),
+    reschedule: () => {
+      if (stopped) return;
+      if (state.timerId !== undefined) clearTimeout(state.timerId);
+      schedule();
+    },
     stop: (byUser = false) => {
       if (stopped) return;
       stopped = true;
@@ -439,6 +524,7 @@ function startPagedAutoScroll(
       document.removeEventListener('keydown', onKey, true);
       if (running === state) running = null;
       onStop(byUser);
+      emitSpeed();
     },
   };
   running = state;
@@ -447,6 +533,7 @@ function startPagedAutoScroll(
   scroller.addEventListener('pointerdown', onManualInterrupt, { passive: true });
   document.addEventListener('keydown', onKey, true);
   schedule();
+  emitSpeed();
   return true;
 }
 

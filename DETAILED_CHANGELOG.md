@@ -12,6 +12,10 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Auto-Scroll speed card
+
+`auto-scroll.ts` keeps a per-run `factor` (the reader's rate times it), `released` (set by the first speed press, which ends follow-the-blue-bar for that run) and `baseWpm()` (the lay rate on lay speaking, else the reader's rate); `adjustAutoScrollSpeed`, `autoScrollSpeed` and `onAutoScrollSpeedChange` expose it. The card (`auto-scroll-speed-popup.ts`) is one fixed element in the page, shown while a run exists, dragged by its title, position kept in localStorage (clamped to the window). Chosen by the user: the wpm readout in every case, no nudge against the blue bar, buttons effective with the clock running. Rejected: binding the left/right arrow keys (they move the caret). Reading view: the page timer restarts at the new speed. Not verified: Reading view, the card in a multi-window setup, and a long real run with the clock; checked in a browser build only that it appears, steps the number and drags.
+
 ### Tagline words with bold turned off aren't counted
 
 `readAloudBucket` returns null for text inside a `tag` that carries `bold_off` (a tag renders bold by style, so un-bolding is an explicit mark, which the docx importer sets from `<w:b w:val="0"/>`). Every consumer shares the one counter: status bar, word count dialog, pace bar, auto-scroll pace. Not changed: analytics and the pocket/hat/block headings, which can be un-bolded the same way but weren't asked about; they still count in full. A tag run that is regular weight only because it was pasted from somewhere without bold isn't a `bold_off` mark and still counts. Not verified on a real .docx.

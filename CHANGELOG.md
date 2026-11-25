@@ -12,6 +12,8 @@ below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
 ### Added
 
+- **A speed card while Auto-Scroll runs.** A small card shows the pace in words per minute with **◀** and **▶** buttons to slow down or speed up (10 wpm a press, **Shift**-click for 50), and a **Stop** button. Drag it by its title to move it; it stays where you leave it. The buttons change only this run, and they work while the speech clock is running too: the first press lets Auto-Scroll go of the blue bar and pace by your adjusted reading speed, while the clock and the bar carry on.
+
 - **A popup when a search folder and an exclusion overlap.** Adding a folder to **File search folders** that sits inside an excluded folder now asks first: it says the rest of the excluded folder stays hidden but this folder and its subfolders will be searched, with **Search this folder** or **Don't add**. Adding an exclusion that contains one of your search folders asks too, naming the search folders and saying they will still be searched, with **Exclude** or **Cancel**. Choosing a different folder with **Browse…** asks the same way.
 
 - **Save Current Layout: keep a window arrangement on the Home screen for good.** Right-click the ribbon (where **Name This Window…** is) and choose **Save Current Layout**. It remembers every window that is open right now, with each window's name and documents. The Home screen lists it under **Last workspace**, below the actual last workspace, as **Saved layout**, with the same tick boxes and **Open** button. Quitting or closing everything never removes it; saving again replaces it, and its **Forget** drops it. The **Save Workspace** command is now **Save Current Layout** and does the same.

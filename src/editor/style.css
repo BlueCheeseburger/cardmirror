@@ -19600,3 +19600,79 @@ body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
 }
 .pmd-link-open-btn[hidden] { display: none; }
 .pmd-link-open-btn:hover { background: var(--pmd-c-surface-alt, #eee); }
+
+/* ---- Auto-Scroll speed popup ---- */
+.pmd-as-popup {
+  position: fixed;
+  right: 20px;
+  bottom: 44px;
+  z-index: 1500;
+  width: 232px;
+  padding: 8px 10px 10px;
+  background: var(--pmd-c-bg);
+  color: var(--pmd-c-text);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22);
+  font-size: 0.8rem;
+  user-select: none;
+}
+.pmd-as-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  cursor: grab;
+  touch-action: none;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-as-head:active { cursor: grabbing; }
+.pmd-as-head b { color: var(--pmd-c-text); font-weight: 600; }
+.pmd-as-note { text-transform: none; letter-spacing: 0; font-size: 0.7rem; }
+.pmd-as-row { display: flex; align-items: center; gap: 8px; }
+.pmd-as-arrow {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 0.95rem;
+  color: var(--pmd-c-text);
+  background: var(--pmd-c-surface);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.pmd-as-arrow:hover { background: var(--pmd-c-surface-alt); }
+.pmd-as-arrow:focus-visible, .pmd-as-stop:focus-visible { outline: 2px solid var(--pmd-c-accent); outline-offset: 1px; }
+.pmd-as-val { flex: 1; text-align: center; }
+.pmd-as-val big {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.pmd-as-val small { font-size: 0.68rem; color: var(--pmd-c-text-muted); }
+.pmd-as-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.68rem;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-as-stop {
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  color: var(--pmd-c-text);
+  background: var(--pmd-c-bg);
+  border: 1px solid var(--pmd-c-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.pmd-as-stop:hover { background: var(--pmd-c-surface); }

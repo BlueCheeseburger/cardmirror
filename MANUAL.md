@@ -1699,7 +1699,11 @@ starting the clock later does not move a running scroll.
 then also starts the speech clock (a speech time must be loaded; a prep clock is never
 touched), stopping Auto-Scroll pauses the clock, and pausing the clock stops
 Auto-Scroll. The timer's own Start button starts only the clock and the blue bar. Escape, Page Up/Down, Home, End and the up/down arrows
-stop it as well. Switching focus to another pane (in the
+stop it as well. **(Fork)** While it runs, a small **Auto-Scroll** card shows the pace in
+words per minute with **◀** and **▶** buttons (**Shift**-click for bigger steps) and a
+**Stop** button; drag it by its title to move it. The buttons change the pace for this run
+only and work even while the clock is running: the first press lets go of the blue bar
+and paces by the adjusted reading speed (the clock and its bar carry on). Switching focus to another pane (in the
 multi-doc workspace) also stops it — it never keeps scrolling somewhere
 you're not looking.
 
