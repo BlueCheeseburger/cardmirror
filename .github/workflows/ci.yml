@@ -24,6 +24,9 @@ jobs:
             # Pinned (2026-11-05). The floating `macos-latest` label sometimes
             # got no runner at all: the job sat queued with no steps for 15
             # minutes and was cancelled, which GitHub emails as a failure.
+            # The pin did not stop that (it is GitHub's macOS arm64 capacity,
+            # not the label), so retry-no-runner.yml now re-runs a job that
+            # never got a runner, up to twice.
             # `os` stays `macos-latest` so the check keeps its displayed name
             # ("Typecheck + tests (macos-latest)"); only `runner` changes.
             runner: macos-15
