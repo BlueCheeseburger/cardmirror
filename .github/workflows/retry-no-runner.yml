@@ -1,0 +1,55 @@
+name: Retry jobs that never got a runner
+
+# GitHub-hosted macOS arm64 runners sometimes run out of capacity. The job
+# then sits queued for 15 minutes without running a single step, and GitHub
+# cancels it with "The job was not acquired by Runner of type hosted even
+# after multiple attempts". That turns the whole run red and emails a
+# failure. It hits ci.yml's macOS leg (pinned to macos-15 since 2026-11-05;
+# the pin did not stop it) and release.yml's macos-latest leg alike: the
+# 1.17.2-bcb.2 and bcb.4 release runs stopped short of "Publish release
+# live" until someone re-ran them by hand.
+#
+# When a CI or Release run finishes red, this re-runs its failed jobs, but
+# only if every failed job is one of those never-got-a-runner cancellations,
+# and only until the run has had 3 attempts in all. A real test or build
+# failure is never retried. Re-running a Release run's failed jobs also
+# re-runs "Publish release live", so the release still goes live on its own.
+#
+# workflow_run always runs this file from main, against the run's id only;
+# nothing from a PR branch is checked out or executed with this token.
+
+on:
+  workflow_run:
+    workflows: [CI, Release]
+    types: [completed]
+
+permissions:
+  actions: write
+  checks: read
+  contents: read
+
+concurrency:
+  group: retry-no-runner-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  retry:
+    name: Re-run jobs with no runner
+    if: github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'cancelled'
+    runs-on: ubuntu-latest
+    # Two retries can each wait 15 minutes for a runner and then run
+    # (CI ~6 min, a release build ~5 min, up to their own timeouts).
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Re-run if no runner was found
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          MAX_ATTEMPTS: '3'
+        run: bash .github/scripts/retry-no-runner.sh
