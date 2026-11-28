@@ -269,7 +269,7 @@ export const RIBBON_GROUPS: RibbonGroup[] = [
   },
   {
     title: 'Diagnostics',
-    commands: ['openDevConsole', 'openJournalsFolder'],
+    commands: ['openDevConsole', 'openJournalsFolder', 'showPerformanceStats'],
   },
   {
     title: 'Comments',

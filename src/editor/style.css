@@ -19676,3 +19676,35 @@ body:not(.pmd-multi-doc) #hidden-slots-chip { display: none; }
   cursor: pointer;
 }
 .pmd-as-stop:hover { background: var(--pmd-c-surface); }
+
+/* ---- Memory and CPU Use dialog ---- */
+.pmd-bulk-dialog.pmd-perf-dialog { width: calc(100vw - 32px); max-width: 720px; }
+.pmd-perf-note { margin: 0; font-size: 0.8rem; color: var(--pmd-c-text-muted); }
+.pmd-perf-scroll { overflow-x: auto; max-height: 60vh; overflow-y: auto; }
+.pmd-perf-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.pmd-perf-table th, .pmd-perf-table td {
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--pmd-c-border-soft);
+  white-space: nowrap;
+}
+.pmd-perf-table thead th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-perf-table .pmd-perf-num { text-align: right; font-variant-numeric: tabular-nums; }
+.pmd-perf-table .pmd-perf-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.pmd-perf-table .pmd-perf-own td { font-weight: 600; }
+.pmd-perf-table .pmd-perf-section th {
+  padding-top: 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pmd-c-text-muted);
+}
+.pmd-perf-table tfoot th, .pmd-perf-table tfoot td { font-weight: 600; border-bottom: none; }
+.pmd-perf-actions { display: flex; justify-content: flex-end; }

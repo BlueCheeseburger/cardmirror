@@ -8,6 +8,12 @@ this fork has added and how to use them, see [FORK_FEATURES.md](./FORK_FEATURES.
 For a shorter summary of upstream releases, each upstream section
 below links to `DETAILED_CHANGELOG.md`'s own detailed entry.
 
+## Unreleased
+
+### Added
+
+- **Memory and CPU Use: see what each window is using.** Run **Memory and CPU Use** from the command palette to get a list of your CardMirror windows with how many documents each holds (stacked ones included), whether it's the window you're in, in front, behind or minimized, and its memory and CPU. The app's other parts (the main process, graphics, file search) are listed below it, with a total. It updates every two seconds, and **Copy** puts the numbers on the clipboard as text so you can paste them into a report. Desktop app only.
+
 ## 1.17.2-bcb.8 — 2026-11-25
 
 ### Added

@@ -252,6 +252,8 @@ interface ElectronAPI {
   getPathForFile(file: File): string;
   minimizeWindow?(): Promise<void>;
   listWindows?(): Promise<WindowListEntry[]>;
+  /** Memory and CPU use per window (perf-stats-ui.ts). Desktop only. */
+  perfStats?(): Promise<unknown>;
   focusWindow?(windowId: number): Promise<boolean>;
   syncLibraryRoots?(roots: string[]): Promise<void>;
   syncWriteFolders?(folders: string[]): Promise<void>;
@@ -883,6 +885,10 @@ export class ElectronHost implements Host {
    *  older preload. */
   async listWindows(): Promise<WindowListEntry[]> {
     return (await api().listWindows?.()) ?? [];
+  }
+  /** Memory and CPU use per window; null on an older preload. */
+  async perfStats(): Promise<unknown> {
+    return (await api().perfStats?.()) ?? null;
   }
 
   /** Bring a window to the front; false when it's gone (or on an older

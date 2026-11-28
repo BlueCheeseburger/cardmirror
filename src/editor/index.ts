@@ -37,6 +37,7 @@ import {
   startClockWithAutoScroll,
 } from './auto-scroll-timer-link.js';
 import { mountAutoScrollSpeedPopup } from './auto-scroll-speed-popup.js';
+import { openPerfStats } from './perf-stats-ui.js';
 import { initTimerAudio } from './timer-audio.js';
 import {
   getTimerState as getTimerStateNow,
@@ -1968,6 +1969,7 @@ const ribbonContext: RibbonContext = {
   },
   toggleReaderView: () => toggleReaderViewCommand(),
   saveWorkspace: () => saveCurrentLayout(),
+  showPerformanceStats: () => openPerfStats(),
   arrangeWindows: () => {
     const side = settings.get('arrangeSpeechSide');
     const speechPct = settings.get('arrangeSpeechPct');
@@ -5176,6 +5178,7 @@ const VIEWLESS_RIBBON_COMMANDS = new Set<AnyCommandId>([
   'collabInviteStarred',
   'collabEndSession',
   'openDevConsole',
+  'showPerformanceStats',
 ]);
 
 function runViewlessRibbon(id: AnyCommandId): void {
@@ -5207,6 +5210,7 @@ function runViewlessRibbon(id: AnyCommandId): void {
     case 'collabCopyInviteLink': ribbonContext.collabCopyInviteLink(); return;
     case 'collabInviteStarred': ribbonContext.collabInviteStarred(); return;
     case 'openDevConsole': ribbonContext.openDevConsole(); return;
+    case 'showPerformanceStats': ribbonContext.showPerformanceStats(); return;
     case 'collabEndSession': ribbonContext.collabEndSession(); return;
     // Multi-pane workspace navigation. Each dispatches into the
     // shell via dynamic import — keeps single-doc bundles free

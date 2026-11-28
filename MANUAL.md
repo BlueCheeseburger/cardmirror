@@ -1992,6 +1992,17 @@ at its left, so you can see which document it is. A long name wraps onto the nex
 In the three-pane workspace, Ctrl+Tab keeps its existing job there: it cycles
 the focused slot's documents (hold Ctrl, tap Tab, release to switch).
 
+### Memory and CPU use **(Fork)**
+
+**Memory and CPU Use** (from the command palette, or bind it a key in the
+shortcut settings) shows what each CardMirror window is using: its documents
+(stacked ones included), whether it is the window you're in, in front, behind,
+minimized or hidden, and its memory and CPU. Each window runs as its own process,
+so these are that process's numbers. Below the windows are the other parts of the
+app: the main process, graphics, file search and so on. It updates every two
+seconds while open. **Copy** puts the numbers on the clipboard as plain text, so
+you can paste them into a bug report. CPU is a share of one core. Desktop only.
+
 ### Send-to-speech and the dropzone
 
 Assemble a speech document by sending cards into it:

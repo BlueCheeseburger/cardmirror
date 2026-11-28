@@ -95,6 +95,7 @@ export function isRibbonCommandAvailable(id: RibbonCommandId): boolean {
   }
   // Placing windows (or slots by screen share) is a desktop thing.
   if (id === 'arrangeWindows') return getElectronHost() !== null;
+  if (id === 'showPerformanceStats') return getElectronHost() !== null;
   if (id === 'openJournalsFolder') return getElectronHost() !== null;
   // There's no file on disk to reload from in the browser edition.
   if (id === 'reloadFromDisk') return getElectronHost() !== null;

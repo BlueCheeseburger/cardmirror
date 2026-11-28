@@ -45,6 +45,7 @@ import {
   windowPillKinds,
 } from './multipane-chooser.js';
 import { showChooserWindow } from './multipane-chooser-ui.js';
+import { buildPerfReport } from './perf-stats.js';
 import { compareWindowToNotify } from './compare-owner.js';
 import { mustKeepWindowName, normalizeWindowName } from './window-name.js';
 import {
@@ -2989,6 +2990,35 @@ ipcMain.handle('host:focus-window', async (_event, windowId: unknown) => {
   win.show();
   win.focus();
   return true;
+});
+
+// Memory and CPU use (perf-stats.ts): every window's renderer process and
+// the app's other processes, for the "Memory and CPU Use" dialog.
+ipcMain.handle('host:perf-stats', async (event) => {
+  const senderId = BrowserWindow.fromWebContents(event.sender)?.id ?? -1;
+  const focused = BrowserWindow.getFocusedWindow()?.id ?? -1;
+  const windows = BrowserWindow.getAllWindows()
+    .filter((w) => !w.isDestroyed())
+    .map((w) => ({
+      id: w.id,
+      label: windowNames.get(w.id) ?? labelForChooser(w),
+      pid: w.webContents.getOSProcessId(),
+      docs: windowDocs.get(w.id)?.size ?? 0,
+      focused: w.id === focused,
+      minimized: w.isMinimized(),
+      visible: w.isVisible(),
+      isOwn: w.id === senderId,
+      timer: isTimerWindow(w),
+    }));
+  const processes = app.getAppMetrics().map((m) => ({
+    pid: m.pid,
+    type: m.type,
+    serviceName: m.serviceName,
+    name: m.name,
+    cpu: m.cpu.percentCPUUsage,
+    memKB: m.memory.workingSetSize,
+  }));
+  return buildPerfReport(processes, windows, Date.now());
 });
 
 // ─── Dropzone shelf (cross-window scratch space) ───────────────────
