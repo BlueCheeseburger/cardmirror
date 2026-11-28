@@ -900,6 +900,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       }>
     >,
 
+  /** Memory and CPU use per window and for the app's other processes
+   *  (the Memory and CPU Use dialog). Shape: perf-stats.ts `PerfReport`. */
+  perfStats: () => ipcRenderer.invoke('host:perf-stats') as Promise<unknown>,
+
   /** Raise a window by id (the Switch Window palette). */
   focusWindow: (windowId: number): Promise<boolean> =>
     ipcRenderer.invoke('host:focus-window', windowId),

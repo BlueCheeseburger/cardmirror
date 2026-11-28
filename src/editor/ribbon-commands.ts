@@ -5064,6 +5064,7 @@ export type RibbonCommandId =
   | 'saveWorkspace'
   | 'reopenWorkspace'
   | 'arrangeWindows'
+  | 'showPerformanceStats'
   | 'toggleCommentsVisible'
   | 'addCommentToSelection'
   | 'addNoteToSelection'
@@ -5365,6 +5366,7 @@ export const RIBBON_COMMAND_IDS: RibbonCommandId[] = [
   'saveWorkspace',
   'reopenWorkspace',
   'arrangeWindows',
+  'showPerformanceStats',
   'toggleCommentsVisible',
   'addCommentToSelection',
   'addNoteToSelection',
@@ -5609,6 +5611,7 @@ export const RIBBON_COMMAND_LABELS: Record<RibbonCommandId, string> = {
   saveWorkspace: 'Save Current Layout',
   reopenWorkspace: 'Reopen Last Workspace',
   arrangeWindows: 'Arrange Windows',
+  showPerformanceStats: 'Memory and CPU Use',
   toggleCommentsVisible: 'Show / Hide Comments',
   addCommentToSelection: 'Add Comment to Selection',
   addNoteToSelection: 'Add Note to Selection',
@@ -5857,6 +5860,7 @@ export const RIBBON_COMMAND_ALIASES: Partial<Record<RibbonCommandId, readonly st
   openContainingFolder: ['reveal in finder', 'show in folder', 'show in explorer', 'reveal file', 'file location', 'containing folder'],
   saveWorkspace: ['save workspace', 'save layout', 'save session', 'save open documents', 'remember open documents', 'save tabs', 'save windows'],
   reopenWorkspace: ['restore session', 'reopen session', 'open previous session', 'reopen last session', 'restore workspace', 'reopen documents', 'reopen tabs'],
+  showPerformanceStats: ['performance', 'memory', 'cpu', 'task manager', 'activity monitor', 'resource use', 'ram', 'slow', 'lag', 'how much memory'],
   arrangeWindows: ['window arranger', 'arrange for speech', 'tile windows', 'speech doc side by side', 'split screen', 'organize windows'],
   toggleAutosave: ['enable autosave', 'disable autosave', 'turn on autosave', 'turn off autosave'],
   markActiveAsSpeech: ['toggle speech doc', 'set speech document'],
@@ -6090,6 +6094,7 @@ export const DEFAULT_RIBBON_KEYS: Record<RibbonCommandId, string | string[]> = {
   saveWorkspace: '',
   reopenWorkspace: '',
   arrangeWindows: '',
+  showPerformanceStats: '',
   toggleCommentsVisible: '',
   addCommentToSelection: '',
   addNoteToSelection: 'Mod-Shift-n',
@@ -6396,6 +6401,9 @@ export interface RibbonContext {
   /** Arrange Windows: speech doc on one side, everything else on the
    *  other (three-pane: into slots). Desktop only. */
   arrangeWindows: () => void;
+  /** Memory and CPU Use: what each window and the app's other parts use
+   *  (perf-stats-ui.ts). Desktop only. */
+  showPerformanceStats: () => void;
   openShortcutsReference: () => void;
   toggleCommentsVisible: () => void;
   addCommentToSelection: () => void;
@@ -6638,6 +6646,7 @@ const DEFAULT_RIBBON_CONTEXT: RibbonContext = {
   saveWorkspace: () => {},
   reopenWorkspace: () => {},
   arrangeWindows: () => {},
+  showPerformanceStats: () => {},
   openShortcutsReference: () => {},
   toggleCommentsVisible: () => {},
   addCommentToSelection: () => {},
@@ -6981,6 +6990,12 @@ function commandFor(id: RibbonCommandId, ctx: RibbonContext): Command {
       return (_state, dispatch) => {
         if (!dispatch) return true;
         ctx.arrangeWindows();
+        return true;
+      };
+    case 'showPerformanceStats':
+      return (_state, dispatch) => {
+        if (!dispatch) return true;
+        ctx.showPerformanceStats();
         return true;
       };
     case 'toggleCommentsVisible':

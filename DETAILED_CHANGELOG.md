@@ -12,6 +12,12 @@ Upstream release details are in the sections below under
 
 ## Unreleased
 
+### Memory and CPU Use (measuring the multi-window cost)
+
+Step 1 of the multi-window efficiency plan: measure before changing anything. The plan's later steps were letting background windows throttle (every window has `backgroundThrottling: false`), not redrawing hidden stacked documents on a settings change, and putting long-hidden stacked documents to sleep (each keeps a live EditorView). Which of them matters depends on numbers we didn't have.
+
+Main (`host:perf-stats`, `apps/desktop/src/perf-stats.ts`) joins `app.getAppMetrics()` with `BrowserWindow.getAllWindows()` by `webContents.getOSProcessId()`; a window's documents come from `windowDocs` (every registered doc, stacked ones included). Processes with no window are grouped under user-facing names (Main process, Graphics, File search, Network, Audio, Other services, Other pages). Memory is the working set; CPU is Chromium's `percentCPUUsage` (a share of one core). The dialog (`src/editor/perf-stats-ui.ts`) polls every 2 s while open and has a plain-text **Copy**. Rejected: per-window JS heap (only the asking window can read its own, and `performance.memory` is non-standard), and asking each renderer for its live editor count (an IPC round trip to every window for a number `windowDocs` already gives). Not verified: the dialog in the real desktop app (it only exists there); the report builder and the table are unit-tested.
+
 ### CI and releases: re-run macOS jobs that never got a runner
 
 The macOS leg of CI, and the macOS build in `release.yml`, kept going red without running anything: the job sat queued for 15 minutes, then GitHub cancelled it with "The job was not acquired by Runner of type hosted even after multiple attempts", next to its notice "Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times". Since 2026-11-02 that happened on 12 CI runs (main pushes for 1.17.2-bcb.4 and bcb.6, and PR runs including the Windows CI fix) and on the first attempt of the 1.17.2-bcb.2 and bcb.4 release runs, which stopped before "Publish release live" until they were re-run by hand. Pinning `ci.yml` to `macos-15` (2026-11-05) did not help: the cancellations went on under both `macos-15` and `macos-latest`, and at the same hour the release's `macos-latest` leg sometimes got a runner in seconds while CI's `macos-15` leg got none, so it is GitHub's arm64 capacity, not a bad label, and no `runs-on`, `timeout-minutes` or `concurrency` setting in this repo causes it.
